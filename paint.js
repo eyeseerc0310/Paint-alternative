@@ -2944,7 +2944,7 @@
         return;
       }
       if (pan) { var s = screen(e); view.x = pan.vx + s.x - pan.x; view.y = pan.vy + s.y - pan.y; applyView(); return; }
-      if (down && e.pointerId === down.id) { move(e); if (down && down.pen) showRing(pos(e)); return; }
+      if (down && e.pointerId === down.id) { move(e); ctxThru(e); if (down && down.pen) showRing(pos(e)); return; }
       if (lassoOn && !down) { lassoHover = pos(e); drawLasso(lassoHover); stage.classList.toggle('closing', nearStart(lassoHover, e.pointerType !== 'mouse')); return; }
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
@@ -3000,6 +3000,7 @@
     window.addEventListener('blur', function () { letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
     function up(e) {
       delete pointers[e.pointerId]; delete ptype[e.pointerId];
+      ctxThru(null);
       if (e.pointerType === 'pen') hideRing();
       // (all the fingers of a quick, still tap are up: undo, or redo)
       if (fingerTap && !Object.keys(pointers).length) {
@@ -3646,7 +3647,7 @@
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null;
     ctxEl.appendChild(selbar);
-    draggable(ctxEl, '.ctx-grip', 'ctx');
+    draggable(ctxEl, '.ctx-grip', 'ctx2');
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
@@ -3673,14 +3674,14 @@
       },
       text: function () {
         return '<button type="button" class="ctx-btn" data-ctx="fonts" aria-haspopup="menu" aria-expanded="false" data-tip="Font"><span data-ctxfont></span>' + CHEV + '</button>' +
-          '<input type="number" class="p-field ctx-num" min="4" max="2000" data-ctx="tsize" aria-label="Text size" data-tip="Size">' + sep +
+          '<label class="ctx-field" data-tip="Text size"><span>Size</span><input type="number" class="p-field ctx-num" min="4" max="2000" data-ctx="tsize" aria-label="Text size"></label>' + sep +
           '<div class="pa-tabs ctx-seg" role="group" aria-label="Style">' +
             '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button></div>' + sep +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Alignment">' + ['left', 'center', 'right'].map(function (a) { return '<button type="button" role="tab" data-ctx-al="' + a + '" aria-label="Align ' + a + '" data-tip="Align ' + a + '">' + CI(a === 'left' ? '<path d="M4 6.5h16M4 10.5h10M4 14.5h16M4 18.5h10"/>' : a === 'center' ? '<path d="M4 6.5h16M7 10.5h10M4 14.5h16M7 18.5h10"/>' : '<path d="M4 6.5h16M10 10.5h10M4 14.5h16M10 18.5h10"/>') + '</button>'; }).join('') + '</div>' + sep +
           '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>';
       },
       fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
-      gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn ctx-icon" data-ctx="swap" aria-label="Swap the colours" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '</button>'; },
+      gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>'; },
       picker: function () { return hint('Tap the picture to pick up a colour · or <b>Alt</b>-click with any tool'); },
       select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
@@ -3698,11 +3699,24 @@
       ctxList.hidden = false;
       Array.prototype.forEach.call(ctxList.querySelectorAll('[data-val]'), function (b) { b.setAttribute('aria-checked', b.dataset.val === (kind === 'fonts' ? st.font : st.brush) ? 'true' : 'false'); });
       if (kind === 'brushes') brushSamples(ctxList);
-      var r = btn.getBoundingClientRect(), sr = stage.getBoundingClientRect();
-      ctxList.style.left = Math.round(Math.max(6, Math.min(stage.clientWidth - ctxList.offsetWidth - 6, r.left - sr.left))) + 'px';
-      ctxList.style.top = Math.round(r.bottom - sr.top + 6) + 'px';
-      if (kind === 'fonts') { ctxList.style.maxHeight = Math.max(160, stage.clientHeight - (r.bottom - sr.top) - 20) + 'px'; var on = ctxList.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
+      // (beside the bar when it stands up, under the button when it's a strip)
+      var r = btn.getBoundingClientRect(), sr = stage.getBoundingClientRect(), cr = ctxEl.getBoundingClientRect();
+      var side = getComputedStyle(ctxEl).flexDirection === 'column';
+      var top = side ? r.top - sr.top - 5 : r.bottom - sr.top + 6;
+      if (kind === 'fonts') ctxList.style.maxHeight = Math.max(160, stage.clientHeight - (side ? 12 : top) - 20) + 'px';
+      if (side) top = Math.max(6, Math.min(stage.clientHeight - ctxList.offsetHeight - 6, top));
+      ctxList.style.left = Math.round(Math.max(6, Math.min(stage.clientWidth - ctxList.offsetWidth - 6, side ? cr.right - sr.left + 6 : r.left - sr.left))) + 'px';
+      ctxList.style.top = Math.round(top) + 'px';
+      if (kind === 'fonts') { var on = ctxList.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
       btn.setAttribute('aria-expanded', 'true');
+    }
+    // (a stroke that passes under the bar: the bar fades and lets it through)
+    var thruBox = null;
+    function ctxThru(e) {
+      if (!e) { thruBox = null; ctxEl.classList.remove('thru'); return; }
+      if (!thruBox) thruBox = ctxEl.hidden ? { left: 0, right: -1, top: 0, bottom: -1 } : ctxEl.getBoundingClientRect();
+      var b = thruBox, m = 14;
+      ctxEl.classList.toggle('thru', e.clientX > b.left - m && e.clientX < b.right + m && e.clientY > b.top - m && e.clientY < b.bottom + m);
     }
     function ctxClose() { ctxList.hidden = true; Array.prototype.forEach.call(ctxEl.querySelectorAll('[aria-expanded="true"]'), function (b) { b.setAttribute('aria-expanded', 'false'); }); }
     function ctxRender() {

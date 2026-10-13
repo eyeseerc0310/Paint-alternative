@@ -32,13 +32,15 @@ When building or changing anything visual:
   tools and list items use a neutral rounded outline, not the accent.
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
-- **Where controls live:** the top bar has the document actions (undo/redo,
-  new/open/save/share, image, history, layers, focus, help, theme; on phones
+- **Where controls live:** the top bar has the document actions
+  (new/open/save/share, image, history, layers, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. The left bar holds
-  the tools in groups. The right bar holds colour, then size and opacity
-  for the tool in hand, in sections that fold. A tool's own settings go in
-  the **context bar** (`.paint-ctx`, built per tool by `CTX` in `paint.js`)
-  at the top of the picture, and so do a selection's actions. Put new tool
+  the tools in groups. The right bar holds undo/redo, then colour, then size
+  and opacity for the tool in hand, in sections that fold. A tool's own
+  settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
+  in `paint.js`), and so do a selection's actions. It stands up at the
+  picture's left edge, one setting per row (on/off settings as switches),
+  and is a wrapping strip along the top on phones. Put new tool
   settings there, not in a new pop-over. Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
