@@ -22,11 +22,19 @@ uploaded.
   and alignment) or what can be done with a selection. The tool panel folds
   down to one button, panels can be dragged aside, sections folded, and **Focus mode** (`\`) hides everything but the
   picture
+- **Text layers:** text goes on a layer of its own and stays editable: tap
+  the words with the text tool to change them, or drag before typing to make
+  a box the words wrap inside. Move them, size them and turn them with Move,
+  and they're still words; merging one down (or Turn into Image) makes it
+  paint. Painting while a text layer is picked goes on a new layer above it
+- **Move:** picks up everything on the layer, ready to move, size or turn
+- **Pen:** click to place points, drag to make curves, click the first point
+  to close; drawn as an outline, filled, or both
 - **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
   **Aa** button while typing for size, bold, italic, underline, capitals,
   alignment, letter spacing, line height, outline and shadow
-- **Tools:** eraser, smudge, blur, line, shapes, fill, gradient, text, select
-  & move, cutout, magic wand, colour picker, hand, and light & dark
+- **Tools:** eraser, smudge, blur, line, shapes, pen, fill, gradient, text, select,
+  move, cutout, magic wand, colour picker, hand, and light & dark
 - **Symmetry:** vertical, horizontal, quadrant and radial (2 to 16 segments,
   optionally mirrored), set in the tool panel; drag the guide's centre to move it and its handle to
   turn it

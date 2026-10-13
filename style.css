@@ -298,6 +298,8 @@ body > * { flex-shrink: 0; }
 .paint-stage.corner-rot:not(.panning) { cursor: grab !important; }
 .paint-stage.picking:not(.panning) { cursor: crosshair; } /* (Alt / Option: pick a colour) */
 .paint-stage[data-tool="text"] { cursor: text; }
+.paint-stage[data-tool="move"] { cursor: move; }
+.paint-stage[data-tool="pen"] { cursor: crosshair; }
 @media (hover: none) { .paint-stage[data-tool] { cursor: default; } }
 
 /* zoom: − 100% + as a segmented control */
@@ -322,6 +324,8 @@ body > * { flex-shrink: 0; }
   position: absolute; z-index: 2; min-width: 1ch; padding: 0; margin: 0; outline: 1px dashed var(--accent); outline-offset: 2px;
   white-space: pre; line-height: 1.2; cursor: text; paint-order: stroke fill; -webkit-user-select: text; user-select: text; caret-color: currentColor;
 }
+/* (words in a box: they wrap inside its width) */
+.paint-text.boxed { white-space: pre-wrap; overflow-wrap: break-word; }
 
 /* ---------- Pop-overs: menus, panels, tooltips ---------- */
 .paint-brushes, .paint-adjust, .paint-savemenu, .paint-layerpanel, .paint-lmenu, .paint-colorpanel {

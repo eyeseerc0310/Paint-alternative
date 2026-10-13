@@ -49,6 +49,11 @@ When building or changing anything visual:
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
   them doesn't paint.
+- **Text layers:** a layer with `L.text` is drawn from its words
+  (`renderText`). Anything else that changes its pixels goes through
+  `remember()`, which keeps the words for undo and turns the layer into
+  paint; brushes, lines, shapes, gradients and the pen paint on a new layer
+  above it instead (`paintAbove`). Keep both rules for new tools.
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
