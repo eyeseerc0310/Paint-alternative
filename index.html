@@ -61,7 +61,7 @@
           <button type="button" data-tool="fill" aria-label="Fill (F)" data-tip="Fill (F): tap to flood an area with colour"><svg viewBox="0 0 24 24"><path d="M4.5 11.5L11 5l7.5 7.5-6.5 6.5a1.4 1.4 0 0 1-2 0l-5.5-5.5a1.4 1.4 0 0 1 0-2z"/><path d="M4.5 12.5h13.5"/><path d="M20 15.5s1.5 2 1.5 3a1.5 1.5 0 0 1-3 0c0-1 1.5-3 1.5-3z"/></svg></button>
           <button type="button" data-tool="gradient" aria-label="Gradient (G)" data-tip="Gradient (G): drag to blend between your two colours"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 4v16" opacity=".85"/><path d="M12 4v16" opacity=".55"/><path d="M16 4v16" opacity=".3"/></svg></button>
           <button type="button" data-tool="picker" aria-label="Colour picker (I)" data-tip="Colour picker (I): tap the picture to grab a colour. Or hold Alt (Option) with any tool"><svg viewBox="0 0 24 24"><path d="M14 6.5l3.5 3.5"/><path d="M15.8 4.2a2.3 2.3 0 0 1 3.3 3.3l-1.6 1.6-3.3-3.3z"/><path d="M14.2 7.8L6 16v2h2l8.2-8.2"/></svg></button>
-          <button type="button" class="paint-mirror" data-menu="sym" aria-pressed="false" data-tip="Symmetry: whatever you draw is copied: mirrored, four ways, or round the centre. Click to choose" aria-label="Symmetry"><svg viewBox="0 0 24 24"><path d="M12 3.5v17" stroke-dasharray="2 2"/><path d="M9.5 7L4 17h5.5z"/><path d="M14.5 7L20 17h-5.5z"/></svg></button>
+          <button type="button" class="paint-mirror" data-menu="sym" aria-pressed="false" data-tip="Symmetry: whatever you draw is copied: mirrored (vertical, horizontal or quadrant) or turned round a centre (radial). Drag the guide&#39;s centre to move it, and its handle to turn it" aria-label="Symmetry"><svg viewBox="0 0 24 24"><path d="M12 3.5v17" stroke-dasharray="2 2"/><path d="M9.5 7L4 17h5.5z"/><path d="M14.5 7L20 17h-5.5z"/></svg></button>
         </div>
         <div class="paint-group" role="group" aria-label="Shapes and text">
           <button type="button" data-tool="line" aria-label="Line (L)" data-tip="Line (L): drag to draw a straight line"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg></button>
@@ -94,8 +94,8 @@
       <div class="paint-bar paint-right" role="toolbar" aria-label="Colour and actions">
         <div class="paint-group paint-colors" role="group" aria-label="Colour">
           <div class="paint-pair">
-            <label class="paint-current" title="Colour"><input type="color" value="#141414" aria-label="Colour"><span></span></label>
-            <label class="paint-second" title="Second colour (for gradients)"><input type="color" value="#ffffff" aria-label="Second colour"><span></span></label>
+            <button type="button" class="paint-current" title="Colour: tap to choose, or drag onto the picture to fill" aria-label="Colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
+            <button type="button" class="paint-second" title="Second colour (for gradients): tap to choose, or drag onto the picture to fill" aria-label="Second colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
             <button type="button" class="paint-swap" aria-label="Swap colours (X)" title="Swap colours (X)"><svg viewBox="0 0 24 24"><path d="M6.5 6.5A11 11 0 0 1 17.5 17.5"/><path d="M9.5 3.8L6.5 6.5l3 2.9"/><path d="M14.6 14.5l2.9 3 2.7-3"/></svg></button>
           </div>
           <div class="paint-swatches"></div>
