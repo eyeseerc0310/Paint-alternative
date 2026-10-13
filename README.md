@@ -9,12 +9,18 @@ uploaded.
 ## What it does
 
 - **Brushes:** round, feather, marker, pencil, spray, calligraphy,
-  highlighter, watercolour, chalk and oil paint (Apple Pencil pressure works)
+  highlighter, watercolour, chalk and oil paint, drawn from smoothed strokes
+  with tapered ends (Apple Pencil pressure works)
+- **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
+  **Aa** button while typing for size, bold, italic, underline, capitals,
+  alignment, letter spacing, line height, outline and shadow
 - **Tools:** eraser, smudge, blur, line, shapes, fill, gradient, text, select
   & move, cutout, magic wand, colour picker, hand, and light & dark
 - **Symmetry:** left & right, top & bottom, four ways, radial and kaleidoscope
 - **Adjust:** sliders, Levels and Curves, for a layer or a selection
-- **Layers:** up to 10, each with its own opacity and blend mode
+- **Layers:** up to 10, each with a live preview, its own opacity and blend mode
+- **Drag any colour** (a swatch, a recent one or either main colour) onto the
+  picture to fill an area
 - **Picture size:** New Picture with presets (square, 16:9, A4, Instagram…)
   or any size up to 4096 pixels a side
 - **Crop, rotate and flip** the whole picture
