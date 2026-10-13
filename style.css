@@ -134,12 +134,12 @@ body > * { flex-shrink: 0; }
 }
 .paint button:hover, .paint-open:hover { background: var(--hover); }
 .paint button:active, .paint-open:active { transform: scale(.94); }
-.paint button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+.paint button[aria-pressed="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 42%, transparent); }
 .paint button:disabled { opacity: .3; cursor: default; background: none; transform: none; }
 .paint svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .paint-open { position: relative; }
 .paint-open input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.paint .paint-adjust-btn[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.paint .paint-adjust-btn[aria-expanded="true"] { color: var(--text); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 42%, transparent); }
 .paint .paint-mirror[aria-pressed="true"] svg path:not(:first-child) { fill: currentColor; }
 
 /* tools with a list: a tiny corner mark */
@@ -181,12 +181,17 @@ body > * { flex-shrink: 0; }
 .paint-current span { position: absolute; inset: 3px; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 .paint-second span { position: absolute; inset: 2px; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 :root[data-theme="dark"] .paint-current span, :root[data-theme="dark"] .paint-second span { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.paint .paint-swap { position: absolute; right: -4px; top: -4px; width: 22px; height: 22px; border-radius: 50%; color: var(--muted); }
-.paint .paint-swap:hover { color: var(--text); }
-.paint .paint-swap svg { width: 13px; height: 13px; }
+.paint .paint-swap { position: absolute; right: -5px; top: -5px; width: 22px; height: 22px; border-radius: 50%; color: var(--muted); }
+.paint .paint-swap:hover { color: var(--text); background: var(--hover); }
+.paint .paint-swap:active { transform: scale(.9) rotate(-20deg); }
+.paint .paint-swap svg { width: 15px; height: 15px; stroke-width: 1.7; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+.paint .paint-swap:hover svg { transform: rotate(12deg); }
 
 .paint-swatches, .paint-recent { display: grid; grid-template-columns: repeat(4, 16px); gap: 6px; }
 .paint-recent { min-height: 16px; }
+.paint-recent:not(:empty) { padding-top: 8px; border-top: .5px solid var(--line); }
+.paint-recent:not(:empty)::before { content: "Recent"; grid-column: 1 / -1; margin-bottom: -2px; font-size: .625rem; line-height: 1; color: var(--muted); }
+.paint .paint-right .paint-recent button { border-radius: 5px; }
 .paint .paint-swatches button, .paint .paint-recent button {
   width: 16px; height: 16px; border-radius: 50%;
   box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .18); touch-action: none;
@@ -277,10 +282,11 @@ body > * { flex-shrink: 0; }
 }
 .paint-brushes[hidden] { display: none; }
 .paint .paint-brushes button { height: 34px; justify-content: flex-start; gap: .7rem; padding: 0 .6rem; }
-.paint .paint-brushes button[aria-checked="true"] { color: var(--accent); font-weight: 500; }
-.paint .paint-brushes button[aria-checked="true"]:hover { color: #fff; }
-/* a little sample of each brush's mark */
+.paint .paint-brushes button[aria-checked="true"] { font-weight: 500; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--menu-link) 38%, transparent); }
+.paint .paint-brushes button[aria-checked="true"]:hover { box-shadow: none; }
+/* a little sample of each brush's mark (at the current opacity) */
 .paint-brushes i { flex: none; width: 34px; height: 10px; display: block; color: currentColor; }
+.paint-brushes i[class^="pb-"] { filter: opacity(var(--sample-alpha, 1)); }
 .pb-round { border-radius: 5px; background: currentColor; height: 6px !important; }
 .pb-marker { background: currentColor; height: 7px !important; }
 .pb-pencil { height: 2px !important; background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 3px); opacity: .85; }

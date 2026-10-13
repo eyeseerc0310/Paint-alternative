@@ -645,12 +645,29 @@
     }
 
     var sprayTimer = 0;
+    // how a stroke is laid onto the layer: its opacity, and (for the
+    // highlighter and watercolour) multiply
+    function strokeLook() {
+      var b = st.tool === 'brush' ? st.brush : '';
+      if (b === 'highlighter') return { mode: 'multiply', alpha: Math.min(st.alpha, 0.45) };
+      if (b === 'watercolor') return { mode: 'multiply', alpha: st.alpha * 0.85 };
+      return { mode: null, alpha: st.alpha * (b === 'marker' ? 0.88 : b === 'pencil' ? 0.92 : 1) };
+    }
+    // while it's being drawn, the see-through sheet shows the stroke just
+    // as it will be laid down (at its opacity, and the layer's), so it
+    // doesn't jump when the pointer lifts
+    function liveLook() {
+      var lk = strokeLook();
+      ov.style.opacity = lk.alpha * (active ? active.opacity : 1);
+      ov.style.mixBlendMode = lk.mode || '';
+    }
+    function plainOv() { ov.style.opacity = ''; ov.style.mixBlendMode = ''; }
     function commit(mode, alpha) {
       var c = active.ctx;
       c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
       c.globalAlpha = alpha; if (mode) c.globalCompositeOperation = mode;
       c.drawImage(ov, 0, 0); c.restore();
-      octx.clearRect(0, 0, W, H);
+      octx.clearRect(0, 0, W, H); plainOv();
     }
 
     // ---- smudge and blur: worked straight into the layer, a dab at a time ----
@@ -1700,10 +1717,21 @@
     function preview() {
       var d = Math.max(2, brushR() * 2 * view.k), dot = prev.firstChild;
       prev.style.width = prev.style.height = d + 'px';
-      dot.style.background = st.tool === 'eraser' ? '#fff' : st.color; dot.style.opacity = st.alpha;
+      dot.style.background = st.tool === 'eraser' ? '#fff' : st.color;
+      dot.style.opacity = st.tool === 'eraser' ? 1 : strokeLook().alpha;
       prev.classList.add('on'); clearTimeout(prevTimer);
-      prevTimer = setTimeout(function () { prev.classList.remove('on'); }, 900);
+      if (!sliderHeld) prevTimer = setTimeout(function () { prev.classList.remove('on'); }, 900);
+      brushSamples();
     }
+    var sliderHeld = false;
+    [sizeIn, alphaIn].forEach(function (i) {
+      i.addEventListener('pointerdown', function () { sliderHeld = true; if (!textBox) preview(); });
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
+        i.addEventListener(t, function () { if (!sliderHeld) return; sliderHeld = false; clearTimeout(prevTimer); prevTimer = setTimeout(function () { prev.classList.remove('on'); }, 700); });
+      });
+    });
+    // the little samples in the brush list show the opacity too
+    function brushSamples() { if (menus.brush) menus.brush.el.style.setProperty('--sample-alpha', st.alpha); }
 
     // ---- pointers: drawing, moving the picture around, pinching to zoom ----
     var pointers = {}, ptype = {}, gesture = null, pan = null, spaceDown = false, spaceGrab = null, lastMouse = null;
@@ -1713,7 +1741,7 @@
       if (selMode === 'scale') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) apply(e); buttons(); }
-      down = null; octx.clearRect(0, 0, W, H);
+      down = null; octx.clearRect(0, 0, W, H); plainOv();
     }
     function begin(e) {
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
@@ -1740,6 +1768,7 @@
       if (t === 'fill') { remember(); fillAt(p); copies().forEach(function (m) { fillAt(mapPt(m, p)); }); useColor(); return; }
       remember();
       down = { id: e.pointerId, start: p, last: p, pen: e.pointerType === 'pen', snap: true };
+      liveLook();
       if (sel && sel.mask && /eraser|smudge|blur|tone/.test(t)) down.keep = keepOutside();
       pts = [p];
       octx.clearRect(0, 0, W, H);
@@ -1844,11 +1873,7 @@
       // (a feather stroke's last frame is drawn before it's laid down)
       if (t === 'brush' && st.brush === 'feather' && featherQueued) featherNow();
       maskOv();
-      if (t === 'brush' && st.brush === 'highlighter') commit('multiply', Math.min(st.alpha, 0.45));
-      else if (t === 'brush' && st.brush === 'watercolor') commit('multiply', st.alpha * 0.85);
-      else if (t === 'brush' && st.brush === 'marker') commit(null, st.alpha * 0.88);
-      else if (t === 'brush' && st.brush === 'pencil') commit(null, st.alpha * 0.92);
-      else commit(null, st.alpha);
+      var lk = strokeLook(); commit(lk.mode, lk.alpha);
       useColor();
     }
 
