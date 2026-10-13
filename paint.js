@@ -55,7 +55,7 @@
   var BRUSHES = [['round', 'Round'], ['feather', 'Feather'], ['marker', 'Marker'], ['pencil', 'Pencil'], ['spray', 'Spray'], ['calligraphy', 'Calligraphy'], ['highlighter', 'Highlighter']];
   var SHAPES = [['rect', 'Rectangle'], ['rounded', 'Rounded'], ['ellipse', 'Ellipse'], ['triangle', 'Triangle'], ['star', 'Star'], ['arrow', 'Arrow']];
   var TONES = [['dodge', 'Lighten'], ['burn', 'Darken']];
-  var FONTS = [['Jost, "Helvetica Neue", Arial, sans-serif', 'Jost'], ['Georgia, "Times New Roman", serif', 'Serif'], ['"Courier New", Courier, monospace', 'Typewriter'], ['"Marker Felt", "Chalkboard SE", "Comic Sans MS", cursive', 'Marker'], ['Impact, "Arial Black", sans-serif', 'Poster']];
+  var FONTS = [['-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif', 'System'], ['Georgia, "Times New Roman", serif', 'Serif'], ['"Courier New", Courier, monospace', 'Typewriter'], ['"Marker Felt", "Chalkboard SE", "Comic Sans MS", cursive', 'Marker'], ['Impact, "Arial Black", sans-serif', 'Poster']];
   var app = null;
 
   function init(root) {
@@ -207,7 +207,7 @@
       var m = document.createElement('div');
       m.className = 'paint-brushes'; m.setAttribute('role', 'menu'); m.hidden = true;
       m.innerHTML = items.map(function (it) {
-        return '<button type="button" role="menuitemradio" data-pick="' + key + '" data-val="' + it[0].replace(/"/g, '&quot;') + '">' + sample(it) + '<span>' + it[1].toUpperCase() + '</span></button>';
+        return '<button type="button" role="menuitemradio" data-pick="' + key + '" data-val="' + it[0].replace(/"/g, '&quot;') + '">' + sample(it) + '<span>' + it[1] + '</span></button>';
       }).join('');
       left.appendChild(m);
       menus[tool] = { el: m, key: key };
@@ -217,7 +217,7 @@
     makeMenu('text', FONTS, 'font', function (f) { return '<i class="pf" style="font-family:' + f[0].replace(/"/g, '\'') + '">Aa</i>'; });
     makeMenu('tone', TONES, 'tone', function (t) { return '<i class="pt-' + t[0] + '"></i>'; });
     // filled shapes: a switch at the foot of the shapes list
-    menus.shape.el.insertAdjacentHTML('beforeend', '<button type="button" class="paint-solid" role="menuitemcheckbox" aria-checked="false"><i class="ps-fill"></i><span>FILLED</span></button>');
+    menus.shape.el.insertAdjacentHTML('beforeend', '<button type="button" class="paint-solid" role="menuitemcheckbox" aria-checked="false"><i class="ps-fill"></i><span>Filled</span></button>');
     function openMenu(tool) {
       Object.keys(menus).forEach(function (t) {
         var m = menus[t], on = t === tool, btn = root.querySelector('button[data-tool="' + t + '"]');
@@ -809,7 +809,7 @@
           '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
       }).join('');
       if (!layers.length) rows = '<div class="pl-empty">No layers. Draw, or tap + to add one.</div>';
-      panel.innerHTML = '<div class="pl-title">LAYERS</div><div class="pl-list">' + rows + '</div>' +
+      panel.innerHTML = '<div class="pl-title">Layers</div><div class="pl-list">' + rows + '</div>' +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>' +
           '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (!active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
@@ -842,7 +842,7 @@
     // everything on that layer
     var lmenu = document.createElement('div');
     lmenu.className = 'paint-lmenu'; lmenu.hidden = true; lmenu.setAttribute('role', 'menu');
-    lmenu.innerHTML = '<button type="button" role="menuitem" data-lmenu="select">SELECT</button>';
+    lmenu.innerHTML = '<button type="button" role="menuitem" data-lmenu="select">Select</button>';
     document.body.appendChild(lmenu);
     document.addEventListener('pageswap:start', function gone() { document.removeEventListener('pageswap:start', gone); lmenu.remove(); });
     function layerMenu(i, x, y) {
@@ -942,10 +942,10 @@
       ['warmth', 'Warmth', -100], ['tint', 'Tint', -100], ['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['vignette', 'Vignette', -100], ['grain', 'Grain', 0], ['fade', 'Fade', 0]];
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Adjust');
-    adjBox.innerHTML = '<div class="pa-title">ADJUST <span>current layer</span></div><div class="pa-list">' + ADJ.map(function (a) {
-      return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1].toUpperCase() + '</span><output>0</output>' +
+    adjBox.innerHTML = '<div class="pa-title">Adjust <span>Current layer</span></div><div class="pa-list">' + ADJ.map(function (a) {
+      return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>0</output>' +
         '<input type="range" min="' + a[2] + '" max="100" step="1" value="0" data-adj="' + a[0] + '"></label>';
-    }).join('') + '</div><div class="pa-acts"><button type="button" data-adj-act="reset">RESET</button><button type="button" data-adj-act="cancel">CANCEL</button><button type="button" data-adj-act="done">DONE</button></div>';
+    }).join('') + '</div><div class="pa-acts"><button type="button" data-adj-act="reset">Reset</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
     left.appendChild(adjBox);
     function adjustOpen() {
       if (adj) { adjustDone(); return; }
