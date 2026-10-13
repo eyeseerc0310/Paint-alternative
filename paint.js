@@ -94,7 +94,8 @@
   function init(root) {
     if (root.dataset.ready) return;
     root.dataset.ready = '1';
-    var $ = function (q) { return root.querySelector(q); };
+    // (some controls live in the top bar, outside the drawing area)
+    var $ = function (q) { return root.querySelector(q) || document.querySelector('.site-header ' + q); };
     var stage = $('.paint-stage'), world = $('.paint-world'), stack = $('.paint-layers'), guide = $('.paint-guide');
     var ov = $('.paint-over'), octx = ov.getContext('2d');
     var colorDot = $('.paint-current span'), color2Dot = $('.paint-second span');
@@ -115,16 +116,20 @@
     }
     function showTip(e) {
       if (e.pointerType === 'touch') return;
-      var b = e.target.closest('button[data-tip]');
-      if (!b || e.buttons) { hideTip(); return; }
+      var b = e.target.closest && e.target.closest('[data-tip]');
+      if (!b || e.buttons || !b.closest('.paint, .site-header, .paint-focusout')) { hideTip(); return; }
       if (b !== tipOn) { tipOn = b; tip.textContent = b.dataset.tip; }
-      placeTip(e);
+      // (a top-bar button's label sits just under it; the others, by the pointer)
+      if (b.closest('.site-header')) {
+        var r = b.getBoundingClientRect(), w = tip.offsetWidth, vw = document.documentElement.clientWidth;
+        tip.style.transform = 'translate(' + Math.round(Math.max(8, Math.min(vw - w - 8, r.left + r.width / 2 - w / 2))) + 'px,' + Math.round(r.bottom + 8) + 'px)';
+      } else placeTip(e);
       tip.classList.add('on');
     }
-    left.addEventListener('pointerover', showTip);
-    left.addEventListener('pointermove', showTip);
-    left.addEventListener('pointerleave', hideTip);
-    left.addEventListener('pointerdown', hideTip);
+    document.addEventListener('pointerover', showTip);
+    document.addEventListener('pointermove', function (e) { if (tipOn || (e.target.closest && e.target.closest('[data-tip]'))) showTip(e); });
+    document.addEventListener('pointerdown', hideTip, true);
+    document.addEventListener('keydown', hideTip, true);
     document.addEventListener('pageswap:start', function gone() {
       document.removeEventListener('pageswap:start', gone);
       tip.remove();
@@ -228,13 +233,9 @@
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
     // in the picture's corner instead
-    var zoomBox = $('.paint-zoom'), saveBtn = $('[data-act="save"]');
+    // (the zoom buttons sit in the picture's bottom right corner)
     function phoneLayout() { return window.matchMedia('(max-width: 560px)').matches; }
-    function placeZoom() {
-      if (phoneLayout()) { if (zoomBox.parentNode !== stage) stage.appendChild(zoomBox); }
-      else if (zoomBox.nextElementSibling !== saveBtn) saveBtn.parentNode.insertBefore(zoomBox, saveBtn);
-    }
-    placeZoom();
+    function placeZoom() {}
     function fit() {
       placeZoom();
       var sw = stage.clientWidth, sh = stage.clientHeight;
@@ -252,6 +253,15 @@
       view.x = cx - (cx - view.x) * k / view.k; view.y = cy - (cy - view.y) * k / view.k; view.k = k;
       applyView();
     }
+    // a panel that drops down under a button in the top bar, lined up with
+    // its right edge (or wherever it was last dragged to)
+    function dropUnder(el, btn) {
+      if (!btn) return;
+      var r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+      el.style.top = Math.round(r.bottom + 8) + 'px';
+      el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, r.right - el.offsetWidth + 4))) + 'px';
+      keepOnScreen(el);
+    }
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
     // filling the space (and stepping back out stops there and at 100%)
     function zoomStep(dir) {
@@ -267,6 +277,46 @@
     function fromScreen(sx, sy) { var c = Math.cos(view.r), s = Math.sin(view.r), dx = (sx - view.x) / view.k, dy = (sy - view.y) / view.k; return { x: c * dx + s * dy, y: -s * dx + c * dy }; }
     function pos(e) { var r = stage.getBoundingClientRect(); return fromScreen(e.clientX - r.left, e.clientY - r.top); }
 
+    // ---- PANELS THAT CAN BE DRAGGED: by their title (or grip). Where each was
+    // left is remembered; a double-click on the title puts it back. ----
+    function panelOffset(el) { var t = (el.style.translate || '0px 0px').split(' '); return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 }; }
+    function keepOnScreen(el) {
+      if (el.hidden) return;
+      var r = el.getBoundingClientRect(), o = panelOffset(el), vw = document.documentElement.clientWidth, vh = window.innerHeight, dx = 0, dy = 0;
+      if (r.right > vw - 6) dx = vw - 6 - r.right; if (r.left + dx < 6) dx = 6 - r.left;
+      if (r.bottom > vh - 6) dy = vh - 6 - r.bottom; if (r.top + dy < 6) dy = 6 - r.top;
+      if (dx || dy) el.style.translate = (o.x + dx) + 'px ' + (o.y + dy) + 'px';
+    }
+    function draggable(el, handle, key) {
+      try { var saved = JSON.parse(localStorage.getItem('paint-pos-' + key)); if (saved) el.style.translate = saved[0] + 'px ' + saved[1] + 'px'; } catch (x) {}
+      el.addEventListener('pointerdown', function (e) {
+        var h = e.target.closest(handle);
+        if (!h || !el.contains(h) || e.button || e.target.closest('button, input, select, textarea, a, [data-nodrag]')) return;
+        e.preventDefault(); e.stopPropagation();
+        var o = panelOffset(el), sx = e.clientX, sy = e.clientY;
+        el.classList.add('dragging'); hideTip();
+        try { h.setPointerCapture(e.pointerId); } catch (x) {}
+        function mv(ev) { el.style.translate = (o.x + ev.clientX - sx) + 'px ' + (o.y + ev.clientY - sy) + 'px'; }
+        function up() {
+          h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+          el.classList.remove('dragging'); keepOnScreen(el);
+          var q = panelOffset(el); try { localStorage.setItem('paint-pos-' + key, JSON.stringify([q.x, q.y])); } catch (x) {}
+        }
+        h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+      });
+      el.addEventListener('dblclick', function (e) {
+        if (!e.target.closest(handle) || e.target.closest('button, input, select')) return;
+        el.style.translate = ''; try { localStorage.removeItem('paint-pos-' + key); } catch (x) {}
+      });
+    }
+    // the right-hand panel's sections fold away by their titles (and stay so)
+    Array.prototype.forEach.call(right.querySelectorAll('.pr-sec'), function (sec) {
+      var hd = sec.querySelector('.pr-head'), k = 'paint-sec-' + sec.dataset.sec;
+      var shut = function (on) { sec.classList.toggle('closed', on); hd.setAttribute('aria-expanded', on ? 'false' : 'true'); };
+      try { shut(localStorage.getItem(k) === 'closed'); } catch (x) {}
+      hd.addEventListener('click', function () { var on = !sec.classList.contains('closed'); shut(on); try { localStorage.setItem(k, on ? 'closed' : 'open'); } catch (x) {} });
+    });
+
     // ---- colours ----
     var sw = $('.paint-swatches');
     SWATCHES.forEach(function (c) {
@@ -276,7 +326,7 @@
     });
     var recentBox = $('.paint-recent');
     function setColor(c) {
-      st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); if (menus.brush && !menus.brush.el.hidden) brushSamples();
+      st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples();
       Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
     function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); }
@@ -328,6 +378,7 @@
     var pc = document.createElement('div'), pcWhich = 'main', pcMode = stored('paint-colour-values', 'hex'), hsv = [0, 0, 0], pcWas = null;
     pc.className = 'paint-colorpanel'; pc.hidden = true; pc.setAttribute('role', 'dialog'); pc.setAttribute('aria-label', 'Colour');
     pc.innerHTML =
+      '<div class="pc-grab" aria-hidden="true" data-tip="Drag to move (double-click: back in place)"></div>' +
       '<div class="pc-head">' +
         '<div class="pa-tabs pc-which" role="tablist"><button type="button" role="tab" data-pc-which="main"><i></i>Main</button><button type="button" role="tab" data-pc-which="second"><i></i>Second</button></div>' +
         '<div class="pc-compare"><button type="button" class="pc-was" title="Go back to the colour before" aria-label="Go back to the colour before"></button><span class="pc-now"></span></div>' +
@@ -348,6 +399,7 @@
       '<div class="pc-grid pc-swatches"></div>' +
       '<p class="pc-note"></p>';
     right.appendChild(pc);
+    draggable(pc, '.pc-grab', 'colour');
     var pcDisc = pc.querySelector('.pc-disc canvas'), pcHK = pc.querySelector('.pc-hk'), pcSK = pc.querySelector('.pc-sk');
     var DISC = 212, RING = 20, SQ = Math.floor((DISC / 2 - RING - 7) * Math.SQRT2), SQ0 = (DISC - SQ) / 2;
     var ringImg = null;
@@ -451,7 +503,7 @@
       if (which && (pc.hidden || which !== pcWhich)) {
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
-        pcWhich = which; pc.hidden = false; pcLoad(); placePicker();
+        pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
       pairOpen();
     }
@@ -583,29 +635,6 @@
     }
     makeMenu('brush', BRUSHES, 'brush', function (b) { return '<canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas>'; });
     makeMenu('shape', SHAPES, 'shape', function (s) { return '<i class="ps-' + s[0] + '"></i>'; });
-    // (under the brushes: how much a stroke is smoothed, and snapping to shapes)
-    menus.brush.el.insertAdjacentHTML('beforeend',
-      '<div class="pm-opts">' +
-        '<label class="pa-row pm-slide"><span>Smoothing</span><output></output><input type="range" min="0" max="100" data-smoothing aria-label="Stroke smoothing"></label>' +
-        '<button type="button" class="pm-taper" role="menuitemcheckbox" aria-checked="true" title="Thin, pointed ends on each stroke (off: the same thickness all the way)"><i class="pm-taper-i"></i><span>Tapered ends</span></button>' +
-        '<button type="button" class="pm-snap" role="menuitemcheckbox" aria-checked="true" title="Hold still at the end of a line, ellipse or rectangle to make it perfect (hold Shift for a circle or square)"><i class="pm-snap-i"></i><span>Snap to shape</span></button>' +
-      '</div>');
-    function brushOpts() {
-      var m = menus.brush.el, r = m.querySelector('[data-smoothing]');
-      r.value = smoothing; r.previousElementSibling.textContent = smoothing ? smoothing : 'Off';
-      m.querySelector('.pm-snap').setAttribute('aria-checked', snapShapes ? 'true' : 'false');
-      m.querySelector('.pm-taper').setAttribute('aria-checked', taperOn ? 'true' : 'false');
-    }
-    menus.brush.el.addEventListener('input', function (e) {
-      if (!e.target.matches('[data-smoothing]')) return;
-      smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); brushOpts();
-    });
-    menus.brush.el.addEventListener('click', function (e) {
-      if (e.target.closest('.pm-slide')) { e.stopPropagation(); return; }
-      if (e.target.closest('.pm-taper')) { e.stopPropagation(); taperOn = !taperOn; storeIt('paint-taper', taperOn); brushOpts(); brushSamples(); return; }
-      if (!e.target.closest('.pm-snap')) return;
-      e.stopPropagation(); snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); brushOpts();
-    });
     // (the text tool's list: every font, by kind, in a scrolling list)
     var fm = document.createElement('div');
     fm.className = 'paint-brushes paint-fontmenu'; fm.setAttribute('role', 'menu'); fm.hidden = true;
@@ -649,7 +678,6 @@
           m.el.style.top = Math.max(0, Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight)) + 'px';
           Array.prototype.forEach.call(m.el.querySelectorAll('button[data-val], .paint-solid'), function (b) { b.setAttribute('aria-checked', (b.dataset.val == null ? st.solid : b.dataset.val === st[m.key]) ? 'true' : 'false'); });
           if (t === 'sym') symOpts();
-          if (t === 'brush') brushOpts();
           if (t === 'text') { var on = m.el.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
         }
       });
@@ -665,6 +693,7 @@
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
+      ctxRender();
     }
 
     // ---- undo / redo: snapshots of one layer, or of the layer list ----
@@ -822,17 +851,31 @@
       });
       box.vis = v; return box;
     }
-    // a line of varying width with round ends, in runs of the same width
+    // a line of varying width with round ends, in runs of the same width.
+    // It's drawn in fixed stretches of 32 samples, each its own path, whether
+    // the whole line is being drawn or just part of it: so a stretch drawn
+    // again comes out pixel for pixel the same (a line that folds back on
+    // itself is filled a little differently depending on where its path
+    // starts, which would show as a hairline where old met new). And a path
+    // never turns back on itself: at a sharp turn (more than a right angle)
+    // a new one starts, since a path folded over can be filled with a pale
+    // notch where it overlaps itself.
     function ribbon(c, S, wf, box) {
       if (S.length === 1) { c.beginPath(); c.arc(S[0].x, S[0].y, wf(S[0], true) / 2, 0, Math.PI * 2); c.fill(); return; }
       c.lineCap = 'round'; c.lineJoin = 'round';
-      var cur = -1, open = false;
+      var cur = -1, open = false, chunk = -1, show = true, dx = 0, dy = 0;
       for (var i = 1; i < S.length; i++) {
-        var a = S[i - 1], b = S[i];
-        if (!near(a, box) && !near(b, box)) { if (open) { c.stroke(); open = false; cur = -1; } continue; }
+        var a = S[i - 1], b = S[i], ck = (i - 1) >> 5, ex = b.x - a.x, ey = b.y - a.y;
+        var back = dx * ex + dy * ey < 0; if (ex || ey) { dx = ex; dy = ey; }
+        if (ck !== chunk) {
+          if (open) { c.stroke(); open = false; }
+          chunk = ck; show = !box;
+          for (var j = ck * 32; !show && j <= Math.min(S.length - 1, ck * 32 + 32); j++) if (near(S[j], box)) show = true;
+        }
+        if (!show) continue;
         var w = (wf(a) + wf(b)) / 2;
         w = w > 6 ? Math.round(w * 2) / 2 : Math.round(w * 4) / 4;
-        if (w !== cur || !open) { if (open) c.stroke(); c.beginPath(); c.lineWidth = cur = w; c.moveTo(a.x, a.y); open = true; }
+        if (w !== cur || !open || back) { if (open) c.stroke(); c.beginPath(); c.lineWidth = cur = w; c.moveTo(a.x, a.y); open = true; }
         c.lineTo(b.x, b.y);
       }
       if (open) c.stroke();
@@ -912,7 +955,10 @@
         // pressing harder (or a bigger size) fills more of the grain in
         var wp = widthFn(cfg.w, cfg.tin, cfg.tout, total);
         rep(c, function (x) { ribbon(x, S, wp, box); });
+        // (the grain only where it's being redrawn: rubbing it over the whole sheet would cost a lot)
+        if (rects) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); clipTo2(c, rects); }
         rubOut(c, 'pencil', Math.max(0.3, 0.62 - cfg.size * 0.006), px);
+        if (rects) c.restore();
       } else if (cfg.len) {
         rep(c, function (x) { chisel(x, S, cfg, box); });
       } else if (k === 'feather') {
@@ -983,28 +1029,36 @@
     // Apple Pencil reports 240 a second) costs one redraw, not several
     var rsQueued = false;
     function renderSoon() { if (rsQueued) return; rsQueued = true; requestAnimationFrame(function () { if (rsQueued) renderStroke(); }); }
+    var drawSpare = null;
     function renderStroke() {
       rsQueued = false;
       if (!down || !pts.length) return;
       var cfg = down.cfg || (down.cfg = brushCfg(kind(), st.size, st.tool === 'eraser' ? '#fff' : st.color));
       down.sym = copies();
       var prev = down.S, prevTail = prev ? prev.slice(prev.seg && down.n >= 4 ? prev.seg[Math.max(0, down.n - 3)] : 0) : null;
-      // (with smoothing, the steadied line is joined on to where the pointer
-      // really is, so it never trails behind it, and nothing jumps when it's
-      // let go; the join is drawn afresh each time, as the line catches up)
-      var P = pts, rl = down.rawLast, lp = pts[pts.length - 1];
-      if (rl && !down.shape && Math.hypot(rl.x - lp.x, rl.y - lp.y) > 0.5 / view.k) P = pts.concat([rl]);
+      var P = pts;
       var S = resample(P, cfg.step, prev, down.n), total = S[S.length - 1].d;
       var d0 = prev ? changedFrom(prev, S, P, down.total, total, cfg, down.n) : 0;
       if (down.total < (cfg.w || 0) * 2.5) d0 = 0; // (while it's that short, all of it changes as it grows)
       var box = boxOf(S, d0, cfg.reach, prevTail ? boxOf(prevTail, d0, cfg.reach, [Infinity, Infinity, -Infinity, -Infinity]) : [Infinity, Infinity, -Infinity, -Infinity]);
       var rects = box[2] > box[0] ? deviceRects(box, down.sym) : [];
       if (rects.length) { if (down.sym.length) markNearSym(S, box, rects, cfg.reach, down.sym); else markNear(S, box, cfg.reach); }
-      down.S = S; down.total = total; down.n = pts.length;
+      // (smoothed points near the tip still move as the line goes on: only
+      // those that are settled count as unchanged next time)
+      down.S = S; down.total = total; down.n = down.raw && !down.shape ? Math.min(pts.length, down.settled) : pts.length;
       if (!rects.length) return;
+      // (the part to redraw is drawn on a spare sheet with nothing cut away,
+      // then just the redraw area is copied over: a line drawn cut to an area
+      // isn't always filled quite the same as one drawn whole, and that showed
+      // as faint seams where one frame's redraw met the last)
+      var sc = drawSpare && drawSpare.width === ov.width && drawSpare.height === ov.height ? drawSpare : (drawSpare = document.createElement('canvas'));
+      if (sc.width !== ov.width || sc.height !== ov.height) { sc.width = ov.width; sc.height = ov.height; }
+      var sx = sc.getContext('2d'); sx.setTransform(1, 0, 0, 1, 0, 0); sx.clearRect(0, 0, sc.width, sc.height); base(sx);
+      strokeOn(sx, S, cfg, down, R, box, rects);
       octx.save();
-      octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects); rects.forEach(function (r) { octx.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); base(octx);
-      strokeOn(octx, S, cfg, down, R, box, rects);
+      octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects);
+      rects.forEach(function (r) { var w = r[2] - r[0], h = r[3] - r[1]; octx.clearRect(r[0], r[1], w, h); octx.drawImage(sc, r[0], r[1], w, h, r[0], r[1], w, h); });
+      base(octx);
       maskOv(); // (inside the redraw area only, so edges aren't masked twice)
       if (st.tool === 'eraser') eraseFromSheet(rects);
       octx.restore();
@@ -1499,6 +1553,7 @@
       if (vw <= 600) { tpEl.style.left = Math.round((vw - w) / 2) + 'px'; tpEl.style.top = Math.round(vh - h - 8) + 'px'; return; }
       var x = r.right + 10; if (x + w > vw - 8) x = r.left - w - 10; if (x < 8) x = Math.max(8, (vw - w) / 2);
       tpEl.style.left = Math.round(x) + 'px'; tpEl.style.top = Math.round(Math.max(8, Math.min(vh - h - 8, r.top - 20))) + 'px';
+      keepOnScreen(tpEl);
     }
     var ICON = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
     function buildTextPanel() {
@@ -1523,6 +1578,7 @@
         range('spacing', 'Letter spacing', -150, 600, 5) + range('lh', 'Line height', 0.7, 3, 0.05) + range('outline', 'Outline', 0, 15, 0.5) +
         '<div class="tp-note">The outline uses your second colour.</div>';
       document.body.appendChild(tpEl);
+      draggable(tpEl, '.tp-head', 'text');
       // (buttons keep the typing where it is; sliders and the number take
       // the focus only while they're used)
       tpEl.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) e.preventDefault(); });
@@ -1543,7 +1599,7 @@
       });
       tpEl.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); textPanel(false); if (textBox) textBox.focus({ preventScroll: true }); } else if (e.key === 'Enter' && e.target.dataset.tp === 'sizen') { e.preventDefault(); textBox && textBox.focus({ preventScroll: true }); } });
     }
-    function afterTextChange(typing) { styleTextBox(); syncTextPanel(typing); }
+    function afterTextChange(typing) { styleTextBox(); syncTextPanel(typing); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
     function syncTextPanel(typingSize) {
       if (!tpEl) return;
       tpEl.querySelector('.tp-font span').textContent = fontName(st.font);
@@ -1861,6 +1917,7 @@
       if (!sel) return;
       if (a === 'done') { commitSelection(); return; }
       if (a === 'invert') { invertSel(); return; }
+      if (a === 'rot90') { lift(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
       if (a === 'layer') {
         // CUT TO LAYER: the selection comes out onto a layer of its own
         lift();
@@ -1902,7 +1959,8 @@
     // ---- layers ----
     var panel = document.createElement('div');
     panel.className = 'paint-layerpanel'; panel.hidden = true;
-    right.appendChild(panel);
+    root.appendChild(panel);
+    draggable(panel, '.pl-title', 'layers');
     renderLayers();
     function renderLayers() {
       if (!panel) return;
@@ -1967,7 +2025,8 @@
       if (!open) hidePeek(); else thumbsSoon();
       panel.hidden = !open;
       $('[data-act="layers"]').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) { var b = $('[data-act="layers"]'); panel.style.top = Math.max(0, Math.min(b.offsetTop - panel.offsetHeight + b.offsetHeight, right.clientHeight - panel.offsetHeight)) + 'px'; }
+      if (open) dropUnder(panel, $('[data-act="layers"]'));
+      $('[data-act="layers"]').setAttribute('aria-pressed', open ? 'true' : 'false');
     }
     // renaming: tap the picked layer's name again (or double-click any name)
     function rename(i) {
@@ -2160,6 +2219,7 @@
       '<div class="cv-help">Tap the line to add a point, drag to bend it. Double-tap a point, or drag it off, to remove it.</div></div>' +
       '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
     left.appendChild(adjBox);
+    draggable(adjBox, '.pa-title', 'adjust');
     // LEVELS: black, mid (gamma x 100) and white in, black and white out
     var LV = { lb: 0, lg: 100, lw: 255, ob: 0, ow: 255 };
     function lv(k) { return adj && adj.v[k] != null ? adj.v[k] : LV[k]; }
@@ -2488,16 +2548,24 @@
     // the samples in the brush list: a little stroke of each, in the colour
     // and at the opacity in use (redrawn whenever the list is open and
     // either changes)
-    function brushSamples() {
-      if (!menus.brush || menus.brush.el.hidden) return;
+    // (in the brush list, or the context bar and its list; with no box given,
+    // in all of them that are showing)
+    function brushSamples(box) {
+      if (!box) {
+        if (menus.brush && !menus.brush.el.hidden) brushSamples(menus.brush.el);
+        if (typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelector('[data-prev]')) brushSamples(ctxTool);
+        if (typeof ctxList !== 'undefined' && ctxList && !ctxList.hidden) brushSamples(ctxList);
+        return;
+      }
+      var host = box;
       // the samples use the current colour, unless it would vanish against the
       // menu (black in dark mode, white in light): then they use the menu's text
       // colour. Multiply only shows on a light menu, so a dark one draws flat.
-      var ink = getComputedStyle(menus.brush.el).color, m = ink.match(/[\d.]+/g) || [0, 0, 0];
+      var ink = getComputedStyle(host).color, m = ink.match(/[\d.]+/g) || [0, 0, 0];
       var lumOf = function (r, g, b) { return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
       var c = parseInt(st.color.slice(1), 16), textL = lumOf(+m[0], +m[1], +m[2]), dark = textL > 0.5;
       var col = Math.abs(lumOf(c >> 16 & 255, c >> 8 & 255, c & 255) - (dark ? 0.1 : 0.97)) < 0.22 ? '#' + [m[0], m[1], m[2]].map(function (v) { return (+v | 256).toString(16).slice(1); }).join('') : st.color;
-      Array.prototype.forEach.call(menus.brush.el.querySelectorAll('[data-prev]'), function (cv) {
+      Array.prototype.forEach.call(host.querySelectorAll('[data-prev]'), function (cv) {
         var k = cv.dataset.prev, sz = k === 'spray' ? 3 : k === 'highlighter' ? 4 : 5, P = [];
         for (var i = 0; i <= 16; i++) { var t = i / 16; P.push({ x: 6 + 34 * t, y: 10 + Math.sin(t * Math.PI * 2) * 3.2 }); }
         drawPreview(cv, k, sz, col, P, 46, 20, 1, dark);
@@ -2624,16 +2692,8 @@
           var q = pos(ev); q.pr = smoothPr(ev.pressure);
           if (down.shape) { var sc = ev.shiftKey !== shiftHeld; shiftHeld = ev.shiftKey; shapeFollow(q, sc); return; }
           holdStill(q);
-          // SMOOTHING: the line trails the pointer on a short string, so it
-          // only moves when pulled, which irons out the wobbles (the same at
-          // any speed). It catches up with the pointer when it's let go.
-          if (smoothing) {
-            var lazy = smoothing / 100 * 40 / view.k, g = down.lazy || (down.lazy = { x: pts[0].x, y: pts[0].y }), dx = q.x - g.x, dy = q.y - g.y, dd = Math.hypot(dx, dy);
-            down.rawLast = q;
-            if (dd <= lazy) return;
-            g.x += dx * (dd - lazy) / dd; g.y += dy * (dd - lazy) / dd; q = { x: g.x, y: g.y, pr: q.pr };
-          }
-          var l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) pts.push(q);
+          if (!smoothing) { var l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) pts.push(q); return; }
+          addSmoothed(q);
         });
         renderSoon(); return;
       }
@@ -2663,6 +2723,35 @@
     // line's end follows, a shape grows and shrinks round its middle.
     var smoothing = stored('paint-smoothing', 0), snapShapes = stored('paint-snap-shapes', true), holdTimerS = 0;
     taperOn = stored('paint-taper', true);
+    // SMOOTHING that never lags: each point of the line is the average of the
+    // pointer's path a little way either side of it (along the line), and
+    // that way shrinks to nothing at both ends. So the line always ends right
+    // under the pointer, and is steadied behind it as it goes on: nothing
+    // trails, and nothing moves when it's let go. (Smoothing sets how far
+    // either side is averaged: up to 64 screen pixels.)
+    function addSmoothed(q) {
+      var raw = down.raw || (down.raw = [{ x: pts[0].x, y: pts[0].y, pr: pts[0].pr, s: 0 }]), last = raw[raw.length - 1];
+      var step = Math.hypot(q.x - last.x, q.y - last.y); if (step <= 0.6 / view.k) return;
+      var prevEnd = last.s, end = prevEnd + step, Wd = smoothing / 100 * 64 / view.k;
+      raw.push({ x: q.x, y: q.y, pr: q.pr, s: end });
+      // (only the points whose stretch either side reached past the old end can change)
+      var i = pts.length; while (i > 0 && raw[i - 1].s > prevEnd - Wd) i--;
+      for (; i < raw.length; i++) {
+        var si = raw[i].s, h = Math.min(Wd, si, end - si);
+        if (h < 1e-6) { pts[i] = { x: raw[i].x, y: raw[i].y, pr: raw[i].pr }; continue; }
+        var lo = i; while (lo > 0 && raw[lo - 1].s >= si - h) lo--;
+        var sx = 0, sy = 0, sw = 0, sp = 0, spw = 0;
+        for (var j = lo; j < raw.length && raw[j].s <= si + h; j++) {
+          var w = 1 - Math.abs(raw[j].s - si) / h; if (w <= 0) continue;
+          sx += raw[j].x * w; sy += raw[j].y * w; sw += w;
+          if (raw[j].pr != null) { sp += raw[j].pr * w; spw += w; }
+        }
+        pts[i] = { x: sx / sw, y: sy / sw, pr: spw ? sp / spw : raw[i].pr };
+      }
+      // (settled: far enough back that nothing still to come reaches them)
+      var k = pts.length; while (k > 0 && raw[k - 1].s > end - Wd) k--;
+      down.settled = k;
+    }
     function holdStill(q) {
       if (!snapShapes) return;
       var a = down.holdAt;
@@ -2758,12 +2847,7 @@
       var t = st.tool;
       clearTimeout(holdTimerS);
       // (a smoothed line catches up with where the pointer was let go)
-      // (a smoothed line keeps the join to where the pointer was let go: it's
-      // exactly what was showing, so the line stays just as it was)
-      if (down && down.rawLast && !down.shape) {
-        var g = pts[pts.length - 1], r = down.rawLast; down.rawLast = null;
-        if (Math.hypot(r.x - g.x, r.y - g.y) > 0.5 / view.k) { pts.push(r); renderStroke(); }
-      }
+
       if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
       if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
@@ -2792,8 +2876,10 @@
       useColor();
     }
 
+    // (the controls that sit on the picture: pressing them doesn't paint)
+    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx';
     stage.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.paint-zoom, .paint-selbar, .paint-text, .paint-selx')) return;
+      if (e.target.closest(STAGE_UI)) return;
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
       if (spaceGrab) { e.preventDefault(); return; } // (space is already holding something)
       if (anyMenu()) openMenu(null);
@@ -2863,6 +2949,7 @@
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
       if (e.pointerType !== 'mouse' || down) return;
+      if (e.target.closest(STAGE_UI)) { hideRing(); octx.clearRect(0, 0, W, H); return; } // (over the bars that sit on the picture)
       lastMouse = { s: screen(e), p: pos(e) };
       if (spaceDown && !spaceGrab) grabWithSpace();
       if (spaceGrab) { hideRing(); moveGrab(); return; }
@@ -2946,8 +3033,8 @@
     root.addEventListener('click', function (e) {
       var pk = e.target.closest('[data-pick]');
       if (pk && pk.dataset.pick === 'sym') { setSym(pk.dataset.val); openMenu(null); return; }
-      if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); afterTextChange(); return; }
-      if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); return; }
+      if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); ctxClose(); afterTextChange(); ctxSync(); return; }
+      if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); ctxClose(); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); ctxSync(); return; }
       if (e.target.closest('.paint-selx')) { commitSelection(); return; }
       var t = e.target.closest('button[data-tool]'); // (the picture carries data-tool too, for its cursor)
       if (t) {
@@ -2960,7 +3047,7 @@
       // click after a touch can look just like a key's)
       if (pr) { if (e.detail === 0 && performance.now() - pairPressed > 800) picker(pr.classList.contains('paint-current') ? 'main' : 'second'); return; }
       if (e.target.closest('.paint-swap')) { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
-      if (e.target.closest('.paint-solid')) { st.solid = !st.solid; $('.paint-solid').setAttribute('aria-checked', st.solid ? 'true' : 'false'); if (st.tool !== 'shape') setTool('shape'); return; }
+      if (e.target.closest('.paint-solid')) { st.solid = !st.solid; $('.paint-solid').setAttribute('aria-checked', st.solid ? 'true' : 'false'); if (st.tool !== 'shape') setTool('shape'); ctxSync(); return; }
       if (e.target.closest('.paint-mirror')) { openMenu(menus.sym.el.hidden ? 'sym' : null); return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
@@ -2974,18 +3061,23 @@
       var aa = e.target.closest('[data-adj-act]');
       if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') adjustDone(); else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
-      if (a.dataset.act === 'layers') { openMenu(null); layerPanel(panel.hidden); }
-      else if (a.dataset.act === 'adjust') adjustOpen();
-      else if (a.dataset.act === 'undo') doUndo();
-      else if (a.dataset.act === 'redo') doRedo();
-      else if (a.dataset.act === 'clear') {
+      runAct(a.dataset.act);
+    });
+    // the actions behind the buttons (some in the top bar, some here)
+    function runAct(w) {
+      if (w === 'layers') { openMenu(null); closeDrops(); savePanel(false); layerPanel(panel.hidden); }
+      else if (w === 'adjust') adjustOpen();
+      else if (w === 'undo') doUndo();
+      else if (w === 'redo') doRedo();
+      else if (w === 'clear') {
         if (sel) commitSelection();
         if (!active) return;
-        remember('Clear'); active.ctx.clearRect(0, 0, W, H);
+        remember('Clear Layer'); active.ctx.clearRect(0, 0, W, H);
         if (active.bg) { active.ctx.fillStyle = '#fff'; active.ctx.fillRect(0, 0, W, H); }
+        autosave();
       }
-      else if (a.dataset.act === 'save') { openMenu(null); layerPanel(false); savePanel(saveMenu.hidden); }
-    });
+      else if (w === 'save') { openMenu(null); layerPanel(false); closeDrops(); savePanel(saveMenu.hidden); }
+    }
     document.addEventListener('pointerdown', function (e) {
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
@@ -2993,6 +3085,7 @@
       if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap')) picker(null);
       if (adj && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) adjustDone();
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
+      if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
     sizeIn.addEventListener('input', function () { setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
     alphaIn.addEventListener('input', function () { st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
@@ -3038,7 +3131,7 @@
         if (b) setTimeout(function () { b.remove(); }, ev.type === 'pointerup' ? 260 : 0);
         var over = ev.type === 'pointerup' && document.elementFromPoint(ev.clientX, ev.clientY);
         if (b) { b.classList.add(over && over.closest('.paint-stage') ? 'plop' : 'gone'); }
-        if (over && over.closest('.paint-stage') && !over.closest('.paint-zoom, .paint-selbar, .paint-selx')) {
+        if (over && over.closest('.paint-stage') && !over.closest(STAGE_UI)) {
           var r = stage.getBoundingClientRect();
           plopFill(fromScreen(ev.clientX - r.left, ev.clientY - r.top), start.c);
         }
@@ -3129,11 +3222,11 @@
       '<button type="button" role="menuitem" data-save="jpeg">JPEG<small>Smaller file</small></button>' +
       '<button type="button" role="menuitem" data-save="share">Share\u2026<small>Messages, Photos, Mail\u2026</small></button>' +
       '<button type="button" role="menuitem" data-save="project">Project<small>Every layer, to carry on later</small></button>';
-    right.appendChild(saveMenu);
+    root.appendChild(saveMenu);
     function savePanel(open) {
       saveMenu.hidden = !open;
       var b = $('[data-act="save"]'); b.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) saveMenu.style.top = Math.max(0, Math.min(b.offsetTop + b.offsetHeight - saveMenu.offsetHeight, right.clientHeight - saveMenu.offsetHeight)) + 'px';
+      if (open) dropUnder(saveMenu, b);
     }
     function save(type) {
       if (type === 'share') { share(); return; }
@@ -3145,7 +3238,15 @@
     }
 
     // ---- the drawing is kept in the browser (layers and all), so it's
-    // still there after leaving the page or closing the tab ----
+    // still there after leaving the page or closing the tab. The top bar
+    // says how that's going: Saved, Saving… (a change is about to be kept),
+    // or Not saved (this browser won't keep it) ----
+    var statusEl = document.querySelector('.doc-status');
+    function docStatus(state) {
+      if (!statusEl || statusEl.dataset.state === state) return;
+      statusEl.dataset.state = state;
+      statusEl.lastChild.textContent = state === 'saved' ? 'Saved' : state === 'saving' ? 'Saving…' : 'Not saved';
+    }
     var saveTimer = 0, restoring = true;
     function db(fn) {
       try {
@@ -3154,9 +3255,10 @@
         r.onsuccess = function () { try { fn(r.result.transaction('s', 'readwrite').objectStore('s')); } catch (x) {} };
       } catch (x) {}
     }
-    function autosave() { thumbsSoon(); viewsSoon(); if (restoring) return; clearTimeout(saveTimer); saveTimer = setTimeout(storeNow, 1000); }
+    function autosave() { thumbsSoon(); viewsSoon(); if (!restoring) docStatus('saving'); if (restoring) return; clearTimeout(saveTimer); saveTimer = setTimeout(storeNow, 1000); }
     function storeNow() {
-      clearTimeout(saveTimer);
+      clearTimeout(saveTimer); saveTimer = 0;
+      if (!window.indexedDB) { docStatus('off'); return; }
       if (restoring || !window.Promise) return;
       var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count };
       Promise.all(layers.map(function (L) {
@@ -3170,7 +3272,7 @@
       })).then(function (list) {
         if (list.some(function (l) { return !l.blob; })) return;
         info.layers = list;
-        db(function (os) { os.put(info, 'picture'); });
+        db(function (os) { var q = os.put(info, 'picture'); q.onsuccess = function () { if (!saveTimer) docStatus('saved'); }; q.onerror = function () { docStatus('off'); }; });
       });
     }
     function restore() {
@@ -3231,7 +3333,8 @@
     function dropdown(cls) { var d = document.createElement('div'); d.className = 'paint-drop ' + cls; d.hidden = true; document.body.appendChild(d); return d; }
     function closeDrops() {
       var any = false;
-      [imgMenu, histBox].forEach(function (d) { if (!d.hidden) { d.hidden = true; any = true; } });
+      [imgMenu, histBox, moreBox].forEach(function (d) { if (!d.hidden) { d.hidden = true; any = true; } });
+      if (hb('more')) hb('more').setAttribute('aria-expanded', 'false');
       hb('image').setAttribute('aria-expanded', 'false'); hb('history').setAttribute('aria-expanded', 'false');
       return any;
     }
@@ -3300,6 +3403,41 @@
     }
 
     // ---- IMAGE: rotate, flip or crop the whole picture (every layer) ----
+    // (on a phone the top bar keeps undo, redo, save and layers; the rest
+    // is in its ••• menu)
+    var moreBox = dropdown('paint-moremenu'); moreBox.setAttribute('role', 'menu');
+    function moreMenu(open) {
+      if (!open) { moreBox.hidden = true; hb('more').setAttribute('aria-expanded', 'false'); return; }
+      closeDrops();
+      var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '">' + (src ? src.outerHTML : '') + label + '</button>'; };
+      moreBox.innerHTML = it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
+        it('focus', 'Focus Mode') + it('help', 'Shortcuts') + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
+      moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
+    }
+    moreBox.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-more]'); if (!b) return;
+      var k = b.dataset.more; moreMenu(false);
+      if (k === 'open') header.querySelector('.paint-open input').click();
+      else if (k === 'theme') header.querySelector('.theme-toggle').click();
+      else if (hb(k)) { var t = hb(k); setTimeout(function () { t.click(); }, 0); }
+    });
+    // FOCUS MODE: just the picture. The bars fade away and the picture gets
+    // the whole window; \ (or Esc, or the button in the corner) brings them back
+    var focusOut = document.createElement('button');
+    focusOut.type = 'button'; focusOut.className = 'paint-focusout'; focusOut.setAttribute('aria-label', 'Show the tools again'); focusOut.dataset.tip = 'Show the tools again (\\ or Esc)';
+    focusOut.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4"/><path d="M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4"/><path d="M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20"/><path d="M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20"/></svg>';
+    document.body.appendChild(focusOut);
+    focusOut.addEventListener('click', function () { focusMode(false); });
+    function focusMode(on) {
+      var html = document.documentElement;
+      if (on === html.classList.contains('focus-mode')) return;
+      finishMenus();
+      html.classList.toggle('focus-mode', on);
+      if (hb('focus')) hb('focus').setAttribute('aria-pressed', on ? 'true' : 'false');
+      fit();
+      if (on) toast('Focus mode: press \\ or Esc to bring the tools back');
+    }
+    function finishMenus() { openMenu(null); layerPanel(false); savePanel(false); closeDrops(); moreMenu(false); if (!pc.hidden) picker(null); }
     var imgMenu = dropdown('paint-imgmenu');
     imgMenu.setAttribute('role', 'menu');
     function imageMenu(open) {
@@ -3312,6 +3450,7 @@
         '<button type="button" role="menuitem" data-img="fliph">' + ico('<path d="M12 3.5v17" stroke-dasharray="2 2"/><path d="M9.5 7L4 17h5.5z"/><path d="M14.5 7L20 17h-5.5z"/>') + 'Flip Horizontal</button>' +
         '<button type="button" role="menuitem" data-img="flipv">' + ico('<path d="M3.5 12h17" stroke-dasharray="2 2"/><path d="M7 9.5L17 4v5.5z"/><path d="M7 14.5L17 20v-5.5z"/>') + 'Flip Vertical</button>' +
         '<button type="button" role="menuitem" data-img="crop"' + (sel ? '' : ' disabled') + '>' + ico('<path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/>') + 'Crop to Selection</button>' +
+        '<button type="button" role="menuitem" data-img="clear"' + (active ? '' : ' disabled') + '>' + ico('<path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/>') + 'Clear Layer</button>' +
         '<div class="pd-info">' + (sel ? '' : 'Make a selection to crop to it.<br>') + 'Picture: ' + ov.width + ' × ' + ov.height + ' pixels</div>';
       imgMenu.hidden = false; hb('image').setAttribute('aria-expanded', 'true'); placeDrop(imgMenu, hb('image'));
     }
@@ -3331,6 +3470,7 @@
     }
     function imageAct(a) {
       imageMenu(false);
+      if (a === 'clear') { runAct('clear'); return; }
       var cropBox = null;
       if (a === 'crop') {
         if (!sel) return;
@@ -3482,8 +3622,11 @@
     window.addEventListener('appinstalled', function () { installEv = null; hb('install').hidden = true; toast('Installed'); });
 
     if (header) header.addEventListener('click', function (e) {
+      var ac = e.target.closest('[data-act]'); if (ac) { runAct(ac.dataset.act); return; }
       var b = e.target.closest('[data-hb]'); if (!b) return;
       var w = b.dataset.hb;
+      if (w === 'focus') { focusMode(!document.documentElement.classList.contains('focus-mode')); return; }
+      if (w === 'more') { moreMenu(moreBox.hidden); return; }
       if (w === 'new') newSheet();
       else if (w === 'image') imageMenu(imgMenu.hidden);
       else if (w === 'history') historyPanel(histBox.hidden);
@@ -3492,8 +3635,131 @@
       else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; }); }
     });
     document.addEventListener('pointerdown', function (e) {
-      if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"]')) closeDrops();
+      if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"], [data-hb="more"]')) closeDrops();
     }, true);
+
+    // ---- THE CONTEXT BAR: what the tool in hand can be set to, at the top of
+    // the picture. A brush: which brush, smoothing, tapered ends and snapping
+    // to shapes; shapes: which shape, outline or filled; text: font, size,
+    // bold / italic / underline, alignment and more; light & dark: which;
+    // the others say how they're used. With a selection it shows what can be
+    // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
+    var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null;
+    ctxEl.appendChild(selbar);
+    draggable(ctxEl, '.ctx-grip', 'ctx');
+    var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
+    var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
+      triangle: '<path d="M12 5.5l7.5 13h-15z"/>', star: '<path d="M12 4.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16.3l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7z"/>', arrow: '<path d="M5 19L19 5"/><path d="M11 5h8v8"/>' };
+    var hint = function (t) { return '<span class="ctx-hint">' + t + '</span>'; };
+    var sep = '<span class="ctx-sep" aria-hidden="true"></span>';
+    var chip = function (k, label, icon, tip) { return '<button type="button" class="ctx-chip" data-ctx="' + k + '" aria-pressed="false" data-tip="' + tip + '">' + CI(icon) + '<span>' + label + '</span></button>'; };
+    var smoothRow = '<label class="ctx-slider" data-tip="Smoothing: irons out wobbles. The line still ends right under the pen"><span>Smoothing</span><input type="range" min="0" max="100" data-ctx="smoothing" aria-label="Smoothing"><output>Off</output></label>';
+    var snapChip = chip('snap', 'Snap', '<path d="M5 18.5c3-9 11-12 14-12"/><circle cx="19" cy="6.5" r="1.6"/>', 'Snap to shape: hold still at the end of a line, ellipse or rectangle to make it perfect (Shift: a circle or square)');
+    var taperChip = chip('taper', 'Taper', '<path d="M3.5 12c4-3 13-3 17 0-4 3-13 3-17 0z"/>', 'Tapered ends: thin, pointed ends on each stroke (off: even thickness all the way)');
+    var CTX = {
+      brush: function () {
+        return '<button type="button" class="ctx-btn" data-ctx="brushes" aria-haspopup="menu" aria-expanded="false" data-tip="Choose a brush"><canvas class="pb-prev" data-ctxprev aria-hidden="true"></canvas><span data-ctxname></span>' + CHEV + '</button>' +
+          sep + smoothRow + sep + taperChip + snapChip;
+      },
+      eraser: function () { return hint('Rubs out on the current layer') + sep + smoothRow + sep + snapChip; },
+      smudge: function () { return hint('Drag to push and blend the paint'); },
+      blur: function () { return hint('Drag to soften the paint'); },
+      tone: function () { return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Light or dark">' + TONES.map(function (t) { return '<button type="button" role="tab" data-ctx-tone="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' + hint('Brush over the picture'); },
+      line: function () { return hint('Drag to draw a line · <b>Shift</b> for steps of 45°'); },
+      shape: function () {
+        return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Shape">' + SHAPES.map(function (q) { return '<button type="button" role="tab" data-ctx-shape="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[1] + '">' + CI(SHAPE_ICONS[q[0]] || '') + '</button>'; }).join('') + '</div>' + sep +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill"><button type="button" role="tab" data-ctx-fill="0">Outline</button><button type="button" role="tab" data-ctx-fill="1">Filled</button></div>' + hint('<b>Shift</b>: square');
+      },
+      text: function () {
+        return '<button type="button" class="ctx-btn" data-ctx="fonts" aria-haspopup="menu" aria-expanded="false" data-tip="Font"><span data-ctxfont></span>' + CHEV + '</button>' +
+          '<input type="number" class="p-field ctx-num" min="4" max="2000" data-ctx="tsize" aria-label="Text size" data-tip="Size">' + sep +
+          '<div class="pa-tabs ctx-seg" role="group" aria-label="Style">' +
+            '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button></div>' + sep +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Alignment">' + ['left', 'center', 'right'].map(function (a) { return '<button type="button" role="tab" data-ctx-al="' + a + '" aria-label="Align ' + a + '" data-tip="Align ' + a + '">' + CI(a === 'left' ? '<path d="M4 6.5h16M4 10.5h10M4 14.5h16M4 18.5h10"/>' : a === 'center' ? '<path d="M4 6.5h16M7 10.5h10M4 14.5h16M7 18.5h10"/>' : '<path d="M4 6.5h16M10 10.5h10M4 14.5h16M10 18.5h10"/>') + '</button>'; }).join('') + '</div>' + sep +
+          '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>';
+      },
+      fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
+      gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn ctx-icon" data-ctx="swap" aria-label="Swap the colours" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '</button>'; },
+      picker: function () { return hint('Tap the picture to pick up a colour · or <b>Alt</b>-click with any tool'); },
+      select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
+    };
+    // (the little lists that drop down from it: the brushes, the fonts)
+    var ctxList = document.createElement('div'); ctxList.className = 'ctx-list'; ctxList.hidden = true; ctxList.setAttribute('role', 'menu'); stage.appendChild(ctxList);
+    function ctxDrop(kind, btn) {
+      if (!ctxList.hidden && ctxList.dataset.kind === kind) { ctxClose(); return; }
+      ctxList.dataset.kind = kind;
+      if (kind === 'brushes') ctxList.innerHTML = BRUSHES.map(function (b) { return '<button type="button" role="menuitemradio" data-pick="brush" data-val="' + b[0] + '" aria-checked="' + (st.brush === b[0]) + '"><canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas><span>' + b[1] + '</span></button>'; }).join('');
+      else { ensureFonts(); ctxList.innerHTML = fontList('data-pick="font" data-val'); ctxList.classList.add('paint-fontmenu'); }
+      if (kind === 'brushes') ctxList.classList.remove('paint-fontmenu');
+      ctxList.hidden = false;
+      Array.prototype.forEach.call(ctxList.querySelectorAll('[data-val]'), function (b) { b.setAttribute('aria-checked', b.dataset.val === (kind === 'fonts' ? st.font : st.brush) ? 'true' : 'false'); });
+      if (kind === 'brushes') brushSamples(ctxList);
+      var r = btn.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+      ctxList.style.left = Math.round(Math.max(6, Math.min(stage.clientWidth - ctxList.offsetWidth - 6, r.left - sr.left))) + 'px';
+      ctxList.style.top = Math.round(r.bottom - sr.top + 6) + 'px';
+      if (kind === 'fonts') { ctxList.style.maxHeight = Math.max(160, stage.clientHeight - (r.bottom - sr.top) - 20) + 'px'; var on = ctxList.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    function ctxClose() { ctxList.hidden = true; Array.prototype.forEach.call(ctxEl.querySelectorAll('[aria-expanded="true"]'), function (b) { b.setAttribute('aria-expanded', 'false'); }); }
+    function ctxRender() {
+      if (!ctxEl) return;
+      ctxClose();
+      if (st.tool !== ctxFor) { ctxFor = st.tool; ctxTool.innerHTML = CTX[st.tool] ? CTX[st.tool]() : ''; }
+      ctxSync(); ctxShow();
+      // (and the right-hand panel: which of size and opacity this tool uses)
+      var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
+      right.dataset.uses = uses;
+      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text' }[st.tool] || 'Brush';
+    }
+    function ctxShow() {
+      var has = !selbar.hidden;
+      ctxEl.classList.toggle('has-sel', has);
+      ctxEl.classList.toggle('away', selbar.classList.contains('away'));
+      ctxEl.hidden = !has && !ctxTool.innerHTML;
+    }
+    function ctxSync() {
+      var q = function (sel) { return ctxTool.querySelector(sel); }, set = function (sel, attr, on) { var e = q(sel); if (e) e.setAttribute(attr, on ? 'true' : 'false'); };
+      var name = q('[data-ctxname]');
+      if (name) { var b = BRUSHES.filter(function (x) { return x[0] === st.brush; })[0]; name.textContent = b ? b[1] : ''; var cv = q('[data-ctxprev]'); cv.dataset.prev = st.brush; brushSamples(ctxTool); }
+      var sm = q('[data-ctx="smoothing"]'); if (sm) { sm.value = smoothing; sm.nextElementSibling.textContent = smoothing ? smoothing : 'Off'; }
+      set('[data-ctx="taper"]', 'aria-pressed', taperOn); set('[data-ctx="snap"]', 'aria-pressed', snapShapes);
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-tone]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxTone === st.tone ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-shape]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxShape === st.shape ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-fill]'), function (b) { b.setAttribute('aria-selected', (b.dataset.ctxFill === '1') === !!st.solid ? 'true' : 'false'); });
+      var fn = q('[data-ctxfont]'); if (fn) { fn.textContent = fontName(st.font); fn.style.fontFamily = st.font; }
+      var ts = q('[data-ctx="tsize"]'); if (ts && document.activeElement !== ts) ts.value = tx.size;
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-t]'), function (b) { b.setAttribute('aria-selected', tx[b.dataset.ctxT] ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-al]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.ctxAl ? 'true' : 'false'); });
+      var tm = q('[data-ctx="tmore"]'); if (tm) tm.disabled = !textBox;
+    }
+    new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    ctxEl.addEventListener('input', function (e) {
+      var k = e.target.dataset.ctx;
+      if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
+      else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(true); } }
+    });
+    ctxEl.addEventListener('keydown', function (e) { if (e.target.dataset.ctx === 'tsize') { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (textBox) textBox.focus({ preventScroll: true }); } } });
+    ctxEl.addEventListener('pointerdown', function (e) { if (anyMenu()) openMenu(null); if (textBox && e.target.closest('button')) e.preventDefault(); }); // (so the words being typed keep the caret)
+    ctxEl.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
+      var k = b.dataset.ctx;
+      if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
+      if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
+      if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
+      if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
+      if (k === 'all') { selectAll(); return; }
+      if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
+      if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
+      if (b.dataset.ctxShape) { st.shape = b.dataset.ctxShape; ctxSync(); return; }
+      if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; var so = $('.paint-solid'); if (so) so.setAttribute('aria-checked', st.solid ? 'true' : 'false'); ctxSync(); return; }
+      if (b.dataset.ctxT) { tx[b.dataset.ctxT] = !tx[b.dataset.ctxT]; if (textBox) afterTextChange(); ctxSync(); return; }
+      if (b.dataset.ctxAl) { tx.align = b.dataset.ctxAl; if (textBox) afterTextChange(); ctxSync(); return; }
+    });
+    document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
     setColor(st.color); setColor2(st.color2); showRecent(); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first
@@ -3506,6 +3772,7 @@
         var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
         if (sheetEl) { if (k === 'escape') closeSheet(); return; }
         if (k === 'escape' && closeDrops()) return;
+        if (k === 'escape' && document.documentElement.classList.contains('focus-mode')) { focusMode(false); return; }
         if (k === 'escape' && !pc.hidden) { picker(null); return; }
         if (e.target && (e.target.isContentEditable || (/input|textarea|select/i.test(e.target.tagName || '') && e.target.type !== 'range'))) return;
         if (mod && k === 'z' && lassoOn && !e.shiftKey) { e.preventDefault(); if (lasso.length > 1) { lasso.pop(); drawLasso(lassoHover); } else cancelLasso(); return; } // (while placing points: the last one)
@@ -3542,6 +3809,8 @@
         else if (k === '-') zoomStep(-1);
         else if (k === '0') fit();
         else if (e.key === '?') helpSheet();
+        else if (e.key === '\\') focusMode(!document.documentElement.classList.contains('focus-mode'));
+        else if (k === 'n' && !mod) newSheet();
       },
       keyup: function (e) { if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
     };

@@ -35,27 +35,45 @@
     <div class="brand">
       <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/></svg></span>
       <h1 class="brand-name">Paint Alternative</h1>
+      <span class="doc-status" data-state="saved" role="status" data-tip="Your drawing is kept in this browser as you go. Use Save to download a copy"><i aria-hidden="true"></i><span>Saved</span></span>
     </div>
     <div class="header-tools" role="toolbar" aria-label="Picture">
       <button type="button" class="hb hb-install" data-hb="install" hidden aria-label="Install app" title="Install as an app"><svg viewBox="0 0 24 24"><path d="M12 4v10"/><path d="M8 10.5l4 4 4-4"/><rect x="4.5" y="16.5" width="15" height="3.5" rx="1.2"/></svg><span>Install</span></button>
-      <button type="button" class="hb" data-hb="new" aria-label="New picture" title="New picture"><svg viewBox="0 0 24 24"><path d="M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M13.5 3.5V9H19"/><path d="M12 12.5v5M9.5 15h5"/></svg></button>
-      <button type="button" class="hb" data-hb="image" aria-label="Crop, rotate and flip" title="Crop, rotate and flip" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/></svg></button>
-      <button type="button" class="hb" data-hb="history" aria-label="History" title="History" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v3.8h3.8"/><path d="M12 8v4.5l3 2"/></svg></button>
-      <button type="button" class="hb" data-hb="share" aria-label="Share" title="Share"><svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M8 7.5l4-4 4 4"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg></button>
-      <button type="button" class="hb" data-hb="help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2-2.4 3.6"/><path d="M12 17h.01"/></svg></button>
+      <div class="hb-group" role="group" aria-label="Undo">
+        <button type="button" class="hb" data-act="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z · two-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg></button>
+        <button type="button" class="hb" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y · three-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
+      </div>
       <span class="hb-sep" aria-hidden="true"></span>
-      <button class="theme-toggle" type="button" aria-label="Switch to dark mode">
+      <div class="hb-group hb-file" role="group" aria-label="File">
+        <button data-tip="New picture (N)" type="button" class="hb" data-hb="new" aria-label="New picture"><svg viewBox="0 0 24 24"><path d="M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M13.5 3.5V9H19"/><path d="M12 12.5v5M9.5 15h5"/></svg></button>
+        <label class="hb paint-open" data-hb="open" data-tip="Open a picture, or a project (.paint)"><input type="file" accept="image/*,.paint" aria-label="Open a picture or a project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-8a1.5 1.5 0 0 0-1.5-1.5h-6.2L10.5 6H5.5A1.5 1.5 0 0 0 4 7.5z"/></svg></label>
+        <button type="button" class="hb" data-act="save" aria-label="Save" aria-expanded="false" data-tip="Save: download as PNG, JPEG or a project"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10.5"/><path d="M7.5 10L12 14.5 16.5 10"/><path d="M5 19.5h14"/></svg></button>
+        <button data-tip="Share the picture" type="button" class="hb" data-hb="share" aria-label="Share"><svg viewBox="0 0 24 24"><path d="M12 3.5v11"/><path d="M8 7.5l4-4 4 4"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg></button>
+      </div>
+      <span class="hb-sep hb-file" aria-hidden="true"></span>
+      <div class="hb-group hb-pic" role="group" aria-label="Picture">
+        <button data-tip="Crop, rotate, flip and clear" type="button" class="hb" data-hb="image" aria-label="Crop, rotate and flip" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/></svg></button>
+        <button data-tip="History: every step, to go back to" type="button" class="hb" data-hb="history" aria-label="History" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v3.8h3.8"/><path d="M12 8v4.5l3 2"/></svg></button>
+        <button type="button" class="hb" data-act="layers" aria-label="Layers" aria-expanded="false" data-tip="Layers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5" opacity=".6"/></svg></button>
+      </div>
+      <span class="hb-sep hb-view" aria-hidden="true"></span>
+      <div class="hb-group hb-view" role="group" aria-label="View">
+        <button type="button" class="hb" data-hb="focus" aria-label="Focus mode" aria-pressed="false" data-tip="Focus mode: just the picture (\)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9"/><path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9"/><path d="M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15"/><path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></svg></button>
+        <button data-tip="Keyboard shortcuts (?)" type="button" class="hb" data-hb="help" aria-label="Keyboard shortcuts"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.6a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2-2.4 3.6"/><path d="M12 17h.01"/></svg></button>
+        <button class="theme-toggle" data-tip="Light or dark" type="button" aria-label="Switch to dark mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path class="icon-moon" d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/>
           <g class="icon-sun"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g>
         </svg>
       </button>
+      </div>
+      <button type="button" class="hb hb-more" data-hb="more" aria-label="More" aria-expanded="false" data-tip="More"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg></button>
     </div>
   </header>
   <main class="site-main">
     <section class="paint" aria-label="Drawing">
       <div class="paint-bar paint-left" role="toolbar" aria-label="Tools">
-        <div class="paint-group" role="group" aria-label="Paint">
+        <div class="paint-group" role="group" aria-label="Draw">
           <button type="button" data-tool="brush" aria-label="Brush (B)" data-tip="Brush (B): paint freehand. Click again to choose a brush type" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/></svg></button>
           <button type="button" data-tool="eraser" aria-label="Eraser (E)" data-tip="Eraser (E): rub out paint on the current layer"><svg viewBox="0 0 24 24"><path d="M8.5 19.5h11"/><path d="M4.6 14.2l8.7-8.7a1.5 1.5 0 0 1 2.1 0l3.1 3.1a1.5 1.5 0 0 1 0 2.1l-8.6 8.6H8.5L4.6 15.4a.9.9 0 0 1 0-1.2z"/><path d="M9.2 9.6l5.2 5.2"/></svg></button>
           <button type="button" data-tool="fill" aria-label="Fill (F)" data-tip="Fill (F): tap to flood an area with colour"><svg viewBox="0 0 24 24"><path d="M4.5 11.5L11 5l7.5 7.5-6.5 6.5a1.4 1.4 0 0 1-2 0l-5.5-5.5a1.4 1.4 0 0 1 0-2z"/><path d="M4.5 12.5h13.5"/><path d="M20 15.5s1.5 2 1.5 3a1.5 1.5 0 0 1-3 0c0-1 1.5-3 1.5-3z"/></svg></button>
@@ -74,11 +92,14 @@
           <button type="button" data-tool="tone" aria-label="Light and dark (O)" data-tip="Light &amp; dark (O): brush over the picture to lighten or darken it, like in a darkroom. Click again to choose which"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg></button>
           <button type="button" class="paint-adjust-btn" data-act="adjust" aria-expanded="false" aria-label="Adjust (A)" data-tip="Adjust (A): sliders for exposure, contrast, colour, sharpness and more, on the current layer (inside the selection, if there is one)"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg></button>
         </div>
-        <div class="paint-group" role="group" aria-label="Select and move">
+        <div class="paint-group" role="group" aria-label="Select">
           <button type="button" data-tool="select" aria-label="Select and move (M)" data-tip="Select (M): drag a box, then move, copy, flip or cut it"><svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="1" stroke-dasharray="3 2.4"/></svg></button>
           <button type="button" data-tool="lasso" aria-label="Cutout (Q)" data-tip="Cutout (Q): drag to draw round something freehand, or click to place points joined by straight lines (drag between clicks for a freehand piece). Click the first point to finish"><svg viewBox="0 0 24 24"><path d="M12 4.5c4.7 0 8 2.4 8 5.6s-3.3 5.4-7.6 5.4c-1.6 0-3.1-.3-4.3-.8" stroke-dasharray="2.6 2.2"/><path d="M8.1 14.7C5.5 13.8 4 12.1 4 10.1 4 6.9 7.3 4.5 12 4.5" stroke-dasharray="2.6 2.2"/><path d="M8 14.6c-1.2 1.1-1.4 2.6-.6 3.6.9 1.1 2.6.9 3 2.4"/></svg></button>
           <button type="button" data-tool="wand" aria-label="Magic wand (W)" data-tip="Magic wand (W): tap to pick out an area of one colour"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l10-10"/><path d="M13 8l3 3"/><path d="M17.5 3.5v3M16 5h3"/><path d="M20 10v2M19 11h2"/><path d="M10 3.5v2M9 4.5h2"/></svg></button>
+        </div>
+        <div class="paint-group" role="group" aria-label="Navigate">
           <button type="button" data-tool="hand" aria-label="Move around (hold Space) (H)" data-tip="Move around (H): drag to pan the canvas, or hold Space"><svg viewBox="0 0 24 24"><path d="M8.5 12V6.8a1.4 1.4 0 0 1 2.8 0V11"/><path d="M11.3 10.5V5.4a1.4 1.4 0 0 1 2.8 0v5.1"/><path d="M14.1 10.5V6.6a1.4 1.4 0 0 1 2.8 0V14a6 6 0 0 1-6 6h-.4a5.4 5.4 0 0 1-4.3-2.2L4.3 14.4a1.4 1.4 0 0 1 2.2-1.8l2 2.4"/></svg></button>
+          <button type="button" data-zoom="fit" class="paint-fitbtn" aria-label="Fit the picture (0)" data-tip="Fit (0): the whole picture, upright"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/><path d="M3.5 8V4.5A1 1 0 0 1 4.5 3.5H8M16 3.5h3.5a1 1 0 0 1 1 1V8M20.5 16v3.5a1 1 0 0 1-1 1H16M8 20.5H4.5a1 1 0 0 1-1-1V16"/></svg></button>
         </div>
       </div>
       <div class="paint-stage">
@@ -88,34 +109,35 @@
           <canvas class="paint-over" aria-hidden="true"></canvas>
           <canvas class="paint-selov" aria-hidden="true"></canvas>
         </div>
-        <button type="button" class="paint-selx" hidden aria-label="Close the selection" title="Close the selection (Esc)"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
-        <div class="paint-selbar" hidden><button type="button" data-sel="copy">Copy</button><button type="button" data-sel="fliph">Flip &#8596;</button><button type="button" data-sel="flipv">Flip &#8597;</button><button type="button" data-sel="invert" title="Invert the colours (or right-click the selection)">Invert</button><button type="button" data-sel="delete">Delete</button><button type="button" data-sel="layer">Cut to Layer</button><button type="button" data-sel="done">Done</button></div>
+        <button type="button" class="paint-selx" hidden aria-label="Close the selection" data-tip="Close the selection (Esc)"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+        <div class="paint-zoom" role="group" aria-label="Zoom"><button type="button" data-zoom="out" aria-label="Zoom out" data-tip="Zoom out (−)">&#8722;</button><button type="button" data-zoom="fit" class="paint-zoom-val" data-tip="Fit (0)">100%</button><button type="button" data-zoom="in" aria-label="Zoom in" data-tip="Zoom in (+)">+</button></div>
+        <div class="paint-ctx" role="toolbar" aria-label="Tool options"><span class="ctx-grip" aria-hidden="true" data-tip="Drag to move (double-click: back to the top)"></span><div class="ctx-tool"></div>
+        <div class="paint-selbar" hidden><button type="button" data-sel="copy" data-tip="Copy it onto a new layer, ready to move">Copy</button><button type="button" data-sel="fliph" data-tip="Flip left to right">Flip &#8596;</button><button type="button" data-sel="flipv" data-tip="Flip upside down">Flip &#8597;</button><button type="button" data-sel="rot90" data-tip="Turn a quarter turn (or drag the round handle)">Turn 90°</button><button type="button" data-sel="invert" data-tip="Invert the colours (or right-click the selection)">Invert</button><button type="button" data-sel="delete" data-tip="Delete what's selected (Delete)">Delete</button><button type="button" data-sel="layer" data-tip="Cut it out onto a layer of its own">Cut to Layer</button><button type="button" data-sel="done" data-tip="Put it down (Enter)">Done</button></div></div>
       </div>
-      <div class="paint-bar paint-right" role="toolbar" aria-label="Colour and actions">
-        <div class="paint-group paint-colors" role="group" aria-label="Colour">
-          <div class="paint-pair">
-            <button type="button" class="paint-current" title="Colour: tap to choose, or drag onto the picture to fill" aria-label="Colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
-            <button type="button" class="paint-second" title="Second colour (for gradients): tap to choose, or drag onto the picture to fill" aria-label="Second colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
-            <button type="button" class="paint-swap" aria-label="Swap colours (X)" title="Swap colours (X)"><svg viewBox="0 0 24 24"><path d="M6.5 6.5A11 11 0 0 1 17.5 17.5"/><path d="M9.5 3.8L6.5 6.5l3 2.9"/><path d="M14.6 14.5l2.9 3 2.7-3"/></svg></button>
+      <div class="paint-bar paint-right" role="toolbar" aria-label="Colour and brush">
+        <section class="pr-sec" data-sec="colour">
+          <button type="button" class="pr-head" aria-expanded="true" data-tip="Show or hide the colours"><span>Colour</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg></button>
+          <div class="pr-body"><div class="pr-in">
+            <div class="paint-group paint-colors" role="group" aria-label="Colour">
+              <div class="paint-pair">
+            <button type="button" class="paint-current" data-tip="Colour: tap to choose, or drag onto the picture to fill" aria-label="Colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
+            <button type="button" class="paint-second" data-tip="Second colour (for gradients): tap to choose, or drag onto the picture to fill" aria-label="Second colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
+            <button type="button" class="paint-swap" aria-label="Swap colours (X)" data-tip="Swap colours (X)"><svg viewBox="0 0 24 24"><path d="M6.5 6.5A11 11 0 0 1 17.5 17.5"/><path d="M9.5 3.8L6.5 6.5l3 2.9"/><path d="M14.6 14.5l2.9 3 2.7-3"/></svg></button>
           </div>
-          <div class="paint-swatches"></div>
-          <div class="paint-recent" aria-label="Recent colours"></div>
-        </div>
-        <div class="paint-group paint-sliders">
-          <label title="Size ([ and ])"><span>Size</span><input type="range" class="paint-size" min="0" max="1000" value="147" aria-label="Size"><output>6</output></label>
-          <label title="Opacity"><span>Opacity</span><input type="range" class="paint-alpha" min="5" max="100" value="100"><output>100</output></label>
-        </div>
-        <div class="paint-group" role="group" aria-label="History">
-          <button type="button" data-act="undo" aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg></button>
-          <button type="button" data-act="redo" aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
-        </div>
-        <div class="paint-group" role="group" aria-label="Picture">
-          <label class="paint-open" title="Open a picture to draw on, or a project (.paint) to carry on with"><input type="file" accept="image/*,.paint" aria-label="Open a picture or a project"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M3.5 16l5-5 4 4 2.5-2.5L20.5 18"/><circle cx="15.5" cy="9" r="1.5"/></svg></label>
-          <button type="button" data-act="clear" aria-label="Clear" title="Clear"><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>
-          <button type="button" data-act="layers" class="paint-layers-btn" aria-label="Layers" title="Layers" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5" opacity=".6"/></svg><span>Layers</span></button>
-          <div class="paint-zoom" role="group" aria-label="Zoom"><button type="button" data-zoom="out" aria-label="Zoom out" title="Zoom out (-)">&#8722;</button><button type="button" data-zoom="fit" class="paint-zoom-val" title="Fit (0)">100%</button><button type="button" data-zoom="in" aria-label="Zoom in" title="Zoom in (+)">+</button></div>
-          <button type="button" data-act="save" class="paint-save" title="Save as a picture (PNG or JPEG)" aria-expanded="false" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19.5h14"/></svg><span>Save</span></button>
-        </div>
+              <div class="paint-swatches"></div>
+              <div class="paint-recent" aria-label="Recent colours"></div>
+            </div>
+          </div></div>
+        </section>
+        <section class="pr-sec" data-sec="brush">
+          <button type="button" class="pr-head" aria-expanded="true" data-tip="Show or hide size and opacity"><span class="pr-tool">Brush</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg></button>
+          <div class="pr-body"><div class="pr-in">
+            <div class="paint-group paint-sliders">
+              <label data-tip="Size ([ and ])"><span>Size</span><input type="range" class="paint-size" min="0" max="1000" value="147" aria-label="Size"><output>6</output></label>
+          <label data-tip="Opacity"><span>Opacity</span><input type="range" class="paint-alpha" min="5" max="100" value="100"><output>100</output></label>
+            </div>
+          </div></div>
+        </section>
       </div>
     </section>
   </main>
