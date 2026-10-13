@@ -41,8 +41,11 @@ When building or changing anything visual:
   in `paint.js`), and so do a selection's actions. It stands up at the
   picture's left edge, one setting per row (on/off settings as switches),
   and is a wrapping strip along the top on phones. Its `.ctx-min` button
-  folds it down to one button (remembered). Put new tool
-  settings there, not in a new pop-over. Pop-out panels can be dragged with
+  folds it down to one button (remembered), which can still be dragged.
+  Toolbar icons are 24-unit outline drawings using `--stroke`, with round
+  caps and joins; keep new ones in the same style. Put new tool
+  settings there, never in a list beside the left toolbar (only symmetry
+  keeps one there). Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
   them doesn't paint.

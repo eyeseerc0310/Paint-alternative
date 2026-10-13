@@ -280,26 +280,38 @@
     // ---- PANELS THAT CAN BE DRAGGED: by their title (or grip). Where each was
     // left is remembered; a double-click on the title puts it back. ----
     function panelOffset(el) { var t = (el.style.translate || '0px 0px').split(' '); return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 }; }
-    function keepOnScreen(el) {
+    // (within the window, or within the box given: the tool panel stays on the picture's area)
+    function keepOnScreen(el, within) {
       if (el.hidden) return;
-      var r = el.getBoundingClientRect(), o = panelOffset(el), vw = document.documentElement.clientWidth, vh = window.innerHeight, dx = 0, dy = 0;
-      if (r.right > vw - 6) dx = vw - 6 - r.right; if (r.left + dx < 6) dx = 6 - r.left;
-      if (r.bottom > vh - 6) dy = vh - 6 - r.bottom; if (r.top + dy < 6) dy = 6 - r.top;
+      var r = el.getBoundingClientRect(), o = panelOffset(el), dx = 0, dy = 0;
+      var B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
+      if (r.right > B.right - 6) dx = B.right - 6 - r.right; if (r.left + dx < B.left + 6) dx = B.left + 6 - r.left;
+      if (r.bottom > B.bottom - 6) dy = B.bottom - 6 - r.bottom; if (r.top + dy < B.top + 6) dy = B.top + 6 - r.top;
       if (dx || dy) el.style.translate = (o.x + dx) + 'px ' + (o.y + dy) + 'px';
     }
-    function draggable(el, handle, key) {
+    // (btnHandle: a button that can be dragged too; a press that doesn't move
+    // is still a click)
+    function draggable(el, handle, key, btnHandle, within) {
       try { var saved = JSON.parse(localStorage.getItem('paint-pos-' + key)); if (saved) el.style.translate = saved[0] + 'px ' + saved[1] + 'px'; } catch (x) {}
       el.addEventListener('pointerdown', function (e) {
-        var h = e.target.closest(handle);
-        if (!h || !el.contains(h) || e.button || e.target.closest('button, input, select, textarea, a, [data-nodrag]')) return;
-        e.preventDefault(); e.stopPropagation();
-        var o = panelOffset(el), sx = e.clientX, sy = e.clientY;
-        el.classList.add('dragging'); hideTip();
+        var bh = btnHandle && e.target.closest(btnHandle);
+        var h = bh || e.target.closest(handle);
+        if (!h || !el.contains(h) || e.button || (!bh && e.target.closest('button, input, select, textarea, a, [data-nodrag]'))) return;
+        if (!bh) e.preventDefault();
+        e.stopPropagation();
+        var o = panelOffset(el), sx = e.clientX, sy = e.clientY, moved = !bh;
+        if (moved) { el.classList.add('dragging'); hideTip(); }
         try { h.setPointerCapture(e.pointerId); } catch (x) {}
-        function mv(ev) { el.style.translate = (o.x + ev.clientX - sx) + 'px ' + (o.y + ev.clientY - sy) + 'px'; }
+        function mv(ev) {
+          if (!moved) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return; moved = true; el.classList.add('dragging'); hideTip(); }
+          el.style.translate = (o.x + ev.clientX - sx) + 'px ' + (o.y + ev.clientY - sy) + 'px';
+        }
         function up() {
           h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
-          el.classList.remove('dragging'); keepOnScreen(el);
+          if (!moved) return;
+          // (a dragged button isn't clicked as well)
+          if (bh) { var stop = function (ce) { ce.stopPropagation(); ce.preventDefault(); }; bh.addEventListener('click', stop, true); setTimeout(function () { bh.removeEventListener('click', stop, true); }, 0); }
+          el.classList.remove('dragging'); keepOnScreen(el, within);
           var q = panelOffset(el); try { localStorage.setItem('paint-pos-' + key, JSON.stringify([q.x, q.y])); } catch (x) {}
         }
         h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
@@ -622,7 +634,8 @@
       sizeIn.nextElementSibling.textContent = st.size;
     }
 
-    // ---- lists that open beside a tool: brushes, shapes, fonts ----
+    // ---- the list that opens beside the symmetry button (the tools' own
+    // lists, brushes, shapes, fonts, are in the tool panel) ----
     var menus = {};
     function makeMenu(tool, items, key, sample) {
       var m = document.createElement('div');
@@ -633,14 +646,6 @@
       left.appendChild(m);
       menus[tool] = { el: m, key: key };
     }
-    makeMenu('brush', BRUSHES, 'brush', function (b) { return '<canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas>'; });
-    makeMenu('shape', SHAPES, 'shape', function (s) { return '<i class="ps-' + s[0] + '"></i>'; });
-    // (the text tool's list: every font, by kind, in a scrolling list)
-    var fm = document.createElement('div');
-    fm.className = 'paint-brushes paint-fontmenu'; fm.setAttribute('role', 'menu'); fm.hidden = true;
-    fm.innerHTML = fontList('data-pick="font" data-val');
-    left.appendChild(fm); menus.text = { el: fm, key: 'font' };
-    makeMenu('tone', TONES, 'tone', function (t) { return '<i class="pt-' + t[0] + '"></i>'; });
     makeMenu('sym', SYMS, 'sym', function (y) { return '<i class="psym psym-' + y[0] + '"></i>'; });
     // (under the list: radial's segments and mirror, and putting the guide back)
     menus.sym.el.insertAdjacentHTML('beforeend',
@@ -665,20 +670,15 @@
       else return;
       e.stopPropagation(); drawGuide(); symOpts();
     });
-    // filled shapes: a switch at the foot of the shapes list
-    menus.shape.el.insertAdjacentHTML('beforeend', '<button type="button" class="paint-solid" role="menuitemcheckbox" aria-checked="false"><i class="ps-fill"></i><span>Filled</span></button>');
     function openMenu(tool) {
       Object.keys(menus).forEach(function (t) {
         var m = menus[t], on = t === tool, btn = root.querySelector('button[data-tool="' + t + '"], button[data-menu="' + t + '"]');
         m.el.hidden = !on;
         btn.setAttribute('aria-expanded', on ? 'true' : 'false');
         if (on) {
-          if (t === 'text') ensureFonts();
-          if (t === 'brush') brushSamples();
           m.el.style.top = Math.max(0, Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight)) + 'px';
-          Array.prototype.forEach.call(m.el.querySelectorAll('button[data-val], .paint-solid'), function (b) { b.setAttribute('aria-checked', (b.dataset.val == null ? st.solid : b.dataset.val === st[m.key]) ? 'true' : 'false'); });
+          Array.prototype.forEach.call(m.el.querySelectorAll('button[data-val]'), function (b) { b.setAttribute('aria-checked', b.dataset.val === st[m.key] ? 'true' : 'false'); });
           if (t === 'sym') symOpts();
-          if (t === 'text') { var on = m.el.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
         }
       });
     }
@@ -2552,7 +2552,6 @@
     // in all of them that are showing)
     function brushSamples(box) {
       if (!box) {
-        if (menus.brush && !menus.brush.el.hidden) brushSamples(menus.brush.el);
         if (typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelector('[data-prev]')) brushSamples(ctxTool);
         if (typeof ctxList !== 'undefined' && ctxList && !ctxList.hidden) brushSamples(ctxList);
         return;
@@ -3039,8 +3038,10 @@
       if (e.target.closest('.paint-selx')) { commitSelection(); return; }
       var t = e.target.closest('button[data-tool]'); // (the picture carries data-tool too, for its cursor)
       if (t) {
-        var tl = t.dataset.tool, reopen = menus[tl] && (st.tool !== tl || menus[tl].el.hidden);
-        setTool(tl); openMenu(menus[tl] && reopen ? tl : null); return;
+        // (the tool in hand, again: brings back its panel if it was folded away)
+        var tl = t.dataset.tool;
+        if (st.tool === tl && ctxEl.classList.contains('min')) ctxMin(false);
+        setTool(tl); openMenu(null); return;
       }
       var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand/.test(st.tool)) setTool('brush'); return; }
       var pr = e.target.closest('.paint-current, .paint-second');
@@ -3048,7 +3049,6 @@
       // click after a touch can look just like a key's)
       if (pr) { if (e.detail === 0 && performance.now() - pairPressed > 800) picker(pr.classList.contains('paint-current') ? 'main' : 'second'); return; }
       if (e.target.closest('.paint-swap')) { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
-      if (e.target.closest('.paint-solid')) { st.solid = !st.solid; $('.paint-solid').setAttribute('aria-checked', st.solid ? 'true' : 'false'); if (st.tool !== 'shape') setTool('shape'); ctxSync(); return; }
       if (e.target.closest('.paint-mirror')) { openMenu(menus.sym.el.hidden ? 'sym' : null); return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
@@ -3647,7 +3647,7 @@
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null;
     ctxEl.appendChild(selbar);
-    draggable(ctxEl, '.ctx-grip', 'ctx2');
+    draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', stage);
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
@@ -3736,6 +3736,7 @@
       var m = ctxEl.querySelector('.ctx-min'), t = on ? 'Show the tool settings' : 'Hide the tool settings';
       m.setAttribute('aria-expanded', on ? 'false' : 'true'); m.setAttribute('aria-label', t); m.dataset.tip = t;
       storeIt('paint-ctx-min', on);
+      if (!on) keepOnScreen(ctxEl, stage); // (opened out where it was dragged to: still all in view)
     }
     function ctxShow() {
       var has = !selbar.hidden;
@@ -3779,7 +3780,7 @@
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
       if (b.dataset.ctxShape) { st.shape = b.dataset.ctxShape; ctxSync(); return; }
-      if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; var so = $('.paint-solid'); if (so) so.setAttribute('aria-checked', st.solid ? 'true' : 'false'); ctxSync(); return; }
+      if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; ctxSync(); return; }
       if (b.dataset.ctxT) { tx[b.dataset.ctxT] = !tx[b.dataset.ctxT]; if (textBox) afterTextChange(); ctxSync(); return; }
       if (b.dataset.ctxAl) { tx.align = b.dataset.ctxAl; if (textBox) afterTextChange(); ctxSync(); return; }
     });
