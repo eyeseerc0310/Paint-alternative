@@ -942,27 +942,182 @@
       ['warmth', 'Warmth', -100], ['tint', 'Tint', -100], ['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['vignette', 'Vignette', -100], ['grain', 'Grain', 0], ['fade', 'Fade', 0]];
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Adjust');
-    adjBox.innerHTML = '<div class="pa-title">Adjust <span>Current layer</span></div><div class="pa-list">' + ADJ.map(function (a) {
+    // (three tabs along the top: the sliders, LEVELS and CURVES; switching
+    // tabs keeps what's been done, and DONE keeps the lot)
+    var ADJ_TABS = [['adjust', 'Adjust'], ['levels', 'Levels'], ['curves', 'Curves']], adjTab = 'adjust';
+    adjBox.innerHTML = '<div class="pa-title">Adjust <span>Current layer</span></div>' +
+      '<div class="pa-tabs" role="tablist">' + ADJ_TABS.map(function (t) { return '<button type="button" role="tab" data-adj-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="pa-list" data-tab="adjust">' + ADJ.map(function (a) {
       return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>0</output>' +
         '<input type="range" min="' + a[2] + '" max="100" step="1" value="0" data-adj="' + a[0] + '"></label>';
-    }).join('') + '</div><div class="pa-acts"><button type="button" data-adj-act="reset">Reset</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
+    }).join('') + '</div>' +
+      '<div class="pa-levels" data-tab="levels" hidden><canvas class="lv-hist" width="256" height="100"></canvas>' +
+      '<div class="lv-track" data-lv="in"><i data-k="lb" class="lv-b"></i><i data-k="lg" class="lv-g"></i><i data-k="lw" class="lv-w"></i></div>' +
+      '<div class="lv-nums"><output data-o="lb">0</output><output data-o="lg">1.00</output><output data-o="lw">255</output></div>' +
+      '<div class="lv-sub">Output</div><div class="lv-grad"></div>' +
+      '<div class="lv-track" data-lv="out"><i data-k="ob" class="lv-b"></i><i data-k="ow" class="lv-w"></i></div>' +
+      '<div class="lv-nums"><output data-o="ob">0</output><output data-o="ow">255</output></div></div>' +
+      '<div class="pa-curves" data-tab="curves" hidden><canvas class="cv-graph" aria-label="Curve"></canvas>' +
+      '<div class="cv-help">Tap the line to add a point, drag to bend it. Double-tap a point, or drag it off, to remove it.</div></div>' +
+      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
     left.appendChild(adjBox);
+    // LEVELS: black, mid (gamma x 100) and white in, black and white out
+    var LV = { lb: 0, lg: 100, lw: 255, ob: 0, ow: 255 };
+    function lv(k) { return adj && adj.v[k] != null ? adj.v[k] : LV[k]; }
+    function adjChanged() { return !!adj && Object.keys(adj.v).some(function (k) { return k === 'curve' ? !!adj.v.curve : adj.v[k] !== (k in LV ? LV[k] : 0); }); }
+    // CURVES: points (in 0-255) joined by a natural cubic spline; the tones
+    // just stop at pure black and pure white. 256 values out of it.
+    function curveLut(P0) {
+      var P = P0.map(function (q) { return [q[0], q[1]]; }).sort(function (a, b) { return a[0] - b[0]; });
+      for (var t = 1; t < P.length; t++) if (P[t][0] - P[t - 1][0] < 0.5) P[t][0] = P[t - 1][0] + 0.5; // (two at the same place: a hair apart)
+      var n = P.length, out = new Float32Array(256), i, x;
+      if (n < 3) {
+        for (x = 0; x < 256; x++) { var u0 = (x - P[0][0]) / Math.max(0.5, P[1][0] - P[0][0]); out[x] = Math.max(0, Math.min(255, x <= P[0][0] ? P[0][1] : x >= P[1][0] ? P[1][1] : P[0][1] + (P[1][1] - P[0][1]) * u0)); }
+        return out;
+      }
+      // second derivatives (natural ends), by the usual tridiagonal sweep
+      var h = [], al = [], l = [1], mu = [0], z = [0], c = new Array(n).fill(0);
+      for (i = 0; i < n - 1; i++) h[i] = P[i + 1][0] - P[i][0];
+      for (i = 1; i < n - 1; i++) al[i] = 3 / h[i] * (P[i + 1][1] - P[i][1]) - 3 / h[i - 1] * (P[i][1] - P[i - 1][1]);
+      for (i = 1; i < n - 1; i++) { l[i] = 2 * (P[i + 1][0] - P[i - 1][0]) - h[i - 1] * mu[i - 1]; mu[i] = h[i] / l[i]; z[i] = (al[i] - h[i - 1] * z[i - 1]) / l[i]; }
+      var bb = [], dd = [];
+      for (i = n - 2; i >= 0; i--) { c[i] = (i ? z[i] : 0) - (i ? mu[i] * c[i + 1] : 0); bb[i] = (P[i + 1][1] - P[i][1]) / h[i] - h[i] * (c[i + 1] + 2 * c[i]) / 3; dd[i] = (c[i + 1] - c[i]) / (3 * h[i]); }
+      for (x = 0, i = 0; x < 256; x++) {
+        var y;
+        if (x <= P[0][0]) y = P[0][1];
+        else if (x >= P[n - 1][0]) y = P[n - 1][1];
+        else { while (i < n - 2 && x > P[i + 1][0]) i++; var dx = x - P[i][0]; y = P[i][1] + bb[i] * dx + c[i] * dx * dx + dd[i] * dx * dx * dx; }
+        out[x] = Math.max(0, Math.min(255, y));
+      }
+      return out;
+    }
+    function curvePts() { return (adj && adj.v.curve) || [[0, 0], [255, 255]]; }
+    // the layer's spread of tones (inside the selection, if there is one),
+    // scaled so a few tall spikes don't flatten the rest
+    function adjHistogram() {
+      var d = adj.src.data, m = adj.mask, h = new Float32Array(256), i;
+      for (i = 0; i < d.length; i += 4) { if (!d[i + 3] || (m && !m[i + 3])) continue; h[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++; }
+      var top = Array.prototype.slice.call(h).sort(function (a, b) { return a - b; })[250] || 1;
+      for (i = 0; i < 256; i++) h[i] = Math.min(1, h[i] / top);
+      return h;
+    }
+    function adjShowTab(t) {
+      adjTab = t;
+      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-tab]'), function (b) { b.hidden = b.dataset.tab !== t; });
+      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-adj-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.adjTab === t ? 'true' : 'false'); });
+      if (t === 'levels') { drawHist(); syncLevels(); } else if (t === 'curves') drawCurve();
+    }
+    function midPos() { var lb = lv('lb'), lw = lv('lw'); return lb + (lw - lb) * Math.pow(0.5, lv('lg') / 100); }
+    function syncLevels() {
+      var put = function (k, v) { adjBox.querySelector('[data-k="' + k + '"]').style.left = v / 255 * 100 + '%'; };
+      put('lb', lv('lb')); put('lw', lv('lw')); put('lg', midPos()); put('ob', lv('ob')); put('ow', lv('ow'));
+      ['lb', 'lw', 'ob', 'ow'].forEach(function (k) { adjBox.querySelector('[data-o="' + k + '"]').textContent = lv(k); });
+      adjBox.querySelector('[data-o="lg"]').textContent = (lv('lg') / 100).toFixed(2);
+    }
+    function drawHist() {
+      var c = adjBox.querySelector('.lv-hist'), x = c.getContext('2d');
+      x.clearRect(0, 0, 256, 100); if (!adj) return;
+      x.fillStyle = getComputedStyle(c).color;
+      for (var i = 0; i < 256; i++) { var v = adj.hist[i] * 100; x.fillRect(i, 100 - v, 1, v); }
+    }
+    adjBox.querySelector('.pa-levels').addEventListener('pointerdown', function (e) {
+      var tr = e.target.closest('.lv-track'); if (!tr || !adj) return;
+      e.preventDefault();
+      var r = tr.getBoundingClientRect(), at = function (ev) { return Math.max(0, Math.min(255, (ev.clientX - r.left) / r.width * 255)); };
+      // the nearest handle to the pointer is the one that moves
+      var v0 = at(e), keys = tr.dataset.lv === 'in' ? ['lb', 'lg', 'lw'] : ['ob', 'ow'], pos = function (kk) { return kk === 'lg' ? midPos() : lv(kk); };
+      var k = keys.reduce(function (best, kk) { return Math.abs(pos(kk) - v0) < Math.abs(pos(best) - v0) ? kk : best; }, keys[0]);
+      try { tr.setPointerCapture(e.pointerId); } catch (x) {}
+      function mv(ev) {
+        if (!adj) return;
+        var v = Math.round(at(ev));
+        if (k === 'lb') adj.v.lb = Math.min(v, lv('lw') - 2);
+        else if (k === 'lw') adj.v.lw = Math.max(v, lv('lb') + 2);
+        else if (k === 'lg') { var t = Math.max(0.01, Math.min(0.99, (at(ev) - lv('lb')) / Math.max(1, lv('lw') - lv('lb')))); adj.v.lg = Math.round(Math.max(10, Math.min(999, Math.log(t) / Math.log(0.5) * 100))); }
+        else adj.v[k] = v;
+        syncLevels(); adjustQueue();
+      }
+      function done() { tr.removeEventListener('pointermove', mv); tr.removeEventListener('pointerup', done); tr.removeEventListener('pointercancel', done); }
+      mv(e);
+      tr.addEventListener('pointermove', mv); tr.addEventListener('pointerup', done); tr.addEventListener('pointercancel', done);
+    });
+    // double-click (or double-tap) a handle's number to put it back
+    adjBox.querySelector('.pa-levels').addEventListener('dblclick', function (e) {
+      var o = e.target.closest('[data-o]'); if (!o || !adj) return;
+      delete adj.v[o.dataset.o]; syncLevels(); adjustQueue();
+    });
+    var cvG = adjBox.querySelector('.cv-graph'), CP = 7, cvLastTap = 0;
+    function cvSize() { var w = cvG.clientWidth || 220, h = Math.round(w * 0.85); cvG.style.height = h + 'px'; if (cvG.width !== Math.round(w * R)) { cvG.width = Math.round(w * R); cvG.height = Math.round(h * R); } return { w: w, h: h }; }
+    function drawCurve() {
+      if (adjBox.hidden || adjTab !== 'curves') return;
+      var sz = cvSize(), c = cvG.getContext('2d'), W2 = sz.w - 2 * CP, H2 = sz.h - 2 * CP, P = curvePts(), cs = getComputedStyle(adjBox);
+      var ink = cs.getPropertyValue('--text').trim() || '#1d1d1f', acc = cs.getPropertyValue('--accent').trim() || '#0071e3';
+      c.setTransform(R, 0, 0, R, 0, 0); c.clearRect(0, 0, sz.w, sz.h); c.translate(CP, CP); // (a margin, so the end points show whole)
+      c.save(); c.globalAlpha = 0.06; c.fillStyle = ink; c.fillRect(0, 0, W2, H2); c.restore();
+      // the layer's tones, faintly underneath
+      if (adj && adj.hist) { c.save(); c.globalAlpha = 0.14; c.fillStyle = ink; for (var i = 0; i < 256; i++) { var v = adj.hist[i] * H2 * 0.9; c.fillRect(i / 256 * W2, H2 - v, W2 / 256 + 0.5, v); } c.restore(); }
+      c.save(); c.globalAlpha = 0.18; c.strokeStyle = ink; c.lineWidth = 1;
+      for (var g = 1; g < 4; g++) { c.beginPath(); c.moveTo(g * W2 / 4, 0); c.lineTo(g * W2 / 4, H2); c.moveTo(0, g * H2 / 4); c.lineTo(W2, g * H2 / 4); c.stroke(); }
+      c.beginPath(); c.moveTo(0, H2); c.lineTo(W2, 0); c.setLineDash([3, 3]); c.stroke(); c.restore(); // (the straight line, where it started)
+      var L = curveLut(P);
+      c.strokeStyle = ink; c.lineWidth = 1.75; c.beginPath();
+      for (var x = 0; x < 256; x++) c[x ? 'lineTo' : 'moveTo'](x / 255 * W2, H2 - L[x] / 255 * H2);
+      c.stroke();
+      P.forEach(function (q) { c.beginPath(); c.arc(q[0] / 255 * W2, H2 - q[1] / 255 * H2, 5, 0, Math.PI * 2); c.fillStyle = acc; c.fill(); c.lineWidth = 2; c.strokeStyle = '#fff'; c.stroke(); });
+    }
+    function setCurve(P) {
+      // (back to a straight line: no curve at all)
+      if (P.length === 2 && P[0][0] === 0 && P[0][1] === 0 && P[1][0] === 255 && P[1][1] === 255) delete adj.v.curve; else adj.v.curve = P;
+      drawCurve(); adjustQueue();
+    }
+    cvG.addEventListener('pointerdown', function (e) {
+      if (!adj) return;
+      e.preventDefault();
+      var r0 = cvG.getBoundingClientRect(), r = { left: r0.left + CP, top: r0.top + CP, width: r0.width - 2 * CP, height: r0.height - 2 * CP, bottom: r0.bottom - CP };
+      var at = function (ev) { return [Math.max(0, Math.min(255, (ev.clientX - r.left) / r.width * 255)), Math.max(0, Math.min(255, (1 - (ev.clientY - r.top) / r.height) * 255))]; };
+      var P = curvePts().map(function (q) { return q.slice(); }), a = at(e), hit = -1, best = 1e9;
+      P.forEach(function (q, i) { var d = Math.hypot((q[0] - a[0]) / 255 * r.width, (q[1] - a[1]) / 255 * r.height); if (d < best) { best = d; hit = i; } });
+      var now = Date.now();
+      if (best <= 14 && now - cvLastTap < 350 && P.length > 2) { P.splice(hit, 1); setCurve(P); cvLastTap = 0; return; } // double-tap: gone
+      cvLastTap = now;
+      if (best > 14) {
+        // a new point, on the line where it was tapped
+        var L = curveLut(P), nx = Math.round(a[0]), ny = Math.round(L[nx]);
+        if (P.some(function (q) { return q[0] === nx; })) nx = Math.min(255, nx + 1);
+        P.push([nx, ny]); P.sort(function (x, y) { return x[0] - y[0]; });
+        hit = P.findIndex(function (q) { return q[0] === nx && q[1] === ny; });
+        setCurve(P);
+      }
+      try { cvG.setPointerCapture(e.pointerId); } catch (x) {}
+      function mv(ev) {
+        if (!adj) return;
+        // a point goes wherever it's dragged (dragged well off the graph, it
+        // goes, as long as two are left)
+        var q = at(ev), Q = P.map(function (x) { return x.slice(); });
+        Q[hit] = [Math.round(q[0]), Math.round(q[1])];
+        if (P.length > 2 && (ev.clientY < r.top - 30 || ev.clientY > r.bottom + 30)) Q.splice(hit, 1);
+        Q.sort(function (a, b) { return a[0] - b[0]; });
+        setCurve(Q);
+      }
+      function up() { cvG.removeEventListener('pointermove', mv); cvG.removeEventListener('pointerup', up); cvG.removeEventListener('pointercancel', up); }
+      cvG.addEventListener('pointermove', mv); cvG.addEventListener('pointerup', up); cvG.addEventListener('pointercancel', up);
+    });
     function adjustOpen() {
       if (adj) { adjustDone(); return; }
       if (!active) return;
       if (textBox) commitText(); openMenu(null); layerPanel(false); anchor();
       var cv = active.cv, src = active.ctx.getImageData(0, 0, cv.width, cv.height);
       adj = { L: active, src: src, out: new ImageData(new Uint8ClampedArray(src.data), cv.width, cv.height), mask: sel ? selPixels() : null, v: {}, blur: null, wide: null, queued: false };
-      Array.prototype.forEach.call(adjBox.querySelectorAll('input'), function (i) { i.value = 0; i.previousElementSibling.textContent = '0'; });
-      adjBox.hidden = false; adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px';
+      adj.hist = adjHistogram();
+      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = 0; i.previousElementSibling.textContent = '0'; });
+      adjBox.hidden = false; adjShowTab(adjTab); adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px';
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
     }
     function adjustClose() { adj = null; adjBox.hidden = true; $('[data-act="adjust"]').setAttribute('aria-expanded', 'false'); }
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); }
     function adjustDone() {
       if (!adj) return;
-      var changed = Object.keys(adj.v).some(function (k) { return adj.v[k]; });
-      if (changed) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src }); } else adjustPut(adj.src);
+      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src }); } else adjustPut(adj.src);
       adjustClose();
     }
     function adjustCancel() { if (!adj) return; adjustPut(adj.src); adjustClose(); }
@@ -990,8 +1145,13 @@
       var ex = Math.pow(2, val('exposure') * 1.5), co = val('contrast'), hi = val('highlights'), sh = val('shadows'), wh = val('whites'), bl = val('blacks'), fa = val('fade');
       // one curve for the tones, worked out once for all 256 levels
       var lut = new Uint8ClampedArray(256), blut = new Float32Array(256), br = val('brilliance');
+      var lb = lv('lb'), lw = lv('lw'), lg = lv('lg') / 100, ob = lv('ob'), ow = lv('ow'), cl8 = v.curve ? curveLut(v.curve) : null;
       for (var i = 0; i < 256; i++) {
-        var x = i / 255 * ex;
+        // (levels first, then the curve, then the sliders)
+        var x = Math.max(0, Math.min(1, (i - lb) / Math.max(1, lw - lb)));
+        x = (ob + Math.pow(x, 1 / lg) * (ow - ob)) / 255;
+        if (cl8) { var cx8 = x * 255, c0 = Math.min(254, Math.floor(cx8)), cf = cx8 - c0; x = (cl8[c0] * (1 - cf) + cl8[c0 + 1] * cf) / 255; }
+        x *= ex;
         x += sh * 0.3 * (1 - sstep(0, 0.55, x)) * (sh > 0 ? 1 - x : x);
         x += hi * 0.3 * sstep(0.45, 1, x) * (hi > 0 ? 1 - x : x);
         x += wh * 0.22 * sstep(0.55, 1.05, x);
@@ -1348,6 +1508,7 @@
       if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; renderLayers(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
+      var at2 = e.target.closest('[data-adj-tab]'); if (at2) { adjShowTab(at2.dataset.adjTab); return; }
       var aa = e.target.closest('[data-adj-act]');
       if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') adjustDone(); else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
