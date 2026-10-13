@@ -19,6 +19,7 @@
   --selected: rgba(0, 0, 0, .05);
   --outline: rgba(0, 0, 0, .34);
   --control: #3a3a3c;
+  --brand: linear-gradient(135deg, #0a2463 0%, #1f6fe0 55%, #62c6ff 100%); /* (the app's icon: the same in light and dark) */
   --ok: #34c759;
   --warn: #ff9f0a;
   --panel: rgba(255, 255, 255, .8);
@@ -125,7 +126,7 @@ body > * { flex-shrink: 0; }
 .brand-icon {
   display: flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 7px; color: #fff;
-  background: linear-gradient(135deg, #ff9f0a 0%, #ff375f 45%, #bf5af2 75%, #0a84ff 100%);
+  background: var(--brand);
   box-shadow: 0 1px 2px rgba(0, 0, 0, .15), inset 0 0 0 .5px rgba(255, 255, 255, .25);
 }
 .brand-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
