@@ -545,7 +545,8 @@ body > * { flex-shrink: 0; }
 }
 .paint-ctx[hidden] { display: none; }
 .paint-ctx.away { opacity: 0; pointer-events: none; }
-.paint-ctx.thru { opacity: .18; pointer-events: none; } /* (a stroke is passing under it) */ /* (out of the way while a selection is resized or turned) */
+/* (out of the way while the picture is being worked on, or a selection resized or turned) */
+.paint-ctx.busy { opacity: 0; pointer-events: none; }
 .paint-ctx.dragging { box-shadow: var(--shadow-pop); transition: none; }
 .ctx-grip { flex: none; align-self: stretch; width: 10px; margin-right: 2px; border-radius: var(--r-xs); cursor: grab; touch-action: none;
   background: radial-gradient(circle, var(--muted) 1px, transparent 1.4px) 50% 50% / 4px 5px; opacity: .55; transition: opacity var(--dur) ease; }
