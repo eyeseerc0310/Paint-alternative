@@ -1122,9 +1122,9 @@
         if (e.button) return;
         e.preventDefault(); e.stopPropagation(); hideRing();
         try { el.setPointerCapture(e.pointerId); } catch (x) {}
-        el.classList.add('held'); stage.classList.add('guiding');
-        function mv(ev) { var r = stage.getBoundingClientRect(); fn(ev, ev.clientX - r.left, ev.clientY - r.top); drawGuide(); }
-        function up() { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.classList.remove('held'); stage.classList.remove('guiding'); }
+        el.classList.add('held'); stage.classList.add('guiding'); busy(true, e);
+        function mv(ev) { busyMove(ev); var r = stage.getBoundingClientRect(); fn(ev, ev.clientX - r.left, ev.clientY - r.top); drawGuide(); }
+        function up() { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.classList.remove('held'); stage.classList.remove('guiding'); busy(false); }
         el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
       });
     }
@@ -3158,6 +3158,7 @@
         if (pan) { pan = null; stage.classList.remove('panning'); }
       }
       try { stage.setPointerCapture(e.pointerId); } catch (x) {}
+      busy(true, e);
       if (e.pointerType === 'mouse') hideRing();
       pointers[e.pointerId] = screen(e); ptype[e.pointerId] = e.pointerType;
       var ids = Object.keys(pointers);
@@ -3184,7 +3185,7 @@
       begin(e);
     });
     stage.addEventListener('pointermove', function (e) {
-      if (pointers[e.pointerId]) pointers[e.pointerId] = screen(e);
+      if (pointers[e.pointerId]) { pointers[e.pointerId] = screen(e); busyMove(e); }
       if (fingerTap && fingerTap.from[e.pointerId] && pointers[e.pointerId]) {
         var f0 = fingerTap.from[e.pointerId], f1 = pointers[e.pointerId];
         if (Math.hypot(f1.x - f0.x, f1.y - f0.y) > 12) fingerTap.moved = true;
@@ -3205,7 +3206,7 @@
         return;
       }
       if (pan) { var s = screen(e); view.x = pan.vx + s.x - pan.x; view.y = pan.vy + s.y - pan.y; applyView(); return; }
-      if (down && e.pointerId === down.id) { move(e); ctxThru(e); if (down && down.pen) showRing(pos(e)); return; }
+      if (down && e.pointerId === down.id) { move(e); if (down && down.pen) showRing(pos(e)); return; }
       if (lassoOn && !down) { lassoHover = pos(e); drawLasso(lassoHover); stage.classList.toggle('closing', nearStart(lassoHover, e.pointerType !== 'mouse')); return; }
       if (st.tool === 'pen' && pen && pen.pts.length && !down && !e.target.closest(STAGE_UI)) { penHover = pos(e); drawPen(); hideRing(); return; }
       // an Apple Pencil hovering over the picture shows the brush size too
@@ -3247,22 +3248,22 @@
         spaceGrab = { sel: true, thing: true, ox: p.x - sel.x, oy: p.y - sel.y }; drawSel();
       }
       else spaceGrab = { x: s.x, y: s.y, vx: view.x, vy: view.y };
-      stage.classList.add('panning'); octx.clearRect(0, 0, W, H);
+      stage.classList.add('panning'); octx.clearRect(0, 0, W, H); busy(true);
     }
     function moveGrab() {
       if (spaceGrab.sel) { sel.x = lastMouse.p.x - spaceGrab.ox; sel.y = lastMouse.p.y - spaceGrab.oy; drawSel(); }
       else { view.x = spaceGrab.vx + lastMouse.s.x - spaceGrab.x; view.y = spaceGrab.vy + lastMouse.s.y - spaceGrab.y; applyView(); }
     }
     function letGoOfSpace() {
-      spaceDown = false; stage.classList.remove('space');
+      spaceDown = false; stage.classList.remove('space'); if (spaceGrab && !Object.keys(pointers).length) busy(false);
       if (!spaceGrab) return;
       if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) autosave();
       spaceGrab = null; stage.classList.remove('panning');
     }
-    window.addEventListener('blur', function () { letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
+    window.addEventListener('blur', function () { busy(false); letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
     function up(e) {
       delete pointers[e.pointerId]; delete ptype[e.pointerId];
-      ctxThru(null);
+      if (!Object.keys(pointers).length) busy(false);
       if (e.pointerType === 'pen') hideRing();
       // (all the fingers of a quick, still tap are up: undo, or redo)
       if (fingerTap && !Object.keys(pointers).length) {
@@ -3287,8 +3288,10 @@
     stage.addEventListener('pointercancel', function (e) { if (down && e.pointerId === down.id) cancelStroke(); up(e); });
     stage.addEventListener('pointerleave', function (e) { if (lassoOn && !down) { lassoHover = null; drawLasso(null); stage.classList.remove('closing'); } if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
     // ctrl / cmd + scroll (and a trackpad pinch) zooms; scrolling moves a zoomed-in picture
+    var wheelT = 0;
     stage.addEventListener('wheel', function (e) {
       var s = screen(e);
+      if (!e.target.closest(STAGE_UI) && (e.ctrlKey || e.metaKey || view.k > fillK * 1.01)) { busy(true); clearTimeout(wheelT); wheelT = setTimeout(function () { if (!Object.keys(pointers).length) busy(false); }, 260); }
       if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoomAt(view.k * Math.exp(-e.deltaY * 0.01), s.x, s.y); }
       else if (view.k > fillK * 1.01) { e.preventDefault(); view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
     }, { passive: false });
@@ -3375,7 +3378,7 @@
         if (!start.on) {
           if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
           start.on = true;
-          blob = document.createElement('div'); blob.className = 'paint-blob'; blob.style.background = start.c;
+          blob = document.createElement('div'); blob.className = 'paint-blob'; blob.style.background = start.c; busy(true);
           document.body.appendChild(blob);
         }
         // (placed with translate, not transform: its grow-and-plop scale is
@@ -3386,6 +3389,7 @@
       }
       function done(ev) {
         sw.removeEventListener('pointermove', mv); sw.removeEventListener('pointerup', done); sw.removeEventListener('pointercancel', done);
+        if (start.on) busy(false);
         // (the click that follows a press on the two colours is never acted on:
         // the tap opened the picker here already, and a drag shouldn't)
         if (pair) pairPressed = performance.now();
@@ -4006,14 +4010,21 @@
       if (kind === 'fonts') { var on = ctxList.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
       btn.setAttribute('aria-expanded', 'true');
     }
-    // (a stroke that passes under the bar: the bar fades and lets it through)
-    var thruBox = null;
-    function ctxThru(e) {
-      if (!e) { thruBox = null; ctxEl.classList.remove('thru'); return; }
-      if (!thruBox) thruBox = ctxEl.hidden ? { left: 0, right: -1, top: 0, bottom: -1 } : ctxEl.getBoundingClientRect();
-      var b = thruBox, m = 14;
-      ctxEl.classList.toggle('thru', e.clientX > b.left - m && e.clientX < b.right + m && e.clientY > b.top - m && e.clientY < b.bottom + m);
+    // WHILE THE PICTURE IS BEING WORKED ON (drawing, erasing, moving,
+    // sizing or turning, panning, zooming...) the floating panel fades out
+    // of the way, and comes back when it's let go. (A press on the picture
+    // waits until it moves, or is held a moment, so a tap or a click
+    // doesn't make it flicker.)
+    var busyTimer = 0, busyOn = false, busyAt = null;
+    function busy(on, e) {
+      if (!ctxEl) return;
+      if (!on) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = false; ctxEl.classList.remove('busy'); return; }
+      if (busyOn) return;
+      if (!e) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = true; ctxEl.classList.add('busy'); return; }
+      if (busyTimer) return;
+      busyAt = { x: e.clientX, y: e.clientY }; busyTimer = setTimeout(function () { busy(true); }, 300);
     }
+    function busyMove(e) { if (busyAt && Math.hypot(e.clientX - busyAt.x, e.clientY - busyAt.y) > 6) busy(true); }
     function ctxClose() { ctxList.hidden = true; Array.prototype.forEach.call(ctxEl.querySelectorAll('[aria-expanded="true"]'), function (b) { b.setAttribute('aria-expanded', 'false'); }); }
     function ctxRender() {
       if (!ctxEl) return;
