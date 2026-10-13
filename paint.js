@@ -247,7 +247,7 @@
     });
     var recentBox = $('.paint-recent');
     function setColor(c) {
-      st.color = c; colorIn.value = c; colorDot.style.background = c; if (textBox) styleTextBox();
+      st.color = c; colorIn.value = c; colorDot.style.background = c; if (textBox) styleTextBox(); if (menus.brush && !menus.brush.el.hidden) brushSamples();
       Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
     function setColor2(c) { st.color2 = c; color2In.value = c; color2Dot.style.background = c; if (textBox) styleTextBox(); }
@@ -271,7 +271,7 @@
       left.appendChild(m);
       menus[tool] = { el: m, key: key };
     }
-    makeMenu('brush', BRUSHES, 'brush', function (b) { return '<i class="pb-' + b[0] + '"></i>'; });
+    makeMenu('brush', BRUSHES, 'brush', function (b) { return '<canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas>'; });
     makeMenu('shape', SHAPES, 'shape', function (s) { return '<i class="ps-' + s[0] + '"></i>'; });
     // (the text tool's list: every font, by kind, in a scrolling list)
     var fm = document.createElement('div');
@@ -289,6 +289,7 @@
         btn.setAttribute('aria-expanded', on ? 'true' : 'false');
         if (on) {
           if (t === 'text') ensureFonts();
+          if (t === 'brush') brushSamples();
           m.el.style.top = Math.max(0, Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight)) + 'px';
           Array.prototype.forEach.call(m.el.querySelectorAll('button'), function (b) { b.setAttribute('aria-checked', (b.dataset.val == null ? st.solid : b.dataset.val === st[m.key]) ? 'true' : 'false'); });
           if (t === 'text') { var on = m.el.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
@@ -340,15 +341,47 @@
     // ---- brushes ----
     var down = null, pts = [];
     function strokeStyle(c) { c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = st.size; c.strokeStyle = c.fillStyle = st.color; }
-    function kind() { return st.tool === 'eraser' ? 'round' : st.brush; }
-    // ---- THE BRUSHES. While the pointer is down, the whole stroke so far is
-    // redrawn on the see-through sheet each time it moves, from a smoothed
-    // copy of its points (a curve through them, sampled every pixel or so),
-    // so lines come out smooth however the mouse or finger moved. Most
-    // brushes thin a little at each end, the way ink does. ----
-    function resample(P, step) {
-      var out = [{ x: P[0].x, y: P[0].y, pr: P[0].pr, d: 0 }], d = 0;
-      for (var i = 0; i < P.length - 1; i++) {
+    function kind() { return st.tool === 'eraser' ? 'eraser' : st.brush; }
+    // ---- THE BRUSH ENGINE. A stroke is the pointer's points (with an Apple
+    // Pencil's pressure), turned into a smooth curve sampled every pixel or
+    // so, then drawn by its brush onto the see-through sheet. While drawing,
+    // only the part of the picture the stroke has just changed is cleared and
+    // drawn again: the start of a stroke never changes once the pointer has
+    // moved on, so a long stroke costs no more per frame than a short one.
+    // The same code draws the samples in the brush list and the preview
+    // beside the size slider, so they always match the real thing. ----
+
+    // each brush's shape: its width (or flat nib), how its ends taper, how
+    // finely it's sampled, and how far its paint reaches beyond the line
+    function brushCfg(k, sz, color) {
+      var c = { kind: k, size: sz, color: color, tin: 0, tout: 0, step: Math.max(0.6, sz * 0.1) };
+      if (k === 'round') { c.w = sz; c.tin = sz * 1.5; c.tout = sz * 1.2; }
+      else if (k === 'eraser') { c.w = sz; }
+      else if (k === 'pencil') { c.w = Math.max(1, sz * 0.38); c.tin = c.tout = Math.max(6, sz * 3); c.step = 0.6; }
+      else if (k === 'marker') { c.len = Math.max(3, sz * 1.1); c.thick = Math.max(1.5, sz * 0.38); c.ang = -0.6; }
+      else if (k === 'highlighter') { c.len = Math.max(10, sz * 2.2); c.thick = Math.max(3, sz * 0.5); c.ang = 1.35; }
+      else if (k === 'calligraphy') { c.len = Math.max(4, sz * 1.5); c.thick = Math.max(1, sz * 0.09); c.ang = -Math.PI / 4; }
+      else if (k === 'watercolor') { c.w = Math.max(4, sz * 1.8); c.tin = c.tout = c.w * 0.4; c.blur = Math.max(1.2, c.w * 0.12); }
+      else if (k === 'chalk') { c.w = Math.max(3, sz * 1.3); c.tin = c.tout = sz * 0.8; }
+      else if (k === 'oil') { c.w = Math.max(2, sz * 1.25); c.tin = sz * 0.9; c.tout = sz * 1.2; c.dry = sz * 3.5; }
+      else if (k === 'feather') { c.w = Math.max(3, sz) * 1.35; c.blur = Math.max(3, sz) * 0.85; }
+      if (c.len) { c.step = Math.max(0.5, c.thick * 0.4); c.reach = c.len / 2 + c.thick + 1; }
+      else c.reach = c.w * (k === 'watercolor' ? 0.7 : 0.62) + (c.blur || 0) * 3 + 2;
+      c.live = Math.max(c.tout, c.dry || 0); // (how far back from the tip it still changes)
+      return c;
+    }
+    // the curve through the points (Catmull-Rom), sampled every `step`: each
+    // sample with its distance along the stroke (d), pressure (pr) and which
+    // way is "across" it (nx, ny). S.seg[i] is where input point i starts.
+    function resample(P, step, prev, prevN) {
+      var out = [{ x: P[0].x, y: P[0].y, pr: P[0].pr, d: 0 }], d = 0, seg = [0], i0 = 0, k0 = 0;
+      // (from last time's curve: the pieces whose four points were all there
+      // already are exactly the same, so they're kept as they were)
+      if (prev && prev.seg && prevN >= 4 && P.length >= prevN) {
+        i0 = prevN - 2; k0 = prev.seg[i0];
+        out = prev.slice(0, k0 + 1); seg = prev.seg.slice(0, i0 + 1); d = out[k0].d;
+      }
+      for (var i = i0; i < P.length - 1; i++) {
         var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
         var n = Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / step));
         for (var j = 1; j <= n; j++) {
@@ -358,12 +391,13 @@
           var l = out[out.length - 1]; d += Math.hypot(x - l.x, y - l.y);
           out.push({ x: x, y: y, pr: p1.pr == null ? null : p1.pr + (p2.pr - p1.pr) * t, d: d });
         }
+        seg.push(out.length - 1);
       }
-      // (which way is "across" the stroke at each point, for brushes made of strands)
-      for (var k = 0; k < out.length; k++) {
+      for (var k = Math.max(0, k0 - 2); k < out.length; k++) {
         var a = out[Math.max(0, k - 2)], b = out[Math.min(out.length - 1, k + 2)], tx = b.x - a.x, ty = b.y - a.y, tl = Math.hypot(tx, ty);
-        out[k].nx = tl ? -ty / tl : 0; out[k].ny = tl ? tx / tl : 1;
+        out[k].nx = tl ? -ty / tl : 0; out[k].ny = tl ? tx / tl : 1; out[k].i = k;
       }
+      out.seg = seg;
       return out;
     }
     // an Apple Pencil's pressure, smoothed (it sometimes reads 0 between readings)
@@ -374,63 +408,97 @@
       return down.pr;
     }
     // how wide the stroke is at a point: the pressure, and the thin ends
-    function widthFn(base, tin, tout, total) {
+    // (ease-out curves, so the line swells quickly from a fine point)
+    function widthFn(base, tin, tout, total, wob) {
+      var memo = [];
       return function (s, tap) {
+        if (!tap && memo[s.i] != null) return memo[s.i];
         var f = s.pr == null ? 1 : 0.15 + 0.85 * Math.min(1, s.pr * 1.25);
         if (!tap) {
-          // (an ease-out curve: the line swells quickly from a fine point)
           if (tin) { var u = Math.min(1, s.d / tin); f *= 0.12 + 0.88 * (1 - (1 - u) * (1 - u)); }
           if (tout) { var v = Math.min(1, Math.max(0, total - s.d) / tout); f *= 0.2 + 0.8 * (1 - (1 - v) * (1 - v)); }
         }
-        return Math.max(0.5, base * f);
+        if (wob) f *= 1 + wob(s.d);
+        var w = Math.max(0.4, base * f);
+        if (!tap) memo[s.i] = w;
+        return w;
       };
     }
-    // a line of varying width (round ends), drawn in runs of the same width
-    function ribbon(c, S, wf) {
+    // a slow, smooth wobble along the stroke (the same for the whole stroke):
+    // edges that wander a little, like real paint
+    function wobble(s8, scale, amp) {
+      var ph = s8.ph || (s8.ph = [Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3]);
+      return function (d) { var t = d / scale; return amp * (Math.sin(t + ph[0]) + 0.6 * Math.sin(t * 2.3 + ph[1]) + 0.35 * Math.sin(t * 5.1 + ph[2])) / 1.95; };
+    }
+    // only what's near the area being redrawn is drawn at all (box.vis says,
+    // for each sample, whether it's within reach of it)
+    function near(s, box) { return !box || box.vis[s.i]; }
+    function markNear(S, box, r) {
+      var v = new Uint8Array(S.length);
+      for (var i = 0; i < S.length; i++) { var s = S[i]; v[i] = s.x + r >= box[0] && s.x - r <= box[2] && s.y + r >= box[1] && s.y - r <= box[3] ? 1 : 0; }
+      box.vis = v; return box;
+    }
+    // a line of varying width with round ends, in runs of the same width
+    function ribbon(c, S, wf, box) {
       if (S.length === 1) { c.beginPath(); c.arc(S[0].x, S[0].y, wf(S[0], true) / 2, 0, Math.PI * 2); c.fill(); return; }
       c.lineCap = 'round'; c.lineJoin = 'round';
-      var cur = -1;
+      var cur = -1, open = false;
       for (var i = 1; i < S.length; i++) {
-        var w = Math.round((wf(S[i - 1]) + wf(S[i])) * 2) / 4;
-        if (w !== cur) { if (cur > 0) c.stroke(); c.beginPath(); c.lineWidth = cur = w; c.moveTo(S[i - 1].x, S[i - 1].y); }
-        c.lineTo(S[i].x, S[i].y);
+        var a = S[i - 1], b = S[i];
+        if (!near(a, box) && !near(b, box)) { if (open) { c.stroke(); open = false; cur = -1; } continue; }
+        var w = (wf(a) + wf(b)) / 2;
+        w = w > 6 ? Math.round(w * 2) / 2 : Math.round(w * 4) / 4;
+        if (w !== cur || !open) { if (open) c.stroke(); c.beginPath(); c.lineWidth = cur = w; c.moveTo(a.x, a.y); open = true; }
+        c.lineTo(b.x, b.y);
       }
-      c.stroke();
+      if (open) c.stroke();
     }
-    // a flat nib swept along the stroke (marker, highlighter, calligraphy):
-    // the nib at every point, and the band between each pair of points, all
-    // wound the same way so they join up into one shape
-    function poly(c, q) {
-      var a = 0; for (var i = 0; i < q.length; i++) { var u = q[i], v = q[(i + 1) % q.length]; a += u[0] * v[1] - v[0] * u[1]; }
-      if (a < 0) q.reverse();
-      c.moveTo(q[0][0], q[0][1]); for (var j = 1; j < q.length; j++) c.lineTo(q[j][0], q[j][1]); c.closePath();
+    // a flat nib (marker, highlighter, calligraphy). Moving in a straight
+    // line from one sample to the next, a rectangular nib covers exactly the
+    // outline that wraps both of its positions (their convex hull), so the
+    // stroke is those outlines joined: clean, continuous edges with no
+    // sawtooth from the nib's corners
+    function nibCorners(s, cfg) {
+      var k = s.pr == null ? 1 : 0.35 + 0.65 * Math.min(1, s.pr * 1.25), ca = Math.cos(cfg.ang), sa = Math.sin(cfg.ang);
+      var hx = ca * cfg.len / 2 * k, hy = sa * cfg.len / 2 * k, tx = -sa * cfg.thick / 2, ty = ca * cfg.thick / 2;
+      return [[s.x - hx - tx, s.y - hy - ty], [s.x + hx - tx, s.y + hy - ty], [s.x + hx + tx, s.y + hy + ty], [s.x - hx + tx, s.y - hy + ty]];
     }
-    function chisel(c, S, len, thick, ang) {
-      var hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2, tx = -Math.sin(ang) * thick / 2, ty = Math.cos(ang) * thick / 2;
-      var f = function (s) { return s.pr == null ? 1 : 0.35 + 0.65 * Math.min(1, s.pr * 1.25); };
+    function hull(P) {
+      // (Andrew's monotone chain; always wound the same way, so the shapes join)
+      P.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+      var cross = function (o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }, lo = [], up = [], i;
+      for (i = 0; i < P.length; i++) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], P[i]) <= 0) lo.pop(); lo.push(P[i]); }
+      for (i = P.length - 1; i >= 0; i--) { while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], P[i]) <= 0) up.pop(); up.push(P[i]); }
+      return lo.slice(0, -1).concat(up.slice(0, -1));
+    }
+    function chisel(c, S, cfg, box) {
       c.beginPath();
-      S.forEach(function (s, i) {
-        var k = f(s), ax = hx * k, ay = hy * k;
-        poly(c, [[s.x - ax - tx, s.y - ay - ty], [s.x + ax - tx, s.y + ay - ty], [s.x + ax + tx, s.y + ay + ty], [s.x - ax + tx, s.y - ay + ty]]);
-        if (i) {
-          // (each edge of the nib, swept from the last point to this one)
-          var o = S[i - 1], ko = f(o), bx = hx * ko, by = hy * ko;
-          [[-1, -1, 1, -1], [-1, 1, 1, 1], [-1, -1, -1, 1], [1, -1, 1, 1]].forEach(function (e) {
-            poly(c, [[o.x + e[0] * bx + e[1] * tx, o.y + e[0] * by + e[1] * ty], [o.x + e[2] * bx + e[3] * tx, o.y + e[2] * by + e[3] * ty],
-              [s.x + e[2] * ax + e[3] * tx, s.y + e[2] * ay + e[3] * ty], [s.x + e[0] * ax + e[1] * tx, s.y + e[0] * ay + e[1] * ty]]);
-          });
-        }
-      });
+      var add = function (q) { c.moveTo(q[0][0], q[0][1]); for (var j = 1; j < q.length; j++) c.lineTo(q[j][0], q[j][1]); c.closePath(); };
+      if (S.length === 1) { add(hull(nibCorners(S[0], cfg))); c.fill(); return; }
+      var prevC = null;
+      for (var i = 1; i < S.length; i++) {
+        if (!near(S[i - 1], box) && !near(S[i], box)) { prevC = null; continue; }
+        var a = prevC || nibCorners(S[i - 1], cfg), b = nibCorners(S[i], cfg);
+        add(hull(a.concat(b))); prevC = b;
+      }
       c.fill();
     }
-    // strands across the stroke (chalk, oil paint's bristles), each at its
-    // own place, width, shade and strength; they narrow with the stroke
-    function strands(c, S, list, wf) {
+    // strands along the stroke (chalk's streaks, oil paint's bristles), each
+    // at its own place across it, width, shade and strength, narrowing with it
+    function strands(c, S, list, wf, box, from) {
       c.lineCap = 'round'; c.lineJoin = 'round';
       list.forEach(function (q) {
-        c.globalAlpha = q.a; c.strokeStyle = q.col || st.color; c.lineWidth = q.w;
-        c.beginPath();
-        S.forEach(function (s, i) { var k = wf(s, S.length === 1) * q.o; c[i ? 'lineTo' : 'moveTo'](s.x + s.nx * k, s.y + s.ny * k + (S.length === 1 ? 0.01 : 0)); });
+        c.globalAlpha = q.a; c.strokeStyle = q.col; c.lineWidth = q.w;
+        c.beginPath(); var open = false;
+        for (var i = from || 0; i < S.length; i++) {
+          var s = S[i];
+          // (a strand that comes and goes is on or off by its distance along
+          // the stroke, so it's drawn the same however it's redrawn)
+          if (!near(s, box) || (q.gap && Math.sin(s.d / q.gap[0] + q.gap[1]) < q.gap[2])) { open = false; continue; }
+          var k = wf(s, S.length === 1) * q.o;
+          var x = s.x + s.nx * k, y = s.y + s.ny * k;
+          if (!open) { c.moveTo(x, y); open = true; if (S.length === 1) c.lineTo(x + 0.01, y); } else c.lineTo(x, y);
+        }
         c.stroke();
       });
       c.globalAlpha = 1;
@@ -439,106 +507,235 @@
       var c = parseInt(hex.slice(1), 16), m = function (v) { return Math.max(0, Math.min(255, Math.round(f > 1 ? v + (255 - v) * (f - 1) : v * f))); };
       return 'rgb(' + m(c >> 16 & 255) + ',' + m(c >> 8 & 255) + ',' + m(c & 255) + ')';
     }
-    // the paper's tooth: fine (pencil) or coarse and clumpy (chalk). Used to
-    // rub bits out of a stroke, so it catches on the grain like the real thing
-    var tooth = {};
-    function toothPat(kindOf) {
-      if (tooth[kindOf]) return tooth[kindOf];
-      var S = 128, g = document.createElement('canvas'); g.width = g.height = S;
-      var gx = g.getContext('2d'), im = gx.createImageData(S, S), d = im.data, lo = null;
-      if (kindOf === 'chalk') {
-        var s2 = document.createElement('canvas'); s2.width = s2.height = 32;
-        var sx = s2.getContext('2d'), si = sx.createImageData(32, 32);
-        for (var i = 0; i < si.data.length; i += 4) { si.data[i + 3] = Math.random() * 255; }
+    // PAPER TEXTURES, used to rub a little out of a stroke so it catches on
+    // the grain: fine (pencil), coarse and clumpy (chalk), soft blotches
+    // (watercolour's mottling) and fine granulation (watercolour's pigment)
+    var textures = {};
+    function texture(kindOf) {
+      if (textures[kindOf]) return textures[kindOf];
+      var S = 256, g = document.createElement('canvas'); g.width = g.height = S;
+      var gx = g.getContext('2d'), im = gx.createImageData(S, S), d = im.data;
+      // smooth noise: a few octaves of small random grids, scaled up softly
+      function smooth(cells) {
+        var s2 = document.createElement('canvas'); s2.width = s2.height = cells;
+        var sx = s2.getContext('2d'), si = sx.createImageData(cells, cells);
+        for (var i = 0; i < si.data.length; i += 4) si.data[i + 3] = Math.random() * 255;
         sx.putImageData(si, 0, 0);
+        // (laid out 3 x 3 before it's scaled up, so the middle one's edges
+        // blend into its neighbours and the pattern repeats without seams)
+        var t3 = document.createElement('canvas'); t3.width = t3.height = cells * 3;
+        var tx = t3.getContext('2d'); for (var ox = 0; ox < 3; ox++) for (var oy = 0; oy < 3; oy++) tx.drawImage(s2, ox * cells, oy * cells);
         var big = document.createElement('canvas'); big.width = big.height = S;
-        var bx = big.getContext('2d'); bx.imageSmoothingQuality = 'high'; bx.drawImage(s2, 0, 0, S, S); lo = bx.getImageData(0, 0, S, S).data;
+        var bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; bx.imageSmoothingQuality = 'high';
+        bx.drawImage(t3, -S, -S, S * 3, S * 3);
+        return bx.getImageData(0, 0, S, S).data;
       }
+      var lo = kindOf === 'chalk' ? smooth(24) : kindOf === 'cloud' ? smooth(10) : null, mid = kindOf === 'chalk' ? smooth(128) : kindOf === 'cloud' ? smooth(24) : null;
       for (var j = 0; j < d.length; j += 4) {
-        var n = Math.random();
-        if (kindOf === 'chalk') { var v = lo[j + 3] / 255 * 0.55 + n * 0.45; d[j + 3] = v > 0.56 ? Math.min(255, (v - 0.56) * 900) : 0; }
-        else d[j + 3] = n > 0.55 ? (n - 0.55) * 300 : 0;
+        var n = Math.random(), v;
+        if (kindOf === 'pencil') v = n > 0.5 ? (n - 0.5) * 2 * 200 : 0;
+        else if (kindOf === 'chalk') { v = mid[j + 3] / 255 * 0.55 + lo[j + 3] / 255 * 0.2 + n * 0.25; v = v > 0.5 ? Math.min(255, (v - 0.5) * 1400) : 0; }
+        else if (kindOf === 'cloud') { v = lo[j + 3] / 255 * 0.65 + mid[j + 3] / 255 * 0.35; v = Math.max(0, v - 0.35) * 330; }
+        else v = n < 0.45 ? Math.random() * 110 : 0; // grain
+        d[j + 3] = v;
       }
       gx.putImageData(im, 0, 0);
-      tooth[kindOf] = octx.createPattern(g, 'repeat');
-      return tooth[kindOf];
+      return (textures[kindOf] = gx.createPattern(g, 'repeat'));
     }
-    // see-through passes are drawn whole on a spare sheet, then laid on once
-    // (so the overlapping round ends inside a line don't double up)
-    var spare = null;
-    function pass(fn, alpha, op, filter) {
-      if (!spare || spare.width !== ov.width || spare.height !== ov.height) { spare = document.createElement('canvas'); spare.width = ov.width; spare.height = ov.height; }
-      var x = spare.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, spare.width, spare.height); base(x);
-      x.fillStyle = x.strokeStyle = st.color; fn(x);
-      octx.save(); octx.setTransform(1, 0, 0, 1, 0, 0); octx.globalAlpha = alpha; if (op) octx.globalCompositeOperation = op; if (filter) octx.filter = filter;
-      octx.drawImage(spare, 0, 0); octx.restore();
+    // rub the texture out of everything drawn (the grain stays put on the
+    // paper, in the picture's own pixels, whatever the zoom)
+    function rubOut(c, kindOf, a, px) {
+      c.save(); c.setTransform(px / R, 0, 0, px / R, 0, 0);
+      c.globalCompositeOperation = 'destination-out'; c.globalAlpha = a; c.fillStyle = texture(kindOf);
+      c.fillRect(0, 0, c.canvas.width * R / px, c.canvas.height * R / px); c.restore();
     }
-    function bothOn(x, fn) {
-      fn(x);
-      copies().forEach(function (m) { x.save(); x.setTransform(R * m[0], R * m[1], R * m[2], R * m[3], R * m[4], R * m[5]); fn(x); x.restore(); });
+    function clipTo2(c, rects) { if (!rects) return; c.beginPath(); rects.forEach(function (r) { c.rect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); c.clip(); }
+    // see-through layers of a brush (watercolour's bleed and pale middle) are
+    // drawn whole on a spare sheet of their own, then laid on once, so the
+    // overlapping round ends inside a line never double up
+    var spares = {};
+    function pass(c, s8, id, rects, fn, alpha, op, filter) {
+      var cv = c.canvas, sp = s8.sp || (s8.sp = {}), x = sp[id];
+      if (!x) {
+        // (the main sheet's spares are kept from stroke to stroke, cleared at the start of each)
+        var pool = s8.preview ? {} : spares;
+        x = pool[id];
+        if (!x || x.canvas.width !== cv.width || x.canvas.height !== cv.height) { var e = document.createElement('canvas'); e.width = cv.width; e.height = cv.height; x = pool[id] = e.getContext('2d'); }
+        x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
+        sp[id] = x;
+      }
+      var T = c.getTransform();
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); clipTo2(x, rects); x.clearRect(0, 0, cv.width, cv.height);
+      x.setTransform(T); x.fillStyle = x.strokeStyle = c.fillStyle; fn(x); x.restore();
+      c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = alpha; if (op) c.globalCompositeOperation = op; if (filter) c.filter = filter;
+      c.drawImage(x.canvas, 0, 0); c.restore();
     }
-    function rubOut(pat, a) { octx.save(); octx.globalCompositeOperation = 'destination-out'; octx.globalAlpha = a; octx.fillStyle = pat; octx.fillRect(0, 0, W, H); octx.restore(); }
-    var wcGrain = null;
-    function renderStroke() {
-      var k = kind(), sz = st.size, c = octx;
-      octx.clearRect(0, 0, W, H);
-      if (!pts.length) return;
-      var step = { pencil: 0.75, calligraphy: Math.max(0.75, sz * 0.06), marker: Math.max(0.75, sz * 0.1), highlighter: Math.max(0.75, sz * 0.12) }[k] || Math.max(0.75, sz * 0.12);
-      var S = resample(pts, step), total = S[S.length - 1].d;
-      c.save(); c.fillStyle = c.strokeStyle = st.color;
-      if (k === 'round') {
-        var wr = widthFn(sz, sz * 1.5, sz * 1.2, total);
-        both(c, function () { ribbon(c, S, wr); });
+    // draw a stroke (its samples S) with a brush onto c, whose transform maps
+    // the picture's units to the canvas; px is canvas pixels per unit. s8
+    // keeps what's chosen once per stroke (strands, wobble, spare sheets) and
+    // s8.sym the symmetry copies. box (in units) and rects (in canvas pixels)
+    // are the area being redrawn, or null for all of it.
+    function strokeOn(c, S, cfg, s8, px, box, rects) {
+      var k = cfg.kind, total = S[S.length - 1].d, sym = s8.sym || [];
+      if (sym.length) box = null; // (with copies, everything is drawn; the redraw area still limits the work)
+      var rep = function (x, fn) {
+        fn(x);
+        if (!sym.length) return;
+        var B = x.getTransform();
+        sym.forEach(function (m) { x.setTransform(B.multiply(new DOMMatrix(m))); fn(x); });
+        x.setTransform(B);
+      };
+      c.save(); c.fillStyle = c.strokeStyle = cfg.color;
+      if (k === 'round' || k === 'eraser') {
+        var wr = widthFn(cfg.w, cfg.tin, cfg.tout, total);
+        rep(c, function (x) { ribbon(x, S, wr, box); });
       } else if (k === 'pencil') {
-        // graphite: a fine line that tapers, catching on the paper's grain
-        var wp = widthFn(Math.max(1, sz * 0.38), sz * 3, sz * 3, total);
-        both(c, function () { ribbon(c, S, wp); });
-        rubOut(toothPat('pencil'), 0.55);
-      } else if (k === 'marker') {
-        // a felt chisel tip: flat, even ink
-        both(c, function () { chisel(c, S, Math.max(3, sz * 1.1), Math.max(1.5, sz * 0.38), -0.6); });
-      } else if (k === 'highlighter') {
-        both(c, function () { chisel(c, S, Math.max(10, sz * 2.2), Math.max(3, sz * 0.5), 1.35); });
-      } else if (k === 'calligraphy') {
-        // a broad nib held at 45 degrees: thick one way, hairline the other
-        both(c, function () { chisel(c, S, Math.max(4, sz * 1.5), Math.max(1, sz * 0.09), -Math.PI / 4); });
+        // graphite: a fine line that tapers, catching on the paper's tooth;
+        // pressing harder (or a bigger size) fills more of the grain in
+        var wp = widthFn(cfg.w, cfg.tin, cfg.tout, total);
+        rep(c, function (x) { ribbon(x, S, wp, box); });
+        rubOut(c, 'pencil', Math.max(0.3, 0.62 - cfg.size * 0.006), px);
+      } else if (cfg.len) {
+        rep(c, function (x) { chisel(x, S, cfg, box); });
       } else if (k === 'watercolor') {
-        // a soft wash, paler in the middle with a darker rim where it dried,
-        // a faint bleed round the edge, and grain; laid down with multiply,
-        // so washes that cross build up like glazes
-        var ww = Math.max(4, sz * 1.8), wf1 = widthFn(ww * 1.12, ww * 0.35, ww * 0.35, total), wf2 = widthFn(ww, ww * 0.35, ww * 0.35, total), wf3 = widthFn(ww * 0.74, ww * 0.35, ww * 0.35, total);
-        pass(function (x) { bothOn(x, function (y) { ribbon(y, S, wf1); }); }, 0.28);
-        both(c, function () { ribbon(c, S, wf2); });
-        pass(function (x) { bothOn(x, function (y) { ribbon(y, S, wf3); }); }, 0.5, 'destination-out', 'blur(' + Math.max(1, ww * 0.14) * R + 'px)');
-        if (!wcGrain) {
-          var g = document.createElement('canvas'); g.width = g.height = 64;
-          var gx = g.getContext('2d'), im = gx.createImageData(64, 64);
-          for (var i = 3; i < im.data.length; i += 4) im.data[i] = Math.random() < 0.5 ? Math.random() * 80 : 0;
-          gx.putImageData(im, 0, 0); wcGrain = c.createPattern(g, 'repeat');
-        }
-        rubOut(wcGrain, 1);
+        // a wash: wandering edges and a soft bleed beyond them, paler in the
+        // middle where the pigment has run to the rim, mottled and grainy.
+        // It's laid down with multiply, so washes that cross build up
+        var ww = cfg.w, wob = wobble(s8, ww * 1.6, 0.1);
+        var wBleed = widthFn(ww * 1.22, cfg.tin, cfg.tout, total, wob), wBody = widthFn(ww, cfg.tin, cfg.tout, total, wob), wMid = widthFn(ww * 0.7, cfg.tin, cfg.tout, total, wob);
+        pass(c, s8, 'bleed', rects, function (x) { rep(x, function (y) { ribbon(y, S, wBleed, box); }); }, 0.2, null, 'blur(' + cfg.blur * 1.5 * px + 'px)');
+        rep(c, function (x) { ribbon(x, S, wBody, box); });
+        pass(c, s8, 'mid', rects, function (x) { rep(x, function (y) { ribbon(y, S, wMid, box); }); }, 0.4, 'destination-out', 'blur(' + cfg.blur * px + 'px)');
+        rubOut(c, 'cloud', 0.32, px);
+        rubOut(c, 'grain', 0.5, px);
       } else if (k === 'chalk') {
-        // many dusty strands, then the paper's coarse tooth breaks them up
-        if (!down.strands) {
-          var n = Math.max(6, Math.min(20, Math.round(sz / 1.5))), L = [];
-          for (var q = 0; q < n; q++) L.push({ o: (q / (n - 1) - 0.5) * 1.0 + (Math.random() - 0.5) * 0.12, w: Math.max(1, sz * 1.3 / n * (1.4 + Math.random())), a: 0.45 + Math.random() * 0.45 });
-          down.strands = L;
+        // chalk: a dense, dusty band whose edges break up, a few lighter
+        // streaks along it, and the paper's coarse tooth showing through
+        var rough = wobble(s8, Math.max(2, cfg.w * 0.12), 0.1), wcb = widthFn(cfg.w, cfg.tin, cfg.tout, total, rough);
+        if (!s8.streaks) {
+          var L = [], n = Math.max(2, Math.min(6, Math.round(cfg.size / 6)));
+          for (var q = 0; q < n; q++) L.push({ o: (Math.random() - 0.5) * 0.8, w: Math.max(0.5, cfg.w * 0.025), a: 0.12 + Math.random() * 0.1, col: '#000', gap: [cfg.w * (1 + Math.random() * 2), Math.random() * 6.3, -0.2] });
+          s8.streaks = L;
         }
-        var wc = widthFn(sz * 1.3, sz * 0.8, sz * 0.8, total);
-        both(c, function () { strands(c, S, down.strands, wc); });
-        rubOut(toothPat('chalk'), 0.85);
+        rep(c, function (x) { ribbon(x, S, wcb, box); });
+        c.save(); c.globalCompositeOperation = 'destination-out';
+        rep(c, function (x) { strands(x, S, s8.streaks, wcb, box); });
+        c.restore();
+        rubOut(c, 'chalk', 0.85, px);
       } else if (k === 'oil') {
-        // a body of paint, with the brush's bristles dragged through it:
-        // lighter and darker streaks along the stroke
-        if (!down.bristles) {
-          var nb = Math.max(6, Math.min(18, Math.round(sz / 2))), B = [];
-          for (var r = 0; r < nb; r++) { var f = Math.random() < 0.5 ? 0.62 + Math.random() * 0.2 : 1.15 + Math.random() * 0.25; B.push({ o: (Math.random() - 0.5) * 0.9, w: Math.max(0.8, sz * 1.25 / nb * (0.6 + Math.random() * 0.7)), a: 0.3 + Math.random() * 0.35, col: shade(st.color, f) }); }
-          down.bristles = B;
+        // oil paint: a body of paint, with the brush's bristles dragged
+        // through it (fine streaks a touch lighter and darker, that come and
+        // go), a soft sheen along one side, and the brush running dry towards
+        // the end of a long stroke
+        var wo = widthFn(cfg.w, cfg.tin, cfg.tout, total, wobble(s8, cfg.w * 1.2, 0.05));
+        if (!s8.bristles) {
+          var nb = Math.max(8, Math.min(26, Math.round(cfg.size / 1.4))), B = [];
+          for (var r = 0; r < nb; r++) {
+            var f = Math.random() < 0.5 ? 0.78 + Math.random() * 0.12 : 1.1 + Math.random() * 0.12;
+            B.push({ o: (Math.random() - 0.5) * 0.92, w: Math.max(0.5, cfg.w * (0.03 + Math.random() * 0.05)), a: 0.28 + Math.random() * 0.3, col: shade(cfg.color, f), gap: Math.random() < 0.6 ? [cfg.w * (0.8 + Math.random() * 2.5), Math.random() * 6.3, -0.75 + Math.random() * 0.5] : null });
+          }
+          B.push({ o: -0.28, w: Math.max(0.6, cfg.w * 0.07), a: 0.22, col: shade(cfg.color, 1.35) }); // (the sheen)
+          s8.bristles = B;
+          s8.dryset = B.filter(function (b, i) { return i % 2 === 0; }).map(function (b) { return { o: b.o, w: b.w * 1.6, a: 1, col: '#000' }; });
         }
-        var wo = widthFn(sz * 1.25, sz * 0.9, sz * 1.4, total);
-        both(c, function () { ribbon(c, S, wo); strands(c, S, down.bristles, wo); });
+        rep(c, function (x) { ribbon(x, S, wo, box); strands(x, S, s8.bristles, wo, box); });
+        // dry brush: gaps opening up between the bristles over the last part
+        // of a long stroke (a short dab stays fully loaded)
+        var dz = Math.min(cfg.dry, total * 0.45), strength = Math.min(1, total / (cfg.w * 10));
+        if (dz > 1 && strength > 0.05) {
+          var start = 0; while (start < S.length && S[start].d < total - dz) start++;
+          for (var g0 = Math.max(0, start - 1); g0 < S.length - 1; g0 += 4) {
+            var seg = S.slice(g0, Math.min(S.length, g0 + 5)), u = Math.min(1, Math.max(0, (seg[0].d - (total - dz)) / dz));
+            if (box && !seg.some(function (s) { return near(s, box); })) continue;
+            c.save(); c.globalCompositeOperation = 'destination-out';
+            s8.dryset.forEach(function (q) { q.a = Math.pow(u, 1.6) * 0.85 * strength; });
+            rep(c, function (x) { strands(x, seg, s8.dryset, wo, box); });
+            c.restore();
+          }
+        }
+      } else if (k === 'feather') {
+        // an airbrush: the stroke as one very soft line. The line itself is
+        // drawn off to the side and only its blurred shadow lands on the
+        // picture, so nothing stacks up into rings.
+        var OFF = c.canvas.width / px + cfg.reach * 4 + 50;
+        c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = cfg.w; c.strokeStyle = c.fillStyle = '#000';
+        c.shadowColor = cfg.color; c.shadowBlur = cfg.blur * px; c.shadowOffsetX = OFF * px; c.shadowOffsetY = 0;
+        [S].concat(sym.map(function (m) { return S.map(function (q) { return mapPt(m, q); }); })).forEach(function (list) {
+          c.beginPath();
+          if (list.length === 1) { c.arc(list[0].x - OFF, list[0].y, cfg.w / 2, 0, Math.PI * 2); c.fill(); return; }
+          var open = false;
+          for (var i = 0; i < list.length; i++) {
+            if (box && !near(S[i], box)) { open = false; continue; }
+            c[open ? 'lineTo' : 'moveTo'](list[i].x - OFF, list[i].y); open = true;
+          }
+          c.stroke();
+        });
       }
       c.restore();
+    }
+    // the redraw area, in units and in sheet pixels: everything within reach
+    // of the samples that changed (old and new), copied for any symmetry
+    function changedFrom(prev, S, P, prevTotal, total, cfg, prevN) {
+      // (the curve's last two pieces bend as new points come; the tip's taper moves)
+      var n = Math.min(prevN, P.length), si = Math.max(0, n - 3), dSpline = S.seg[si] != null ? S[S.seg[si]].d : 0;
+      return Math.max(0, Math.min(dSpline, Math.min(prevTotal, total) - cfg.live) - cfg.step * 4 - 1);
+    }
+    function boxOf(list, d0, r, box) {
+      for (var i = list.length - 1; i >= 0 && list[i].d >= d0; i--) {
+        var s = list[i]; box[0] = Math.min(box[0], s.x - r); box[1] = Math.min(box[1], s.y - r); box[2] = Math.max(box[2], s.x + r); box[3] = Math.max(box[3], s.y + r);
+      }
+      return box;
+    }
+    function deviceRects(box, sym) {
+      var out = [], all = [[1, 0, 0, 1, 0, 0]].concat(sym || []);
+      all.forEach(function (m) {
+        var cs = [mapPt(m, { x: box[0], y: box[1] }), mapPt(m, { x: box[2], y: box[1] }), mapPt(m, { x: box[0], y: box[3] }), mapPt(m, { x: box[2], y: box[3] })];
+        var x0 = Math.min.apply(null, cs.map(function (q) { return q.x; })), y0 = Math.min.apply(null, cs.map(function (q) { return q.y; }));
+        var x1 = Math.max.apply(null, cs.map(function (q) { return q.x; })), y1 = Math.max.apply(null, cs.map(function (q) { return q.y; }));
+        var r = [Math.max(0, Math.floor(x0 * R)), Math.max(0, Math.floor(y0 * R)), Math.min(ov.width, Math.ceil(x1 * R)), Math.min(ov.height, Math.ceil(y1 * R))];
+        if (r[2] > r[0] && r[3] > r[1]) out.push(r);
+      });
+      return out;
+    }
+    // redrawing waits for the next frame, so a burst of pointer moves (an
+    // Apple Pencil reports 240 a second) costs one redraw, not several
+    var rsQueued = false;
+    function renderSoon() { if (rsQueued) return; rsQueued = true; requestAnimationFrame(function () { if (rsQueued) renderStroke(); }); }
+    function renderStroke() {
+      rsQueued = false;
+      if (!down || !pts.length) return;
+      var cfg = down.cfg || (down.cfg = brushCfg(kind(), st.size, st.tool === 'eraser' ? '#fff' : st.color));
+      down.sym = copies();
+      var prev = down.S, prevTail = prev ? prev.slice(prev.seg && down.n >= 4 ? prev.seg[Math.max(0, down.n - 3)] : 0) : null;
+      var S = resample(pts, cfg.step, prev, down.n), total = S[S.length - 1].d;
+      var d0 = prev ? changedFrom(prev, S, pts, down.total, total, cfg, down.n) : 0;
+      var box = boxOf(S, d0, cfg.reach, prevTail ? boxOf(prevTail, d0, cfg.reach, [Infinity, Infinity, -Infinity, -Infinity]) : [Infinity, Infinity, -Infinity, -Infinity]);
+      var rects = box[2] > box[0] ? deviceRects(box, down.sym) : [];
+      if (rects.length) markNear(S, box, cfg.reach);
+      down.S = S; down.total = total; down.n = pts.length;
+      if (!rects.length) return;
+      octx.save();
+      octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects); rects.forEach(function (r) { octx.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); base(octx);
+      strokeOn(octx, S, cfg, down, R, box, rects);
+      maskOv(); // (inside the redraw area only, so edges aren't masked twice)
+      if (st.tool === 'eraser') eraseFromSheet(rects);
+      octx.restore();
+    }
+    // THE ERASER works through the same engine: its stroke is drawn on the
+    // (hidden) sheet, and the layer is shown as it was when the stroke began
+    // with the sheet taken out of it at the eraser's opacity, so a stroke
+    // rubs out evenly, never more where it crosses itself
+    var eraseBase = null;
+    function eraseStart() {
+      if (!eraseBase || eraseBase.width !== active.cv.width || eraseBase.height !== active.cv.height) { eraseBase = document.createElement('canvas'); eraseBase.width = active.cv.width; eraseBase.height = active.cv.height; }
+      var x = eraseBase.getContext('2d'); x.clearRect(0, 0, eraseBase.width, eraseBase.height); x.drawImage(active.cv, 0, 0);
+    }
+    function eraseFromSheet(rects) {
+      var c = active.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+      if (rects) { clipTo2(c, rects); rects.forEach(function (r) { c.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); } else c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+      c.drawImage(eraseBase, 0, 0);
+      c.globalAlpha = st.alpha; c.globalCompositeOperation = active.bg ? 'source-over' : 'destination-out';
+      c.drawImage(ov, 0, 0); c.restore();
     }
     // SYMMETRY: everything drawn is drawn again for each copy: mirrored
     // across the middle, both ways, or turned round the centre (radial: six
@@ -576,17 +773,16 @@
       st.sym = v; drawGuide();
       var b = $('.paint-mirror'); b.setAttribute('aria-pressed', v !== 'off' ? 'true' : 'false');
     }
-    function drawPath(c) {
-      c.beginPath();
-      if (pts.length === 1) { c.arc(pts[0].x, pts[0].y, c.lineWidth / 2, 0, Math.PI * 2); c.fill(); return; }
-      c.moveTo(pts[0].x, pts[0].y);
-      for (var i = 1; i < pts.length - 1; i++) c.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
-      var l = pts[pts.length - 1]; c.lineTo(l.x, l.y); c.stroke();
-    }
-    // SPRAY: a soft, round cloud of fine droplets, thickest in the middle
-    function spray(c, p) {
-      var r = Math.max(5, st.size * 1.6), n = Math.round(Math.min(520, Math.max(r * 2.4, r * r * 0.16)));
-      c.save(); c.fillStyle = st.color;
+    function hexA(hex, a) { var c = parseInt(hex.slice(1), 16); return 'rgba(' + (c >> 16 & 255) + ',' + (c >> 8 & 255) + ',' + (c & 255) + ',' + a + ')'; }
+    // SPRAY: a soft, round cloud of fine droplets, thickest in the middle,
+    // over a faint mist (it builds up the longer it's held)
+    function spray(c, p, size, color) {
+      var hex = color || st.color, r = Math.max(5, (size || st.size) * 1.6), n = Math.round(Math.min(520, Math.max(r * 2.4, r * r * 0.16)));
+      c.save();
+      var mist = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      mist.addColorStop(0, hexA(hex, 0.05)); mist.addColorStop(0.6, hexA(hex, 0.025)); mist.addColorStop(1, hexA(hex, 0));
+      c.fillStyle = mist; c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2); c.fill();
+      c.fillStyle = hex;
       for (var i = 0; i < n; i++) {
         var a = Math.random() * Math.PI * 2, g = Math.sqrt(-2 * Math.log(Math.random() || 1e-6)) * 0.42, d = Math.min(1, g) * r, s2 = 0.3 + Math.random() * Math.random() * 0.9;
         c.globalAlpha = 0.35 + Math.random() * 0.65;
@@ -594,62 +790,11 @@
       }
       c.restore();
     }
-    // feather: the whole stroke as one very soft line (the line itself is
-    // drawn off to the side; only its blurred shadow lands on the picture),
-    // so there's nothing to stack up into rings
-    var featherQueued = false;
-    function featherStroke() {
-      if (featherQueued) return;
-      featherQueued = true;
-      requestAnimationFrame(function () { if (featherQueued) featherNow(); });
-    }
-    function featherNow() {
-      featherQueued = false;
-      octx.clearRect(0, 0, W, H);
-      var r = Math.max(3, st.size), OFF = W + 200;
-      octx.save();
-      octx.lineCap = 'round'; octx.lineJoin = 'round'; octx.lineWidth = r * 1.35;
-      octx.strokeStyle = octx.fillStyle = '#000';
-      octx.shadowColor = st.color; octx.shadowBlur = r * 0.85 * R; octx.shadowOffsetX = OFF * R; octx.shadowOffsetY = 0;
-      [pts].concat(copies().map(function (m) { return pts.map(function (q) { return mapPt(m, q); }); })).forEach(function (list) {
-        if (!list || !list.length) return;
-        octx.beginPath();
-        if (list.length === 1) { octx.arc(list[0].x - OFF, list[0].y, r * 0.675, 0, Math.PI * 2); octx.fill(); return; }
-        octx.moveTo(list[0].x - OFF, list[0].y);
-        for (var i = 1; i < list.length - 1; i++) octx.quadraticCurveTo(list[i].x - OFF, list[i].y, (list[i].x + list[i + 1].x) / 2 - OFF, (list[i].y + list[i + 1].y) / 2);
-        var l = list[list.length - 1]; octx.lineTo(l.x - OFF, l.y); octx.stroke();
-      });
-      octx.restore();
-      maskOv();
-    }
-    // an Apple Pencil: the line's width follows the pressure, smoothed (the
-    // Pencil sometimes reports 0 between readings, which must not count as
-    // a change), and it changes gradually along each little piece of the
-    // line, so a light line never jumps into blobs
-    function penWidth(base, raw) {
-      var p = raw > 0 ? raw : (down.pr != null ? down.pr : 0.3);
-      down.pr = down.pr == null ? p : down.pr * 0.6 + p * 0.4;
-      return Math.max(0.6, base * (0.12 + 0.88 * Math.min(1, down.pr * 1.25)));
-    }
-    function taper(c, a, b, w0, w1) {
-      var d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(d / Math.max(0.6, Math.min(w0, w1) / 2.5)));
-      for (var i = 0; i < n; i++) {
-        var t0 = i / n, t1 = (i + 1) / n;
-        c.lineWidth = w0 + (w1 - w0) * t1;
-        c.beginPath(); c.moveTo(a.x + (b.x - a.x) * t0, a.y + (b.y - a.y) * t0); c.lineTo(a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1); c.stroke();
-      }
-    }
-    function pressed(c, a, b, raw) {
-      var w1 = penWidth(c.base, raw), w0 = down.w != null ? down.w : w1;
-      down.w = w1;
-      both(c, function () { taper(c, a, b, w0, w1); });
-    }
-
     var sprayTimer = 0;
     // how a stroke is laid onto the layer: its opacity, and (for the
     // highlighter and watercolour) multiply
-    function strokeLook() {
-      var b = st.tool === 'brush' ? st.brush : '';
+    function strokeLook(which) {
+      var b = which || (st.tool === 'brush' ? st.brush : '');
       if (b === 'highlighter') return { mode: 'multiply', alpha: Math.min(st.alpha, 0.45) };
       if (b === 'watercolor') return { mode: 'multiply', alpha: st.alpha * 0.85 };
       return { mode: null, alpha: st.alpha * (b === 'marker' ? 0.88 : b === 'pencil' ? 0.92 : 1) };
@@ -659,6 +804,7 @@
     // doesn't jump when the pointer lifts
     function liveLook() {
       var lk = strokeLook();
+      if (st.tool === 'eraser') { ov.style.opacity = 0; ov.style.mixBlendMode = ''; return; }
       ov.style.opacity = lk.alpha * (active ? active.opacity : 1);
       ov.style.mixBlendMode = lk.mode || '';
     }
@@ -1755,16 +1901,42 @@
 
     // ---- while the size or opacity slider moves: the brush, shown big in
     // the middle of the picture, at its real size and see-through-ness ----
+    // (a short stroke of the real brush, drawn by the engine at its real
+    // size on screen, opacity and all)
     var prev = document.createElement('div'), prevTimer = 0;
-    prev.className = 'paint-preview'; prev.innerHTML = '<i></i>'; stage.appendChild(prev);
+    prev.className = 'paint-preview'; prev.innerHTML = '<canvas aria-hidden="true"></canvas>'; stage.appendChild(prev);
     function preview() {
-      var d = Math.max(2, brushR() * 2 * view.k), dot = prev.firstChild;
-      prev.style.width = prev.style.height = d + 'px';
-      dot.style.background = st.tool === 'eraser' ? '#fff' : st.color;
-      dot.style.opacity = st.tool === 'eraser' ? 1 : strokeLook().alpha;
+      var k = st.tool === 'eraser' ? 'eraser' : st.tool === 'brush' ? st.brush : 'round';
+      var cfg = k === 'spray' ? null : brushCfg(k, st.size, '#000'), ext = k === 'spray' ? Math.max(5, st.size * 1.6) * 2 : cfg.len || cfg.w;
+      var reach = k === 'spray' ? ext / 2 + 1 : cfg.reach, L = Math.max(ext * 2.2, 18 / view.k);
+      // (as big as it really is, unless that wouldn't fit on the picture)
+      var fit2 = Math.min(1, stage.clientWidth * 0.8 / ((L + reach * 2) * view.k), stage.clientHeight * 0.8 / ((reach * 2 + ext * 0.3) * view.k));
+      var unit = view.k * fit2, wU = L + reach * 2, hU = reach * 2 + ext * 0.3, P = [];
+      for (var i = 0; i <= 12; i++) { var t = i / 12; P.push({ x: reach + L * t, y: hU / 2 + Math.sin((t - 0.5) * Math.PI) * ext * 0.12 }); }
+      drawPreview(prev.firstChild, k, st.size, k === 'eraser' ? '#ffffff' : st.color, P, wU, hU, unit);
       prev.classList.add('on'); clearTimeout(prevTimer);
       if (!sliderHeld) prevTimer = setTimeout(hidePreview, 900);
       brushSamples();
+    }
+    // draw a stroke of brush k along P (in units) onto canvas cv, wU x hU
+    // units big, at `unit` screen pixels per unit; shown at the brush's
+    // opacity (and blend)
+    function drawPreview(cv, k, size, color, P, wU, hU, unit, flat) {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2), px = unit * dpr;
+      cv.width = Math.max(1, Math.round(wU * px)); cv.height = Math.max(1, Math.round(hU * px));
+      cv.style.width = wU * unit + 'px'; cv.style.height = hU * unit + 'px';
+      var x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.setTransform(px, 0, 0, px, 0, 0);
+      if (k === 'spray') {
+        for (var i = 1; i < P.length; i++) {
+          var a = P[i - 1], b = P[i], n = Math.max(1, Math.floor(Math.hypot(b.x - a.x, b.y - a.y) / Math.max(2, size * 0.35)));
+          for (var j = 0; j < n; j++) spray(x, { x: a.x + (b.x - a.x) * j / n, y: a.y + (b.y - a.y) * j / n }, size, color);
+        }
+      } else {
+        var cfg = brushCfg(k, size, color);
+        strokeOn(x, resample(P, cfg.step), cfg, { preview: true }, px, null, null);
+      }
+      var lk = k === 'eraser' ? { alpha: 1 } : strokeLook(k);
+      cv.style.opacity = lk.alpha; cv.style.mixBlendMode = (!flat && lk.mode) || '';
     }
     function hidePreview() { clearTimeout(prevTimer); prev.classList.remove('on'); }
     // it stays up while a slider is held, and goes once it's let go. The
@@ -1784,8 +1956,24 @@
     });
     ['pointerup', 'pointercancel'].forEach(function (t) { document.addEventListener(t, releaseSlider, true); });
     window.addEventListener('blur', releaseSlider);
-    // the little samples in the brush list show the opacity too
-    function brushSamples() { if (menus.brush) menus.brush.el.style.setProperty('--sample-alpha', st.alpha); }
+    // the samples in the brush list: a little stroke of each, in the colour
+    // and at the opacity in use (redrawn whenever the list is open and
+    // either changes)
+    function brushSamples() {
+      if (!menus.brush || menus.brush.el.hidden) return;
+      // the samples use the current colour, unless it would vanish against the
+      // menu (black in dark mode, white in light): then they use the menu's text
+      // colour. Multiply only shows on a light menu, so a dark one draws flat.
+      var ink = getComputedStyle(menus.brush.el).color, m = ink.match(/[\d.]+/g) || [0, 0, 0];
+      var lumOf = function (r, g, b) { return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+      var c = parseInt(st.color.slice(1), 16), textL = lumOf(+m[0], +m[1], +m[2]), dark = textL > 0.5;
+      var col = Math.abs(lumOf(c >> 16 & 255, c >> 8 & 255, c & 255) - (dark ? 0.1 : 0.97)) < 0.22 ? '#' + [m[0], m[1], m[2]].map(function (v) { return (+v | 256).toString(16).slice(1); }).join('') : st.color;
+      Array.prototype.forEach.call(menus.brush.el.querySelectorAll('[data-prev]'), function (cv) {
+        var k = cv.dataset.prev, sz = k === 'spray' ? 3 : k === 'highlighter' ? 4 : 5, P = [];
+        for (var i = 0; i <= 16; i++) { var t = i / 16; P.push({ x: 6 + 34 * t, y: 10 + Math.sin(t * Math.PI * 2) * 3.2 }); }
+        drawPreview(cv, k, sz, col, P, 46, 20, 1, dark);
+      });
+    }
 
     // ---- pointers: drawing, moving the picture around, pinching to zoom ----
     var pointers = {}, ptype = {}, gesture = null, pan = null, spaceDown = false, spaceGrab = null, lastMouse = null;
@@ -1832,25 +2020,16 @@
       remember();
       down = { id: e.pointerId, start: p, last: p, pen: e.pointerType === 'pen', snap: true };
       liveLook();
-      if (sel && sel.mask && /eraser|smudge|blur|tone/.test(t)) down.keep = keepOutside();
+      if (sel && sel.mask && /smudge|blur|tone/.test(t)) down.keep = keepOutside();
       pts = [p];
       octx.clearRect(0, 0, W, H);
       if (t === 'smudge' || t === 'blur' || t === 'tone') { dabs(p, p, true); return; }
       if (t === 'gradient') return;
-      if (t === 'eraser') {
-        // the eraser works straight on the layer, so you see it as you go
-        var c = active.ctx; c.save(); clipTo(c); c.globalCompositeOperation = active.bg ? 'source-over' : 'destination-out';
-        strokeStyle(c); c.strokeStyle = c.fillStyle = '#fff'; c.base = st.size;
-        if (down.pen) pressed(c, p, p, e.pressure);
-        else both(c, function () { c.beginPath(); c.arc(p.x, p.y, st.size / 2, 0, Math.PI * 2); c.fill(); });
-        c.restore(); guard(); return;
-      }
+      if (t === 'eraser') { p.pr = smoothPr(e.pressure); eraseStart(); renderStroke(); return; }
       if (t === 'brush') {
         p.pr = smoothPr(e.pressure);
-        if (kind() === 'spray') { both(octx, function () { spray(octx, p); }); sprayTimer = setInterval(function () { both(octx, function () { spray(octx, pts[pts.length - 1]); }); maskOv(); }, 35); }
-        else if (kind() === 'feather') featherStroke();
+        if (kind() === 'spray') { both(octx, function () { spray(octx, p); }); maskOv(); sprayTimer = setInterval(function () { both(octx, function () { spray(octx, pts[pts.length - 1]); }); maskOv(); }, 35); }
         else renderStroke();
-        maskOv();
         return;
       }
       strokeStyle(octx); // line and shapes
@@ -1881,30 +2060,17 @@
       }
       if (t === 'smudge' || t === 'blur' || t === 'tone') { evs.forEach(function (ev) { var q = pos(ev); dabs(down.last, q, false); down.last = q; }); return; }
       if (t === 'gradient') { gradient(down.start, p); return; }
-      if (t === 'eraser') {
-        var c = active.ctx; c.save(); clipTo(c); c.globalCompositeOperation = active.bg ? 'source-over' : 'destination-out';
-        strokeStyle(c); c.strokeStyle = c.fillStyle = '#fff'; c.base = st.size;
-        evs.forEach(function (ev) {
-          var q = pos(ev), l = down.last;
-          if (down.pen) pressed(c, l, q, ev.pressure);
-          else both(c, function () { c.lineWidth = st.size; c.beginPath(); c.moveTo(l.x, l.y); c.lineTo(q.x, q.y); c.stroke(); });
-          down.last = q;
-        });
-        c.restore(); guard(); return;
+      if (t === 'eraser' || (t === 'brush' && kind() !== 'spray')) {
+        evs.forEach(function (ev) { var q = pos(ev), l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) { q.pr = smoothPr(ev.pressure); pts.push(q); } });
+        renderSoon(); return;
       }
       if (t === 'brush') {
-        if (kind() === 'spray') {
-          // (droplets along the way, and more while it's held still)
-          evs.forEach(function (ev) {
-            var q = pos(ev), l = down.last, d = Math.hypot(q.x - l.x, q.y - l.y), n = Math.max(1, Math.floor(d / Math.max(2, st.size * 0.35)));
-            for (var j = 1; j <= n; j++) { var m = { x: l.x + (q.x - l.x) * j / n, y: l.y + (q.y - l.y) * j / n }; both(octx, function () { spray(octx, m); }); }
-            down.last = q; pts.push(q);
-          });
-        } else {
-          evs.forEach(function (ev) { var q = pos(ev), l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.8 / view.k) { q.pr = smoothPr(ev.pressure); pts.push(q); } });
-          if (kind() === 'feather') featherStroke();
-          else renderStroke();
-        }
+        // (spray: droplets along the way, and more while it's held still)
+        evs.forEach(function (ev) {
+          var q = pos(ev), l = down.last, d = Math.hypot(q.x - l.x, q.y - l.y), n = Math.max(1, Math.floor(d / Math.max(2, st.size * 0.35)));
+          for (var j = 1; j <= n; j++) { var m = { x: l.x + (q.x - l.x) * j / n, y: l.y + (q.y - l.y) * j / n }; both(octx, function () { spray(octx, m); }); }
+          down.last = q; pts.push(q);
+        });
         maskOv();
         return;
       }
@@ -1915,6 +2081,7 @@
     }
     function end() {
       var t = st.tool;
+      if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
       if (selMode === 'scale') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
       if (selMode === 'lasso') {
@@ -1936,11 +2103,8 @@
       }
       down = null; autosave();
       if (t === 'smudge' || t === 'blur' || t === 'tone') { carry = []; return; }
-      if (t === 'eraser') return;
-      if (t === 'gradient') grainOver();
-      // (a feather stroke's last frame is drawn before it's laid down)
-      if (t === 'brush' && st.brush === 'feather' && featherQueued) featherNow();
-      maskOv();
+      if (t === 'eraser') { octx.clearRect(0, 0, W, H); plainOv(); return; }
+      if (t === 'gradient') { grainOver(); maskOv(); }
       var lk = strokeLook(); commit(lk.mode, lk.alpha);
       useColor();
     }
@@ -2550,6 +2714,9 @@
     }, true);
 
     setColor(st.color); setColor2(st.color2); setTool('brush'); buttons(); fit(); restore();
+    // (the paper textures are made ahead, when the page is idle, so the first
+    // stroke with pencil, chalk or watercolour doesn't stutter while they're made)
+    (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(function () { ['pencil', 'chalk', 'cloud', 'grain'].forEach(texture); });
     app = {
       root: root, fit: fit,
       key: function (e) {
