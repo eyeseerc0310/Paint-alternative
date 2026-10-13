@@ -10,8 +10,10 @@ uploaded.
 
 - **Brushes:** round, feather, marker, pencil, spray (a soft airbrush mist),
   calligraphy and highlighter, drawn from smoothed strokes with tapered ends
-  (Apple Pencil pressure works). The size preview shows exactly what one tap
-  puts down
+  (Apple Pencil pressure works). Sizes from 1 to 500; the size preview shows
+  exactly what one tap puts down. **Smoothing** steadies wobbly lines, and
+  holding still at the end of a stroke **snaps it to a shape** (line,
+  ellipse, circle or rectangle)
 - **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
   **Aa** button while typing for size, bold, italic, underline, capitals,
   alignment, letter spacing, line height, outline and shadow
@@ -22,9 +24,18 @@ uploaded.
   turn it
 - **Colour picker:** a hue ring and saturation/brightness square, sliders,
   HEX / RGB / HSB values, recent colours, and ready-made and your own
-  palettes (tap either main colour; dragging one still fills)
+  palettes, colour harmonies, and palettes made from a photo (tap either main
+  colour; dragging one still fills)
+- **Fill** runs right up under the soft edge of a line, with no pale ring
+- **Selections** can be moved, resized and turned (the round handle on top)
+- **Touch:** two-finger tap to undo, three-finger tap to redo, pinch to zoom,
+  twist two fingers to turn the canvas
+- **Project files** (Save → Project): every layer and its settings in one
+  `.paint` file, to open again on any device
 - **Adjust:** sliders, Levels and Curves, for a layer or a selection
-- **Layers:** up to 10, each with a live preview, its own opacity and blend mode
+- **Layers:** up to 10, each with a live preview, its own opacity and blend
+  mode, and a ••• menu: select, rename, duplicate, merge down, alpha lock,
+  clipping mask, hide, move and delete
 - **Drag any colour** (a swatch, a recent one or either main colour) onto the
   picture to fill an area
 - **Picture size:** New Picture with presets (square, 16:9, A4, Instagram…)
