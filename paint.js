@@ -298,6 +298,7 @@
     function anyMenu() { return Object.keys(menus).some(function (t) { return !menus[t].el.hidden; }); }
 
     function setTool(t) {
+      if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
       if (adj) adjustDone();
       if (textBox) commitText();
       if (sel && !selTool(t)) anchor();
@@ -1002,6 +1003,48 @@
 
     // ---- select and move: a box round part of the layer; drag it to move it ----
     var sel = null, selMode = null, selOff = null, lasso = [];
+    // CUTOUT: drag to draw round something freehand (it closes when you let
+    // go), or click to start placing points: each click adds a straight
+    // line to the next point, and dragging between clicks draws a freehand
+    // piece instead, so the two can be mixed. Click the first point (or
+    // double-click, or press Return) to close it; Backspace takes the last
+    // point away; Esc lets it go.
+    var lassoOn = false, lassoHover = null;
+    function nearStart(p, touch) {
+      if (lasso.length < 3) return false;
+      return Math.hypot(p.x - lasso[0].x, p.y - lasso[0].y) * view.k <= (touch ? 18 : 10);
+    }
+    function drawLasso(hover) {
+      sctx.clearRect(0, 0, W, H);
+      if (!lasso.length) return;
+      var k = view.k, closing = hover && nearStart(hover, false);
+      sctx.save(); sctx.lineWidth = 1.2 / k; sctx.setLineDash([5 / k, 4 / k]);
+      sctx.beginPath(); lasso.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); });
+      if (hover) sctx.lineTo(closing ? lasso[0].x : hover.x, closing ? lasso[0].y : hover.y);
+      sctx.strokeStyle = '#000'; sctx.stroke(); sctx.lineDashOffset = 4.5 / k; sctx.strokeStyle = '#fff'; sctx.stroke();
+      if (lassoOn) {
+        // the corners as small dots, and the first point as a ring to click
+        // (it fills in when the pointer is close enough to close the shape)
+        sctx.setLineDash([]);
+        lasso.forEach(function (q, i) {
+          if (q.corner && i) { sctx.beginPath(); sctx.arc(q.x, q.y, 2.5 / k, 0, Math.PI * 2); sctx.fillStyle = '#fff'; sctx.fill(); sctx.lineWidth = 1 / k; sctx.strokeStyle = '#141414'; sctx.stroke(); }
+        });
+        var a = lasso[0], r = (closing ? 7 : 5) / k;
+        sctx.beginPath(); sctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+        sctx.fillStyle = closing ? (getComputedStyle(root).getPropertyValue('--accent').trim() || '#ff3b30') : '#fff'; sctx.fill();
+        sctx.lineWidth = 1.5 / k; sctx.strokeStyle = closing ? '#fff' : '#141414'; sctx.stroke();
+      }
+      sctx.restore();
+    }
+    function finishLasso() {
+      var xs = lasso.map(function (q) { return q.x; }), ys = lasso.map(function (q) { return q.y; });
+      var x0 = Math.max(0, Math.min.apply(null, xs)), y0 = Math.max(0, Math.min.apply(null, ys));
+      var x1 = Math.min(W, Math.max.apply(null, xs)), y1 = Math.min(H, Math.max.apply(null, ys));
+      sel = lasso.length > 2 && x1 - x0 > 3 && y1 - y0 > 3 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0, float: null, poly: lasso.map(function (q) { return { x: q.x - x0, y: q.y - y0 }; }) } : null;
+      lassoOn = false; lassoHover = null; lasso = []; stage.classList.remove('closing'); toastEl.classList.remove('on');
+      selbar.hidden = !sel; selMode = null; down = null; drawSel();
+    }
+    function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); drawSel(); }
     function selTool(t) { return t === 'select' || t === 'lasso' || t === 'wand'; }
     // MAGIC WAND: every connected pixel of a similar colour on the layer
     // (a mask, kept with the selection)
@@ -1738,6 +1781,7 @@
     function screen(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
     function cancelStroke() {
       if (!down) return;
+      if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) apply(e); buttons(); }
@@ -1758,9 +1802,17 @@
       if (e.altKey && !selTool(t) && t !== 'hand') { if (textBox) commitText(); setColor(sampleAt(p)); return; }
       if (t === 'text') { if (textBox) { commitText(); return; } startText(p); return; }
       if (selTool(t)) {
+        if (t === 'lasso' && lassoOn) {
+          // placing points: the first point closes it; anywhere else adds a
+          // corner (and a drag from there draws a freehand piece)
+          if (nearStart(p, e.pointerType !== 'mouse')) { finishLasso(); return; }
+          p.corner = true; lasso.push(p); selMode = 'lasso';
+          down = { id: e.pointerId, start: p, last: p, poly: true };
+          drawLasso(null); return;
+        }
         if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); }
         else if (t === 'wand') { commitSelection(); wandAt(p); selbar.hidden = !sel; drawSel(); return; }
-        else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; lasso = [p]; }
+        else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; p.corner = true; lasso = [p]; }
         else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null }; }
         down = { id: e.pointerId, start: p, last: p };
         return;
@@ -1807,9 +1859,8 @@
       if (selMode === 'lasso') {
         // the cutout's outline follows the pointer
         evs.forEach(function (ev) { var q = pos(ev), l = lasso[lasso.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 2 / view.k) lasso.push(q); });
-        sctx.clearRect(0, 0, W, H); sctx.save(); sctx.lineWidth = 1.2 / view.k; sctx.setLineDash([5 / view.k, 4 / view.k]);
-        sctx.beginPath(); lasso.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); });
-        sctx.strokeStyle = '#000'; sctx.stroke(); sctx.lineDashOffset = 4.5 / view.k; sctx.strokeStyle = '#fff'; sctx.stroke(); sctx.restore();
+        down.dragged = down.dragged || Math.hypot(p.x - down.start.x, p.y - down.start.y) * view.k > 5;
+        drawLasso(null);
         return;
       }
       if (selTool(t)) {
@@ -1856,11 +1907,17 @@
       clearInterval(sprayTimer);
       if (selMode === 'scale') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
       if (selMode === 'lasso') {
-        var xs = lasso.map(function (q) { return q.x; }), ys = lasso.map(function (q) { return q.y; });
-        var x0 = Math.max(0, Math.min.apply(null, xs)), y0 = Math.max(0, Math.min.apply(null, ys));
-        var x1 = Math.min(W, Math.max.apply(null, xs)), y1 = Math.min(H, Math.max.apply(null, ys));
-        sel = lasso.length > 2 && x1 - x0 > 3 && y1 - y0 > 3 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0, float: null, poly: lasso.map(function (q) { return { x: q.x - x0, y: q.y - y0 }; }) } : null;
-        selbar.hidden = !sel; selMode = null; down = null; drawSel(); return;
+        // already placing points: carry on (a click made a corner, a drag a
+        // freehand piece)
+        if (down.poly) { var tip = lasso[lasso.length - 1]; if (down.dragged) tip.corner = true; selMode = null; down = null; drawLasso(lassoHover); return; }
+        // the first press: a click starts placing points; a drag was a
+        // freehand cutout, finished as soon as it's let go
+        if (!down.dragged) {
+          lassoOn = true; lasso = [lasso[0]]; selMode = null; down = null; drawLasso(null);
+          toast('Click to add points \u00b7 click the first point to finish');
+          return;
+        }
+        finishLasso(); return;
       }
       if (selTool(t)) {
         if (selMode === 'new' && (sel.w < 3 || sel.h < 3)) sel = null;
@@ -1923,6 +1980,7 @@
       }
       if (pan) { var s = screen(e); view.x = pan.vx + s.x - pan.x; view.y = pan.vy + s.y - pan.y; applyView(); return; }
       if (down && e.pointerId === down.id) { move(e); if (down && down.pen) showRing(pos(e)); return; }
+      if (lassoOn && !down) { lassoHover = pos(e); drawLasso(lassoHover); stage.classList.toggle('closing', nearStart(lassoHover, e.pointerType !== 'mouse')); return; }
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
       if (e.pointerType !== 'mouse' || down) return;
@@ -1981,9 +2039,10 @@
       if (down && e.pointerId === down.id) end();
     }
     stage.addEventListener('pointerup', up);
+    stage.addEventListener('dblclick', function () { if (lassoOn && st.tool === 'lasso' && !down) finishLasso(); });
     stage.addEventListener('contextmenu', function (e) { if (sel && !selMode && inSel(pos(e))) { e.preventDefault(); invertSel(); } });
     stage.addEventListener('pointercancel', function (e) { if (down && e.pointerId === down.id) cancelStroke(); up(e); });
-    stage.addEventListener('pointerleave', function (e) { if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
+    stage.addEventListener('pointerleave', function (e) { if (lassoOn && !down) { lassoHover = null; drawLasso(null); stage.classList.remove('closing'); } if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
     // ctrl / cmd + scroll (and a trackpad pinch) zooms; scrolling moves a zoomed-in picture
     stage.addEventListener('wheel', function (e) {
       var s = screen(e);
@@ -2423,8 +2482,8 @@
       var k = function (keys) { return keys.split(' ').map(function (x) { return '<kbd>' + x + '</kbd>'; }).join(''); };
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
-        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Smudge', 'S'], ['Blur', 'U'], ['Line', 'L'], ['Shapes', 'R'], ['Fill', 'F'], ['Gradient', 'G'], ['Text', 'T'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Colour picker', 'I'], ['Move around', 'H'], ['Light & dark', 'O']]) +
-        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Close / cancel', 'Esc']]) +
+        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move around', 'H']]) +
+        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Close / cancel', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Adjust', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
@@ -2487,6 +2546,7 @@
         if (sheetEl) { if (k === 'escape') closeSheet(); return; }
         if (k === 'escape' && closeDrops()) return;
         if (e.target && (e.target.isContentEditable || (/input|textarea|select/i.test(e.target.tagName || '') && e.target.type !== 'range'))) return;
+        if (mod && k === 'z' && lassoOn && !e.shiftKey) { e.preventDefault(); if (lasso.length > 1) { lasso.pop(); drawLasso(lassoHover); } else cancelLasso(); return; } // (while placing points: the last one)
         if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
         if (mod && k === 'y') { e.preventDefault(); doRedo(); return; }
         if (mod && k === 'a') { e.preventDefault(); selectAll(); return; }
@@ -2500,6 +2560,11 @@
         }
         if (mod || e.altKey) return;
         if (k === ' ') { if (!spaceDown) { spaceDown = true; stage.classList.add('space'); grabWithSpace(); } e.preventDefault(); return; }
+        if (lassoOn) {
+          if (k === 'enter') { e.preventDefault(); finishLasso(); return; }
+          if (k === 'escape') { cancelLasso(); stage.classList.remove('closing'); return; }
+          if (k === 'backspace' || k === 'delete') { e.preventDefault(); if (lasso.length > 1) lasso.pop(); else cancelLasso(); drawLasso(lassoHover); return; }
+        }
         if (k === 'escape' && !lmenu.hidden) { lmenu.hidden = true; return; }
         if (k === 'escape' && adj) { adjustCancel(); return; }
         if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
