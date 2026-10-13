@@ -233,6 +233,8 @@ body > * { flex-shrink: 0; }
 .paint-stage[data-tool="brush"], .paint-stage[data-tool="eraser"], .paint-stage[data-tool="smudge"], .paint-stage[data-tool="blur"], .paint-stage[data-tool="tone"] { cursor: none; }
 .paint-stage[data-tool="hand"], .paint-stage.space { cursor: grab; }
 .paint-stage.panning { cursor: grabbing; }
+.paint-stage.can-move:not(.panning) { cursor: move; } /* (over a selection: drag to move it) */
+.paint-stage.moving:not(.panning) { cursor: grabbing; }
 .paint-stage.corner-nwse:not(.panning) { cursor: nwse-resize !important; }
 .paint-stage.corner-nesw:not(.panning) { cursor: nesw-resize !important; }
 .paint-stage.picking:not(.panning) { cursor: crosshair; } /* (Alt / Option: pick a colour) */

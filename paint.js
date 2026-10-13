@@ -305,7 +305,7 @@
       if (sel && !selTool(t)) anchor();
       st.tool = t;
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
-      stage.dataset.tool = t;
+      stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
     }
 
@@ -1243,9 +1243,11 @@
       var x = t.getContext('2d'); x.drawImage(m, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, t.width, t.height);
       return t;
     }
-    // (a lasso selection keeps its outline, relative to its box)
+    // (a lasso selection keeps its outline, relative to its box; a whole
+    // layer's can be picked up anywhere in its box, gaps and all)
     function inSel(p) {
       if (!sel || p.x < sel.x || p.x > sel.x + sel.w || p.y < sel.y || p.y > sel.y + sel.h) return false;
+      if (sel.whole) return true;
       if (sel.mask) {
         var mx = Math.floor((p.x - sel.x) / sel.w * sel.mask.width), my = Math.floor((p.y - sel.y) / sel.h * sel.mask.height);
         return mx >= 0 && my >= 0 && mx < sel.mask.width && my < sel.mask.height && sel.maskData[(my * sel.mask.width + mx) * 4 + 3] > 0;
@@ -1300,7 +1302,7 @@
       if (!sel || !sel.float) return;
       active.ctx.drawImage(sel.float, sel.x, sel.y, sel.w, sel.h); sel.float = null; drawSel(); autosave();
     }
-    function clearSel() { sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); }
+    function clearSel() { sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); }
     // the little X on the selection's top left corner closes it
     function placeSelX() {
       if (!sel || (selMode && selMode !== 'scale') || sel.thing) { selx.hidden = true; return; }
@@ -1554,6 +1556,8 @@
     function selectLayer(L) {
       if (adj) adjustDone(); if (textBox) commitText(); commitSelection();
       active = L; renderLayers();
+      // (the Select tool comes up, so a drag moves it rather than painting)
+      if (!selTool(st.tool)) setTool('select');
       var w = L.cv.width, h = L.cv.height, d = L.ctx.getImageData(0, 0, w, h).data, minX = w, minY = h, maxX = -1, maxY = -1, on = new Uint8Array(w * h);
       for (var y = 0, k = 0; y < h; y++) for (var x = 0; x < w; x++, k++) {
         var j = k * 4;
@@ -1564,7 +1568,7 @@
       var mx = m.getContext('2d'), md = mx.createImageData(mw, mh);
       for (var yy = 0; yy < mh; yy++) for (var xx = 0; xx < mw; xx++) if (on[(yy + minY) * w + xx + minX]) md.data[(yy * mw + xx) * 4 + 3] = 255;
       mx.putImageData(md, 0, 0);
-      sel = { x: minX / R, y: minY / R, w: mw / R, h: mh / R, float: null, mask: m, maskData: md.data };
+      sel = { x: minX / R, y: minY / R, w: mw / R, h: mh / R, float: null, mask: m, maskData: md.data, whole: true };
       selbar.hidden = false; drawSel();
     }
     // reordering: drag a layer by its grip
@@ -1980,6 +1984,7 @@
     function screen(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
     function cancelStroke() {
       if (!down) return;
+      stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       clearInterval(sprayTimer);
@@ -2009,7 +2014,7 @@
           down = { id: e.pointerId, start: p, last: p, poly: true };
           drawLasso(null); return;
         }
-        if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); }
+        if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); stage.classList.add('moving'); }
         else if (t === 'wand') { commitSelection(); wandAt(p); selbar.hidden = !sel; drawSel(); return; }
         else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; p.corner = true; lasso = [p]; }
         else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null }; }
@@ -2099,7 +2104,7 @@
       }
       if (selTool(t)) {
         if (selMode === 'new' && (sel.w < 3 || sel.h < 3)) sel = null;
-        selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave(); return;
+        stage.classList.remove('moving'); selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave(); return;
       }
       down = null; autosave();
       if (t === 'smudge' || t === 'blur' || t === 'tone') { carry = []; return; }
@@ -2163,6 +2168,7 @@
       if (spaceDown && !spaceGrab) grabWithSpace();
       if (spaceGrab) { hideRing(); moveGrab(); return; }
       var cq = cornerAt(lastMouse.p, false); cornerCursor(cq);
+      stage.classList.toggle('can-move', !cq && selTool(st.tool) && !!sel && !sel.thing && inSel(lastMouse.p));
       if (cq) { octx.clearRect(0, 0, W, H); hideRing(); return; }
       ring(lastMouse.p);
     });
