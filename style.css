@@ -1,6 +1,6 @@
 /* Paint Alternative: a clean, Apple-style look. Frosted-glass panels float
    round the picture, everything is softly rounded, and the one accent
-   colour (system blue) marks what's selected. Light or dark follows the
+   colour (system red) marks what's selected. Light or dark follows the
    device until the moon / sun button is used. */
 
 :root {
@@ -8,9 +8,9 @@
   --text: #1d1d1f;
   --muted: #6e6e73;
   --line: rgba(0, 0, 0, .08);
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-soft: rgba(0, 113, 227, .12);
+  --accent: #ff3b30;
+  --accent-hover: #ff5147;
+  --accent-soft: rgba(255, 59, 48, .12);
   --hover: rgba(0, 0, 0, .05);
   --panel: rgba(255, 255, 255, .72);
   --panel-solid: #ffffff;
@@ -37,9 +37,9 @@
   --text: #f5f5f7;
   --muted: #98989d;
   --line: rgba(255, 255, 255, .10);
-  --accent: #0a84ff;
-  --accent-hover: #409cff;
-  --accent-soft: rgba(10, 132, 255, .22);
+  --accent: #ff453a;
+  --accent-hover: #ff6961;
+  --accent-soft: rgba(255, 69, 58, .22);
   --hover: rgba(255, 255, 255, .08);
   --panel: rgba(28, 28, 30, .72);
   --panel-solid: #1c1c1e;
@@ -149,7 +149,7 @@ body > * { flex-shrink: 0; }
   border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .4;
 }
 
-/* Save: the one blue button */
+/* Save: the one red button */
 .paint button.paint-save {
   grid-column: 1 / -1; width: 100%; height: 34px; border-radius: 980px;
   color: #fff; background: var(--accent); font-size: .875rem; font-weight: 500;
@@ -170,7 +170,7 @@ body > * { flex-shrink: 0; }
 /* ---- colour: the two colours, swatches and recent colours ---- */
 .paint-colors { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .paint-pair { position: relative; width: 56px; height: 48px; flex: none; }
-.paint-current, .paint-second {
+.paint-current, .paint-second { touch-action: none; -webkit-user-drag: none;
   position: absolute; border-radius: 50%; overflow: hidden; cursor: pointer;
   background: var(--panel-solid);
   box-shadow: 0 0 0 .5px var(--line), 0 1px 4px rgba(0, 0, 0, .12);
@@ -251,7 +251,7 @@ body > * { flex-shrink: 0; }
 /* typing on the picture */
 .paint-text {
   position: absolute; z-index: 2; min-width: 1ch; padding: 0; margin: 0; outline: 1px dashed var(--accent); outline-offset: 2px;
-  white-space: pre; line-height: 1.2; cursor: text; -webkit-user-select: text; user-select: text; caret-color: currentColor;
+  white-space: pre; line-height: 1.2; cursor: text; paint-order: stroke fill; -webkit-user-select: text; user-select: text; caret-color: currentColor;
 }
 
 /* ---------- Pop-overs: menus, panels, tooltips ---------- */
@@ -263,7 +263,7 @@ body > * { flex-shrink: 0; }
 @keyframes pb-in { from { opacity: 0; transform: translateX(-6px) scale(.98); } }
 @keyframes pl-in { from { opacity: 0; transform: translateX(6px) scale(.98); } }
 
-/* menu rows (macOS style: blue when hovered) */
+/* menu rows (macOS style: the accent colour when hovered) */
 .paint .paint-brushes button, .paint .paint-savemenu button, .paint-lmenu button {
   width: 100%; border-radius: 8px; color: var(--menu-link); font-size: .8125rem; font-weight: 400;
 }
@@ -373,7 +373,7 @@ body > * { flex-shrink: 0; }
 /* LAYERS */
 .paint-right { position: relative; }
 .paint-layerpanel {
-  position: absolute; right: calc(100% + 10px); z-index: 5; width: 220px; padding: 8px;
+  position: absolute; right: calc(100% + 10px); z-index: 5; width: 250px; padding: 8px;
   animation: pl-in .22s cubic-bezier(.2, .8, .2, 1);
 }
 .paint-layerpanel[hidden] { display: none; }
@@ -382,6 +382,21 @@ body > * { flex-shrink: 0; }
 .pl-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; }
 .pl-row { display: flex; align-items: center; gap: 2px; border-radius: 9px; }
 .pl-row.on { background: var(--accent-soft); }
+/* each layer's preview, over a checkerboard */
+.pl-thumb {
+  flex: none; display: block; margin: 0 4px 0 2px; border-radius: 4px;
+  background: repeating-conic-gradient(#e3e3e3 0 25%, #fff 0 50%) 0 0 / 8px 8px;
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .25), 0 1px 2px rgba(0, 0, 0, .12);
+}
+.pl-peek {
+  position: fixed; z-index: 170; padding: 8px; pointer-events: none;
+  background: var(--menu-bg); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+  border: .5px solid var(--menu-line); border-radius: 14px; box-shadow: var(--shadow-pop);
+  animation: pl-in .18s cubic-bezier(.2, .8, .2, 1);
+}
+.pl-peek[hidden] { display: none; }
+.pl-peek canvas { display: block; border-radius: 6px; background: repeating-conic-gradient(#e3e3e3 0 25%, #fff 0 50%) 0 0 / 12px 12px; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .2); }
+.pl-peek span { display: block; margin-top: 6px; font-size: .75rem; font-weight: 500; color: var(--menu-link); text-align: center; }
 .paint .pl-row button { height: 32px; color: var(--menu-link); }
 .paint .pl-row button:hover { background: transparent; }
 .paint .pl-row .pl-eye { width: 32px; flex: none; color: var(--muted); }
@@ -512,7 +527,7 @@ body > * { flex-shrink: 0; }
   .paint-adjust { left: calc(100% + 6px); width: 210px; padding: 10px; }
   .pa-list { gap: 2px; }
   .paint-savemenu { right: calc(100% + 6px); width: 170px; }
-  .paint-layerpanel { right: calc(100% + 6px); width: 190px; }
+  .paint-layerpanel { right: calc(100% + 6px); width: 220px; }
   .paint-zoom { right: 6px; bottom: 6px; }
   .paint .paint-zoom button { width: 26px; height: 26px; }
   .paint .paint-zoom button.paint-zoom-val { min-width: 2.8rem; font-size: .6875rem; }
@@ -648,3 +663,65 @@ kbd {
   .hb-install span { display: none; }
   .hb-install { width: 32px; padding: 0; margin-right: 2px; }
 }
+
+/* ---------- Text: the Aa button beside the words, and its options ---------- */
+.paint .paint-textbtn {
+  position: absolute; z-index: 4; width: 34px; height: 34px; border-radius: 50%;
+  color: #fff; background: var(--accent); box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  font-family: Georgia, "Times New Roman", serif; font-size: .95rem; font-weight: 600; letter-spacing: 0;
+  animation: tb-in .25s cubic-bezier(.2, .8, .2, 1);
+}
+.paint .paint-textbtn:hover, .paint .paint-textbtn[aria-expanded="true"] { background: var(--accent-hover); }
+@keyframes tb-in { from { opacity: 0; transform: scale(.6); } }
+.paint-textpanel {
+  position: fixed; z-index: 165; width: 264px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 12px;
+  background: var(--menu-bg); color: var(--menu-link);
+  -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+  border: .5px solid var(--menu-line); border-radius: 16px; box-shadow: var(--shadow-pop);
+  font-size: .75rem; animation: pd-in .2s cubic-bezier(.2, .8, .2, 1); overscroll-behavior: contain;
+}
+.paint-textpanel[hidden] { display: none; }
+.paint-textpanel button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tp-head span { font-size: .9375rem; font-weight: 600; letter-spacing: -.02em; }
+.tp-done { height: 26px; padding: 0 .8rem; border: 0; border-radius: 980px; color: #fff !important; background: var(--accent); font-weight: 500 !important; }
+.tp-done:hover { background: var(--accent-hover); }
+.tp-font {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; height: 36px; padding: 0 .7rem; border: 0; border-radius: 9px;
+  background: var(--hover); font-size: 1rem !important;
+}
+.tp-font span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-font svg, .tp-align svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tp-font[aria-expanded="true"] svg { transform: rotate(180deg); }
+.tp-fonts { max-height: 230px; overflow-y: auto; margin-top: 4px; padding: 2px; border-radius: 9px; background: var(--hover); overscroll-behavior: contain; }
+.tp-fonts[hidden] { display: none; }
+.pf-h { padding: 8px 8px 3px; font-family: var(--sans); font-size: .625rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.tp-fonts button, .paint-fontmenu button { display: block; width: 100%; height: auto !important; padding: .35rem .6rem !important; border: 0; border-radius: 7px; background: none; text-align: left; font-size: 1.0625rem !important; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-fonts button:hover { background: var(--accent); color: #fff; }
+.tp-fonts button[aria-checked="true"] { color: var(--accent); }
+.tp-fonts button[aria-checked="true"]:hover { color: #fff; }
+.tp-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; margin-top: 10px; color: var(--muted); }
+.tp-row input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
+.tp-row output { font-variant-numeric: tabular-nums; color: var(--text); }
+.tp-size { grid-template-columns: auto 1fr auto; }
+.tp-size input[type="range"] { grid-column: auto; }
+.tp-size input[type="number"] {
+  width: 58px; height: 28px; padding: 0 .4rem; border: 0; border-radius: 7px; font: inherit; font-size: .8125rem; color: var(--text);
+  background: var(--hover); text-align: right; font-variant-numeric: tabular-nums; outline: none;
+}
+.tp-size input[type="number"]:focus { box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+.tp-styles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 12px; }
+.tp-styles button { height: 32px; border: 0; border-radius: 8px; background: var(--hover); font-size: .9375rem !important; }
+.tp-styles button[aria-pressed="true"] { color: #fff; background: var(--accent); }
+.tp-styles .tp-sh { text-shadow: 0 2px 3px rgba(0, 0, 0, .45); font-weight: 600; }
+.tp-align { margin: 10px 0 0; }
+.paint-textpanel .tp-align button { flex: 1; height: 26px; border: 0; border-radius: 7px; background: none; display: flex; align-items: center; justify-content: center; }
+.paint-textpanel .tp-align button[aria-selected="true"] { background: var(--panel-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, .14), 0 0 0 .5px rgba(0, 0, 0, .04); }
+:root[data-theme="dark"] .paint-textpanel .tp-align button[aria-selected="true"] { background: #636366; }
+.tp-note { margin-top: 6px; font-size: .6875rem; color: var(--muted); }
+/* the text tool's own list of fonts */
+.paint-fontmenu { width: 230px !important; max-height: min(460px, calc(100vh - 140px)); overflow-y: auto; overscroll-behavior: contain; }
+.paint-fontmenu .pf-h { padding-top: 10px; flex: none; }
+.paint-fontmenu button { flex: none; }
+@media (max-width: 560px) { .paint-fontmenu { width: 200px !important; } }
+@media (max-width: 600px) { .paint-textpanel { width: calc(100vw - 16px); max-height: 52vh; } }

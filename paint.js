@@ -58,7 +58,35 @@
   var BLENDS = [['normal', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['darken', 'Darken'], ['lighten', 'Lighten'], ['color-dodge', 'Colour Dodge'],
     ['color-burn', 'Colour Burn'], ['soft-light', 'Soft Light'], ['hard-light', 'Hard Light'], ['difference', 'Difference'], ['exclusion', 'Exclusion'], ['hue', 'Hue'], ['saturation', 'Saturation'], ['color', 'Colour'], ['luminosity', 'Luminosity']];
   var SYMS = [['off', 'Off'], ['x', 'Left & Right'], ['y', 'Top & Bottom'], ['xy', 'Four Ways'], ['r6', 'Radial'], ['k12', 'Kaleidoscope']];
-  var FONTS = [['-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif', 'System'], ['Georgia, "Times New Roman", serif', 'Serif'], ['"Courier New", Courier, monospace', 'Typewriter'], ['"Marker Felt", "Chalkboard SE", "Comic Sans MS", cursive', 'Marker'], ['Impact, "Arial Black", sans-serif', 'Poster']];
+  // FONTS: a few that every device has, and a library from Google Fonts
+  // (fetched the first time the text tool is used, then kept for offline)
+  var GFONTS = [
+    ['Sans Serif', 'sans-serif', ['Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Raleway', 'Work Sans', 'Nunito', 'Quicksand', 'Josefin Sans', 'Barlow Condensed', 'Oswald']],
+    ['Serif', 'serif', ['Playfair Display', 'Merriweather', 'Lora', 'EB Garamond', 'Libre Baskerville', 'Cormorant Garamond', 'DM Serif Display', 'Roboto Slab', 'Cinzel']],
+    ['Display', 'sans-serif', ['Bebas Neue', 'Anton', 'Abril Fatface', 'Alfa Slab One', 'Righteous', 'Bungee', 'Bangers', 'Fredoka', 'Comfortaa', 'Orbitron', 'Monoton', 'Black Ops One', 'Creepster', 'Press Start 2P']],
+    ['Handwriting', 'cursive', ['Pacifico', 'Dancing Script', 'Caveat', 'Permanent Marker', 'Shadows Into Light', 'Great Vibes', 'Lobster', 'Satisfy', 'Sacramento', 'Indie Flower', 'Amatic SC', 'Kalam']],
+    ['Monospace', 'monospace', ['JetBrains Mono', 'Space Mono', 'Courier Prime', 'Special Elite']]
+  ];
+  var FONTS = [['-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif', 'System', 'Built In'], ['Georgia, "Times New Roman", serif', 'Georgia', 'Built In'],
+    ['"Courier New", Courier, monospace', 'Typewriter', 'Built In'], ['"Marker Felt", "Chalkboard SE", "Comic Sans MS", cursive', 'Marker Felt', 'Built In'], ['Impact, "Arial Black", sans-serif', 'Impact', 'Built In']];
+  GFONTS.forEach(function (g) { g[2].forEach(function (n) { FONTS.push(['"' + n + '", ' + g[1], n, g[0]]); }); });
+  var fontsLink = null;
+  function ensureFonts() {
+    if (fontsLink) return;
+    fontsLink = document.createElement('link'); fontsLink.rel = 'stylesheet';
+    fontsLink.href = 'https://fonts.googleapis.com/css2?' + GFONTS.map(function (g) { return g[2].map(function (n) { return 'family=' + n.replace(/ /g, '+'); }).join('&'); }).join('&') + '&display=swap';
+    document.head.appendChild(fontsLink);
+  }
+  function loadFont(f) { try { if (document.fonts) document.fonts.load('40px ' + f); } catch (x) {} }
+  // the list of fonts, each name shown in its own face, under headings
+  function fontList(attr) {
+    var out = '', cat = '';
+    FONTS.forEach(function (f) {
+      if (f[2] !== cat) { cat = f[2]; out += '<div class="pf-h">' + cat + '</div>'; }
+      out += '<button type="button" role="menuitemradio" ' + attr + '="' + f[0].replace(/"/g, '&quot;') + '" style="font-family:' + f[0].replace(/"/g, '\'') + '">' + f[1] + '</button>';
+    });
+    return out;
+  }
   var TOOL_NAMES = { brush: 'Brush', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', line: 'Line', shape: 'Shape', fill: 'Fill', gradient: 'Gradient',
     text: 'Text', select: 'Move', lasso: 'Move', wand: 'Move', picker: 'Edit', hand: 'Edit', tone: 'Light & Dark' };
   var app = null;
@@ -219,10 +247,10 @@
     });
     var recentBox = $('.paint-recent');
     function setColor(c) {
-      st.color = c; colorIn.value = c; colorDot.style.background = c;
+      st.color = c; colorIn.value = c; colorDot.style.background = c; if (textBox) styleTextBox();
       Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
-    function setColor2(c) { st.color2 = c; color2In.value = c; color2Dot.style.background = c; }
+    function setColor2(c) { st.color2 = c; color2In.value = c; color2Dot.style.background = c; if (textBox) styleTextBox(); }
     function useColor() {
       // the last few colours used, as quick swatches
       var c = st.color.toLowerCase();
@@ -245,7 +273,11 @@
     }
     makeMenu('brush', BRUSHES, 'brush', function (b) { return '<i class="pb-' + b[0] + '"></i>'; });
     makeMenu('shape', SHAPES, 'shape', function (s) { return '<i class="ps-' + s[0] + '"></i>'; });
-    makeMenu('text', FONTS, 'font', function (f) { return '<i class="pf" style="font-family:' + f[0].replace(/"/g, '\'') + '">Aa</i>'; });
+    // (the text tool's list: every font, by kind, in a scrolling list)
+    var fm = document.createElement('div');
+    fm.className = 'paint-brushes paint-fontmenu'; fm.setAttribute('role', 'menu'); fm.hidden = true;
+    fm.innerHTML = fontList('data-pick="font" data-val');
+    left.appendChild(fm); menus.text = { el: fm, key: 'font' };
     makeMenu('tone', TONES, 'tone', function (t) { return '<i class="pt-' + t[0] + '"></i>'; });
     makeMenu('sym', SYMS, 'sym', function (y) { return '<i class="psym psym-' + y[0] + '"></i>'; });
     // filled shapes: a switch at the foot of the shapes list
@@ -256,8 +288,10 @@
         m.el.hidden = !on;
         btn.setAttribute('aria-expanded', on ? 'true' : 'false');
         if (on) {
-          m.el.style.top = Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight) + 'px';
-          Array.prototype.forEach.call(m.el.children, function (b) { b.setAttribute('aria-checked', (b.dataset.val == null ? st.solid : b.dataset.val === st[m.key]) ? 'true' : 'false'); });
+          if (t === 'text') ensureFonts();
+          m.el.style.top = Math.max(0, Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight)) + 'px';
+          Array.prototype.forEach.call(m.el.querySelectorAll('button'), function (b) { b.setAttribute('aria-checked', (b.dataset.val == null ? st.solid : b.dataset.val === st[m.key]) ? 'true' : 'false'); });
+          if (t === 'text') { var on = m.el.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
         }
       });
     }
@@ -306,85 +340,203 @@
     var down = null, pts = [];
     function strokeStyle(c) { c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = st.size; c.strokeStyle = c.fillStyle = st.color; }
     function kind() { return st.tool === 'eraser' ? 'round' : st.brush; }
-    function grain() {
-      var g = document.createElement('canvas'); g.width = g.height = 48;
-      var gx = g.getContext('2d'), c = parseInt(st.color.slice(1), 16), im = gx.createImageData(48, 48);
-      for (var i = 0; i < im.data.length; i += 4) {
-        im.data[i] = c >> 16 & 255; im.data[i + 1] = c >> 8 & 255; im.data[i + 2] = c & 255;
-        im.data[i + 3] = Math.random() < 0.72 ? 120 + Math.random() * 135 : 0;
+    // ---- THE BRUSHES. While the pointer is down, the whole stroke so far is
+    // redrawn on the see-through sheet each time it moves, from a smoothed
+    // copy of its points (a curve through them, sampled every pixel or so),
+    // so lines come out smooth however the mouse or finger moved. Most
+    // brushes thin a little at each end, the way ink does. ----
+    function resample(P, step) {
+      var out = [{ x: P[0].x, y: P[0].y, pr: P[0].pr, d: 0 }], d = 0;
+      for (var i = 0; i < P.length - 1; i++) {
+        var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+        var n = Math.max(1, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / step));
+        for (var j = 1; j <= n; j++) {
+          var t = j / n, t2 = t * t, t3 = t2 * t;
+          var x = 0.5 * (2 * p1.x + (p2.x - p0.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (3 * p1.x - p0.x - 3 * p2.x + p3.x) * t3);
+          var y = 0.5 * (2 * p1.y + (p2.y - p0.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (3 * p1.y - p0.y - 3 * p2.y + p3.y) * t3);
+          var l = out[out.length - 1]; d += Math.hypot(x - l.x, y - l.y);
+          out.push({ x: x, y: y, pr: p1.pr == null ? null : p1.pr + (p2.pr - p1.pr) * t, d: d });
+        }
       }
-      gx.putImageData(im, 0, 0);
-      return octx.createPattern(g, 'repeat');
-    }
-    // chalk: a rough, broken texture in the colour (it stays put on the
-    // picture while the stroke is drawn, so the grain doesn't crawl)
-    var chalkPat = null;
-    function chalk() {
-      if (chalkPat && chalkPat.c === st.color) return chalkPat.p;
-      var g = document.createElement('canvas'); g.width = g.height = 96;
-      var gx = g.getContext('2d'), c = parseInt(st.color.slice(1), 16), im = gx.createImageData(96, 96), d = im.data;
-      for (var y = 0; y < 96; y++) for (var x = 0; x < 96; x++) {
-        var i = (y * 96 + x) * 4, n = Math.random() * 0.6 + 0.4 * (Math.sin(x * 0.9 + y * 0.35) * 0.5 + 0.5);
-        d[i] = c >> 16 & 255; d[i + 1] = c >> 8 & 255; d[i + 2] = c & 255;
-        d[i + 3] = n > 0.42 ? 150 + Math.random() * 105 : 0;
-      }
-      gx.putImageData(im, 0, 0);
-      chalkPat = { c: st.color, p: octx.createPattern(g, 'repeat') };
-      return chalkPat.p;
-    }
-    function brushStyle(c) {
-      strokeStyle(c);
-      var k = kind();
-      if (k === 'marker') { c.lineCap = 'square'; c.lineJoin = 'miter'; }
-      else if (k === 'highlighter') { c.lineCap = 'butt'; c.lineWidth = Math.max(10, st.size * 2.2); }
-      else if (k === 'pencil') { c.lineWidth = Math.max(1, st.size * 0.4); c.strokeStyle = c.fillStyle = grain(); }
-      else if (k === 'chalk') { c.lineWidth = Math.max(3, st.size * 1.2); c.strokeStyle = c.fillStyle = chalk(); }
-      else if (k === 'watercolor') c.lineWidth = Math.max(4, st.size * 1.8);
-    }
-    // the stroke so far, drawn on the see-through sheet. WATERCOLOUR: a
-    // wash that's paler in the middle with a darker rim where it dried,
-    // and a little grain; it's laid down with multiply, so strokes that
-    // cross build up like glazes
-    var wcGrain = null;
-    function pathStroke() {
-      if (kind() !== 'watercolor') { both(octx, function () { drawPath(octx); }); return; }
-      both(octx, function () { drawPath(octx); });
-      var w = octx.lineWidth;
-      octx.save(); octx.globalCompositeOperation = 'destination-out'; octx.globalAlpha = 0.45; octx.lineWidth = w * 0.82; octx.filter = 'blur(' + Math.max(1, w * 0.12) * R + 'px)';
-      both(octx, function () { drawPath(octx); });
-      octx.restore();
-      if (!wcGrain) {
-        var g = document.createElement('canvas'); g.width = g.height = 64;
-        var gx = g.getContext('2d'), im = gx.createImageData(64, 64);
-        for (var i = 3; i < im.data.length; i += 4) im.data[i] = Math.random() < 0.5 ? Math.random() * 90 : 0;
-        gx.putImageData(im, 0, 0); wcGrain = octx.createPattern(g, 'repeat');
-      }
-      octx.save(); octx.globalCompositeOperation = 'destination-out'; octx.fillStyle = wcGrain; octx.fillRect(0, 0, W, H); octx.restore();
-    }
-    // OIL PAINT: a flat brush of bristles, each a slightly different shade
-    // of the colour, that leaves streaks along the stroke
-    function bristles() {
-      var n = Math.max(4, Math.min(14, Math.round(st.size / 2.5))), c = parseInt(st.color.slice(1), 16), out = [];
-      for (var i = 0; i < n; i++) {
-        var f = 0.82 + Math.random() * 0.3, sh = function (v) { return Math.max(0, Math.min(255, Math.round(v * f))); };
-        out.push({ off: (i / (n - 1) - 0.5) * st.size * 1.2, w: Math.max(1, st.size * 1.2 / n * (1.2 + Math.random() * 0.8)), col: 'rgb(' + sh(c >> 16 & 255) + ',' + sh(c >> 8 & 255) + ',' + sh(c & 255) + ')', a: 0.75 + Math.random() * 0.25 });
+      // (which way is "across" the stroke at each point, for brushes made of strands)
+      for (var k = 0; k < out.length; k++) {
+        var a = out[Math.max(0, k - 2)], b = out[Math.min(out.length - 1, k + 2)], tx = b.x - a.x, ty = b.y - a.y, tl = Math.hypot(tx, ty);
+        out[k].nx = tl ? -ty / tl : 0; out[k].ny = tl ? tx / tl : 1;
       }
       return out;
     }
-    function oil(c, a, b) {
-      // (the brush turns gradually, as a real one does, so corners stay full)
-      var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 0.3) {
-        var nx = -dy / d, ny = dx / d, o = down.dir;
-        if (o) { if (nx * o.x + ny * o.y < 0) { nx = -nx; ny = -ny; } nx = o.x * 0.7 + nx * 0.3; ny = o.y * 0.7 + ny * 0.3; var l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; }
-        down.dir = { x: nx, y: ny };
+    // an Apple Pencil's pressure, smoothed (it sometimes reads 0 between readings)
+    function smoothPr(raw) {
+      if (!down || !down.pen) return null;
+      var p = raw > 0 ? raw : (down.pr != null ? down.pr : 0.3);
+      down.pr = down.pr == null ? p : down.pr * 0.6 + p * 0.4;
+      return down.pr;
+    }
+    // how wide the stroke is at a point: the pressure, and the thin ends
+    function widthFn(base, tin, tout, total) {
+      return function (s, tap) {
+        var f = s.pr == null ? 1 : 0.15 + 0.85 * Math.min(1, s.pr * 1.25);
+        if (!tap) {
+          // (an ease-out curve: the line swells quickly from a fine point)
+          if (tin) { var u = Math.min(1, s.d / tin); f *= 0.12 + 0.88 * (1 - (1 - u) * (1 - u)); }
+          if (tout) { var v = Math.min(1, Math.max(0, total - s.d) / tout); f *= 0.2 + 0.8 * (1 - (1 - v) * (1 - v)); }
+        }
+        return Math.max(0.5, base * f);
+      };
+    }
+    // a line of varying width (round ends), drawn in runs of the same width
+    function ribbon(c, S, wf) {
+      if (S.length === 1) { c.beginPath(); c.arc(S[0].x, S[0].y, wf(S[0], true) / 2, 0, Math.PI * 2); c.fill(); return; }
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      var cur = -1;
+      for (var i = 1; i < S.length; i++) {
+        var w = Math.round((wf(S[i - 1]) + wf(S[i])) * 2) / 4;
+        if (w !== cur) { if (cur > 0) c.stroke(); c.beginPath(); c.lineWidth = cur = w; c.moveTo(S[i - 1].x, S[i - 1].y); }
+        c.lineTo(S[i].x, S[i].y);
       }
-      var n = down.dir || { x: 0, y: 1 };
-      c.save(); c.lineCap = 'round';
-      down.bristles.forEach(function (q) {
-        c.globalAlpha = q.a; c.strokeStyle = c.fillStyle = q.col; c.lineWidth = q.w;
-        c.beginPath(); c.moveTo(a.x + n.x * q.off, a.y + n.y * q.off); c.lineTo(b.x + n.x * q.off + 0.01, b.y + n.y * q.off); c.stroke();
+      c.stroke();
+    }
+    // a flat nib swept along the stroke (marker, highlighter, calligraphy):
+    // the nib at every point, and the band between each pair of points, all
+    // wound the same way so they join up into one shape
+    function poly(c, q) {
+      var a = 0; for (var i = 0; i < q.length; i++) { var u = q[i], v = q[(i + 1) % q.length]; a += u[0] * v[1] - v[0] * u[1]; }
+      if (a < 0) q.reverse();
+      c.moveTo(q[0][0], q[0][1]); for (var j = 1; j < q.length; j++) c.lineTo(q[j][0], q[j][1]); c.closePath();
+    }
+    function chisel(c, S, len, thick, ang) {
+      var hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2, tx = -Math.sin(ang) * thick / 2, ty = Math.cos(ang) * thick / 2;
+      var f = function (s) { return s.pr == null ? 1 : 0.35 + 0.65 * Math.min(1, s.pr * 1.25); };
+      c.beginPath();
+      S.forEach(function (s, i) {
+        var k = f(s), ax = hx * k, ay = hy * k;
+        poly(c, [[s.x - ax - tx, s.y - ay - ty], [s.x + ax - tx, s.y + ay - ty], [s.x + ax + tx, s.y + ay + ty], [s.x - ax + tx, s.y - ay + ty]]);
+        if (i) {
+          // (each edge of the nib, swept from the last point to this one)
+          var o = S[i - 1], ko = f(o), bx = hx * ko, by = hy * ko;
+          [[-1, -1, 1, -1], [-1, 1, 1, 1], [-1, -1, -1, 1], [1, -1, 1, 1]].forEach(function (e) {
+            poly(c, [[o.x + e[0] * bx + e[1] * tx, o.y + e[0] * by + e[1] * ty], [o.x + e[2] * bx + e[3] * tx, o.y + e[2] * by + e[3] * ty],
+              [s.x + e[2] * ax + e[3] * tx, s.y + e[2] * ay + e[3] * ty], [s.x + e[0] * ax + e[1] * tx, s.y + e[0] * ay + e[1] * ty]]);
+          });
+        }
       });
+      c.fill();
+    }
+    // strands across the stroke (chalk, oil paint's bristles), each at its
+    // own place, width, shade and strength; they narrow with the stroke
+    function strands(c, S, list, wf) {
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      list.forEach(function (q) {
+        c.globalAlpha = q.a; c.strokeStyle = q.col || st.color; c.lineWidth = q.w;
+        c.beginPath();
+        S.forEach(function (s, i) { var k = wf(s, S.length === 1) * q.o; c[i ? 'lineTo' : 'moveTo'](s.x + s.nx * k, s.y + s.ny * k + (S.length === 1 ? 0.01 : 0)); });
+        c.stroke();
+      });
+      c.globalAlpha = 1;
+    }
+    function shade(hex, f) {
+      var c = parseInt(hex.slice(1), 16), m = function (v) { return Math.max(0, Math.min(255, Math.round(f > 1 ? v + (255 - v) * (f - 1) : v * f))); };
+      return 'rgb(' + m(c >> 16 & 255) + ',' + m(c >> 8 & 255) + ',' + m(c & 255) + ')';
+    }
+    // the paper's tooth: fine (pencil) or coarse and clumpy (chalk). Used to
+    // rub bits out of a stroke, so it catches on the grain like the real thing
+    var tooth = {};
+    function toothPat(kindOf) {
+      if (tooth[kindOf]) return tooth[kindOf];
+      var S = 128, g = document.createElement('canvas'); g.width = g.height = S;
+      var gx = g.getContext('2d'), im = gx.createImageData(S, S), d = im.data, lo = null;
+      if (kindOf === 'chalk') {
+        var s2 = document.createElement('canvas'); s2.width = s2.height = 32;
+        var sx = s2.getContext('2d'), si = sx.createImageData(32, 32);
+        for (var i = 0; i < si.data.length; i += 4) { si.data[i + 3] = Math.random() * 255; }
+        sx.putImageData(si, 0, 0);
+        var big = document.createElement('canvas'); big.width = big.height = S;
+        var bx = big.getContext('2d'); bx.imageSmoothingQuality = 'high'; bx.drawImage(s2, 0, 0, S, S); lo = bx.getImageData(0, 0, S, S).data;
+      }
+      for (var j = 0; j < d.length; j += 4) {
+        var n = Math.random();
+        if (kindOf === 'chalk') { var v = lo[j + 3] / 255 * 0.55 + n * 0.45; d[j + 3] = v > 0.56 ? Math.min(255, (v - 0.56) * 900) : 0; }
+        else d[j + 3] = n > 0.55 ? (n - 0.55) * 300 : 0;
+      }
+      gx.putImageData(im, 0, 0);
+      tooth[kindOf] = octx.createPattern(g, 'repeat');
+      return tooth[kindOf];
+    }
+    // see-through passes are drawn whole on a spare sheet, then laid on once
+    // (so the overlapping round ends inside a line don't double up)
+    var spare = null;
+    function pass(fn, alpha, op, filter) {
+      if (!spare || spare.width !== ov.width || spare.height !== ov.height) { spare = document.createElement('canvas'); spare.width = ov.width; spare.height = ov.height; }
+      var x = spare.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, spare.width, spare.height); base(x);
+      x.fillStyle = x.strokeStyle = st.color; fn(x);
+      octx.save(); octx.setTransform(1, 0, 0, 1, 0, 0); octx.globalAlpha = alpha; if (op) octx.globalCompositeOperation = op; if (filter) octx.filter = filter;
+      octx.drawImage(spare, 0, 0); octx.restore();
+    }
+    function bothOn(x, fn) {
+      fn(x);
+      copies().forEach(function (m) { x.save(); x.setTransform(R * m[0], R * m[1], R * m[2], R * m[3], R * m[4], R * m[5]); fn(x); x.restore(); });
+    }
+    function rubOut(pat, a) { octx.save(); octx.globalCompositeOperation = 'destination-out'; octx.globalAlpha = a; octx.fillStyle = pat; octx.fillRect(0, 0, W, H); octx.restore(); }
+    var wcGrain = null;
+    function renderStroke() {
+      var k = kind(), sz = st.size, c = octx;
+      octx.clearRect(0, 0, W, H);
+      if (!pts.length) return;
+      var step = { pencil: 0.75, calligraphy: Math.max(0.75, sz * 0.06), marker: Math.max(0.75, sz * 0.1), highlighter: Math.max(0.75, sz * 0.12) }[k] || Math.max(0.75, sz * 0.12);
+      var S = resample(pts, step), total = S[S.length - 1].d;
+      c.save(); c.fillStyle = c.strokeStyle = st.color;
+      if (k === 'round') {
+        var wr = widthFn(sz, sz * 1.5, sz * 1.2, total);
+        both(c, function () { ribbon(c, S, wr); });
+      } else if (k === 'pencil') {
+        // graphite: a fine line that tapers, catching on the paper's grain
+        var wp = widthFn(Math.max(1, sz * 0.38), sz * 3, sz * 3, total);
+        both(c, function () { ribbon(c, S, wp); });
+        rubOut(toothPat('pencil'), 0.55);
+      } else if (k === 'marker') {
+        // a felt chisel tip: flat, even ink
+        both(c, function () { chisel(c, S, Math.max(3, sz * 1.1), Math.max(1.5, sz * 0.38), -0.6); });
+      } else if (k === 'highlighter') {
+        both(c, function () { chisel(c, S, Math.max(10, sz * 2.2), Math.max(3, sz * 0.5), 1.35); });
+      } else if (k === 'calligraphy') {
+        // a broad nib held at 45 degrees: thick one way, hairline the other
+        both(c, function () { chisel(c, S, Math.max(4, sz * 1.5), Math.max(1, sz * 0.09), -Math.PI / 4); });
+      } else if (k === 'watercolor') {
+        // a soft wash, paler in the middle with a darker rim where it dried,
+        // a faint bleed round the edge, and grain; laid down with multiply,
+        // so washes that cross build up like glazes
+        var ww = Math.max(4, sz * 1.8), wf1 = widthFn(ww * 1.12, ww * 0.35, ww * 0.35, total), wf2 = widthFn(ww, ww * 0.35, ww * 0.35, total), wf3 = widthFn(ww * 0.74, ww * 0.35, ww * 0.35, total);
+        pass(function (x) { bothOn(x, function (y) { ribbon(y, S, wf1); }); }, 0.28);
+        both(c, function () { ribbon(c, S, wf2); });
+        pass(function (x) { bothOn(x, function (y) { ribbon(y, S, wf3); }); }, 0.5, 'destination-out', 'blur(' + Math.max(1, ww * 0.14) * R + 'px)');
+        if (!wcGrain) {
+          var g = document.createElement('canvas'); g.width = g.height = 64;
+          var gx = g.getContext('2d'), im = gx.createImageData(64, 64);
+          for (var i = 3; i < im.data.length; i += 4) im.data[i] = Math.random() < 0.5 ? Math.random() * 80 : 0;
+          gx.putImageData(im, 0, 0); wcGrain = c.createPattern(g, 'repeat');
+        }
+        rubOut(wcGrain, 1);
+      } else if (k === 'chalk') {
+        // many dusty strands, then the paper's coarse tooth breaks them up
+        if (!down.strands) {
+          var n = Math.max(6, Math.min(20, Math.round(sz / 1.5))), L = [];
+          for (var q = 0; q < n; q++) L.push({ o: (q / (n - 1) - 0.5) * 1.0 + (Math.random() - 0.5) * 0.12, w: Math.max(1, sz * 1.3 / n * (1.4 + Math.random())), a: 0.45 + Math.random() * 0.45 });
+          down.strands = L;
+        }
+        var wc = widthFn(sz * 1.3, sz * 0.8, sz * 0.8, total);
+        both(c, function () { strands(c, S, down.strands, wc); });
+        rubOut(toothPat('chalk'), 0.85);
+      } else if (k === 'oil') {
+        // a body of paint, with the brush's bristles dragged through it:
+        // lighter and darker streaks along the stroke
+        if (!down.bristles) {
+          var nb = Math.max(6, Math.min(18, Math.round(sz / 2))), B = [];
+          for (var r = 0; r < nb; r++) { var f = Math.random() < 0.5 ? 0.62 + Math.random() * 0.2 : 1.15 + Math.random() * 0.25; B.push({ o: (Math.random() - 0.5) * 0.9, w: Math.max(0.8, sz * 1.25 / nb * (0.6 + Math.random() * 0.7)), a: 0.3 + Math.random() * 0.35, col: shade(st.color, f) }); }
+          down.bristles = B;
+        }
+        var wo = widthFn(sz * 1.25, sz * 0.9, sz * 1.4, total);
+        both(c, function () { ribbon(c, S, wo); strands(c, S, down.bristles, wo); });
+      }
       c.restore();
     }
     // SYMMETRY: everything drawn is drawn again for each copy: mirrored
@@ -430,16 +582,16 @@
       for (var i = 1; i < pts.length - 1; i++) c.quadraticCurveTo(pts[i].x, pts[i].y, (pts[i].x + pts[i + 1].x) / 2, (pts[i].y + pts[i + 1].y) / 2);
       var l = pts[pts.length - 1]; c.lineTo(l.x, l.y); c.stroke();
     }
+    // SPRAY: a soft, round cloud of fine droplets, thickest in the middle
     function spray(c, p) {
-      var r = Math.max(5, st.size * 1.6), n = Math.round(r * 0.9);
-      c.fillStyle = st.color;
-      for (var i = 0; i < n; i++) { var a = Math.random() * Math.PI * 2, d = r * Math.sqrt(Math.random()); c.fillRect(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, 1.2, 1.2); }
-    }
-    function nib(c, a, b) {
-      var w = Math.max(1.5, st.size / 2), vx = w * Math.SQRT1_2, vy = -w * Math.SQRT1_2;
-      c.fillStyle = st.color; c.beginPath();
-      c.moveTo(a.x - vx, a.y - vy); c.lineTo(a.x + vx, a.y + vy); c.lineTo(b.x + vx, b.y + vy); c.lineTo(b.x - vx, b.y - vy);
-      c.closePath(); c.fill();
+      var r = Math.max(5, st.size * 1.6), n = Math.round(Math.min(520, Math.max(r * 2.4, r * r * 0.16)));
+      c.save(); c.fillStyle = st.color;
+      for (var i = 0; i < n; i++) {
+        var a = Math.random() * Math.PI * 2, g = Math.sqrt(-2 * Math.log(Math.random() || 1e-6)) * 0.42, d = Math.min(1, g) * r, s2 = 0.3 + Math.random() * Math.random() * 0.9;
+        c.globalAlpha = 0.35 + Math.random() * 0.65;
+        c.beginPath(); c.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, s2, 0, Math.PI * 2); c.fill();
+      }
+      c.restore();
     }
     // feather: the whole stroke as one very soft line (the line itself is
     // drawn off to the side; only its blurred shadow lands on the picture),
@@ -491,14 +643,8 @@
       down.w = w1;
       both(c, function () { taper(c, a, b, w0, w1); });
     }
-    function piecewise() { var k = kind(); return k === 'spray' || k === 'calligraphy' || k === 'oil' || (down && down.pen && k !== 'feather' && k !== 'watercolor'); }
+
     var sprayTimer = 0;
-    function segment(c, a, b, pr) {
-      var k = kind();
-      if (k === 'oil') { if (!down.bristles) down.bristles = bristles(); both(c, function () { oil(c, a, b); }); return; }
-      if (k !== 'spray' && k !== 'calligraphy') { pressed(c, a, b, pr); return; }
-      both(c, function () { if (k === 'spray') spray(c, b); else nib(c, a, b); });
-    }
     function commit(mode, alpha) {
       var c = active.ctx;
       c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
@@ -656,39 +802,186 @@
       active.ctx.save(); active.ctx.setTransform(1, 0, 0, 1, 0, 0); active.ctx.putImageData(img, 0, 0); active.ctx.restore();
     }
 
-    // ---- text: type where you tap; it's laid onto the layer when you're done ----
-    var textBox = null, textAt = null;
-    function fontSize() { return Math.max(14, st.size * 3); }
+    // ---- TEXT: type where you tap; it's laid onto the layer when you're
+    // done. While typing, an Aa button sits by the words: it opens the text
+    // options (font, size, bold / italic / underline / capitals, alignment,
+    // letter spacing, line height, outline and shadow), which show live ----
+    var textBox = null, textAt = null, textBtn = null, tpEl = null;
+    var tx = { size: 48, bold: false, italic: false, underline: false, caps: false, align: 'left', spacing: 0, lh: 1.2, outline: 0, shadow: false };
+    function fontSize() { return tx.size; }
+    function fontName(v) { var f = FONTS.filter(function (x) { return x[0] === v; })[0]; return f ? f[1] : 'Font'; }
     function placeTextBox() {
-      textBox.style.left = view.x + textAt.x * view.k + 'px'; textBox.style.top = view.y + textAt.y * view.k + 'px';
-      textBox.style.fontSize = fontSize() * view.k + 'px';
+      var k = view.k;
+      textBox.style.left = view.x + textAt.x * k + 'px'; textBox.style.top = view.y + textAt.y * k + 'px';
+      textBox.style.fontSize = tx.size * k + 'px';
+      textBox.style.letterSpacing = tx.spacing / 1000 * tx.size * k + 'px';
+      textBox.style.lineHeight = tx.lh;
+      textBox.style.transform = tx.align === 'center' ? 'translateX(-50%)' : tx.align === 'right' ? 'translateX(-100%)' : '';
+      textBox.style.webkitTextStroke = tx.outline ? (tx.outline * tx.size / 100 * 2 * k) + 'px ' + st.color2 : '';
+      textBox.style.textShadow = tx.shadow ? '0 ' + tx.size * 0.06 * k + 'px ' + tx.size * 0.12 * k + 'px rgba(0,0,0,.45)' : '';
+      placeTextBtn();
+    }
+    function styleTextBox() {
+      if (!textBox) return;
+      var b = textBox.style;
+      b.fontFamily = st.font; b.color = st.color; b.opacity = st.alpha;
+      b.fontWeight = tx.bold ? '700' : '400'; b.fontStyle = tx.italic ? 'italic' : 'normal';
+      b.textDecoration = tx.underline ? 'underline' : 'none'; b.textTransform = tx.caps ? 'uppercase' : 'none'; b.textAlign = tx.align;
+      placeTextBox();
+    }
+    function placeTextBtn() {
+      if (!textBtn || !textBox) return;
+      var x = textBox.offsetLeft + textBox.offsetWidth * (tx.align === 'center' ? 0.5 : tx.align === 'right' ? 0 : 1) + 10, y = textBox.offsetTop - 6;
+      textBtn.style.left = Math.round(Math.max(4, Math.min(stage.clientWidth - 40, x))) + 'px';
+      textBtn.style.top = Math.round(Math.max(4, Math.min(stage.clientHeight - 40, y))) + 'px';
+      if (tpEl && !tpEl.hidden) placeTextPanel();
     }
     function startText(p) {
+      ensureFonts();
       textAt = p;
       textBox = document.createElement('div');
       textBox.className = 'paint-text'; textBox.contentEditable = 'true'; textBox.spellcheck = false;
-      textBox.style.fontFamily = st.font; textBox.style.color = st.color; textBox.style.opacity = st.alpha;
-      stage.appendChild(textBox); placeTextBox();
+      stage.appendChild(textBox);
+      textBtn = document.createElement('button');
+      textBtn.type = 'button'; textBtn.className = 'paint-textbtn'; textBtn.setAttribute('aria-label', 'Text options'); textBtn.title = 'Text options: font, size, spacing and more';
+      textBtn.innerHTML = '<span>Aa</span>';
+      stage.appendChild(textBtn);
+      // (pressing it mustn't take the typing away from the words)
+      textBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); });
+      textBtn.addEventListener('click', function (e) { e.stopPropagation(); textPanel(!tpEl || tpEl.hidden); });
+      styleTextBox();
       setTimeout(function () { textBox && textBox.focus({ preventScroll: true }); }, 0);
+      textBox.addEventListener('input', placeTextBtn);
       textBox.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelText(); }
         else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
       });
-      textBox.addEventListener('blur', function () { setTimeout(function () { if (textBox && document.activeElement !== textBox) commitText(); }, 0); });
+      textBox.addEventListener('blur', function () {
+        setTimeout(function () {
+          var a = document.activeElement;
+          // (still typing if the focus went to the text options, the font
+          // list, the colours or the opacity: those change the words)
+          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-colors, .paint-sliders'))) commitText();
+        }, 0);
+      });
     }
-    function cancelText() { if (textBox) { textBox.remove(); textBox = null; } }
+    function cancelText() {
+      if (textBox) { textBox.remove(); textBox = null; }
+      if (textBtn) { textBtn.remove(); textBtn = null; }
+      textPanel(false);
+    }
     function commitText() {
       if (!textBox) return;
-      var lines = textBox.innerText.replace(/\n$/, '').split('\n'), fs = fontSize();
+      var lines = textBox.innerText.replace(/\n$/, '').split('\n');
       cancelText();
       if (!lines.join('').trim()) return;
-      remember();
-      var c = active.ctx; c.save(); clipTo(c);
-      c.font = fs + 'px ' + st.font; c.fillStyle = st.color; c.globalAlpha = st.alpha; c.textBaseline = 'top';
-      lines.forEach(function (l, i) { c.fillText(l, textAt.x, textAt.y + i * fs * 1.2 + fs * 0.08); });
+      remember('Text');
+      var c = active.ctx, fs = tx.size, lh = fs * tx.lh, ls = tx.spacing / 1000 * fs;
+      c.save(); clipTo(c);
+      c.font = (tx.italic ? 'italic ' : '') + (tx.bold ? '700 ' : '400 ') + fs + 'px ' + st.font;
+      c.textBaseline = 'alphabetic'; c.globalAlpha = st.alpha; c.lineJoin = 'round'; c.miterLimit = 2;
+      var native = 'letterSpacing' in c;
+      if (native) c.letterSpacing = ls + 'px';
+      // (placed exactly as the page laid out the typed words: each line's
+      // baseline sits half the spare line height below its top, then the
+      // font's ascent)
+      var m = c.measureText('Hg'), A = m.fontBoundingBoxAscent != null ? m.fontBoundingBoxAscent : fs * 0.8, D = m.fontBoundingBoxDescent != null ? m.fontBoundingBoxDescent : fs * 0.2;
+      function widthOf(t) {
+        if (native || !ls) return c.measureText(t).width;
+        var w = 0; for (var i = 0; i < t.length; i++) w += c.measureText(t[i]).width + ls; return w;
+      }
+      function draw(t, x, y, how) {
+        if (native || !ls) { c[how](t, x, y); return; }
+        for (var i = 0; i < t.length; i++) { c[how](t[i], x, y); x += c.measureText(t[i]).width + ls; }
+      }
+      lines.forEach(function (l, i) {
+        var t = tx.caps ? l.toUpperCase() : l, w = widthOf(t);
+        var x = tx.align === 'center' ? textAt.x - w / 2 : tx.align === 'right' ? textAt.x - w : textAt.x;
+        var y = textAt.y + i * lh + (lh - (A + D)) / 2 + A;
+        var shadow = function (on) { c.shadowColor = on ? 'rgba(0,0,0,.45)' : 'transparent'; c.shadowBlur = on ? fs * 0.12 * R : 0; c.shadowOffsetX = 0; c.shadowOffsetY = on ? fs * 0.06 * R : 0; };
+        if (tx.outline) { shadow(tx.shadow); c.strokeStyle = st.color2; c.lineWidth = tx.outline * fs / 100 * 2; draw(t, x, y, 'strokeText'); shadow(false); }
+        else shadow(tx.shadow);
+        c.fillStyle = st.color; draw(t, x, y, 'fillText');
+        if (tx.underline) c.fillRect(x, y + fs * 0.1, Math.max(0, w - (native ? 0 : ls)), Math.max(1, fs * 0.06));
+        shadow(false);
+      });
       c.restore();
       useColor();
     }
+    // the options panel (it floats beside the Aa button)
+    function textPanel(open) {
+      if (!open) { if (tpEl) tpEl.hidden = true; if (textBtn) textBtn.setAttribute('aria-expanded', 'false'); return; }
+      if (!textBox) return;
+      if (!tpEl) buildTextPanel();
+      syncTextPanel(); tpEl.hidden = false; textBtn.setAttribute('aria-expanded', 'true'); placeTextPanel();
+    }
+    function placeTextPanel() {
+      var r = textBtn.getBoundingClientRect(), w = tpEl.offsetWidth, h = tpEl.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      // (on a phone it sits along the bottom of the screen, clear of the words)
+      if (vw <= 600) { tpEl.style.left = Math.round((vw - w) / 2) + 'px'; tpEl.style.top = Math.round(vh - h - 8) + 'px'; return; }
+      var x = r.right + 10; if (x + w > vw - 8) x = r.left - w - 10; if (x < 8) x = Math.max(8, (vw - w) / 2);
+      tpEl.style.left = Math.round(x) + 'px'; tpEl.style.top = Math.round(Math.max(8, Math.min(vh - h - 8, r.top - 20))) + 'px';
+    }
+    var ICON = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
+    function buildTextPanel() {
+      tpEl = document.createElement('div'); tpEl.className = 'paint-textpanel'; tpEl.hidden = true; tpEl.setAttribute('role', 'dialog'); tpEl.setAttribute('aria-label', 'Text options');
+      var range = function (key, label, min, max, step) { return '<label class="tp-row"><span>' + label + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-tp="' + key + '"><output data-tpo="' + key + '"></output></label>'; };
+      tpEl.innerHTML = '<div class="tp-head"><span>Text</span><button type="button" class="tp-done" data-tpa="done">Done</button></div>' +
+        '<button type="button" class="tp-font" data-tpa="fonts" aria-expanded="false"><span></span>' + ICON('<path d="M7 10l5 5 5-5"/>') + '</button>' +
+        '<div class="tp-fonts" hidden>' + fontList('data-tpfont') + '</div>' +
+        '<label class="tp-row tp-size"><span>Size</span><input type="range" min="8" max="400" step="1" data-tp="size"><input type="number" min="4" max="2000" data-tp="sizen" aria-label="Size"></label>' +
+        '<div class="tp-styles">' +
+          '<button type="button" data-tpt="bold" title="Bold" aria-label="Bold"><b>B</b></button>' +
+          '<button type="button" data-tpt="italic" title="Italic" aria-label="Italic"><i>I</i></button>' +
+          '<button type="button" data-tpt="underline" title="Underline" aria-label="Underline"><u>U</u></button>' +
+          '<button type="button" data-tpt="caps" title="All capitals" aria-label="All capitals"><span>AA</span></button>' +
+          '<button type="button" data-tpt="shadow" title="Shadow" aria-label="Shadow"><span class="tp-sh">S</span></button>' +
+        '</div>' +
+        '<div class="pa-tabs tp-align" role="group" aria-label="Alignment">' +
+          '<button type="button" data-tpal="left" aria-label="Align left">' + ICON('<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>') + '</button>' +
+          '<button type="button" data-tpal="center" aria-label="Centre">' + ICON('<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>') + '</button>' +
+          '<button type="button" data-tpal="right" aria-label="Align right">' + ICON('<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>') + '</button>' +
+        '</div>' +
+        range('spacing', 'Letter spacing', -150, 600, 5) + range('lh', 'Line height', 0.7, 3, 0.05) + range('outline', 'Outline', 0, 15, 0.5) +
+        '<div class="tp-note">The outline uses your second colour.</div>';
+      document.body.appendChild(tpEl);
+      // (buttons keep the typing where it is; sliders and the number take
+      // the focus only while they're used)
+      tpEl.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) e.preventDefault(); });
+      tpEl.addEventListener('click', function (e) {
+        var b;
+        if ((b = e.target.closest('[data-tpa="done"]'))) { commitText(); return; }
+        if ((b = e.target.closest('[data-tpa="fonts"]'))) { var l = tpEl.querySelector('.tp-fonts'); l.hidden = !l.hidden; b.setAttribute('aria-expanded', !l.hidden); if (!l.hidden) { var on = l.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'center' }); } placeTextPanel(); return; }
+        if ((b = e.target.closest('[data-tpfont]'))) { st.font = b.dataset.tpfont; loadFont(st.font); afterTextChange(); return; }
+        if ((b = e.target.closest('[data-tpt]'))) { tx[b.dataset.tpt] = !tx[b.dataset.tpt]; afterTextChange(); return; }
+        if ((b = e.target.closest('[data-tpal]'))) { tx.align = b.dataset.tpal; afterTextChange(); return; }
+      });
+      tpEl.addEventListener('input', function (e) {
+        var i = e.target.closest('[data-tp]'); if (!i) return;
+        var k = i.dataset.tp;
+        if (k === 'sizen') { var v = Math.round(+i.value); if (v >= 4 && v <= 2000) tx.size = v; }
+        else tx[k] = +i.value;
+        afterTextChange(k === 'sizen');
+      });
+      tpEl.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); textPanel(false); if (textBox) textBox.focus({ preventScroll: true }); } else if (e.key === 'Enter' && e.target.dataset.tp === 'sizen') { e.preventDefault(); textBox && textBox.focus({ preventScroll: true }); } });
+    }
+    function afterTextChange(typing) { styleTextBox(); syncTextPanel(typing); }
+    function syncTextPanel(typingSize) {
+      if (!tpEl) return;
+      tpEl.querySelector('.tp-font span').textContent = fontName(st.font);
+      tpEl.querySelector('.tp-font span').style.fontFamily = st.font;
+      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpfont]'), function (b) { b.setAttribute('aria-checked', b.dataset.tpfont === st.font ? 'true' : 'false'); });
+      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpt]'), function (b) { b.setAttribute('aria-pressed', tx[b.dataset.tpt] ? 'true' : 'false'); });
+      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpal]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.tpal ? 'true' : 'false'); });
+      tpEl.querySelector('[data-tp="size"]').value = Math.min(400, tx.size);
+      if (!typingSize) tpEl.querySelector('[data-tp="sizen"]').value = tx.size;
+      tpEl.querySelector('[data-tp="spacing"]').value = tx.spacing; tpEl.querySelector('[data-tpo="spacing"]').textContent = tx.spacing;
+      tpEl.querySelector('[data-tp="lh"]').value = tx.lh; tpEl.querySelector('[data-tpo="lh"]').textContent = tx.lh.toFixed(2);
+      tpEl.querySelector('[data-tp="outline"]').value = tx.outline; tpEl.querySelector('[data-tpo="outline"]').textContent = tx.outline;
+    }
+    document.addEventListener('pointerdown', function (e) {
+      if (tpEl && !tpEl.hidden && !e.target.closest('.paint-textpanel, .paint-textbtn, .paint-text, .paint-colors, .paint-sliders, .paint-fontmenu')) textPanel(false);
+    }, true);
 
     // ---- select and move: a box round part of the layer; drag it to move it ----
     var sel = null, selMode = null, selOff = null, lasso = [];
@@ -948,12 +1241,14 @@
         return '<div class="pl-row' + (L === active ? ' on' : '') + '" data-i="' + i + '">' +
           '<button type="button" class="pl-eye" data-layer-eye="' + i + '" aria-label="' + (L.visible ? 'Hide' : 'Show') + ' ' + L.name + '" aria-pressed="' + (!L.visible) + '">' +
             '<svg viewBox="0 0 24 24">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
+          '<canvas class="pl-thumb" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
           '<button type="button" class="pl-name" data-layer="' + i + '" title="Tap again to rename">' + L.name.replace(/[<&]/g, function (ch) { return ch === '<' ? '&lt;' : '&amp;'; }) + '</button>' +
           '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
       }).join('');
       if (!layers.length) rows = '<div class="pl-empty">No layers. Draw, or tap + to add one.</div>';
       var pr = active ? '<div class="pl-props"><label class="pl-op"><span>Opacity</span><input type="range" min="0" max="100" value="' + Math.round(active.opacity * 100) + '" data-layer-op aria-label="Layer opacity"><output>' + Math.round(active.opacity * 100) + '%</output></label>' +
         '<label class="pl-bl"><span>Blend</span><select data-layer-blend aria-label="Blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === active.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' : '';
+      thumbsSoon();
       panel.innerHTML = '<div class="pl-title">Layers</div><div class="pl-list">' + rows + '</div>' + pr +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>' +
@@ -962,7 +1257,42 @@
           '<button type="button" data-layer-act="delete" title="Delete layer" aria-label="Delete layer"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
         '</div>';
     }
+    // LAYER PREVIEWS: a little picture of what's on each layer (over a
+    // checkerboard, so see-through parts show), kept up to date while the
+    // panel is open; hover one (or press it) for a bigger look
+    var thumbQ = false;
+    function thumbsSoon() { if (thumbQ) return; thumbQ = true; requestAnimationFrame(function () { thumbQ = false; drawThumbs(); }); }
+    function drawThumbs() {
+      if (!panel || panel.hidden) return;
+      var k = Math.min(44 / ov.width, 32 / ov.height), tw = Math.max(4, Math.round(ov.width * k)), th = Math.max(4, Math.round(ov.height * k)), d = Math.min(window.devicePixelRatio || 1, 2);
+      Array.prototype.forEach.call(panel.querySelectorAll('[data-thumb]'), function (c) {
+        var L = layers[+c.dataset.thumb]; if (!L) return;
+        if (c.width !== tw * d) { c.width = tw * d; c.height = th * d; c.style.width = tw + 'px'; c.style.height = th + 'px'; }
+        var x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(L.cv, 0, 0, c.width, c.height);
+      });
+      if (peekL) drawPeek();
+    }
+    var peek = document.createElement('div'), peekL = null;
+    peek.className = 'pl-peek'; peek.hidden = true; peek.innerHTML = '<canvas></canvas><span></span>';
+    document.body.appendChild(peek);
+    function drawPeek() {
+      var c = peek.firstChild, k = Math.min(220 / ov.width, 180 / ov.height), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(ov.width * k), h = Math.round(ov.height * k);
+      c.width = w * d; c.height = h * d; c.style.width = w + 'px'; c.style.height = h + 'px';
+      c.getContext('2d').drawImage(peekL.cv, 0, 0, c.width, c.height);
+      peek.lastChild.textContent = peekL.name;
+    }
+    function showPeek(t) {
+      peekL = layers[+t.dataset.thumb]; if (!peekL) return;
+      drawPeek(); peek.hidden = false;
+      var r = t.getBoundingClientRect(), pr = panel.getBoundingClientRect();
+      peek.style.left = Math.max(8, pr.left - peek.offsetWidth - 10) + 'px';
+      peek.style.top = Math.max(8, Math.min(window.innerHeight - peek.offsetHeight - 8, r.top + r.height / 2 - peek.offsetHeight / 2)) + 'px';
+    }
+    function hidePeek() { peekL = null; peek.hidden = true; }
+    panel.addEventListener('pointerover', function (e) { var t = e.target.closest('[data-thumb]'); if (t) showPeek(t); else if (peekL) hidePeek(); });
+    panel.addEventListener('pointerleave', hidePeek);
     function layerPanel(open) {
+      if (!open) hidePeek(); else thumbsSoon();
       panel.hidden = !open;
       $('[data-act="layers"]').setAttribute('aria-expanded', open ? 'true' : 'false');
       if (open) { var b = $('[data-act="layers"]'); panel.style.top = Math.max(0, Math.min(b.offsetTop - panel.offsetHeight + b.offsetHeight, right.clientHeight - panel.offsetHeight)) + 'px'; }
@@ -1196,7 +1526,7 @@
     function drawCurve() {
       if (adjBox.hidden || adjTab !== 'curves') return;
       var sz = cvSize(), c = cvG.getContext('2d'), W2 = sz.w - 2 * CP, H2 = sz.h - 2 * CP, P = curvePts(), cs = getComputedStyle(adjBox);
-      var ink = cs.getPropertyValue('--text').trim() || '#1d1d1f', acc = cs.getPropertyValue('--accent').trim() || '#0071e3';
+      var ink = cs.getPropertyValue('--text').trim() || '#1d1d1f', acc = cs.getPropertyValue('--accent').trim() || '#ff3b30';
       c.setTransform(R, 0, 0, R, 0, 0); c.clearRect(0, 0, sz.w, sz.h); c.translate(CP, CP); // (a margin, so the end points show whole)
       c.save(); c.globalAlpha = 0.06; c.fillStyle = ink; c.fillRect(0, 0, W2, H2); c.restore();
       // the layer's tones, faintly underneath
@@ -1351,7 +1681,7 @@
     // (a ring on the screen, so it can follow an Apple Pencil, hovering or drawing)
     var ringEl = document.createElement('div'); ringEl.className = 'paint-ring'; ringEl.hidden = true; stage.appendChild(ringEl);
     function brushR() {
-      if (st.tool === 'brush') { var b = { highlighter: Math.max(10, st.size * 2.2), watercolor: Math.max(4, st.size * 1.8), chalk: Math.max(3, st.size * 1.2), oil: st.size * 1.3 }[st.brush]; if (b) return b / 2; }
+      if (st.tool === 'brush') { var b = { highlighter: Math.max(10, st.size * 2.2), watercolor: Math.max(4, st.size * 1.8), chalk: st.size * 1.3, oil: st.size * 1.25, pencil: Math.max(1, st.size * 0.38), marker: Math.max(3, st.size * 1.1), calligraphy: Math.max(4, st.size * 1.5), spray: Math.max(5, st.size * 1.6) * 2 }[st.brush]; if (b) return b / 2; }
       return /smudge|blur|tone/.test(st.tool) ? Math.max(4, st.size) : st.size / 2;
     }
     function showRing(p) {
@@ -1424,13 +1754,10 @@
         c.restore(); guard(); return;
       }
       if (t === 'brush') {
-        brushStyle(octx); octx.base = octx.lineWidth;
-        if (piecewise()) {
-          if (kind() === 'spray') { segment(octx, p, p, 0.5); sprayTimer = setInterval(function () { both(octx, function () { spray(octx, pts[pts.length - 1]); }); maskOv(); }, 35); }
-
-          else segment(octx, p, p, e.pressure);
-        } else if (kind() === 'feather') featherStroke();
-        else pathStroke();
+        p.pr = smoothPr(e.pressure);
+        if (kind() === 'spray') { both(octx, function () { spray(octx, p); }); sprayTimer = setInterval(function () { both(octx, function () { spray(octx, pts[pts.length - 1]); }); maskOv(); }, 35); }
+        else if (kind() === 'feather') featherStroke();
+        else renderStroke();
         maskOv();
         return;
       }
@@ -1475,12 +1802,17 @@
         c.restore(); guard(); return;
       }
       if (t === 'brush') {
-        if (piecewise()) {
-          evs.forEach(function (ev) { var q = pos(ev); segment(octx, down.last, q, ev.pressure); down.last = q; pts.push(q); });
+        if (kind() === 'spray') {
+          // (droplets along the way, and more while it's held still)
+          evs.forEach(function (ev) {
+            var q = pos(ev), l = down.last, d = Math.hypot(q.x - l.x, q.y - l.y), n = Math.max(1, Math.floor(d / Math.max(2, st.size * 0.35)));
+            for (var j = 1; j <= n; j++) { var m = { x: l.x + (q.x - l.x) * j / n, y: l.y + (q.y - l.y) * j / n }; both(octx, function () { spray(octx, m); }); }
+            down.last = q; pts.push(q);
+          });
         } else {
-          evs.forEach(function (ev) { var q = pos(ev), l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.8 / view.k) pts.push(q); });
+          evs.forEach(function (ev) { var q = pos(ev), l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.8 / view.k) { q.pr = smoothPr(ev.pressure); pts.push(q); } });
           if (kind() === 'feather') featherStroke();
-          else { octx.clearRect(0, 0, W, H); brushStyle(octx); pathStroke(); }
+          else renderStroke();
         }
         maskOv();
         return;
@@ -1514,6 +1846,8 @@
       maskOv();
       if (t === 'brush' && st.brush === 'highlighter') commit('multiply', Math.min(st.alpha, 0.45));
       else if (t === 'brush' && st.brush === 'watercolor') commit('multiply', st.alpha * 0.85);
+      else if (t === 'brush' && st.brush === 'marker') commit(null, st.alpha * 0.88);
+      else if (t === 'brush' && st.brush === 'pencil') commit(null, st.alpha * 0.92);
       else commit(null, st.alpha);
       useColor();
     }
@@ -1639,7 +1973,8 @@
     root.addEventListener('click', function (e) {
       var pk = e.target.closest('[data-pick]');
       if (pk && pk.dataset.pick === 'sym') { setSym(pk.dataset.val); openMenu(null); return; }
-      if (pk) { st[pk.dataset.pick] = pk.dataset.val; openMenu(null); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); return; }
+      if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); afterTextChange(); return; }
+      if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); return; }
       if (e.target.closest('.paint-selx')) { commitSelection(); return; }
       var t = e.target.closest('button[data-tool]'); // (the picture carries data-tool too, for its cursor)
       if (t) {
@@ -1684,15 +2019,17 @@
     colorIn.addEventListener('input', function () { setColor(colorIn.value); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand/.test(st.tool)) setTool('brush'); });
     color2In.addEventListener('input', function () { setColor2(color2In.value); });
     sizeIn.addEventListener('input', function () { setSize(+sizeIn.value); if (textBox) placeTextBox(); preview(); });
-    alphaIn.addEventListener('input', function () { st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; preview(); });
+    alphaIn.addEventListener('input', function () { st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
 
     // ---- DRAG A COLOUR onto the picture: it drops in and spreads out to
-    // fill the area it lands on (like the fill tool) ----
+    // fill the area it lands on (like the fill tool). Any swatch, a recent
+    // colour, or the two main colours at the top (a tap on those still
+    // opens the colour picker) ----
     var blob = null;
     right.addEventListener('pointerdown', function (e) {
-      var sw = e.target.closest('.paint-swatches button, .paint-recent button');
+      var sw = e.target.closest('.paint-swatches button, .paint-recent button, .paint-current, .paint-second');
       if (!sw || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      var start = { x: e.clientX, y: e.clientY, c: sw.dataset.color, el: sw, id: e.pointerId, on: false };
+      var start = { x: e.clientX, y: e.clientY, c: sw.dataset.color || sw.querySelector('input').value, el: sw, id: e.pointerId, on: false };
       try { sw.setPointerCapture(e.pointerId); } catch (x) {}
       function mv(ev) {
         if (!start.on) {
@@ -1712,6 +2049,8 @@
         if (!start.on) return;
         // (it was dragged, so the tap that follows isn't a colour pick)
         var stop = function (c) { c.stopPropagation(); c.preventDefault(); };
+        // (a main colour that was dragged doesn't also open the colour picker)
+        var fi = sw.querySelector && sw.querySelector('input'); if (fi) fi.blur();
         sw.addEventListener('click', stop, true); setTimeout(function () { sw.removeEventListener('click', stop, true); }, 0);
         setTimeout(function () { var b = blob; blob = null; if (b) b.remove(); }, ev.type === 'pointerup' ? 260 : 0);
         var over = ev.type === 'pointerup' && document.elementFromPoint(ev.clientX, ev.clientY);
@@ -1777,7 +2116,7 @@
         r.onsuccess = function () { try { fn(r.result.transaction('s', 'readwrite').objectStore('s')); } catch (x) {} };
       } catch (x) {}
     }
-    function autosave() { if (restoring) return; clearTimeout(saveTimer); saveTimer = setTimeout(storeNow, 1000); }
+    function autosave() { thumbsSoon(); if (restoring) return; clearTimeout(saveTimer); saveTimer = setTimeout(storeNow, 1000); }
     function storeNow() {
       clearTimeout(saveTimer);
       if (restoring || !window.Promise) return;
