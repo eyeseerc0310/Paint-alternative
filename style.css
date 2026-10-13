@@ -62,6 +62,7 @@
   --bar: 100px;
   /* space between groups in a toolbar (each side of the thin divider) */
   --group-gap: 10px;
+  --ctx-w: 196px;
   /* the symmetry guide's lines and handles */
   --guide: color-mix(in srgb, var(--accent) 75%, transparent);
   /* the picture's own paper (it stays white in dark mode, like the picture) */
@@ -211,7 +212,7 @@ body > * { flex-shrink: 0; }
 /* ---- the right-hand panel: Colour, and the tool's Size and Opacity, in
    sections that fold away (their titles) ---- */
 .paint-right { gap: var(--s-2); }
-.pr-sec + .pr-sec { padding-top: var(--s-2); border-top: .5px solid var(--line); }
+.pr-sec + .pr-sec, .pr-history + .pr-sec { padding-top: var(--s-2); border-top: .5px solid var(--line); }
 .paint .pr-head {
   display: flex; align-items: center; justify-content: space-between; width: 100%; height: 22px; padding: 0 2px 0 4px; border-radius: var(--r-xs);
   font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em; color: var(--muted);
@@ -536,7 +537,8 @@ body > * { flex-shrink: 0; }
   transition: opacity var(--dur) ease, box-shadow var(--dur) ease;
 }
 .paint-ctx[hidden] { display: none; }
-.paint-ctx.away { opacity: 0; pointer-events: none; } /* (out of the way while a selection is resized or turned) */
+.paint-ctx.away { opacity: 0; pointer-events: none; }
+.paint-ctx.thru { opacity: .18; pointer-events: none; } /* (a stroke is passing under it) */ /* (out of the way while a selection is resized or turned) */
 .paint-ctx.dragging { box-shadow: var(--shadow-pop); transition: none; }
 .ctx-grip { flex: none; align-self: stretch; width: 10px; margin-right: 2px; border-radius: var(--r-xs); cursor: grab; touch-action: none;
   background: radial-gradient(circle, var(--muted) 1px, transparent 1.4px) 50% 50% / 4px 5px; opacity: .55; transition: opacity var(--dur) ease; }
@@ -568,6 +570,8 @@ body > * { flex-shrink: 0; }
 .paint .ctx-seg button { flex: none; min-width: 28px; height: 24px; padding: 0 8px; }
 .paint .ctx-seg button svg { width: var(--icon-sm); height: var(--icon-sm); }
 .ctx-num { flex: none; width: 54px !important; height: 26px !important; }
+/* a small labelled field: Size [48] */
+.ctx-field { flex: none; display: flex; align-items: center; gap: var(--s-2); height: 34px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 /* a small list that drops down from the bar (the brushes, the shapes) */
 .ctx-list {
   position: absolute; z-index: 6; min-width: 190px; padding: 5px; display: flex; flex-direction: column; gap: 1px;
@@ -585,6 +589,49 @@ body > * { flex-shrink: 0; }
 .paint .paint-selbar button { width: auto; height: 28px; padding: 0 .7rem; border-radius: var(--r-sm); font-size: var(--fs); color: var(--menu-link); white-space: nowrap; }
 .paint .paint-selbar button[data-sel="done"] { margin-left: 4px; background: var(--accent); color: #fff; }
 .paint .paint-selbar button[data-sel="done"]:hover { background: var(--accent-hover); }
+
+/* wider screens: the bar stands up at the picture's left edge, one setting
+   per row (on phones it stays a strip along the top, which wraps) */
+@media (min-width: 561px) {
+  .paint-ctx {
+    left: var(--s-2); top: var(--s-2); transform: none;
+    flex-direction: column; align-items: stretch; gap: var(--s-1);
+    width: var(--ctx-w); max-width: none; max-height: calc(100% - 2 * var(--s-2)); padding: var(--s-1) var(--s-1) var(--s-2);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  }
+  .paint-ctx::-webkit-scrollbar { display: none; }
+  /* (the grip: a small pill along the top, like a sheet's grabber) */
+  .ctx-grip { position: relative; align-self: stretch; width: auto; height: 12px; margin: 0; background: none; opacity: 1; }
+  .ctx-grip::before { content: ""; position: absolute; left: 50%; top: 4px; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px; background: var(--muted); opacity: .4; transition: opacity var(--dur) ease; }
+  .ctx-grip:hover::before { opacity: .8; }
+  .ctx-tool { flex-direction: column; align-items: stretch; gap: var(--s-1); overflow: visible; }
+  .ctx-sep { width: auto; height: .5px; margin: var(--s-1) var(--s-1); }
+  .ctx-hint { padding: var(--s-1) var(--s-2); white-space: normal; line-height: 1.4; }
+  .paint .ctx-btn, .paint .ctx-chip { width: 100%; height: 34px; justify-content: flex-start; padding: 0 var(--s-2); }
+  .paint .ctx-btn .ctx-chev { margin-left: auto; }
+  .ctx-btn [data-ctxname], .ctx-btn [data-ctxfont] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* a slider: its name and value above it, the slider the full width */
+  .ctx-slider { display: grid; grid-template-columns: 1fr auto; gap: 6px var(--s-2); height: auto; padding: var(--s-1) var(--s-2) var(--s-2); }
+  .ctx-slider span { grid-area: 1 / 1; }
+  .ctx-slider output { grid-area: 1 / 2; min-width: 0; }
+  .ctx-slider input[type="range"] { grid-area: 2 / 1 / 3 / 3; width: 100%; }
+  /* on / off settings: a row with a switch at its end */
+  .paint .ctx-chip { color: var(--menu-link); }
+  .paint .ctx-chip[aria-pressed="true"] { background: none; box-shadow: none; }
+  .paint .ctx-chip:hover, .paint .ctx-chip[aria-pressed="true"]:hover { background: var(--hover-strong); }
+  .ctx-chip::after {
+    content: ""; flex: none; width: 30px; height: 18px; margin-left: auto; border-radius: 9px;
+    background: radial-gradient(circle 7px at 9px 50%, var(--panel-solid) 6.5px, transparent 7px), var(--hover-strong);
+    transition: background-position var(--dur) var(--ease), background-color var(--dur) ease;
+  }
+  .ctx-chip[aria-pressed="true"]::after { background: radial-gradient(circle 7px at 21px 50%, var(--panel-solid) 6.5px, transparent 7px), var(--control); }
+  .ctx-field { justify-content: space-between; padding: 0 var(--s-1) 0 var(--s-2); }
+  .ctx-seg { width: 100%; }
+  .paint .ctx-seg button { flex: 1; min-width: 0; height: 28px; padding: 0 4px; }
+  .paint-ctx .paint-selbar { flex-direction: column; align-items: stretch; gap: 1px; }
+  .paint .paint-ctx .paint-selbar button { width: 100%; height: 34px; justify-content: flex-start; padding: 0 var(--s-2); }
+  .paint .paint-ctx .paint-selbar button[data-sel="done"] { margin: var(--s-1) 0 0; justify-content: center; }
+}
 
 /* the symmetry guide's handles: its centre (drag to move it) and the dot
    at the end of its axis (drag to turn it) */
@@ -687,7 +734,7 @@ body > * { flex-shrink: 0; }
   .paint-sliders label span { order: 3; }
   .paint-sliders label output { order: 1; font-size: .625rem; }
   .paint-sliders input[type="range"] { order: 2; width: 54px; height: 20px; margin: 17px 0; transform: rotate(-90deg); }
-  .paint-right .paint-group[aria-label="History"] > *, .paint-right .paint-group[aria-label="Picture"] > * { height: 33px; }
+  .paint-right .pr-history > * { height: 33px; }
   .paint button.paint-layers-btn, .paint button.paint-save { width: 36px; padding: 0; border-radius: 9px; }
   .paint button.paint-layers-btn span, .paint .paint-save span { display: none; }
   .paint .paint-save svg { display: block; }
@@ -706,6 +753,8 @@ body > * { flex-shrink: 0; }
   .ctx-sep { display: none; }
   .ctx-slider { padding: 0 var(--s-1); }
   .ctx-slider input[type="range"] { width: 88px; }
+  .ctx-field { height: 28px; }
+  .ctx-field span { display: none; }
   .paint-layerpanel { width: min(264px, calc(100vw - 16px)); }
   .paint-right { gap: 4px; }
   .paint .pr-head { justify-content: center; padding: 0; }

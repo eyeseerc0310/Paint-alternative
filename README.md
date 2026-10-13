@@ -16,8 +16,8 @@ uploaded.
   ellipse, circle or rectangle; hold Shift for a circle or square).
   **Tapered ends** can be switched off for lines of even thickness
 - **Layout:** document actions and a saved status in the top bar, the tools
-  in groups on the left, colour, size and opacity on the right, and a
-  **context bar** at the top of the picture with the settings of the tool
+  in groups on the left, undo/redo, colour, size and opacity on the right,
+  and a **tool panel** at the picture's left edge with the settings of the tool
   in hand (the brush, smoothing and taper; shape and fill; font, size, style
   and alignment) or what can be done with a selection. Panels can be dragged
   aside, sections folded, and **Focus mode** (`\`) hides everything but the
