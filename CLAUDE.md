@@ -35,12 +35,13 @@ When building or changing anything visual:
 - **Where controls live:** the top bar has the document actions
   (new/open/save/share, image, history, layers, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. The left bar holds
-  the tools in groups. The right bar holds undo/redo, then colour, then size
-  and opacity for the tool in hand, in sections that fold. A tool's own
+  the tools in groups. The right bar holds colour, then size and opacity for
+  the tool in hand (in sections that fold), then undo/redo. A tool's own
   settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
   in `paint.js`), and so do a selection's actions. It stands up at the
   picture's left edge, one setting per row (on/off settings as switches),
-  and is a wrapping strip along the top on phones. Put new tool
+  and is a wrapping strip along the top on phones. Its `.ctx-min` button
+  folds it down to one button (remembered). Put new tool
   settings there, not in a new pop-over. Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
