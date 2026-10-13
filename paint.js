@@ -1763,16 +1763,27 @@
       dot.style.background = st.tool === 'eraser' ? '#fff' : st.color;
       dot.style.opacity = st.tool === 'eraser' ? 1 : strokeLook().alpha;
       prev.classList.add('on'); clearTimeout(prevTimer);
-      if (!sliderHeld) prevTimer = setTimeout(function () { prev.classList.remove('on'); }, 900);
+      if (!sliderHeld) prevTimer = setTimeout(hidePreview, 900);
       brushSamples();
     }
+    function hidePreview() { clearTimeout(prevTimer); prev.classList.remove('on'); }
+    // it stays up while a slider is held, and goes once it's let go. The
+    // letting go is heard anywhere on the page, not just on the slider: the
+    // pointer often ends up off it (above all when it's pulled right down to
+    // the smallest size), and some browsers (Safari) then send the release
+    // elsewhere. The slider's own "set" (change), losing focus, or the window
+    // losing focus end it too, so it can never be left showing.
     var sliderHeld = false;
+    function releaseSlider() {
+      if (!sliderHeld) return;
+      sliderHeld = false; clearTimeout(prevTimer); prevTimer = setTimeout(hidePreview, 700);
+    }
     [sizeIn, alphaIn].forEach(function (i) {
       i.addEventListener('pointerdown', function () { sliderHeld = true; if (!textBox) preview(); });
-      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) {
-        i.addEventListener(t, function () { if (!sliderHeld) return; sliderHeld = false; clearTimeout(prevTimer); prevTimer = setTimeout(function () { prev.classList.remove('on'); }, 700); });
-      });
+      ['change', 'blur', 'lostpointercapture'].forEach(function (t) { i.addEventListener(t, releaseSlider); });
     });
+    ['pointerup', 'pointercancel'].forEach(function (t) { document.addEventListener(t, releaseSlider, true); });
+    window.addEventListener('blur', releaseSlider);
     // the little samples in the brush list show the opacity too
     function brushSamples() { if (menus.brush) menus.brush.el.style.setProperty('--sample-alpha', st.alpha); }
 
