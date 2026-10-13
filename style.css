@@ -202,12 +202,7 @@ body > * { flex-shrink: 0; }
 .paint .paint-adjust-btn[aria-expanded="true"] { color: var(--text); background: var(--selected); box-shadow: inset 0 0 0 1.5px var(--outline); }
 .paint .paint-mirror[aria-pressed="true"] svg path:not(:first-child) { fill: currentColor; }
 
-/* symmetry has a list: a tiny corner mark (the tools' own settings are in the tool panel) */
-.paint .paint-mirror { position: relative; }
-.paint .paint-mirror::after {
-  content: ""; position: absolute; right: 4px; bottom: 4px;
-  border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .4;
-}
+.paint .paint-mirror[aria-expanded="true"] { background: var(--selected); box-shadow: inset 0 0 0 1.5px var(--outline); }
 
 /* ---- the right-hand panel: Colour, and the tool's Size and Opacity, in
    sections that fold away (their titles) ---- */
@@ -314,6 +309,14 @@ body > * { flex-shrink: 0; }
 }
 .paint .paint-zoom button { width: 28px; height: 26px; border-radius: var(--r-sm); font-size: 1rem; font-weight: 400; color: var(--text); }
 .paint .paint-zoom button.paint-zoom-val { width: auto; min-width: 3.2rem; padding: 0 .4rem; font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+/* (in the right-hand panel, under undo and redo) */
+.paint-right .paint-zoom {
+  position: static; justify-content: space-between; padding: 2px; border: 0; border-radius: var(--r-sm);
+  background: var(--hover); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.paint .paint-right .paint-zoom button { width: 24px; height: 28px; }
+.paint .paint-right .paint-zoom button:hover { background: var(--panel-solid); }
+.paint .paint-right .paint-zoom button.paint-zoom-val { flex: 1; min-width: 0; padding: 0; font-size: var(--fs-xs); }
 /* typing on the picture */
 .paint-text {
   position: absolute; z-index: 2; min-width: 1ch; padding: 0; margin: 0; outline: 1px dashed var(--accent); outline-offset: 2px;
@@ -580,6 +583,11 @@ body > * { flex-shrink: 0; }
 .ctx-seg { flex: none; margin: 0 !important; }
 .paint .ctx-seg button { flex: none; min-width: 28px; height: 24px; padding: 0 8px; }
 .paint .ctx-seg button svg { width: var(--icon-sm); height: var(--icon-sm); }
+.ctx-tool [hidden] { display: none !important; }
+[data-sym-when] > .ctx-hint { display: block; }
+.ctx-title { flex: none; padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); font-weight: 600; color: var(--menu-link); white-space: nowrap; }
+.paint .ctx-btn.ctx-done { justify-content: center; background: var(--accent); color: #fff; }
+.paint .ctx-btn.ctx-done:hover { background: var(--accent-hover); }
 .ctx-num { flex: none; width: 54px !important; height: 26px !important; }
 /* a small labelled field: Size [48] */
 .ctx-field { flex: none; display: flex; align-items: center; gap: var(--s-2); height: 34px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
@@ -760,7 +768,8 @@ body > * { flex-shrink: 0; }
   .paint-savemenu { right: calc(100% + 6px); width: 170px; }
   .paint-layerpanel { right: calc(100% + 6px); width: 220px; }
   .paint-colorpanel { right: calc(100% + 6px); }
-  .paint-zoom { right: 6px; bottom: 6px; }
+  .paint-right .paint-zoom { flex-direction: column; padding: 2px 0; }
+  .paint .paint-right .paint-zoom button { width: 32px; height: 24px; }
   .doc-status { padding: 0; width: 22px; justify-content: center; }
   .doc-status span { display: none; }
   .paint-ctx { top: 4px; left: 4px; transform: none; max-width: calc(100% - 8px); }
@@ -770,13 +779,13 @@ body > * { flex-shrink: 0; }
   .ctx-slider { padding: 0 var(--s-1); }
   .ctx-slider input[type="range"] { width: 88px; }
   .ctx-field { height: 28px; }
-  .ctx-field span { display: none; }
+  .ctx-field > span:first-child { display: none; }
+  [data-sym-when] > .ctx-hint { display: none; }
   .paint-layerpanel { width: min(264px, calc(100vw - 16px)); }
   .paint-right { gap: 4px; }
   .paint .pr-head { justify-content: center; padding: 0; }
   .paint .pr-head span { display: none; }
-  .paint .paint-zoom button { width: 26px; height: 26px; }
-  .paint .paint-zoom button.paint-zoom-val { min-width: 2.8rem; font-size: .6875rem; }
+  .paint .paint-right .paint-zoom button.paint-zoom-val { width: 32px; font-size: .5625rem; }
 }
 
 /* ---------- The header's picture tools ---------- */

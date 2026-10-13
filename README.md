@@ -16,7 +16,7 @@ uploaded.
   ellipse, circle or rectangle; hold Shift for a circle or square).
   **Tapered ends** can be switched off for lines of even thickness
 - **Layout:** document actions and a saved status in the top bar, the tools
-  in groups on the left, colour, size, opacity and undo/redo on the right,
+  in groups on the left, colour, size, opacity, undo/redo and zoom on the right,
   and a **tool panel** at the picture's left edge with the settings of the tool
   in hand (the brush, smoothing and taper; shape and fill; font, size, style
   and alignment) or what can be done with a selection. The tool panel folds
@@ -28,7 +28,7 @@ uploaded.
 - **Tools:** eraser, smudge, blur, line, shapes, fill, gradient, text, select
   & move, cutout, magic wand, colour picker, hand, and light & dark
 - **Symmetry:** vertical, horizontal, quadrant and radial (2 to 16 segments,
-  optionally mirrored); drag the guide's centre to move it and its handle to
+  optionally mirrored), set in the tool panel; drag the guide's centre to move it and its handle to
   turn it
 - **Colour picker:** a hue ring and saturation/brightness square, sliders,
   HEX / RGB / HSB values, recent colours, and ready-made and your own

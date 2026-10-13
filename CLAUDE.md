@@ -36,7 +36,7 @@ When building or changing anything visual:
   (new/open/save/share, image, history, layers, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. The left bar holds
   the tools in groups. The right bar holds colour, then size and opacity for
-  the tool in hand (in sections that fold), then undo/redo. A tool's own
+  the tool in hand (in sections that fold), then undo/redo, then zoom. A tool's own
   settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
   in `paint.js`), and so do a selection's actions. It stands up at the
   picture's left edge, one setting per row (on/off settings as switches),
@@ -44,8 +44,8 @@ When building or changing anything visual:
   folds it down to one button (remembered), which can still be dragged.
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round
   caps and joins; keep new ones in the same style. Put new tool
-  settings there, never in a list beside the left toolbar (only symmetry
-  keeps one there). Pop-out panels can be dragged with
+  settings there, never in a list beside the left toolbar. Symmetry's
+  settings open in the panel too (its `sym` view), from the mirror button. Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
   them doesn't paint.

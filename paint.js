@@ -634,42 +634,10 @@
       sizeIn.nextElementSibling.textContent = st.size;
     }
 
-    // ---- the list that opens beside the symmetry button (the tools' own
-    // lists, brushes, shapes, fonts, are in the tool panel) ----
+    // (lists that open beside the left toolbar: none now. The tools' own
+    // lists, and symmetry's settings, are in the tool panel)
     var menus = {};
-    function makeMenu(tool, items, key, sample) {
-      var m = document.createElement('div');
-      m.className = 'paint-brushes'; m.setAttribute('role', 'menu'); m.hidden = true;
-      m.innerHTML = items.map(function (it) {
-        return '<button type="button" role="menuitemradio" data-pick="' + key + '" data-val="' + it[0].replace(/"/g, '&quot;') + '">' + sample(it) + '<span>' + it[1] + '</span></button>';
-      }).join('');
-      left.appendChild(m);
-      menus[tool] = { el: m, key: key };
-    }
-    makeMenu('sym', SYMS, 'sym', function (y) { return '<i class="psym psym-' + y[0] + '"></i>'; });
-    // (under the list: radial's segments and mirror, and putting the guide back)
-    menus.sym.el.insertAdjacentHTML('beforeend',
-      '<div class="pm-opts">' +
-        '<div class="pm-row psym-for-radial"><span>Segments</span><span class="p-step"><button type="button" data-symn="-1" aria-label="Fewer segments">&#8722;</button><output>6</output><button type="button" data-symn="1" aria-label="More segments">+</button></span></div>' +
-        '<button type="button" class="psym-mirror psym-for-radial" role="menuitemcheckbox" aria-checked="false"><i class="psym psym-mirror-i"></i><span>Mirror</span></button>' +
-        '<button type="button" class="psym-reset"><i class="psym psym-reset-i"></i><span>Centre the guide</span></button>' +
-      '</div>');
-    function symOpts() {
-      var m = menus.sym.el;
-      Array.prototype.forEach.call(m.querySelectorAll('.psym-for-radial'), function (e) { e.hidden = st.sym !== 'radial'; });
-      m.querySelector('.pm-opts').hidden = st.sym === 'off';
-      m.querySelector('.pm-opts output').textContent = symN;
-      m.querySelector('.psym-mirror').setAttribute('aria-checked', symMirror ? 'true' : 'false');
-      m.querySelector('[data-symn="-1"]').disabled = symN <= 2; m.querySelector('[data-symn="1"]').disabled = symN >= 16;
-    }
-    menus.sym.el.addEventListener('click', function (e) {
-      var n = e.target.closest('[data-symn]');
-      if (n) { symN = Math.max(2, Math.min(16, symN + +n.dataset.symn)); }
-      else if (e.target.closest('.psym-mirror')) symMirror = !symMirror;
-      else if (e.target.closest('.psym-reset')) { symC = { x: 0.5, y: 0.5 }; symA = 0; }
-      else return;
-      e.stopPropagation(); drawGuide(); symOpts();
-    });
+    function symOpts() { if (ctxView === 'sym') ctxSync(); }
     function openMenu(tool) {
       Object.keys(menus).forEach(function (t) {
         var m = menus[t], on = t === tool, btn = root.querySelector('button[data-tool="' + t + '"], button[data-menu="' + t + '"]');
@@ -678,7 +646,6 @@
         if (on) {
           m.el.style.top = Math.max(0, Math.min(btn.offsetTop, left.clientHeight - m.el.offsetHeight)) + 'px';
           Array.prototype.forEach.call(m.el.querySelectorAll('button[data-val]'), function (b) { b.setAttribute('aria-checked', b.dataset.val === st[m.key] ? 'true' : 'false'); });
-          if (t === 'sym') symOpts();
         }
       });
     }
@@ -693,7 +660,7 @@
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
-      ctxRender();
+      ctxView = 'tool'; ctxRender();
     }
 
     // ---- undo / redo: snapshots of one layer, or of the layer list ----
@@ -3032,7 +2999,6 @@
     // ---- the buttons ----
     root.addEventListener('click', function (e) {
       var pk = e.target.closest('[data-pick]');
-      if (pk && pk.dataset.pick === 'sym') { setSym(pk.dataset.val); openMenu(null); return; }
       if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); ctxClose(); afterTextChange(); ctxSync(); return; }
       if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); ctxClose(); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); ctxSync(); return; }
       if (e.target.closest('.paint-selx')) { commitSelection(); return; }
@@ -3049,7 +3015,7 @@
       // click after a touch can look just like a key's)
       if (pr) { if (e.detail === 0 && performance.now() - pairPressed > 800) picker(pr.classList.contains('paint-current') ? 'main' : 'second'); return; }
       if (e.target.closest('.paint-swap')) { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
-      if (e.target.closest('.paint-mirror')) { openMenu(menus.sym.el.hidden ? 'sym' : null); return; }
+      if (e.target.closest('.paint-mirror')) { ctxSymView(ctxView !== 'sym'); return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
       var sa = e.target.closest('[data-sel]'); if (sa) { selAction(sa.dataset.sel); return; }
@@ -3645,7 +3611,7 @@
     // bold / italic / underline, alignment and more; light & dark: which;
     // the others say how they're used. With a selection it shows what can be
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
-    var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null;
+    var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxView = ctxView || 'tool';
     ctxEl.appendChild(selbar);
     draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', stage);
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
@@ -3670,7 +3636,7 @@
       line: function () { return hint('Drag to draw a line · <b>Shift</b> for steps of 45°'); },
       shape: function () {
         return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Shape">' + SHAPES.map(function (q) { return '<button type="button" role="tab" data-ctx-shape="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[1] + '">' + CI(SHAPE_ICONS[q[0]] || '') + '</button>'; }).join('') + '</div>' + sep +
-          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill"><button type="button" role="tab" data-ctx-fill="0">Outline</button><button type="button" role="tab" data-ctx-fill="1">Filled</button></div>' + hint('<b>Shift</b>: square');
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill"><button type="button" role="tab" data-ctx-fill="0">Outline</button><button type="button" role="tab" data-ctx-fill="1">Filled</button></div>' + hint('<b>Shift</b>: perfect shape');
       },
       text: function () {
         return '<button type="button" class="ctx-btn" data-ctx="fonts" aria-haspopup="menu" aria-expanded="false" data-tip="Font"><span data-ctxfont></span>' + CHEV + '</button>' +
@@ -3686,6 +3652,19 @@
       select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      // symmetry: which kind, radial's segments and mirror, and putting the guide back
+      sym: function () {
+        var box = '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/>', dash = ' stroke-dasharray="2 1.8"';
+        var SI = { x: box + '<path d="M12 4.5v15"' + dash + '/>', y: box + '<path d="M4.5 12h15"' + dash + '/>', xy: box + '<path d="M12 4.5v15M4.5 12h15"' + dash + '/>',
+          radial: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5v15M5.5 8.25l13 7.5M5.5 15.75l13-7.5"' + dash + '/>' };
+        return '<div class="ctx-title">Symmetry</div>' +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Symmetry">' + SYMS.map(function (y) { return '<button type="button" role="tab" data-ctx-sym="' + y[0] + '" aria-label="' + y[1] + '" data-tip="' + y[1] + '">' + (SI[y[0]] ? CI(SI[y[0]]) : 'Off') + '</button>'; }).join('') + '</div>' +
+          '<div class="ctx-field" data-ctx="symn" data-sym-when="radial"><span>Segments</span><span class="p-step"><button type="button" data-symd="-1" aria-label="Fewer segments">&#8722;</button><output>6</output><button type="button" data-symd="1" aria-label="More segments">+</button></span></div>' +
+          '<div data-sym-when="radial">' + chip('symmirror', 'Mirror', '<path d="M12 4v16"' + dash + '/><path d="M9 8l-4 8h4zM15 8l4 8h-4z"/>', 'Mirror each segment too') + '</div>' +
+          '<div data-sym-when="on">' + hint('Drag the guide&#39;s centre to move it, and its handle to turn it') + '</div>' +
+          '<button type="button" class="ctx-btn" data-ctx="symreset" data-sym-when="on" data-tip="Put the guide back in the middle, upright">' + CI('<circle cx="12" cy="12" r="7.5"' + dash + '/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>') + '<span>Centre the Guide</span></button>' +
+          '<button type="button" class="ctx-btn ctx-done" data-ctx="symdone" data-tip="Back to the tool&#39;s settings">Done</button>';
+      },
       hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
     };
     // (the little lists that drop down from it: the brushes, the fonts)
@@ -3722,12 +3701,20 @@
     function ctxRender() {
       if (!ctxEl) return;
       ctxClose();
-      if (st.tool !== ctxFor) { ctxFor = st.tool; ctxTool.innerHTML = CTX[st.tool] ? CTX[st.tool]() : ''; }
+      var key = ctxView === 'sym' ? 'sym' : st.tool;
+      if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = CTX[key] ? CTX[key]() : ''; }
+      var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
       // (and the right-hand panel: which of size and opacity this tool uses)
       var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
       right.dataset.uses = uses;
       var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text' }[st.tool] || 'Brush';
+    }
+    // (symmetry's settings take the panel's place while they're open)
+    function ctxSymView(on) {
+      ctxView = on ? 'sym' : 'tool';
+      if (on && ctxEl.classList.contains('min')) ctxMin(false);
+      ctxRender();
     }
     // (folded away to one button, and back; remembered)
     function ctxMin(on) {
@@ -3758,6 +3745,10 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-t]'), function (b) { b.setAttribute('aria-selected', tx[b.dataset.ctxT] ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-al]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.ctxAl ? 'true' : 'false'); });
       var tm = q('[data-ctx="tmore"]'); if (tm) tm.disabled = !textBox;
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-sym]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxSym === st.sym ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
+      var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
+      set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
     }
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
@@ -3773,6 +3764,11 @@
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
+      if (b.dataset.ctxSym) { setSym(b.dataset.ctxSym); return; }
+      if (b.dataset.symd) { symN = Math.max(2, Math.min(16, symN + +b.dataset.symd)); drawGuide(); ctxSync(); return; }
+      if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
+      if (k === 'symreset') { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); return; }
+      if (k === 'symdone') { ctxSymView(false); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
       if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
