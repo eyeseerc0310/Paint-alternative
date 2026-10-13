@@ -13,7 +13,8 @@ uploaded.
   (Apple Pencil pressure works). Sizes from 1 to 500; the size preview shows
   exactly what one tap puts down. **Smoothing** steadies wobbly lines, and
   holding still at the end of a stroke **snaps it to a shape** (line,
-  ellipse, circle or rectangle)
+  ellipse, circle or rectangle; hold Shift for a circle or square).
+  **Tapered ends** can be switched off for lines of even thickness
 - **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
   **Aa** button while typing for size, bold, italic, underline, capitals,
   alignment, letter spacing, line height, outline and shadow

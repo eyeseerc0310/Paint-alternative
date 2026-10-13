@@ -34,6 +34,8 @@
   --group-gap: 12px;
   /* the symmetry guide's lines and handles */
   --guide: color-mix(in srgb, var(--accent) 75%, transparent);
+  /* the picture's own paper (it stays white in dark mode, like the picture) */
+  --paper: #ffffff;
   /* a small handle you drag on the picture */
   --knob: 0 0 0 .5px rgba(0, 0, 0, .25), 0 1px 4px rgba(0, 0, 0, .3);
 }
@@ -320,7 +322,8 @@ body > * { flex-shrink: 0; }
 .pm-slide { padding: 4px .6rem 6px; color: var(--menu-link); }
 .pm-slide output { color: var(--muted) !important; }
 .pm-snap-i { width: 18px !important; height: 14px !important; margin: 0 2px; border: 1.4px solid currentColor; border-radius: 50%; opacity: .85; }
-.paint-brushes .pm-snap[aria-checked="true"] i { background: color-mix(in srgb, currentColor 30%, transparent); }
+.pm-taper-i { width: 22px !important; height: 8px !important; margin: 0; border: 1.4px solid currentColor; border-radius: 50% / 50%; opacity: .85; clip-path: none; }
+.paint-brushes .pm-snap[aria-checked="true"] i, .paint-brushes .pm-taper[aria-checked="true"] i { background: color-mix(in srgb, currentColor 30%, transparent); }
 .pm-row { display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 .3rem 0 .6rem; font-size: .8125rem; }
 /* a − n + stepper */
 .p-step { display: inline-flex; align-items: center; padding: 2px; border-radius: 9px; background: var(--hover); }
@@ -532,7 +535,7 @@ body > * { flex-shrink: 0; }
 .paint-preview {
   position: absolute; left: 50%; top: 50%; z-index: 2; translate: -50% -50%; padding: 10px; border-radius: var(--r-panel); pointer-events: none;
   box-shadow: 0 0 0 .5px rgba(0, 0, 0, .2), var(--shadow-pop);
-  background: repeating-conic-gradient(#ececec 0 25%, #fff 0 50%) 0 0 / 10px 10px;
+  background: var(--paper);
   opacity: 0; transition: opacity .35s ease;
 }
 .paint-preview.on { opacity: 1; transition-duration: .15s; }
