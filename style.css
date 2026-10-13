@@ -202,9 +202,9 @@ body > * { flex-shrink: 0; }
 .paint .paint-adjust-btn[aria-expanded="true"] { color: var(--text); background: var(--selected); box-shadow: inset 0 0 0 1.5px var(--outline); }
 .paint .paint-mirror[aria-pressed="true"] svg path:not(:first-child) { fill: currentColor; }
 
-/* tools with a list: a tiny corner mark */
-.paint [data-tool="brush"], .paint [data-tool="shape"], .paint [data-tool="text"], .paint [data-tool="tone"], .paint .paint-mirror { position: relative; }
-.paint [data-tool="brush"]::after, .paint [data-tool="shape"]::after, .paint [data-tool="text"]::after, .paint [data-tool="tone"]::after, .paint .paint-mirror::after {
+/* symmetry has a list: a tiny corner mark (the tools' own settings are in the tool panel) */
+.paint .paint-mirror { position: relative; }
+.paint .paint-mirror::after {
   content: ""; position: absolute; right: 4px; bottom: 4px;
   border: 2.5px solid transparent; border-right-color: currentColor; border-bottom-color: currentColor; opacity: .4;
 }
@@ -549,7 +549,8 @@ body > * { flex-shrink: 0; }
 .paint .ctx-min svg { width: var(--icon-sm); height: var(--icon-sm); }
 .ctx-min .cm-show, .paint-ctx.min .ctx-min .cm-hide { display: none; }
 .paint-ctx.min .ctx-min .cm-show { display: block; }
-.paint-ctx.min > :not(.ctx-min) { display: none !important; }
+.paint-ctx.min > :not(.ctx-min):not(.ctx-grip) { display: none !important; }
+.paint-ctx.min .ctx-min { cursor: grab; touch-action: none; } /* (folded, it can be dragged by its grip or by the button itself) */
 .paint-ctx.min { padding: 3px; }
 .paint .paint-ctx.min .ctx-min { width: 34px; height: 34px; color: var(--menu-link); }
 .paint .paint-ctx.min .ctx-min svg { width: var(--icon); height: var(--icon); }
@@ -617,6 +618,8 @@ body > * { flex-shrink: 0; }
   .paint .ctx-min { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; }
   .paint-ctx.min { width: auto; overflow: visible; }
   .paint .paint-ctx.min .ctx-min { position: static; }
+  .paint-ctx.min .ctx-grip { height: 14px; margin: 0; }
+  .paint-ctx.min .ctx-grip::before { top: 5px; width: 18px; margin-left: -9px; }
   .ctx-tool { flex-direction: column; align-items: stretch; gap: var(--s-1); overflow: visible; }
   .ctx-sep { width: auto; height: .5px; margin: var(--s-1) var(--s-1); }
   .ctx-hint { padding: var(--s-1) var(--s-2); white-space: normal; line-height: 1.4; }
