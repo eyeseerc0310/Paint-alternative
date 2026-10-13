@@ -88,7 +88,7 @@
     return out;
   }
   var TOOL_NAMES = { brush: 'Brush', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', line: 'Line', shape: 'Shape', fill: 'Fill', gradient: 'Gradient',
-    text: 'Text', select: 'Move', lasso: 'Move', wand: 'Move', picker: 'Edit', hand: 'Edit', tone: 'Light & Dark' };
+    text: 'Text', select: 'Move', lasso: 'Move', wand: 'Move', move: 'Move', pen: 'Pen', picker: 'Edit', hand: 'Edit', tone: 'Light & Dark' };
   var app = null;
 
   function init(root) {
@@ -159,7 +159,7 @@
       // (bg: the white paper at the bottom; delete it and the picture is see-through)
       // (alphaLock: paint only goes where the layer already has some; clip:
       // it shows only where the layer below it has paint)
-      return { cv: c, ctx: x, name: name, visible: true, bg: !!white, opacity: 1, blend: 'normal', alphaLock: false, clip: false, view: null };
+      return { cv: c, ctx: x, name: name, visible: true, bg: !!white, opacity: 1, blend: 'normal', alphaLock: false, clip: false, view: null, text: null };
     }
     // CLIPPING MASKS: a clipped layer keeps all its own paint, and is shown
     // through the layer under it (the first one below that isn't clipped
@@ -192,7 +192,7 @@
     function shownVisible(L) { var b = clipBase(L); return L.visible && (!b || b.visible); }
     function styleLayer(L) {
       var el = clipBase(L) ? L.view || viewOf(L) : L.cv;
-      el.style.visibility = shownVisible(L) ? '' : 'hidden';
+      el.style.visibility = shownVisible(L) && !L.editing ? '' : 'hidden'; // (a text layer being typed into shows as the words being typed)
       el.style.opacity = L.opacity < 1 ? L.opacity : '';
       el.style.mixBlendMode = L.blend !== 'normal' ? L.blend : '';
     }
@@ -300,11 +300,15 @@
         if (!bh) e.preventDefault();
         e.stopPropagation();
         var o = panelOffset(el), sx = e.clientX, sy = e.clientY, moved = !bh;
+        // (it stops at the edge: it can't be dragged out of sight)
+        var r0 = el.getBoundingClientRect(), B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
+        var lim = { x0: B.left + 6 - r0.left, x1: Math.max(B.left + 6 - r0.left, B.right - 6 - r0.right), y0: B.top + 6 - r0.top, y1: Math.max(B.top + 6 - r0.top, B.bottom - 6 - r0.bottom) };
+        var clampTo = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
         if (moved) { el.classList.add('dragging'); hideTip(); }
         try { h.setPointerCapture(e.pointerId); } catch (x) {}
         function mv(ev) {
           if (!moved) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return; moved = true; el.classList.add('dragging'); hideTip(); }
-          el.style.translate = (o.x + ev.clientX - sx) + 'px ' + (o.y + ev.clientY - sy) + 'px';
+          el.style.translate = (o.x + clampTo(ev.clientX - sx, lim.x0, lim.x1)) + 'px ' + (o.y + clampTo(ev.clientY - sy, lim.y0, lim.y1)) + 'px';
         }
         function up() {
           h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
@@ -653,6 +657,8 @@
 
     function setTool(t) {
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
+      if (pen && t !== 'pen') finishPen();
+      if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
       if (adj) adjustDone();
       if (textBox) commitText();
       if (sel && !selTool(t)) anchor();
@@ -661,6 +667,7 @@
       stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
       ctxView = 'tool'; ctxRender();
+      if (t === 'move') movePick();
     }
 
     // ---- undo / redo: snapshots of one layer, or of the layer list ----
@@ -672,27 +679,32 @@
     // (what could be redone is kept with the step, so a stroke that's called
     // off at once, like the first finger of a two-finger tap, gives it back)
     function push(e) { if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
-    function remember(label) { push({ L: active, data: snapOf(active), bg: active.bg, label: label }); }
-    function props() { return layers.map(function (L) { return { v: L.visible, o: L.opacity, b: L.blend, a: L.alphaLock, c: L.clip }; }); }
+    // (a text layer's words are kept with its pixels; any other change to
+    // its pixels makes it plain paint: undo brings the words back)
+    function remember(label, quiet) {
+      push({ L: active, data: snapOf(active), bg: active.bg, text: active.text, label: label });
+      if (active.text) { active.text = null; renderLayers(); if (!quiet) toast('The text is now paint (undo to edit the words again)'); }
+    }
+    function props() { return layers.map(function (L) { return { v: L.visible, o: L.opacity, b: L.blend, a: L.alphaLock, c: L.clip, t: L.text }; }); }
     function rememberLayers(label) { push({ list: layers.slice(), active: active, props: props(), label: label || 'Layers' }); }
     function docState() { return { doc: true, pw: ov.width, ph: ov.height, list: layers.slice(), active: active, props: props() }; }
     function rememberDoc(label) { var e = docState(); e.label = label; push(e); }
     function capture(e) {
       if (e.parts) return { parts: e.parts.map(capture), label: e.label }; // (a step that changed a layer and the list, like Merge Down)
-      var c = e.doc ? docState() : e.L ? { L: e.L, data: snapOf(e.L), bg: e.L.bg } : { list: layers.slice(), active: active, props: props() };
+      var c = e.doc ? docState() : e.L ? { L: e.L, data: snapOf(e.L), bg: e.L.bg, text: e.L.text, name: e.L.name } : { list: layers.slice(), active: active, props: props() };
       c.label = e.label; return c;
     }
     function apply(e) {
       if (e.parts) { e.parts.forEach(apply); viewsSoon(); return; }
-      if (e.L) { if (e.bg != null) e.L.bg = e.bg; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); renderLayers(); }
+      if (e.L) { if (e.bg != null) e.L.bg = e.bg; if ('text' in e) e.L.text = e.text || null; if (e.name) e.L.name = e.name; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); renderLayers(); }
       else {
         if (e.doc) { clearSel(); if (e.pw !== ov.width || e.ph !== ov.height) setDoc(e.pw, e.ph); }
-        layers = e.list.slice(); layers.forEach(function (L, i) { var q = e.props[i]; L.visible = q.v; L.opacity = q.o; L.blend = q.b; L.alphaLock = !!q.a; L.clip = !!q.c; });
+        layers = e.list.slice(); layers.forEach(function (L, i) { var q = e.props[i]; L.visible = q.v; L.opacity = q.o; L.blend = q.b; L.alphaLock = !!q.a; L.clip = !!q.c; if ('t' in q) L.text = q.t || null; });
         active = layers.indexOf(e.active) >= 0 ? e.active : layers[layers.length - 1] || null; mount();
         if (e.doc) fit();
       }
     }
-    function doUndo() { if (adj) adjustDone(); if (textBox) commitText(); if (sel && sel.float) commitSelection(); if (!undo.length) return; var e = undo.pop(); redo.push(capture(e)); apply(e); buttons(); autosave(); }
+    function doUndo() { if (pen && pen.pts.length) { penBack(); return; } if (adj) adjustDone(); if (textBox) commitText(); if (sel && sel.float) commitSelection(); if (!undo.length) return; var e = undo.pop(); redo.push(capture(e)); apply(e); buttons(); autosave(); }
     function doRedo() { if (!redo.length) return; var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave(); }
     function buttons() { $('[data-act="undo"]').disabled = !undo.length; $('[data-act="redo"]').disabled = !redo.length; renderHistory(); }
 
@@ -1404,7 +1416,13 @@
     // done. While typing, an Aa button sits by the words: it opens the text
     // options (font, size, bold / italic / underline / capitals, alignment,
     // letter spacing, line height, outline and shadow), which show live ----
-    var textBox = null, textAt = null, textBtn = null, tpEl = null;
+    // TEXT LAYERS: the words go on a layer of their own, which keeps them
+    // (L.text: the words, where they are, their box and how they look) and
+    // is drawn from them, so they can be changed again: tap them with the
+    // text tool to type, or move, size and turn them with Move. Drag before
+    // typing to make a box the words wrap inside. Merging it into a layer
+    // below (or Turn into Image, in its ••• menu) makes it plain paint.
+    var textBox = null, textAt = null, textBtn = null, tpEl = null, textW = 0, textRot = 0, textLayer = null;
     var tx = { size: 48, bold: false, italic: false, underline: false, caps: false, align: 'left', spacing: 0, lh: 1.2, outline: 0, shadow: false };
     function fontSize() { return tx.size; }
     function fontName(v) { var f = FONTS.filter(function (x) { return x[0] === v; })[0]; return f ? f[1] : 'Font'; }
@@ -1412,10 +1430,14 @@
       var k = view.k;
       var tp = toScreen(textAt); textBox.style.left = tp.x + 'px'; textBox.style.top = tp.y + 'px';
       textBox.style.fontSize = tx.size * k + 'px';
+      textBox.style.width = textW ? textW * k + 'px' : '';
       textBox.style.letterSpacing = tx.spacing / 1000 * tx.size * k + 'px';
       textBox.style.lineHeight = tx.lh;
       textBox.style.transformOrigin = '0 0';
-      textBox.style.transform = (view.r ? 'rotate(' + view.r + 'rad) ' : '') + (tx.align === 'center' ? 'translateX(-50%)' : tx.align === 'right' ? 'translateX(-100%)' : '');
+      // (turned with the picture, and with the words themselves; words in a
+      // box sit inside it, otherwise they're lined up on where they started)
+      var r = view.r + textRot;
+      textBox.style.transform = (r ? 'rotate(' + r + 'rad) ' : '') + (textW ? '' : tx.align === 'center' ? 'translateX(-50%)' : tx.align === 'right' ? 'translateX(-100%)' : '');
       textBox.style.webkitTextStroke = tx.outline ? (tx.outline * tx.size / 100 * 2 * k) + 'px ' + st.color2 : '';
       textBox.style.textShadow = tx.shadow ? '0 ' + tx.size * 0.06 * k + 'px ' + tx.size * 0.12 * k + 'px rgba(0,0,0,.45)' : '';
       placeTextBtn();
@@ -1435,11 +1457,22 @@
       textBtn.style.top = Math.round(Math.max(4, Math.min(stage.clientHeight - 40, y))) + 'px';
       if (tpEl && !tpEl.hidden) placeTextPanel();
     }
-    function startText(p) {
+    // (where to type: p is the top left of a box w wide, or, with no box,
+    // the start of the line; L is a text layer whose words are being changed)
+    function startText(p, w, L) {
       ensureFonts();
-      textAt = p;
+      textAt = { x: p.x, y: p.y }; textW = w || 0; textLayer = L || null; textRot = L ? L.text.rot || 0 : 0;
+      if (L) {
+        // (its words come back as they were, in their font, size and colour)
+        var T = L.text; st.font = T.font; loadFont(T.font);
+        ['size', 'bold', 'italic', 'underline', 'caps', 'align', 'spacing', 'lh', 'outline', 'shadow'].forEach(function (k) { tx[k] = T[k]; });
+        setColor(T.color); if (T.color2) setColor2(T.color2);
+        st.alpha = T.alpha; alphaIn.value = Math.round(T.alpha * 100); alphaIn.nextElementSibling.textContent = alphaIn.value;
+        L.editing = true; styleLayer(L);
+      }
       textBox = document.createElement('div');
-      textBox.className = 'paint-text'; textBox.contentEditable = 'true'; textBox.spellcheck = false;
+      textBox.className = 'paint-text' + (textW ? ' boxed' : ''); textBox.contentEditable = 'true'; textBox.spellcheck = false;
+      if (L) textBox.textContent = L.text.str;
       stage.appendChild(textBox);
       textBtn = document.createElement('button');
       textBtn.type = 'button'; textBtn.className = 'paint-textbtn'; textBtn.setAttribute('aria-label', 'Text options'); textBtn.title = 'Text options: font, size, spacing and more';
@@ -1449,7 +1482,12 @@
       textBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); });
       textBtn.addEventListener('click', function (e) { e.stopPropagation(); textPanel(!tpEl || tpEl.hidden); });
       styleTextBox();
-      setTimeout(function () { textBox && textBox.focus({ preventScroll: true }); }, 0);
+      setTimeout(function () {
+        if (!textBox) return;
+        textBox.focus({ preventScroll: true });
+        // (changing words: the caret goes at the end of them)
+        if (L && window.getSelection) { var rg = document.createRange(); rg.selectNodeContents(textBox); rg.collapse(false); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }
+      }, 0);
       textBox.addEventListener('input', placeTextBtn);
       textBox.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelText(); }
@@ -1460,52 +1498,133 @@
           var a = document.activeElement;
           // (still typing if the focus went to the text options, the font
           // list, the colours or the opacity: those change the words)
-          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-colors, .paint-sliders'))) commitText();
+          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-colors, .paint-sliders, .paint-ctx'))) commitText();
         }, 0);
       });
+      if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     function cancelText() {
       if (textBox) { textBox.remove(); textBox = null; }
       if (textBtn) { textBtn.remove(); textBtn = null; }
+      if (textLayer) { textLayer.editing = false; styleLayer(textLayer); textLayer = null; }
       textPanel(false);
     }
+    function textName(str) { return str.replace(/\s+/g, ' ').trim().slice(0, 20) || 'Text'; }
     function commitText() {
       if (!textBox) return;
-      var lines = textBox.innerText.replace(/\n$/, '').split('\n');
+      var str = textBox.innerText.replace(/\n$/, ''), L = textLayer, at = textAt;
+      var T = { str: str, x: at.x, y: at.y, w: textW, rot: textRot, font: st.font, size: tx.size, color: st.color, color2: st.color2, alpha: st.alpha,
+        bold: tx.bold, italic: tx.italic, underline: tx.underline, caps: tx.caps, align: tx.align, spacing: tx.spacing, lh: tx.lh, outline: tx.outline, shadow: tx.shadow };
       cancelText();
-      if (!lines.join('').trim()) return;
-      remember('Text');
-      var c = active.ctx, fs = tx.size, lh = fs * tx.lh, ls = tx.spacing / 1000 * fs;
-      c.save(); clipTo(c); if (active.alphaLock) c.globalCompositeOperation = 'source-atop';
-      c.font = (tx.italic ? 'italic ' : '') + (tx.bold ? '700 ' : '400 ') + fs + 'px ' + st.font;
-      c.textBaseline = 'alphabetic'; c.globalAlpha = st.alpha; c.lineJoin = 'round'; c.miterLimit = 2;
+      var empty = !str.trim();
+      if (L && layers.indexOf(L) >= 0) {
+        // (a text layer's words, changed; all of them taken away, and the layer goes)
+        if (empty) { var i = layers.indexOf(L); rememberLayers('Delete Text'); layers.splice(i, 1); active = layers[Math.max(0, i - 1)] || null; mount(); autosave(); return; }
+        if (JSON.stringify(T) === JSON.stringify(L.text)) return;
+        push({ L: L, data: snapOf(L), bg: L.bg, text: L.text, name: L.name, label: 'Edit Text' });
+        if (L.name === textName(L.text.str)) L.name = textName(str);
+        L.text = T; renderText(L); renderLayers(); useColor(); return;
+      }
+      if (empty) return;
+      if (layers.length >= 10) {
+        // (no room for another layer: the words are painted onto this one)
+        need(); remember('Text', true);
+        var c = active.ctx; c.save(); clipTo(c); if (active.alphaLock) c.globalCompositeOperation = 'source-atop'; drawText(c, T); c.restore();
+        toast('Up to 10 layers: the words went onto this layer as paint'); useColor(); return;
+      }
+      rememberLayers('Text');
+      var N = makeLayer(textName(str), false); N.text = T;
+      layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, N); active = N;
+      renderText(N); mount(); autosave(); useColor();
+    }
+    // HOW THE WORDS ARE LAID OUT, from where they start (0, 0): line by line,
+    // wrapped inside the box if there is one; and the box round them all
+    function textFont(T) { return (T.italic ? 'italic ' : '') + (T.bold ? '700 ' : '400 ') + T.size + 'px ' + T.font; }
+    function wrapText(s, maxW, widthOf) {
+      if (!(maxW > 0)) return [s];
+      var out = [], cur = '';
+      (s.match(/\s+|\S+/g) || ['']).forEach(function (tk) {
+        if (/^\s/.test(tk)) { cur += tk; return; }
+        if (cur.trim() && widthOf(cur + tk) > maxW) { out.push(cur.replace(/\s+$/, '')); cur = ''; }
+        // (a word too long for the box is broken where it meets the edge)
+        while (tk.length > 1 && widthOf(cur + tk) > maxW) {
+          var n = 1; while (n < tk.length - 1 && widthOf(cur + tk.slice(0, n + 1)) <= maxW) n++;
+          out.push(cur + tk.slice(0, n)); cur = ''; tk = tk.slice(n);
+        }
+        cur += tk;
+      });
+      out.push(cur.replace(/\s+$/, ''));
+      return out;
+    }
+    function layoutText(c, T) {
+      var fs = T.size, lh = fs * T.lh, ls = T.spacing / 1000 * fs;
+      c.font = textFont(T);
       var native = 'letterSpacing' in c;
       if (native) c.letterSpacing = ls + 'px';
-      // (placed exactly as the page laid out the typed words: each line's
+      // (placed exactly as the page lays out the typed words: each line's
       // baseline sits half the spare line height below its top, then the
       // font's ascent)
       var m = c.measureText('Hg'), A = m.fontBoundingBoxAscent != null ? m.fontBoundingBoxAscent : fs * 0.8, D = m.fontBoundingBoxDescent != null ? m.fontBoundingBoxDescent : fs * 0.2;
-      function widthOf(t) {
+      var widthOf = function (t) {
         if (native || !ls) return c.measureText(t).width;
         var w = 0; for (var i = 0; i < t.length; i++) w += c.measureText(t[i]).width + ls; return w;
-      }
+      };
+      var rows = [];
+      T.str.split('\n').forEach(function (par) { wrapText(T.caps ? par.toUpperCase() : par, T.w, widthOf).forEach(function (t) { rows.push(t); }); });
+      var x0 = Infinity, x1 = -Infinity;
+      var lines = rows.map(function (t, i) {
+        var w = widthOf(t), x = T.w ? (T.align === 'center' ? (T.w - w) / 2 : T.align === 'right' ? T.w - w : 0) : (T.align === 'center' ? -w / 2 : T.align === 'right' ? -w : 0);
+        if (t) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + w); }
+        return { t: t, x: x, y: i * lh + (lh - (A + D)) / 2 + A, w: w };
+      });
+      if (!isFinite(x0)) { x0 = 0; x1 = 1; }
+      return { lines: lines, native: native, ls: ls, box: { x: T.w ? 0 : x0, y: 0, w: T.w ? T.w : Math.max(1, x1 - x0), h: Math.max(lh, rows.length * lh) } };
+    }
+    function drawText(c, T) {
+      c.save(); c.translate(T.x, T.y); if (T.rot) c.rotate(T.rot);
+      var lay = layoutText(c, T), fs = T.size, ls = lay.ls, native = lay.native;
+      c.textBaseline = 'alphabetic'; c.globalAlpha = T.alpha; c.lineJoin = 'round'; c.miterLimit = 2;
       function draw(t, x, y, how) {
         if (native || !ls) { c[how](t, x, y); return; }
         for (var i = 0; i < t.length; i++) { c[how](t[i], x, y); x += c.measureText(t[i]).width + ls; }
       }
-      lines.forEach(function (l, i) {
-        var t = tx.caps ? l.toUpperCase() : l, w = widthOf(t);
-        var x = tx.align === 'center' ? textAt.x - w / 2 : tx.align === 'right' ? textAt.x - w : textAt.x;
-        var y = textAt.y + i * lh + (lh - (A + D)) / 2 + A;
-        var shadow = function (on) { c.shadowColor = on ? 'rgba(0,0,0,.45)' : 'transparent'; c.shadowBlur = on ? fs * 0.12 * R : 0; c.shadowOffsetX = 0; c.shadowOffsetY = on ? fs * 0.06 * R : 0; };
-        if (tx.outline) { shadow(tx.shadow); c.strokeStyle = st.color2; c.lineWidth = tx.outline * fs / 100 * 2; draw(t, x, y, 'strokeText'); shadow(false); }
-        else shadow(tx.shadow);
-        c.fillStyle = st.color; draw(t, x, y, 'fillText');
-        if (tx.underline) c.fillRect(x, y + fs * 0.1, Math.max(0, w - (native ? 0 : ls)), Math.max(1, fs * 0.06));
+      var shadow = function (on) { c.shadowColor = on ? 'rgba(0,0,0,.45)' : 'transparent'; c.shadowBlur = on ? fs * 0.12 * R : 0; c.shadowOffsetX = 0; c.shadowOffsetY = on ? fs * 0.06 * R : 0; };
+      lay.lines.forEach(function (l) {
+        if (T.outline) { shadow(T.shadow); c.strokeStyle = T.color2 || '#fff'; c.lineWidth = T.outline * fs / 100 * 2; draw(l.t, l.x, l.y, 'strokeText'); shadow(false); }
+        else shadow(T.shadow);
+        c.fillStyle = T.color; draw(l.t, l.x, l.y, 'fillText');
+        if (T.underline && l.t) c.fillRect(l.x, l.y + fs * 0.1, Math.max(0, l.w - (native ? 0 : ls)), Math.max(1, fs * 0.06));
         shadow(false);
       });
       c.restore();
-      useColor();
+      return lay.box;
+    }
+    // a text layer, drawn again from its words
+    function renderText(L, again) {
+      var c = L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, L.cv.width, L.cv.height); c.restore();
+      var T = L.text; L.tbox = drawText(c, T); L.tboxFor = T;
+      // (a font still on its way: drawn again once it's here)
+      var f = textFont(T);
+      if (!again && document.fonts && document.fonts.check && !document.fonts.check(f)) document.fonts.load(f).then(function () { if (L.text === T) { renderText(L, true); autosave(); } }, function () {});
+      viewsSoon(); thumbsSoon();
+    }
+    var measureCtx = document.createElement('canvas').getContext('2d');
+    function tboxOf(L) { if (L.tboxFor !== L.text) { L.tbox = layoutText(measureCtx, L.text).box; L.tboxFor = L.text; } return L.tbox; }
+    // the text layer (the top one) whose words are under p, if any
+    function textUnder(p) {
+      for (var i = layers.length - 1; i >= 0; i--) {
+        var L = layers[i]; if (!L.text || !shownVisible(L)) continue;
+        var T = L.text, b = tboxOf(L), r = -(T.rot || 0), dx = p.x - T.x, dy = p.y - T.y, pad = 6 / view.k;
+        var lx = dx * Math.cos(r) - dy * Math.sin(r), ly = dx * Math.sin(r) + dy * Math.cos(r);
+        if (lx >= b.x - pad && lx <= b.x + b.w + pad && ly >= b.y - pad && ly <= b.y + b.h + pad) return L;
+      }
+      return null;
+    }
+    function editText(L) {
+      if (textBox) commitText();
+      if (sel) commitSelection();
+      if (L !== active) { active = L; renderLayers(); }
+      startText({ x: L.text.x, y: L.text.y }, L.text.w, L);
     }
     // the options panel (it floats beside the Aa button)
     function textPanel(open) {
@@ -1628,7 +1747,7 @@
       selbar.hidden = !sel; selMode = null; down = null; drawSel();
     }
     function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); drawSel(); }
-    function selTool(t) { return t === 'select' || t === 'lasso' || t === 'wand'; }
+    function selTool(t) { return t === 'select' || t === 'lasso' || t === 'wand' || t === 'move'; }
     // MAGIC WAND: every connected pixel of a similar colour on the layer
     // (a mask, kept with the selection)
     // (with paint set, it picks up all the paint joined to that spot instead:
@@ -1776,6 +1895,8 @@
       selx.style.top = Math.round(Math.max(3, Math.min(stage.clientHeight - 25, y - 11))) + 'px';
     }
     function lift(keep) {
+      // (a text layer's words aren't lifted: they're drawn again where they go)
+      if (sel.text) { if (!sel.lifted) { push({ L: sel.text, data: snapOf(sel.text), bg: sel.text.bg, text: sel.text.text, label: 'Move Text' }); sel.lifted = true; } return; }
       // the pixels come up off the layer (or a copy of them does)
       if (sel.float) return;
       remember('Move');
@@ -1801,8 +1922,9 @@
     }
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
-      placeSelX();
+      placeSelX(); selButtons();
       if (!sel) return;
+      if (sel.text && sel.lifted) placeTextSel();
       if (sel.float) putFloat(sctx);
       if (sel.thing) return;
       // (the outline and handles are drawn in the box's own frame, turned with it)
@@ -1825,6 +1947,32 @@
       }
       sctx.restore();
       if (turned) sctx.restore();
+    }
+    // MOVE ON A TEXT LAYER: the box round its words is moved, sized (keeping
+    // its shape) and turned like a selection, and the words are drawn again
+    // to fit it: bigger or smaller type, so they stay words
+    function textSel(L) {
+      var T = L.text, b = tboxOf(L), r = T.rot || 0, co = Math.cos(r), si = Math.sin(r), mx = b.x + b.w / 2, my = b.y + b.h / 2;
+      var M = { x: T.x + co * mx - si * my, y: T.y + si * mx + co * my };
+      sel = { x: M.x - b.w / 2, y: M.y - b.h / 2, w: b.w, h: b.h, rot: r, float: null, whole: true, auto: true, text: L, T0: T, tax: -b.x, tay: -b.y, w0: b.w };
+      selbar.hidden = false; drawSel();
+    }
+    function placeTextSel() {
+      var s = sel.w / sel.w0, T0 = sel.T0, A = selWorld({ x: sel.x + sel.tax * s, y: sel.y + sel.tay * s });
+      var T = {}; for (var k in T0) T[k] = T0[k];
+      T.size = Math.round(T0.size * s * 100) / 100; T.w = T0.w * s; T.rot = sel.rot || 0; T.x = A.x; T.y = A.y;
+      sel.text.text = T; renderText(sel.text);
+    }
+    // (what a selection of words can do: turn, be put down, or go)
+    function selButtons() {
+      var t = !!(sel && sel.text);
+      Array.prototype.forEach.call(selbar.querySelectorAll('[data-sel]'), function (b) { b.disabled = t && !/^(rot90|done|delete)$/.test(b.dataset.sel); });
+    }
+    // MOVE: what's on the layer is picked up whole, ready to move, size or
+    // turn (a selection already made is used as it is)
+    function movePick() {
+      if (sel || !active) return;
+      if (active.text) textSel(active); else { layerSel(active); if (sel) sel.auto = true; }
     }
     function rotHandleLocal() { return { x: sel.x + sel.w / 2, y: sel.y - 26 / view.k }; }
     function localCorners() { return [{ x: sel.x, y: sel.y, c: 'nw' }, { x: sel.x + sel.w, y: sel.y, c: 'ne' }, { x: sel.x, y: sel.y + sel.h, c: 'sw' }, { x: sel.x + sel.w, y: sel.y + sel.h, c: 'se' }]; }
@@ -1882,6 +2030,8 @@
     function selectAll() { if (textBox) commitText(); commitSelection(); need(); sel = { x: 0, y: 0, w: W, h: H, float: null }; selbar.hidden = false; drawSel(); }
     function selAction(a) {
       if (!sel) return;
+      if (sel.text && a === 'delete') { var TL = sel.text; clearSel(); active = TL; layerAct('delete'); return; }
+      if (sel.text && a !== 'rot90' && a !== 'done') return;
       if (a === 'done') { commitSelection(); return; }
       if (a === 'invert') { invertSel(); return; }
       if (a === 'rot90') { lift(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
@@ -1938,6 +2088,7 @@
             '<svg viewBox="0 0 24 24">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
           '<canvas class="pl-thumb" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
           '<button type="button" class="pl-name" data-layer="' + i + '" title="Tap again to rename"><span>' + L.name.replace(/[<&]/g, function (ch) { return ch === '<' ? '&lt;' : '&amp;'; }) + '</span>' +
+            (L.text ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Text layer"><path d="M6 7.5V5h12v2.5"/><path d="M12 5v14"/><path d="M9.5 19h5"/></svg>' : '') +
             (L.alphaLock ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Alpha lock on"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>' : '') + '</button>' +
           '<button type="button" class="pl-more" data-layer-more="' + i + '" aria-haspopup="menu" aria-label="Options for ' + L.name.replace(/"/g, '&quot;') + '" title="Layer options"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button>' +
           '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
@@ -2026,6 +2177,7 @@
       };
       var lowest = layers[0] && layers[0].bg ? 1 : 0;
       lmenu.innerHTML =
+        (L.text ? item('edittext', 'Edit Text') + item('raster', 'Turn into Image') + '<hr>' : '') +
         item('select', 'Select') + item('rename', 'Rename') + item('duplicate', 'Duplicate', { off: n >= 10 }) +
         item('merge', 'Merge Down', { off: i === 0 || !L.visible }) +
         '<hr>' + item('lock', 'Alpha Lock', { check: L.alphaLock }) + item('clip', 'Clipping Mask', { check: L.clip, off: i === 0 }) +
@@ -2065,12 +2217,14 @@
     });
     function layerOption(a, L) {
       if (a === 'select') { layerPanel(false); selectLayer(L); return; }
+      if (a === 'edittext' && L.text) { layerPanel(false); if (st.tool !== 'text') setTool('text'); editText(L); return; }
       if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       var i = layers.indexOf(L);
       if (L !== active) { active = L; renderLayers(); }
       if (a === 'rename') { layerPanel(true); rename(i); return; }
       if (a === 'up' || a === 'down' || a === 'delete') { layerAct(a); return; }
-      if (a === 'hide') { L.visible = !L.visible; }
+      if (a === 'raster') { if (L.text) { push({ L: L, data: snapOf(L), bg: L.bg, text: L.text, label: 'Turn into Image' }); L.text = null; } }
+      else if (a === 'hide') { L.visible = !L.visible; }
       else if (a === 'lock') { rememberLayers(L.alphaLock ? 'Alpha Lock Off' : 'Alpha Lock'); L.alphaLock = !L.alphaLock; }
       else if (a === 'clip') { rememberLayers(L.clip ? 'Release Clipping Mask' : 'Clipping Mask'); L.clip = !L.clip; }
       else if (a === 'duplicate') {
@@ -2078,13 +2232,15 @@
         rememberLayers('Duplicate Layer');
         var D = makeLayer(L.name + ' copy', false);
         D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.drawImage(L.cv, 0, 0); D.ctx.restore();
-        D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip;
+        D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip; D.text = L.text;
         layers.splice(i + 1, 0, D); active = D;
       } else if (a === 'merge') {
         // (it's laid onto the one below as it looks: its opacity, blend mode
         // and clipping; one undo puts both back)
         var B = layers[i - 1]; if (!B || !L.visible) return;
-        push({ parts: [{ L: B, data: snapOf(B), bg: B.bg }, { list: layers.slice(), active: active, props: props() }], label: 'Merge Down' });
+        // (the words of a text layer become paint, and so does a text layer below)
+        push({ parts: [{ L: B, data: snapOf(B), bg: B.bg, text: B.text }, { list: layers.slice(), active: active, props: props() }], label: 'Merge Down' });
+        B.text = null;
         var src = viewOf(L), c = B.ctx;
         c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = L.opacity; if (L.blend !== 'normal') c.globalCompositeOperation = L.blend;
         c.drawImage(src, 0, 0); c.restore();
@@ -2096,8 +2252,13 @@
     function selectLayer(L) {
       if (adj) adjustDone(); if (textBox) commitText(); commitSelection();
       active = L; renderLayers();
-      // (the Select tool comes up, so a drag moves it rather than painting)
+      // (the Select tool comes up, so a drag moves it rather than painting;
+      // for words, Move, so they stay words)
+      if (L.text) { setTool('move'); return; }
       if (!selTool(st.tool)) setTool('select');
+      layerSel(L);
+    }
+    function layerSel(L) {
       var w = L.cv.width, h = L.cv.height, d = L.ctx.getImageData(0, 0, w, h).data, minX = w, minY = h, maxX = -1, maxY = -1, on = new Uint8Array(w * h);
       for (var y = 0, k = 0; y < h; y++) for (var x = 0; x < w; x++, k++) {
         var j = k * 4;
@@ -2343,7 +2504,7 @@
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); }
     function adjustDone() {
       if (!adj) return;
-      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src, label: 'Adjust' }); } else adjustPut(adj.src);
+      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src, text: adj.L.text, label: 'Adjust' }); if (adj.L.text) { adj.L.text = null; renderLayers(); } } else adjustPut(adj.src);
       adjustClose();
     }
     function adjustCancel() { if (!adj) return; adjustPut(adj.src); adjustClose(); }
@@ -2538,6 +2699,87 @@
       });
     }
 
+    // ---- THE PEN: a path, one point at a time. A click makes a corner; a
+    // drag from a new point pulls out its handles, for a smooth curve.
+    // Points and handles can be dragged again while it's being made (Alt
+    // moves one handle on its own). Clicking the first point closes it;
+    // Done, Return or a double-click lays it down as it is. It's drawn in
+    // the colour, at the size and opacity, as an outline, filled, or both ----
+    var pen = null, penHover = null, penStroke = stored('paint-pen-stroke', true), penFill = stored('paint-pen-fill', false);
+    function penPathOn(c, P, closed) {
+      var seg = function (a, b) { if (a.o || b.i) { var o = a.o || a, i = b.i || b; c.bezierCurveTo(o.x, o.y, i.x, i.y, b.x, b.y); } else c.lineTo(b.x, b.y); };
+      c.beginPath(); c.moveTo(P[0].x, P[0].y);
+      for (var j = 1; j < P.length; j++) seg(P[j - 1], P[j]);
+      if (closed) { seg(P[P.length - 1], P[0]); c.closePath(); }
+    }
+    function drawPen() {
+      octx.clearRect(0, 0, W, H); drawSel();
+      var pd = typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]');
+      if (pd) Array.prototype.forEach.call(pd, function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pendone' ? 2 : 1); });
+      if (!pen || !pen.pts.length) { plainOv(); return; }
+      $('[data-act="undo"]').disabled = false; // (undo takes the last point away)
+      var P = pen.pts, k = view.k;
+      ov.style.opacity = st.alpha * (active ? active.opacity : 1); ov.style.mixBlendMode = '';
+      strokeStyle(octx);
+      both(octx, function () {
+        if (P.length < 2) return;
+        penPathOn(octx, P, pen.closed);
+        if (penFill && (pen.closed || P.length > 2)) octx.fill();
+        if (penStroke || !penFill) octx.stroke();
+      });
+      maskOv();
+      // (the points, their handles, and where the next piece would go, on the
+      // selection's sheet: not part of the drawing)
+      var c = sctx, blue = '#2f7fd6', last = P[P.length - 1];
+      c.save(); c.lineWidth = 1 / k; c.strokeStyle = blue;
+      if (penHover && !down) {
+        c.setLineDash([4 / k, 3 / k]); c.beginPath(); c.moveTo(last.x, last.y);
+        if (last.o) c.quadraticCurveTo(last.o.x, last.o.y, penHover.x, penHover.y); else c.lineTo(penHover.x, penHover.y);
+        c.stroke(); c.setLineDash([]);
+      }
+      P.forEach(function (q, i) {
+        [q.i, q.o].forEach(function (h) {
+          if (!h) return;
+          c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(h.x, h.y); c.stroke();
+          c.beginPath(); c.arc(h.x, h.y, 3.5 / k, 0, Math.PI * 2); c.fillStyle = '#fff'; c.fill(); c.stroke();
+        });
+        var z = (i === 0 ? 10 : 7) / k; c.fillStyle = i === P.length - 1 && i ? blue : '#fff';
+        if (i === 0) { c.beginPath(); c.arc(q.x, q.y, z / 2, 0, Math.PI * 2); c.fill(); c.stroke(); }
+        else { c.fillRect(q.x - z / 2, q.y - z / 2, z, z); c.strokeRect(q.x - z / 2, q.y - z / 2, z, z); }
+      });
+      c.restore();
+    }
+    function penHit(p, r) {
+      if (!pen) return null;
+      for (var i = pen.pts.length - 1; i >= 0; i--) {
+        var q = pen.pts[i];
+        if (q.o && Math.hypot(p.x - q.o.x, p.y - q.o.y) <= r) return { q: q, h: 'o' };
+        if (q.i && Math.hypot(p.x - q.i.x, p.y - q.i.y) <= r) return { q: q, h: 'i' };
+        if (Math.hypot(p.x - q.x, p.y - q.y) <= r) return { q: q, h: 'p' };
+      }
+      return null;
+    }
+    function penBack() { if (!pen) return; pen.pts.pop(); if (!pen.pts.length) cancelPen(); else drawPen(); }
+    function cancelPen() { pen = null; penHover = null; octx.clearRect(0, 0, W, H); plainOv(); drawSel(); buttons(); ctxSync(); }
+    function finishPen() {
+      if (!pen) return;
+      if (pen.pts.length < 2) { cancelPen(); return; }
+      if (active && active.text && !paintAbove()) { cancelPen(); return; }
+      need();
+      penHover = null; drawPen();
+      remember('Pen'); commit(null, st.alpha);
+      pen = null; drawSel(); buttons(); ctxSync(); useColor();
+    }
+    // PAINTING WHILE A TEXT LAYER IS PICKED: the paint goes on a new layer
+    // just above it, so the words stay words
+    function paintAbove() {
+      if (layers.length >= 10) { toast('Up to 10 layers: merge the text down (or Turn into Image) to paint on it'); return false; }
+      rememberLayers('New Layer');
+      var L = makeLayer('Layer ' + (++count), false); layers.splice(layers.indexOf(active) + 1, 0, L); active = L; mount();
+      toast('Painting on a new layer, so the text stays editable');
+      return true;
+    }
+
     // ---- pointers: drawing, moving the picture around, pinching to zoom ----
     var fingerTap = null, firstDown = 0, tapLater = null;
     var pointers = {}, ptype = {}, gesture = null, pan = null, spaceDown = false, spaceGrab = null, lastMouse = null;
@@ -2548,13 +2790,14 @@
       stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
+      if (down.penNew && pen) { pen.pts.pop(); down = null; if (pen.pts.length) drawPen(); else cancelPen(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
       down = null; octx.clearRect(0, 0, W, H); plainOv();
     }
     function begin(e) {
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
-      if (t !== 'picker') need();
+      if (!/^(picker|move|text|pen)$/.test(t)) need();
       if (cq && cq.c === 'rot') {
         lift(); var m = selMid();
         down = { id: e.pointerId, start: p, last: p, turn: { a0: Math.atan2(p.y - m.y, p.x - m.x), r0: sel.rot || 0 } };
@@ -2571,7 +2814,30 @@
       if (t === 'picker') { setColor(sampleAt(p)); setTool('brush'); return; }
       // hold Alt (Option) with any drawing tool to pick up a colour instead
       if (e.altKey && !selTool(t) && t !== 'hand') { if (textBox) commitText(); setColor(sampleAt(p)); return; }
-      if (t === 'text') { if (textBox) { commitText(); return; } startText(p); return; }
+      if (t === 'text') {
+        if (textBox) { commitText(); return; }
+        // (tapping words already on the picture changes them; anywhere else,
+        // a tap starts a line, and a drag makes a box for the words)
+        var TL = textUnder(p); if (TL) { editText(TL); return; }
+        down = { id: e.pointerId, start: p, last: p, textDrag: true }; return;
+      }
+      if (t === 'move') {
+        if (!sel) movePick();
+        if (!sel) { toast(active ? 'There\u2019s nothing on this layer to move' : 'There\u2019s no layer to move'); return; }
+        selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); stage.classList.add('moving');
+        down = { id: e.pointerId, start: p, last: p }; return;
+      }
+      if (t === 'pen') {
+        var pr = (e.pointerType !== 'mouse' ? 16 : 8) / view.k;
+        if (!pen) pen = { pts: [], closed: false };
+        if (pen.pts.length >= 2 && Math.hypot(p.x - pen.pts[0].x, p.y - pen.pts[0].y) <= pr) { pen.closed = true; finishPen(); return; }
+        var ph = penHit(p, pr);
+        if (ph) { down = { id: e.pointerId, start: p, last: p, penEdit: ph }; return; }
+        var pa = { x: p.x, y: p.y, i: null, o: null }; pen.pts.push(pa);
+        down = { id: e.pointerId, start: p, last: p, penNew: pa }; penHover = null; drawPen(); return;
+      }
+      // (brushes, lines and shapes on a text layer: onto a new layer above it)
+      if (active && active.text && /^(brush|line|shape|gradient)$/.test(t) && !paintAbove()) return;
       if (selTool(t)) {
         if (t === 'lasso' && lassoOn) {
           // placing points: the first point closes it; anywhere else adds a
@@ -2619,6 +2885,28 @@
     function move(e) {
       var evs = e.getCoalescedEvents && e.getCoalescedEvents().length ? e.getCoalescedEvents() : [e];
       var p = pos(e), t = st.tool;
+      if (down.textDrag) {
+        // (the box the words will go in)
+        down.last = p; var a0 = down.start;
+        octx.clearRect(0, 0, W, H); octx.save(); octx.lineWidth = 1 / view.k; octx.setLineDash([5 / view.k, 4 / view.k]); octx.strokeStyle = '#2f7fd6';
+        octx.strokeRect(Math.min(a0.x, p.x), Math.min(a0.y, p.y), Math.abs(p.x - a0.x), Math.abs(p.y - a0.y)); octx.restore();
+        return;
+      }
+      if (down.penNew) {
+        var a = down.penNew;
+        if (Math.hypot(p.x - a.x, p.y - a.y) * view.k > 3) { a.o = { x: p.x, y: p.y }; a.i = { x: 2 * a.x - p.x, y: 2 * a.y - p.y }; }
+        down.last = p; drawPen(); return;
+      }
+      if (down.penEdit) {
+        var h = down.penEdit, q = h.q, ddx = p.x - down.last.x, ddy = p.y - down.last.y;
+        if (h.h === 'p') { q.x += ddx; q.y += ddy; if (q.i) { q.i.x += ddx; q.i.y += ddy; } if (q.o) { q.o.x += ddx; q.o.y += ddy; } }
+        else {
+          // (the handle opposite stays in line, as long as it was, unless Alt is held)
+          q[h.h] = { x: p.x, y: p.y }; var oh = h.h === 'o' ? 'i' : 'o';
+          if (q[oh] && !e.altKey) { var ln = Math.hypot(q[oh].x - q.x, q[oh].y - q.y), an = Math.atan2(q.y - p.y, q.x - p.x); q[oh] = { x: q.x + Math.cos(an) * ln, y: q.y + Math.sin(an) * ln }; }
+        }
+        down.last = p; drawPen(); return;
+      }
       if (selMode === 'rotate') {
         // free to turn; it settles on upright and sideways when close (and
         // goes in steps of 15° with shift held)
@@ -2633,7 +2921,7 @@
         var z = down.scale, r = sel.rot || 0, co = Math.cos(r), si = Math.sin(r), vx = p.x - z.A.x, vy = p.y - z.A.y;
         var lx = co * vx + si * vy, ly = -si * vx + co * vy;
         var nw = Math.max(4 / view.k, lx * z.sx), nh = Math.max(4 / view.k, ly * z.sy);
-        if (e.shiftKey) nw = nh = Math.max(nw, nh);
+        if (sel.text) { var kk = Math.max(nw / z.w, nh / z.h); nw = z.w * kk; nh = z.h * kk; } else if (e.shiftKey) nw = nh = Math.max(nw, nh);
         var hx = z.sx * nw / 2, hy = z.sy * nh / 2, cx = z.A.x + co * hx - si * hy, cy = z.A.y + si * hx + co * hy;
         sel.w = nw; sel.h = nh; sel.x = cx - nw / 2; sel.y = cy - nh / 2;
         if (z.poly) sel.poly = z.poly.map(function (q) { return { x: q.x * nw / z.w, y: q.y * nh / z.h }; });
@@ -2812,6 +3100,13 @@
     function end() {
       var t = st.tool;
       clearTimeout(holdTimerS);
+      if (down.penNew || down.penEdit) { down = null; drawPen(); return; }
+      if (down.textDrag) {
+        var a0 = down.start, b0 = down.last, bw = Math.abs(b0.x - a0.x);
+        down = null; octx.clearRect(0, 0, W, H);
+        if (bw * view.k > 16) startText({ x: Math.min(a0.x, b0.x), y: Math.min(a0.y, b0.y) }, bw); else startText(a0, 0);
+        return;
+      }
       // (a smoothed line catches up with where the pointer was let go)
 
       if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
@@ -2882,7 +3177,7 @@
       if (st.tool === 'hand' || spaceDown || e.button === 1) { var s = screen(e); pan = { x: s.x, y: s.y, vx: view.x, vy: view.y }; stage.classList.add('panning'); return; }
       // (a finger's tap with fill, the colour picker, the wand or text acts
       // when it lifts: a second finger may be about to land, for undo)
-      if (e.pointerType === 'touch' && /^(fill|picker|wand|text)$/.test(st.tool)) {
+      if (e.pointerType === 'touch' && /^(fill|picker|wand)$/.test(st.tool)) {
         tapLater = { id: e.pointerId, ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
         return;
       }
@@ -2912,6 +3207,7 @@
       if (pan) { var s = screen(e); view.x = pan.vx + s.x - pan.x; view.y = pan.vy + s.y - pan.y; applyView(); return; }
       if (down && e.pointerId === down.id) { move(e); ctxThru(e); if (down && down.pen) showRing(pos(e)); return; }
       if (lassoOn && !down) { lassoHover = pos(e); drawLasso(lassoHover); stage.classList.toggle('closing', nearStart(lassoHover, e.pointerType !== 'mouse')); return; }
+      if (st.tool === 'pen' && pen && pen.pts.length && !down && !e.target.closest(STAGE_UI)) { penHover = pos(e); drawPen(); hideRing(); return; }
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
       if (e.pointerType !== 'mouse' || down) return;
@@ -2945,7 +3241,7 @@
       else if ((L = paintAt(p))) {
         commitSelection();
         if (L !== active) { active = L; renderLayers(); }
-        wandAt(p, true);
+        if (L.text) { textSel(L); selbar.hidden = true; } else wandAt(p, true);
         if (!sel) return;
         sel.thing = true; lift();
         spaceGrab = { sel: true, thing: true, ox: p.x - sel.x, oy: p.y - sel.y }; drawSel();
@@ -2982,7 +3278,11 @@
       if (down && e.pointerId === down.id) end();
     }
     stage.addEventListener('pointerup', up);
-    stage.addEventListener('dblclick', function () { if (lassoOn && st.tool === 'lasso' && !down) finishLasso(); });
+    stage.addEventListener('dblclick', function () {
+      if (lassoOn && st.tool === 'lasso' && !down) finishLasso();
+      // (a double-click lays the path down: the second click's point is dropped)
+      if (pen && st.tool === 'pen' && !down) { var P = pen.pts; while (P.length > 2 && Math.hypot(P[P.length - 1].x - P[P.length - 2].x, P[P.length - 1].y - P[P.length - 2].y) * view.k < 4) P.pop(); finishPen(); }
+    });
     stage.addEventListener('contextmenu', function (e) { if (sel && !selMode && inSel(pos(e))) { e.preventDefault(); invertSel(); } });
     stage.addEventListener('pointercancel', function (e) { if (down && e.pointerId === down.id) cancelStroke(); up(e); });
     stage.addEventListener('pointerleave', function (e) { if (lassoOn && !down) { lassoHover = null; drawLasso(null); stage.classList.remove('closing'); } if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
@@ -3021,7 +3321,7 @@
       var sa = e.target.closest('[data-sel]'); if (sa) { selAction(sa.dataset.sel); return; }
       var le = e.target.closest('[data-layer-eye]'); if (le) { var L = layers[+le.dataset.layerEye]; L.visible = !L.visible; mount(); layerPanel(true); autosave(); return; }
       var ln = e.target.closest('[data-layer]');
-      if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; renderLayers(); layerPanel(true); return; }
+      if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var at2 = e.target.closest('[data-adj-tab]'); if (at2) { adjShowTab(at2.dataset.adjTab); return; }
@@ -3039,7 +3339,7 @@
       else if (w === 'clear') {
         if (sel) commitSelection();
         if (!active) return;
-        remember('Clear Layer'); active.ctx.clearRect(0, 0, W, H);
+        remember('Clear Layer', true); active.ctx.clearRect(0, 0, W, H);
         if (active.bg) { active.ctx.fillStyle = '#fff'; active.ctx.fillRect(0, 0, W, H); }
         autosave();
       }
@@ -3135,11 +3435,20 @@
     // settings, and your own palettes, in one file to keep, carry to another
     // device and open again to carry on. (Saved pictures are flattened; this
     // isn't.) ----
+    // (a text layer's words, from a file: only what's expected, of the right kinds)
+    function textFrom(t) {
+      if (!t || typeof t !== 'object' || typeof t.str !== 'string') return null;
+      var num = function (v, d) { v = +v; return isFinite(v) ? v : d; }, col = function (c, d) { return /^#[0-9a-f]{3,8}$/i.test(c || '') ? c : d; };
+      return { str: t.str.slice(0, 5000), x: num(t.x, 0), y: num(t.y, 0), w: Math.max(0, num(t.w, 0)), rot: num(t.rot, 0), font: typeof t.font === 'string' ? t.font.slice(0, 200) : FONTS[0][0],
+        size: Math.max(1, Math.min(4000, num(t.size, 48))), color: col(t.color, '#141414'), color2: col(t.color2, '#ffffff'), alpha: Math.max(0, Math.min(1, num(t.alpha, 1))),
+        bold: !!t.bold, italic: !!t.italic, underline: !!t.underline, caps: !!t.caps, align: /^(left|center|right)$/.test(t.align) ? t.align : 'left',
+        spacing: num(t.spacing, 0), lh: Math.max(0.5, Math.min(4, num(t.lh, 1.2))), outline: Math.max(0, Math.min(30, num(t.outline, 0))), shadow: !!t.shadow };
+    }
     function isProject(f) { return /\.paint$/i.test(f.name || '') || f.type === 'application/x-paint-alternative'; }
     function saveProject() {
       finishWork();
       var out = { app: 'Paint Alternative', version: 1, width: ov.width, height: ov.height, active: layers.indexOf(active), palettes: myPalettes,
-        layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, png: L.cv.toDataURL('image/png') }; }) };
+        layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, png: L.cv.toDataURL('image/png') }; }) };
       var blob = new Blob([JSON.stringify(out)], { type: 'application/x-paint-alternative' }), a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = 'drawing.paint';
       document.body.appendChild(a); a.click(); a.remove();
@@ -3162,7 +3471,7 @@
           layers = d.layers.slice(0, 10).map(function (l, i) {
             var L = makeLayer(String(l.name || 'Layer ' + (i + 1)).slice(0, 24), false);
             L.bg = !!l.bg; L.visible = l.visible !== false; L.opacity = Math.max(0, Math.min(1, +l.opacity || (l.opacity === 0 ? 0 : 1)));
-            L.blend = BLENDS.some(function (b) { return b[0] === l.blend; }) ? l.blend : 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip;
+            L.blend = BLENDS.some(function (b) { return b[0] === l.blend; }) ? l.blend : 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
             if (ims[i]) { L.ctx.save(); L.ctx.setTransform(1, 0, 0, 1, 0, 0); L.ctx.drawImage(ims[i], 0, 0); L.ctx.restore(); }
             return L;
           });
@@ -3235,7 +3544,7 @@
           cv = document.createElement('canvas'); cv.width = L.cv.width; cv.height = L.cv.height;
           var x = cv.getContext('2d'); x.drawImage(L.cv, 0, 0); base(x); putFloat(x);
         }
-        return new Promise(function (ok) { cv.toBlob(function (b) { ok({ name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, blob: b }); }, 'image/png'); });
+        return new Promise(function (ok) { cv.toBlob(function (b) { ok({ name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, blob: b }); }, 'image/png'); });
       })).then(function (list) {
         if (list.some(function (l) { return !l.blob; })) return;
         info.layers = list;
@@ -3259,7 +3568,7 @@
             if (d.pw && d.ph) setDoc(d.pw, d.ph);
             layers = d.layers.map(function (l, i) {
               var L = makeLayer(l.name, l.bg != null ? l.bg : i === 0); L.visible = l.visible !== false;
-              L.opacity = l.opacity != null ? l.opacity : 1; L.blend = l.blend || 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip;
+              L.opacity = l.opacity != null ? l.opacity : 1; L.blend = l.blend || 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
               if (d.pw) L.ctx.drawImage(ims[i], 0, 0, ims[i].width / R, ims[i].height / R);
               else L.ctx.drawImage(ims[i], 0, 0, ims[i].width / d.R, ims[i].height / d.R);
               return L;
@@ -3545,8 +3854,8 @@
       var k = function (keys) { return keys.split(' ').map(function (x) { return '<kbd>' + x + '</kbd>'; }).join(''); };
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
-        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move around', 'H']]) +
-        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Close / cancel', 'Esc']]) +
+        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
+        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Adjust', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         group('Touch & Pencil', [['Undo', 'Two-finger tap'], ['Redo', 'Three-finger tap'], ['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']]) +
@@ -3652,6 +3961,14 @@
       select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      move: function () { return hint('Drag to move what\u2019s on the layer \u00b7 its corners to size it \u00b7 the round handle to turn it'); },
+      pen: function () {
+        return hint('Click to add points \u00b7 drag to curve \u00b7 click the first point to close') + sep +
+          chip('penstroke', 'Outline', '<path d="M5 18C8 6 16 6 19 18"/>', 'Draw the path as a line, at the brush size') +
+          chip('penfill', 'Fill', '<path d="M5 18C8 6 16 6 19 18z" fill="currentColor" fill-opacity=".35"/>', 'Fill the inside of the path with the colour') + sep +
+          '<button type="button" class="ctx-btn" data-ctx="pencancel" data-tip="Let the path go (Esc)">Cancel</button>' +
+          '<button type="button" class="ctx-btn ctx-done" data-ctx="pendone" data-tip="Lay the path down (Return, or double-click)">Done</button>';
+      },
       // symmetry: which kind, radial's segments and mirror, and putting the guide back
       sym: function () {
         var box = '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/>', dash = ' stroke-dasharray="2 1.8"';
@@ -3706,9 +4023,9 @@
       var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
       // (and the right-hand panel: which of size and opacity this tool uses)
-      var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
+      var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
       right.dataset.uses = uses;
-      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text' }[st.tool] || 'Brush';
+      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text', pen: 'Pen' }[st.tool] || 'Brush';
     }
     // (symmetry's settings take the panel's place while they're open)
     function ctxSymView(on) {
@@ -3749,6 +4066,8 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
+      set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill);
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pendone' ? 2 : 1); });
     }
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
@@ -3769,6 +4088,13 @@
       if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
       if (k === 'symreset') { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); return; }
       if (k === 'symdone') { ctxSymView(false); return; }
+      if (k === 'penstroke' || k === 'penfill') {
+        if (k === 'penstroke') penStroke = !penStroke; else penFill = !penFill;
+        if (!penStroke && !penFill) { if (k === 'penstroke') penFill = true; else penStroke = true; } // (one of them, at least)
+        storeIt('paint-pen-stroke', penStroke); storeIt('paint-pen-fill', penFill); ctxSync(); if (pen) drawPen(); return;
+      }
+      if (k === 'pendone') { finishPen(); return; }
+      if (k === 'pencancel') { cancelPen(); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
       if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
@@ -3815,12 +4141,17 @@
           if (k === 'escape') { cancelLasso(); stage.classList.remove('closing'); return; }
           if (k === 'backspace' || k === 'delete') { e.preventDefault(); if (lasso.length > 1) lasso.pop(); else cancelLasso(); drawLasso(lassoHover); return; }
         }
+        if (pen && st.tool === 'pen') {
+          if (k === 'enter') { e.preventDefault(); finishPen(); return; }
+          if (k === 'escape') { cancelPen(); return; }
+          if (k === 'backspace' || k === 'delete') { e.preventDefault(); penBack(); return; }
+        }
         if (k === 'escape' && !lmenu.hidden) { lmenu.hidden = true; return; }
         if (k === 'escape' && adj) { adjustCancel(); return; }
         if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) { selAction('done'); return; }
-        var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', w: 'wand', i: 'picker', h: 'hand', o: 'tone' };
+        var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
         if (map[k]) setTool(map[k]);
         else if (k === 'a') adjustOpen();
         else if (k === 'x') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
