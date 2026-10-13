@@ -30,6 +30,8 @@
   --r-panel: 18px;
   --r-btn: 10px;
   --bar: 100px;
+  /* space between groups in a toolbar (each side of the thin divider) */
+  --group-gap: 12px;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -112,7 +114,7 @@ body > * { flex-shrink: 0; }
 /* the two side panels: frosted glass cards */
 .paint-bar {
   position: relative; flex: none; width: var(--bar);
-  display: flex; flex-direction: column; align-items: stretch; gap: 14px;
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--group-gap);
   align-self: flex-start; max-height: 100%;
   padding: 10px;
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
@@ -122,7 +124,8 @@ body > * { flex-shrink: 0; }
 /* (above the picture, so their menus and panels open over it) */
 .paint-left, .paint-right { z-index: 5; }
 .paint-group { display: grid; grid-template-columns: repeat(2, 36px); gap: 6px 8px; justify-content: space-between; }
-.paint-right > .paint-group + .paint-group { padding-top: 14px; border-top: .5px solid var(--line); }
+/* related tools sit together; a thin divider between groups (both panels) */
+.paint-bar > .paint-group + .paint-group { padding-top: var(--group-gap); border-top: .5px solid var(--line); }
 
 .paint button, .paint-open {
   display: inline-flex; align-items: center; justify-content: center;
@@ -188,7 +191,7 @@ body > * { flex-shrink: 0; }
 .paint .paint-swap:hover svg { transform: rotate(12deg); }
 
 .paint-swatches, .paint-recent { display: grid; grid-template-columns: repeat(4, 16px); gap: 6px; }
-.paint-recent { min-height: 16px; }
+.paint-recent:empty { display: none; } /* (it appears once a colour has been used) */
 .paint-recent:not(:empty) { padding-top: 8px; border-top: .5px solid var(--line); }
 .paint-recent:not(:empty)::before { content: "Recent"; grid-column: 1 / -1; margin-bottom: -2px; font-size: .625rem; line-height: 1; color: var(--muted); }
 .paint .paint-right .paint-recent button { border-radius: 5px; }
@@ -500,15 +503,14 @@ body > * { flex-shrink: 0; }
 
 /* ---------- Phones: two slim panels, one tool per row ---------- */
 @media (max-width: 560px) {
-  :root { --bar: 46px; --edge: .5rem; }
+  :root { --bar: 46px; --edge: .5rem; --group-gap: 6px; }
   .site-header { height: 46px; }
   .brand-icon { width: 24px; height: 24px; border-radius: 6px; }
   .brand-icon svg { width: 14px; height: 14px; }
   .brand-name { font-size: 1rem; }
   .paint { gap: .4rem; }
-  .paint-bar { padding: 5px; gap: 8px; border-radius: 14px; }
+  .paint-bar { padding: 5px; border-radius: 14px; }
   .paint-group { grid-template-columns: 36px; gap: 3px; justify-content: center; }
-  .paint-right > .paint-group + .paint-group { padding-top: 8px; }
   .paint button, .paint-open { width: 36px; height: 36px; border-radius: 9px; }
   .paint-left button { height: 28px !important; }
   .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; border-radius: 16px; }
@@ -525,7 +527,7 @@ body > * { flex-shrink: 0; }
   .paint-sliders label span { order: 3; }
   .paint-sliders label output { order: 1; font-size: .625rem; }
   .paint-sliders input[type="range"] { order: 2; width: 54px; height: 20px; margin: 17px 0; transform: rotate(-90deg); }
-  .paint-right .paint-group[aria-label="Actions"] > * { height: 33px; }
+  .paint-right .paint-group[aria-label="History"] > *, .paint-right .paint-group[aria-label="Picture"] > * { height: 33px; }
   .paint button.paint-layers-btn, .paint button.paint-save { width: 36px; padding: 0; border-radius: 9px; }
   .paint button.paint-layers-btn span, .paint .paint-save span { display: none; }
   .paint .paint-save svg { display: block; }
