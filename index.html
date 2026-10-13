@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paint Alternative</title>
+  <meta name="description" content="A free painting app that runs in your browser. Nothing is uploaded; SAVE downloads your picture.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // apply the saved light/dark choice before the page draws (no flash)
+    var savedTheme = null;
+    try { savedTheme = localStorage.getItem('theme-choice'); } catch (e) {}
+    if (savedTheme !== 'light') document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.classList.add('js');
+    if (navigator.maxTouchPoints > 0) document.documentElement.classList.add('touch');
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="brand">PAINT ALTERNATIVE</h1>
+    <button class="theme-toggle" type="button" aria-label="Switch to dark mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10.94" stroke-width="2.12"/>
+        <g transform="translate(12 12) scale(.53) translate(-12 -12)" stroke-width="2.2">
+          <path class="icon-moon" d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/>
+          <g class="icon-sun"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g>
+        </g>
+      </svg>
+    </button>
+  </header>
+  <main class="site-main">
+    <section class="paint" aria-label="Drawing">
+      <div class="paint-bar paint-left" role="toolbar" aria-label="Tools">
+        <div class="paint-group" role="group" aria-label="Tool">
+          <button type="button" data-tool="brush" aria-label="Brush (B)" data-tip="Brush (B): paint freehand. Click again to choose a brush type" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/></svg></button>
+          <button type="button" data-tool="eraser" aria-label="Eraser (E)" data-tip="Eraser (E): rub out paint on the current layer"><svg viewBox="0 0 24 24"><path d="M8.5 19.5h11"/><path d="M4.6 14.2l8.7-8.7a1.5 1.5 0 0 1 2.1 0l3.1 3.1a1.5 1.5 0 0 1 0 2.1l-8.6 8.6H8.5L4.6 15.4a.9.9 0 0 1 0-1.2z"/><path d="M9.2 9.6l5.2 5.2"/></svg></button>
+          <button type="button" data-tool="smudge" aria-label="Smudge (S)" data-tip="Smudge (S): push and blend colours together like a finger"><svg viewBox="0 0 24 24"><path d="M9.5 20.5v-8a1.6 1.6 0 0 1 3.2 0v2.2"/><path d="M12.7 12.2v-1a1.6 1.6 0 0 1 3.2 0v2"/><path d="M15.9 12.6a1.6 1.6 0 0 1 3.1.4v3.2a5 5 0 0 1-5 5h-1.8a4.3 4.3 0 0 1-3.4-1.7L5.6 16.6a1.5 1.5 0 0 1 2.3-1.9l1.6 1.8"/><path d="M4 7.5c2-1.8 4-1.8 6 0s4 1.8 6 0"/></svg></button>
+          <button type="button" data-tool="blur" aria-label="Blur (U)" data-tip="Blur (U): soften the paint you brush over"><svg viewBox="0 0 24 24"><path d="M12 3.5s5.5 6.2 5.5 10a5.5 5.5 0 0 1-11 0c0-3.8 5.5-10 5.5-10z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" opacity=".6"/></svg></button>
+          <button type="button" data-tool="line" aria-label="Line (L)" data-tip="Line (L): drag to draw a straight line"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg></button>
+          <button type="button" data-tool="shape" aria-label="Shapes (R)" data-tip="Shapes (R): drag to draw a shape. Click again to pick one, or to make shapes filled"><svg viewBox="0 0 24 24"><rect x="3.5" y="11" width="8" height="8" rx="1"/><circle cx="16.5" cy="8.5" r="4.5"/></svg></button>
+          <button type="button" data-tool="fill" aria-label="Fill (F)" data-tip="Fill (F): tap to flood an area with colour"><svg viewBox="0 0 24 24"><path d="M4.5 11.5L11 5l7.5 7.5-6.5 6.5a1.4 1.4 0 0 1-2 0l-5.5-5.5a1.4 1.4 0 0 1 0-2z"/><path d="M4.5 12.5h13.5"/><path d="M20 15.5s1.5 2 1.5 3a1.5 1.5 0 0 1-3 0c0-1 1.5-3 1.5-3z"/></svg></button>
+          <button type="button" data-tool="gradient" aria-label="Gradient (G)" data-tip="Gradient (G): drag to blend between your two colours"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 4v16" opacity=".85"/><path d="M12 4v16" opacity=".55"/><path d="M16 4v16" opacity=".3"/></svg></button>
+          <button type="button" data-tool="text" aria-label="Text (T)" data-tip="Text (T): tap to type words. Click again for fonts"><svg viewBox="0 0 24 24"><path d="M5.5 6.5h13"/><path d="M12 6.5V19"/><path d="M9.5 19h5"/></svg></button>
+          <button type="button" data-tool="select" aria-label="Select and move (M)" data-tip="Select (M): drag a box, then move, copy, flip or cut it"><svg viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="1" stroke-dasharray="3 2.4"/></svg></button>
+          <button type="button" data-tool="lasso" aria-label="Cutout (Q)" data-tip="Cutout (Q): draw round anything to move or cut it out"><svg viewBox="0 0 24 24"><path d="M12 4.5c4.7 0 8 2.4 8 5.6s-3.3 5.4-7.6 5.4c-1.6 0-3.1-.3-4.3-.8" stroke-dasharray="2.6 2.2"/><path d="M8.1 14.7C5.5 13.8 4 12.1 4 10.1 4 6.9 7.3 4.5 12 4.5" stroke-dasharray="2.6 2.2"/><path d="M8 14.6c-1.2 1.1-1.4 2.6-.6 3.6.9 1.1 2.6.9 3 2.4"/></svg></button>
+          <button type="button" data-tool="wand" aria-label="Magic wand (W)" data-tip="Magic wand (W): tap to pick out an area of one colour"><svg viewBox="0 0 24 24"><path d="M4.5 19.5l10-10"/><path d="M13 8l3 3"/><path d="M17.5 3.5v3M16 5h3"/><path d="M20 10v2M19 11h2"/><path d="M10 3.5v2M9 4.5h2"/></svg></button>
+          <button type="button" data-tool="picker" aria-label="Colour picker (I)" data-tip="Colour picker (I): tap the picture to grab a colour. Or hold Alt (Option) with any tool"><svg viewBox="0 0 24 24"><path d="M14 6.5l3.5 3.5"/><path d="M15.8 4.2a2.3 2.3 0 0 1 3.3 3.3l-1.6 1.6-3.3-3.3z"/><path d="M14.2 7.8L6 16v2h2l8.2-8.2"/></svg></button>
+          <button type="button" data-tool="hand" aria-label="Move around (hold Space) (H)" data-tip="Move around (H): drag to pan the canvas, or hold Space"><svg viewBox="0 0 24 24"><path d="M8.5 12V6.8a1.4 1.4 0 0 1 2.8 0V11"/><path d="M11.3 10.5V5.4a1.4 1.4 0 0 1 2.8 0v5.1"/><path d="M14.1 10.5V6.6a1.4 1.4 0 0 1 2.8 0V14a6 6 0 0 1-6 6h-.4a5.4 5.4 0 0 1-4.3-2.2L4.3 14.4a1.4 1.4 0 0 1 2.2-1.8l2 2.4"/></svg></button>
+          <button type="button" data-tool="tone" aria-label="Light and dark (O)" data-tip="Light &amp; dark (O): brush over the picture to lighten or darken it, like in a darkroom. Click again to choose which"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/></svg></button>
+          <button type="button" class="paint-mirror" aria-pressed="false" data-tip="Mirror: whatever you draw is copied on the other side" aria-label="Mirror"><svg viewBox="0 0 24 24"><path d="M12 3.5v17" stroke-dasharray="2 2"/><path d="M9.5 7L4 17h5.5z"/><path d="M14.5 7L20 17h-5.5z"/></svg></button>
+          <button type="button" class="paint-adjust-btn" data-act="adjust" aria-expanded="false" aria-label="Adjust (A)" data-tip="Adjust (A): sliders for exposure, contrast, colour, sharpness and more, on the current layer (inside the selection, if there is one)"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg></button>
+        </div>
+      </div>
+      <div class="paint-stage">
+        <div class="paint-world">
+          <div class="paint-layers"></div>
+          <div class="paint-guide" hidden></div>
+          <canvas class="paint-over" aria-hidden="true"></canvas>
+          <canvas class="paint-selov" aria-hidden="true"></canvas>
+        </div>
+        <button type="button" class="paint-selx" hidden aria-label="Close the selection" title="Close the selection (Esc)"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
+        <div class="paint-selbar" hidden><button type="button" data-sel="copy">COPY</button><button type="button" data-sel="fliph">FLIP &#8596;</button><button type="button" data-sel="flipv">FLIP &#8597;</button><button type="button" data-sel="invert" title="Invert the colours (or right-click the selection)">INVERT</button><button type="button" data-sel="delete">DELETE</button><button type="button" data-sel="layer">CUT TO LAYER</button><button type="button" data-sel="done">DONE</button></div>
+      </div>
+      <div class="paint-bar paint-right" role="toolbar" aria-label="Colour and actions">
+        <div class="paint-group paint-colors" role="group" aria-label="Colour">
+          <div class="paint-pair">
+            <label class="paint-current" title="Colour"><input type="color" value="#141414" aria-label="Colour"><span></span></label>
+            <label class="paint-second" title="Second colour (for gradients)"><input type="color" value="#ffffff" aria-label="Second colour"><span></span></label>
+            <button type="button" class="paint-swap" aria-label="Swap colours (X)" title="Swap colours (X)"><svg viewBox="0 0 24 24"><path d="M6 6.5h9a3 3 0 0 1 3 3V17"/><path d="M15 14l3 3 3-3"/></svg></button>
+          </div>
+          <div class="paint-swatches"></div>
+          <div class="paint-recent" aria-label="Recent colours"></div>
+        </div>
+        <div class="paint-group paint-sliders">
+          <label title="Size ([ and ])"><span>SIZE</span><input type="range" class="paint-size" min="1" max="80" value="6"><output>6</output></label>
+          <label title="Opacity"><span>OPACITY</span><input type="range" class="paint-alpha" min="5" max="100" value="100"><output>100</output></label>
+        </div>
+        <div class="paint-group" role="group" aria-label="Actions">
+          <button type="button" data-act="undo" aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg></button>
+          <button type="button" data-act="redo" aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
+          <label class="paint-open" title="Open a picture to draw on"><input type="file" accept="image/*" aria-label="Open a picture"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M3.5 16l5-5 4 4 2.5-2.5L20.5 18"/><circle cx="15.5" cy="9" r="1.5"/></svg></label>
+          <button type="button" data-act="clear" aria-label="Clear" title="Clear"><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>
+          <button type="button" data-act="layers" class="paint-layers-btn" aria-label="Layers" title="Layers" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5" opacity=".6"/></svg><span>LAYERS</span></button>
+          <div class="paint-zoom" role="group" aria-label="Zoom"><button type="button" data-zoom="out" aria-label="Zoom out" title="Zoom out (-)">&#8722;</button><button type="button" data-zoom="fit" class="paint-zoom-val" title="Fit (0)">100%</button><button type="button" data-zoom="in" aria-label="Zoom in" title="Zoom in (+)">+</button></div>
+          <button type="button" data-act="save" class="paint-save" title="Save as a picture (PNG or JPEG)" aria-expanded="false" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 19.5h14"/></svg><span>SAVE</span></button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="paint.js"></script>
+</body>
+</html>
