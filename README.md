@@ -6,7 +6,7 @@ or JPEG.
 
 Tools: brush (several brush types), eraser, smudge, blur, line, shapes, fill,
 gradient, text, select & move, cutout, magic wand, colour picker, hand, light
-& dark, mirror and adjust, plus layers, undo/redo, zoom and opening a picture
+& dark, mirror and adjust (sliders, Levels and Curves), plus layers, undo/redo, zoom and opening a picture
 to draw on.
 
 Open `index.html` in a browser, or publish it with GitHub Pages
