@@ -587,12 +587,14 @@
     menus.brush.el.insertAdjacentHTML('beforeend',
       '<div class="pm-opts">' +
         '<label class="pa-row pm-slide"><span>Smoothing</span><output></output><input type="range" min="0" max="100" data-smoothing aria-label="Stroke smoothing"></label>' +
-        '<button type="button" class="pm-snap" role="menuitemcheckbox" aria-checked="true" title="Hold still at the end of a line, ellipse or rectangle to make it perfect"><i class="pm-snap-i"></i><span>Snap to shape</span></button>' +
+        '<button type="button" class="pm-taper" role="menuitemcheckbox" aria-checked="true" title="Thin, pointed ends on each stroke (off: the same thickness all the way)"><i class="pm-taper-i"></i><span>Tapered ends</span></button>' +
+        '<button type="button" class="pm-snap" role="menuitemcheckbox" aria-checked="true" title="Hold still at the end of a line, ellipse or rectangle to make it perfect (hold Shift for a circle or square)"><i class="pm-snap-i"></i><span>Snap to shape</span></button>' +
       '</div>');
     function brushOpts() {
       var m = menus.brush.el, r = m.querySelector('[data-smoothing]');
       r.value = smoothing; r.previousElementSibling.textContent = smoothing ? smoothing : 'Off';
       m.querySelector('.pm-snap').setAttribute('aria-checked', snapShapes ? 'true' : 'false');
+      m.querySelector('.pm-taper').setAttribute('aria-checked', taperOn ? 'true' : 'false');
     }
     menus.brush.el.addEventListener('input', function (e) {
       if (!e.target.matches('[data-smoothing]')) return;
@@ -600,6 +602,7 @@
     });
     menus.brush.el.addEventListener('click', function (e) {
       if (e.target.closest('.pm-slide')) { e.stopPropagation(); return; }
+      if (e.target.closest('.pm-taper')) { e.stopPropagation(); taperOn = !taperOn; storeIt('paint-taper', taperOn); brushOpts(); brushSamples(); return; }
       if (!e.target.closest('.pm-snap')) return;
       e.stopPropagation(); snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); brushOpts();
     });
@@ -723,6 +726,9 @@
       else if (k === 'feather') { c.w = Math.max(3, sz) * 1.35; c.blur = Math.max(3, sz) * 0.85; }
       if (c.len) { c.step = Math.max(0.5, c.thick * 0.4); c.reach = c.len / 2 + c.thick + 1; }
       else c.reach = c.w * 0.62 + (c.blur || 0) * 3 + 2;
+      // (with tapering off, a line is the same thickness from end to end;
+      // an Apple Pencil's pressure still thickens and thins it)
+      if (taperOn === false) c.tin = c.tout = 0;
       c.live = c.tout; // (how far back from the tip it still changes)
       return c;
     }
@@ -887,7 +893,7 @@
     // the picture's units to the canvas; px is canvas pixels per unit. s8
     // keeps what's kept for the stroke: s8.sym, the symmetry copies. box (in units) and rects (in canvas pixels)
     // are the area being redrawn, or null for all of it.
-    var featherSheet = null;
+    var featherSheet = null, taperOn = true;
     function strokeOn(c, S, cfg, s8, px, box, rects) {
       var k = cfg.kind, total = S[S.length - 1].d, sym = s8.sym || [];
       var rep = function (x, fn) {
@@ -983,8 +989,13 @@
       var cfg = down.cfg || (down.cfg = brushCfg(kind(), st.size, st.tool === 'eraser' ? '#fff' : st.color));
       down.sym = copies();
       var prev = down.S, prevTail = prev ? prev.slice(prev.seg && down.n >= 4 ? prev.seg[Math.max(0, down.n - 3)] : 0) : null;
-      var S = resample(pts, cfg.step, prev, down.n), total = S[S.length - 1].d;
-      var d0 = prev ? changedFrom(prev, S, pts, down.total, total, cfg, down.n) : 0;
+      // (with smoothing, the steadied line is joined on to where the pointer
+      // really is, so it never trails behind it, and nothing jumps when it's
+      // let go; the join is drawn afresh each time, as the line catches up)
+      var P = pts, rl = down.rawLast, lp = pts[pts.length - 1];
+      if (rl && !down.shape && Math.hypot(rl.x - lp.x, rl.y - lp.y) > 0.5 / view.k) P = pts.concat([rl]);
+      var S = resample(P, cfg.step, prev, down.n), total = S[S.length - 1].d;
+      var d0 = prev ? changedFrom(prev, S, P, down.total, total, cfg, down.n) : 0;
       if (down.total < (cfg.w || 0) * 2.5) d0 = 0; // (while it's that short, all of it changes as it grows)
       var box = boxOf(S, d0, cfg.reach, prevTail ? boxOf(prevTail, d0, cfg.reach, [Infinity, Infinity, -Infinity, -Infinity]) : [Infinity, Infinity, -Infinity, -Infinity]);
       var rects = box[2] > box[0] ? deviceRects(box, down.sym) : [];
@@ -2420,7 +2431,7 @@
       var reach = cfg ? (cfg.len ? cfg.len / 2 + cfg.thick : cfg.w / 2 + (cfg.blur || 0) * 1.7) + 1 : sprayRadius(st.size) * 1.35;
       var fit2 = Math.min(1, Math.min(stage.clientWidth, stage.clientHeight) * 0.8 / (reach * 2 * view.k)), unit = view.k * fit2;
       var wU = Math.max(reach * 2, 28 / unit);
-      drawPreview(prev.firstChild, k, st.size, k === 'eraser' ? '#ffffff' : st.color, [{ x: wU / 2, y: wU / 2 }], wU, wU, unit);
+      drawPreview(prev.firstChild, k, st.size, k === 'eraser' ? '#000' : st.color, [{ x: wU / 2, y: wU / 2 }], wU, wU, unit);
       prev.classList.add('on'); clearTimeout(prevTimer);
       if (!sliderHeld) prevTimer = setTimeout(hidePreview, 900);
       brushSamples();
@@ -2445,6 +2456,13 @@
       } else {
         var cfg = brushCfg(k, size, color);
         strokeOn(x, resample(P, cfg.step), cfg, { preview: true }, px, null, null);
+        // (the eraser shows what it leaves: see-through, as a checkerboard,
+        // on the card's white paper)
+        if (k === 'eraser') {
+          var t = document.createElement('canvas'); t.width = t.height = 10;
+          var tx = t.getContext('2d'); tx.fillStyle = '#fff'; tx.fillRect(0, 0, 10, 10); tx.fillStyle = '#dcdcdc'; tx.fillRect(0, 0, 5, 5); tx.fillRect(5, 5, 5, 5);
+          x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = x.createPattern(t, 'repeat'); x.fillRect(0, 0, cv.width, cv.height); x.restore();
+        }
       }
       var lk = k === 'eraser' ? { alpha: 1 } : strokeLook(k);
       cv.style.opacity = lk.alpha; cv.style.mixBlendMode = (!flat && lk.mode) || '';
@@ -2604,7 +2622,7 @@
       if (t === 'eraser' || (t === 'brush' && kind() !== 'spray')) {
         evs.forEach(function (ev) {
           var q = pos(ev); q.pr = smoothPr(ev.pressure);
-          if (down.shape) { shapeFollow(q); return; }
+          if (down.shape) { var sc = ev.shiftKey !== shiftHeld; shiftHeld = ev.shiftKey; shapeFollow(q, sc); return; }
           holdStill(q);
           // SMOOTHING: the line trails the pointer on a short string, so it
           // only moves when pulled, which irons out the wobbles (the same at
@@ -2644,6 +2662,7 @@
     // one, drawn with the same brush. Keep holding and move to adjust it: a
     // line's end follows, a shape grows and shrinks round its middle.
     var smoothing = stored('paint-smoothing', 0), snapShapes = stored('paint-snap-shapes', true), holdTimerS = 0;
+    taperOn = stored('paint-taper', true);
     function holdStill(q) {
       if (!snapShapes) return;
       var a = down.holdAt;
@@ -2686,6 +2705,14 @@
     }
     function shapePts(sh, k) {
       var out = [], step = Math.max(1, st.size * 0.25), i;
+      // (with Shift held, an ellipse is a circle and a rectangle a square, as
+      // round as it is on average; let go and it's as it was)
+      sh = Object.create(sh);
+      if (shiftHeld && sh.kind !== 'line') sh.rx = sh.ry = (sh.rx + sh.ry) / 2;
+      if (shiftHeld && sh.kind === 'line') {
+        var an = Math.round(Math.atan2(sh.b.y - sh.a.y, sh.b.x - sh.a.x) / (Math.PI / 12)) * (Math.PI / 12), ln = Math.hypot(sh.b.x - sh.a.x, sh.b.y - sh.a.y);
+        sh.b = { x: sh.a.x + Math.cos(an) * ln, y: sh.a.y + Math.sin(an) * ln };
+      }
       if (sh.kind === 'line') { out = along(sh.a, sh.b, step); out.push({ x: sh.b.x, y: sh.b.y }); }
       else if (sh.kind === 'rect') {
         var c = [{ x: sh.cx - sh.rx * k, y: sh.cy - sh.ry * k }, { x: sh.cx + sh.rx * k, y: sh.cy - sh.ry * k }, { x: sh.cx + sh.rx * k, y: sh.cy + sh.ry * k }, { x: sh.cx - sh.rx * k, y: sh.cy + sh.ry * k }];
@@ -2713,21 +2740,29 @@
       redrawShape(1);
       toast(sh.name + ': keep holding to adjust');
     }
-    function shapeFollow(q) {
+    // (Shift pressed or let go while a snapped shape is held: it changes there and then)
+    var shiftHeld = false;
+    function shiftChanged(on) {
+      if (shiftHeld === on) return;
+      shiftHeld = on;
+      if (down && down.shape) redrawShape(down.shape.k || 1);
+    }
+    function shapeFollow(q, force) {
       var sh = down.shape;
       if (sh.kind === 'line') { sh.b = q; redrawShape(1); return; }
       var d0 = Math.hypot(sh.hold.x - sh.cx, sh.hold.y - sh.cy) || 1, k = Math.max(0.05, Math.hypot(q.x - sh.cx, q.y - sh.cy) / d0);
-      if (Math.abs(k - sh.k) * Math.max(sh.rx, sh.ry) * view.k < 0.5) return;
+      if (!force && Math.abs(k - sh.k) * Math.max(sh.rx, sh.ry) * view.k < 0.5) return;
       sh.k = k; redrawShape(k);
     }
     function end() {
       var t = st.tool;
       clearTimeout(holdTimerS);
       // (a smoothed line catches up with where the pointer was let go)
+      // (a smoothed line keeps the join to where the pointer was let go: it's
+      // exactly what was showing, so the line stays just as it was)
       if (down && down.rawLast && !down.shape) {
-        var g = pts[pts.length - 1], r = down.rawLast, n = Math.ceil(Math.hypot(r.x - g.x, r.y - g.y) / Math.max(1, st.size * 0.3));
-        for (var j = 1; j <= n; j++) pts.push({ x: g.x + (r.x - g.x) * j / n, y: g.y + (r.y - g.y) * j / n, pr: r.pr });
-        if (n) renderStroke();
+        var g = pts[pts.length - 1], r = down.rawLast; down.rawLast = null;
+        if (Math.hypot(r.x - g.x, r.y - g.y) > 0.5 / view.k) { pts.push(r); renderStroke(); }
       }
       if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
@@ -2875,7 +2910,7 @@
       if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) autosave();
       spaceGrab = null; stage.classList.remove('panning');
     }
-    window.addEventListener('blur', function () { letGoOfSpace(); stage.classList.remove('picking'); });
+    window.addEventListener('blur', function () { letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
     function up(e) {
       delete pointers[e.pointerId]; delete ptype[e.pointerId];
       if (e.pointerType === 'pen') hideRing();
@@ -3407,7 +3442,7 @@
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Close / cancel', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Adjust', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
-        group('Touch & Pencil', [['Undo', 'Two-finger tap'], ['Redo', 'Three-finger tap'], ['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Layer options', '•••']]) +
+        group('Touch & Pencil', [['Undo', 'Two-finger tap'], ['Redo', 'Three-finger tap'], ['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']]) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
     }
@@ -3467,6 +3502,7 @@
     app = {
       root: root, fit: fit,
       key: function (e) {
+        if (e.key === 'Shift') shiftChanged(true);
         var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
         if (sheetEl) { if (k === 'escape') closeSheet(); return; }
         if (k === 'escape' && closeDrops()) return;
@@ -3507,7 +3543,7 @@
         else if (k === '0') fit();
         else if (e.key === '?') helpSheet();
       },
-      keyup: function (e) { if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
+      keyup: function (e) { if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
     };
   }
   function setup() {
