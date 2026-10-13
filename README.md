@@ -15,6 +15,13 @@ uploaded.
   holding still at the end of a stroke **snaps it to a shape** (line,
   ellipse, circle or rectangle; hold Shift for a circle or square).
   **Tapered ends** can be switched off for lines of even thickness
+- **Layout:** document actions and a saved status in the top bar, the tools
+  in groups on the left, colour, size and opacity on the right, and a
+  **context bar** at the top of the picture with the settings of the tool
+  in hand (the brush, smoothing and taper; shape and fill; font, size, style
+  and alignment) or what can be done with a selection. Panels can be dragged
+  aside, sections folded, and **Focus mode** (`\`) hides everything but the
+  picture
 - **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
   **Aa** button while typing for size, bold, italic, underline, capitals,
   alignment, letter spacing, line height, outline and shadow
