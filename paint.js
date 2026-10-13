@@ -3729,6 +3729,14 @@
       right.dataset.uses = uses;
       var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text' }[st.tool] || 'Brush';
     }
+    // (folded away to one button, and back; remembered)
+    function ctxMin(on) {
+      ctxClose(); hideTip();
+      ctxEl.classList.toggle('min', on);
+      var m = ctxEl.querySelector('.ctx-min'), t = on ? 'Show the tool settings' : 'Hide the tool settings';
+      m.setAttribute('aria-expanded', on ? 'false' : 'true'); m.setAttribute('aria-label', t); m.dataset.tip = t;
+      storeIt('paint-ctx-min', on);
+    }
     function ctxShow() {
       var has = !selbar.hidden;
       ctxEl.classList.toggle('has-sel', has);
@@ -3751,6 +3759,7 @@
       var tm = q('[data-ctx="tmore"]'); if (tm) tm.disabled = !textBox;
     }
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
@@ -3760,6 +3769,7 @@
     ctxEl.addEventListener('pointerdown', function (e) { if (anyMenu()) openMenu(null); if (textBox && e.target.closest('button')) e.preventDefault(); }); // (so the words being typed keep the caret)
     ctxEl.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
+      if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }

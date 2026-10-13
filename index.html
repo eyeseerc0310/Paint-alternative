@@ -107,13 +107,9 @@
         <button type="button" class="paint-selx" hidden aria-label="Close the selection" data-tip="Close the selection (Esc)"><svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
         <div class="paint-zoom" role="group" aria-label="Zoom"><button type="button" data-zoom="out" aria-label="Zoom out" data-tip="Zoom out (−)">&#8722;</button><button type="button" data-zoom="fit" class="paint-zoom-val" data-tip="Fit (0)">100%</button><button type="button" data-zoom="in" aria-label="Zoom in" data-tip="Zoom in (+)">+</button></div>
         <div class="paint-ctx" role="toolbar" aria-label="Tool options"><span class="ctx-grip" aria-hidden="true" data-tip="Drag to move (double-click: back to its place)"></span><div class="ctx-tool"></div>
-        <div class="paint-selbar" hidden><button type="button" data-sel="copy" data-tip="Copy it onto a new layer, ready to move">Copy</button><button type="button" data-sel="fliph" data-tip="Flip left to right">Flip &#8596;</button><button type="button" data-sel="flipv" data-tip="Flip upside down">Flip &#8597;</button><button type="button" data-sel="rot90" data-tip="Turn a quarter turn (or drag the round handle)">Turn 90°</button><button type="button" data-sel="invert" data-tip="Invert the colours (or right-click the selection)">Invert</button><button type="button" data-sel="delete" data-tip="Delete what's selected (Delete)">Delete</button><button type="button" data-sel="layer" data-tip="Cut it out onto a layer of its own">Cut to Layer</button><button type="button" data-sel="done" data-tip="Put it down (Enter)">Done</button></div></div>
+        <div class="paint-selbar" hidden><button type="button" data-sel="copy" data-tip="Copy it onto a new layer, ready to move">Copy</button><button type="button" data-sel="fliph" data-tip="Flip left to right">Flip &#8596;</button><button type="button" data-sel="flipv" data-tip="Flip upside down">Flip &#8597;</button><button type="button" data-sel="rot90" data-tip="Turn a quarter turn (or drag the round handle)">Turn 90°</button><button type="button" data-sel="invert" data-tip="Invert the colours (or right-click the selection)">Invert</button><button type="button" data-sel="delete" data-tip="Delete what's selected (Delete)">Delete</button><button type="button" data-sel="layer" data-tip="Cut it out onto a layer of its own">Cut to Layer</button><button type="button" data-sel="done" data-tip="Put it down (Enter)">Done</button></div><button type="button" class="ctx-min" aria-expanded="true" aria-label="Hide the tool settings" data-tip="Hide the tool settings"><svg class="cm-hide" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg><svg class="cm-show" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button></div>
       </div>
       <div class="paint-bar paint-right" role="toolbar" aria-label="Colour and brush">
-        <div class="paint-group pr-history" role="group" aria-label="Undo and redo">
-          <button type="button" data-act="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z · two-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg></button>
-          <button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y · three-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
-        </div>
         <section class="pr-sec" data-sec="colour">
           <button type="button" class="pr-head" aria-expanded="true" data-tip="Show or hide the colours"><span>Colour</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg></button>
           <div class="pr-body"><div class="pr-in">
@@ -137,6 +133,10 @@
             </div>
           </div></div>
         </section>
+        <div class="paint-group pr-history" role="group" aria-label="Undo and redo">
+          <button type="button" data-act="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z · two-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/></svg></button>
+          <button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y · three-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
+        </div>
       </div>
     </section>
   </main>

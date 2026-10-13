@@ -212,7 +212,7 @@ body > * { flex-shrink: 0; }
 /* ---- the right-hand panel: Colour, and the tool's Size and Opacity, in
    sections that fold away (their titles) ---- */
 .paint-right { gap: var(--s-2); }
-.pr-sec + .pr-sec, .pr-history + .pr-sec { padding-top: var(--s-2); border-top: .5px solid var(--line); }
+.pr-sec + .pr-sec, .pr-sec + .pr-history { padding-top: var(--s-2); border-top: .5px solid var(--line); }
 .paint .pr-head {
   display: flex; align-items: center; justify-content: space-between; width: 100%; height: 22px; padding: 0 2px 0 4px; border-radius: var(--r-xs);
   font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em; color: var(--muted);
@@ -543,6 +543,16 @@ body > * { flex-shrink: 0; }
 .ctx-grip { flex: none; align-self: stretch; width: 10px; margin-right: 2px; border-radius: var(--r-xs); cursor: grab; touch-action: none;
   background: radial-gradient(circle, var(--muted) 1px, transparent 1.4px) 50% 50% / 4px 5px; opacity: .55; transition: opacity var(--dur) ease; }
 .ctx-grip:hover { opacity: 1; }
+/* the button that folds the bar away to a single button (and back) */
+.paint .ctx-min { flex: none; width: 28px; height: 28px; border-radius: var(--r-sm); color: var(--muted); }
+.paint .ctx-min:hover { color: var(--menu-link); background: var(--hover-strong); }
+.paint .ctx-min svg { width: var(--icon-sm); height: var(--icon-sm); }
+.ctx-min .cm-show, .paint-ctx.min .ctx-min .cm-hide { display: none; }
+.paint-ctx.min .ctx-min .cm-show { display: block; }
+.paint-ctx.min > :not(.ctx-min) { display: none !important; }
+.paint-ctx.min { padding: 3px; }
+.paint .paint-ctx.min .ctx-min { width: 34px; height: 34px; color: var(--menu-link); }
+.paint .paint-ctx.min .ctx-min svg { width: var(--icon); height: var(--icon); }
 .ctx-tool { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .ctx-tool::-webkit-scrollbar { display: none; }
 .paint-ctx.has-sel .ctx-tool { display: none; }
@@ -601,9 +611,12 @@ body > * { flex-shrink: 0; }
   }
   .paint-ctx::-webkit-scrollbar { display: none; }
   /* (the grip: a small pill along the top, like a sheet's grabber) */
-  .ctx-grip { position: relative; align-self: stretch; width: auto; height: 12px; margin: 0; background: none; opacity: 1; }
-  .ctx-grip::before { content: ""; position: absolute; left: 50%; top: 4px; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px; background: var(--muted); opacity: .4; transition: opacity var(--dur) ease; }
+  .ctx-grip { position: relative; align-self: stretch; width: auto; height: 20px; margin: 0 0 -4px; background: none; opacity: 1; }
+  .ctx-grip::before { content: ""; position: absolute; left: 50%; top: 7px; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px; background: var(--muted); opacity: .4; transition: opacity var(--dur) ease; }
   .ctx-grip:hover::before { opacity: .8; }
+  .paint .ctx-min { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; }
+  .paint-ctx.min { width: auto; overflow: visible; }
+  .paint .paint-ctx.min .ctx-min { position: static; }
   .ctx-tool { flex-direction: column; align-items: stretch; gap: var(--s-1); overflow: visible; }
   .ctx-sep { width: auto; height: .5px; margin: var(--s-1) var(--s-1); }
   .ctx-hint { padding: var(--s-1) var(--s-2); white-space: normal; line-height: 1.4; }
