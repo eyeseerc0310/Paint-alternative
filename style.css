@@ -291,6 +291,10 @@ body > * { flex-shrink: 0; }
 .paint-guide svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .paint-guide line { stroke: var(--guide); stroke-width: 1; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .paint-guide[hidden] { display: none; }
+/* (the drawing assist: the ruler's edge solid, the vanishing points' rays faint) */
+.paint-guide line.ruler { stroke-dasharray: none; stroke-width: 2; }
+.paint-guide line.faint { opacity: .35; }
+.paint-guide line.horizon { stroke-dasharray: 10 5; }
 .paint-stage[data-tool="brush"], .paint-stage[data-tool="eraser"], .paint-stage[data-tool="smudge"], .paint-stage[data-tool="blur"], .paint-stage[data-tool="tone"] { cursor: none; }
 .paint-stage[data-tool="hand"], .paint-stage.space { cursor: grab; }
 .paint-stage.panning { cursor: grabbing; }
@@ -456,6 +460,15 @@ body > * { flex-shrink: 0; }
 /* (the title stays at the top, and Done and Cancel at the foot, while the sections scroll) */
 .paint-adjust .pa-title { position: sticky; top: -14px; z-index: 1; margin: -14px -14px 6px; padding: 14px 14px 8px; background: var(--menu-solid); }
 .paint-adjust .pa-acts { position: sticky; bottom: -12px; z-index: 1; margin: var(--s-3) -14px -12px; padding: var(--s-2) 14px 12px; background: var(--menu-solid); border-top: .5px solid var(--line); }
+/* BRUSH STUDIO: a stroke of the brush at the top, then its settings */
+.bs-prev { display: block; width: 100%; height: 64px; margin-bottom: var(--s-2); border-radius: var(--r-sm); background: var(--hover); }
+.bs-name { display: flex; align-items: center; gap: var(--s-2); margin-bottom: var(--s-2); font-size: var(--fs-sm); color: var(--muted); }
+.bs-name input { flex: 1; min-width: 0; }
+.bs-tips { grid-template-columns: repeat(5, 1fr); }
+.bs-tip { display: block; margin: 0 auto; }
+.paint .pa-acts button.bs-del { color: var(--accent); }
+.paint .ctx-list .ctx-newbrush { margin-top: 4px; color: var(--muted); }
+.paint .ctx-list .ctx-newbrush svg { width: var(--icon-sm); height: var(--icon-sm); margin: 0 15px; }
 /* CURVES */
 .cv-graph { display: block; width: 100%; touch-action: none; cursor: crosshair; }
 .cv-help { margin-top: 6px; font-size: .6875rem; line-height: 1.4; color: var(--muted); }
@@ -633,6 +646,7 @@ body > * { flex-shrink: 0; }
 .paint .ctx-seg button svg { width: var(--icon-sm); height: var(--icon-sm); }
 .ctx-tool [hidden] { display: none !important; }
 [data-sym-when] > .ctx-hint { display: block; }
+.ctx-sub { flex: none; padding: var(--s-1) var(--s-2) 0; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); white-space: nowrap; }
 .ctx-title { flex: none; padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); font-weight: 600; color: var(--menu-link); white-space: nowrap; }
 .paint .ctx-btn.ctx-done { justify-content: center; background: var(--accent); color: #fff; }
 .paint .ctx-btn.ctx-done:hover { background: var(--accent-hover); }
@@ -835,6 +849,7 @@ body > * { flex-shrink: 0; }
   .paint-right .pr-head span { display: none; }
   /* (Effects sits in the left bar: its own buttons keep their sizes) */
   .paint-left .paint-adjust .gm-chip { height: auto !important; }
+  .bs-tips { grid-template-columns: repeat(3, 1fr); }
   .paint-left .paint-adjust .pa-acts button { height: 30px !important; }
   .paint-left .paint-adjust .gm-rev { height: 28px !important; }
   .paint-left .paint-adjust .fx-head .pr-head { height: 28px !important; }

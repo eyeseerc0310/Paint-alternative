@@ -799,10 +799,52 @@
     // The same code draws the samples in the brush list and the preview
     // beside the size slider, so they always match the real thing. ----
 
+    // BRUSH SETTINGS (the Brush Studio): every brush has its settings, which
+    // can be changed (and put back); a changed one can be kept as a brush of
+    // your own, and new ones made from stamps (dabs of a tip, spaced along
+    // the line and jittered). psize: how much pressure changes the size;
+    // curve: soft (a light touch is enough) to firm; tin / tout: how long the
+    // tapered ends are (100 = as made); grain: the paper's tooth; angle: a
+    // flat nib's slant; and for stamps: the tip, spacing (in % of the size),
+    // scatter, size / opacity / angle jitter, and popacity, how much pressure
+    // changes the opacity
+    var BDEF = {
+      round: { psize: 85, curve: 0, tin: 100, tout: 100, grain: 0 },
+      pencil: { psize: 85, curve: 0, tin: 100, tout: 100, grain: 60 },
+      feather: { grain: 0 },
+      marker: { psize: 65, curve: 0, angle: -34, grain: 0 },
+      highlighter: { psize: 65, curve: 0, angle: 77, grain: 0 },
+      calligraphy: { psize: 65, curve: 0, angle: -45, grain: 0 },
+      spray: {},
+      eraser: { psize: 85, curve: 0 },
+      stamp: { tip: 'dot', spacing: 25, scatter: 0, jsize: 0, jopacity: 0, jangle: 0, psize: 85, popacity: 0, curve: 0, tin: 100, tout: 100, grain: 0 }
+    };
+    var TIPS = [['dot', 'Hard'], ['soft', 'Soft'], ['square', 'Square'], ['chalk', 'Chalk'], ['splatter', 'Splatter']];
+    var brushEdits = stored('paint-brush-edits', {}), myBrushes = stored('paint-my-brushes', []);
+    // a brush by its id: its name, what kind it's made from, and its settings
+    function bdef(id) {
+      var mine = myBrushes.filter(function (b) { return b.id === id; })[0];
+      var base = mine ? mine.base : id, set = {}, k, D = BDEF[base] || BDEF.round;
+      for (k in D) set[k] = D[k];
+      var ch = mine ? mine.set : brushEdits[id] || {};
+      for (k in ch) if (k in D) set[k] = ch[k];
+      var b = BRUSHES.filter(function (x) { return x[0] === id; })[0];
+      return { id: id, name: mine ? mine.name : b ? b[1] : id === 'eraser' ? 'Eraser' : 'Brush', base: BDEF[base] ? base : 'round', set: set, mine: !!mine };
+    }
+    function baseOf(id) { return bdef(id).base; }
+    function allBrushes() { return BRUSHES.concat(myBrushes.map(function (b) { return [b.id, b.name, true]; })); }
+    // how much of the full size (or opacity) a pressure gives: pr (0-1) eased
+    // along the curve, then mixed in by amount (0-100)
+    function prF(pr, amount, curve) {
+      if (pr == null) return 1;
+      var p = Math.pow(Math.min(1, pr * 1.25), Math.pow(2, -(curve || 0) / 50)), a = (amount == null ? 85 : amount) / 100;
+      return 1 - a + a * p;
+    }
     // each brush's shape: its width (or flat nib), how its ends taper, how
     // finely it's sampled, and how far its paint reaches beyond the line
-    function brushCfg(k, sz, color) {
-      var c = { kind: k, size: sz, color: color, tin: 0, tout: 0, step: Math.max(0.6, sz * 0.1) };
+    function brushCfg(id, sz, color) {
+      var D = bdef(id), k = D.base, S = D.set;
+      var c = { kind: k, id: id, set: S, size: sz, color: color, tin: 0, tout: 0, step: Math.max(0.6, sz * 0.1) };
       if (k === 'round') { c.w = sz; c.tin = sz * 1.5; c.tout = sz * 1.2; }
       else if (k === 'eraser') { c.w = sz; }
       else if (k === 'pencil') { c.w = Math.max(1, sz * 0.38); c.tin = c.tout = Math.max(6, sz * 3); c.step = 0.6; }
@@ -810,8 +852,13 @@
       else if (k === 'highlighter') { c.len = Math.max(10, sz * 2.2); c.thick = Math.max(3, sz * 0.5); c.ang = 1.35; }
       else if (k === 'calligraphy') { c.len = Math.max(4, sz * 1.5); c.thick = Math.max(1, sz * 0.09); c.ang = -Math.PI / 4; }
       else if (k === 'feather') { c.w = Math.max(3, sz) * 1.35; c.blur = Math.max(3, sz) * 0.85; }
+      else if (k === 'stamp') { c.w = sz; c.tin = sz * 1.5; c.tout = sz * 1.2; c.step = Math.max(0.5, sz * 0.05); c.sp = Math.max(0.5, sz * S.spacing / 100); }
+      if (S.angle != null) c.ang = S.angle * Math.PI / 180;
+      if (S.tin != null) { c.tin *= S.tin / 100; c.tout *= S.tout / 100; }
       if (c.len) { c.step = Math.max(0.5, c.thick * 0.4); c.reach = c.len / 2 + c.thick + 1; }
-      else c.reach = c.w * 0.62 + (c.blur || 0) * 3 + 2;
+      else c.reach = c.w * (0.62 + (S.scatter || 0) / 100) + (c.blur || 0) * 3 + 2;
+      // (the paper's grain, rubbed out of the line: more for a small one)
+      var g = (S.grain || 0) / 100; c.grain = g ? Math.max(g * 0.5, g * 1.033 - sz * 0.006) : 0;
       // (with tapering off, a line is the same thickness from end to end;
       // an Apple Pencil's pressure still thickens and thins it)
       if (taperOn === false) c.tin = c.tout = 0;
@@ -859,11 +906,11 @@
     // (ease-out curves, so the line swells quickly from a fine point)
     // (a stroke only a little longer than it is wide is more like a dot: its
     // ends taper in less, so a tiny flick isn't lost next to a tap)
-    function widthFn(base, tin, tout, total) {
-      var memo = [], full = Math.min(1, total / (base * 2.5));
+    function widthFn(base, tin, tout, total, set) {
+      var memo = [], full = Math.min(1, total / (base * 2.5)), ps = set && set.psize, cv = set && set.curve;
       return function (s, tap) {
         if (!tap && memo[s.i] != null) return memo[s.i];
-        var f = s.pr == null ? 1 : 0.15 + 0.85 * Math.min(1, s.pr * 1.25);
+        var f = prF(s.pr, ps, cv);
         if (!tap) {
           if (tin) { var u = Math.min(1, s.d / tin); f *= 1 - full * 0.88 * (1 - u) * (1 - u); }
           if (tout) { var v = Math.min(1, Math.max(0, total - s.d) / tout); f *= 1 - full * 0.8 * (1 - v) * (1 - v); }
@@ -943,7 +990,7 @@
     // stroke is those outlines joined: clean, continuous edges with no
     // sawtooth from the nib's corners
     function nibCorners(s, cfg) {
-      var k = s.pr == null ? 1 : 0.35 + 0.65 * Math.min(1, s.pr * 1.25), ca = Math.cos(cfg.ang), sa = Math.sin(cfg.ang);
+      var k = prF(s.pr, cfg.set.psize, cfg.set.curve), ca = Math.cos(cfg.ang), sa = Math.sin(cfg.ang);
       var hx = ca * cfg.len / 2 * k, hy = sa * cfg.len / 2 * k, tx = -sa * cfg.thick / 2, ty = ca * cfg.thick / 2;
       return [[s.x - hx - tx, s.y - hy - ty], [s.x + hx - tx, s.y + hy - ty], [s.x + hx + tx, s.y + hy + ty], [s.x - hx + tx, s.y - hy + ty]];
     }
@@ -1005,17 +1052,15 @@
       };
       c.save(); c.fillStyle = c.strokeStyle = cfg.color;
       if (k === 'round' || k === 'eraser') {
-        var wr = widthFn(cfg.w, cfg.tin, cfg.tout, total);
+        var wr = widthFn(cfg.w, cfg.tin, cfg.tout, total, cfg.set);
         rep(c, function (x) { ribbon(x, S, wr, box); });
       } else if (k === 'pencil') {
         // graphite: a fine line that tapers, catching on the paper's tooth;
         // pressing harder (or a bigger size) fills more of the grain in
-        var wp = widthFn(cfg.w, cfg.tin, cfg.tout, total);
+        var wp = widthFn(cfg.w, cfg.tin, cfg.tout, total, cfg.set);
         rep(c, function (x) { ribbon(x, S, wp, box); });
-        // (the grain only where it's being redrawn: rubbing it over the whole sheet would cost a lot)
-        if (rects) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); clipTo2(c, rects); }
-        rubOut(c, 'pencil', Math.max(0.3, 0.62 - cfg.size * 0.006), px);
-        if (rects) c.restore();
+      } else if (k === 'stamp') {
+        rep(c, function (x) { stamps(x, S, cfg, box, total); });
       } else if (cfg.len) {
         rep(c, function (x) { chisel(x, S, cfg, box); });
       } else if (k === 'feather') {
@@ -1056,7 +1101,52 @@
           c.drawImage(x.canvas, 0, 0, tw, th, bb[0], bb[1], tw * Sc, th * Sc); c.restore();
         }
       }
+      // (the paper's grain: only where it's being redrawn, since rubbing it
+      // over the whole sheet would cost a lot)
+      if (cfg.grain) {
+        if (rects) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); clipTo2(c, rects); }
+        rubOut(c, 'pencil', cfg.grain, px);
+        if (rects) c.restore();
+      }
       c.restore();
+    }
+    // STAMPS: a dab of the tip every so often along the line, each one
+    // nudged, sized, faded and turned a little at random (the same way each
+    // time it's drawn, so a part drawn again comes out the same)
+    var tipCache = {};
+    function tipOf(name, color) {
+      var key = name + color; if (tipCache[key]) return tipCache[key];
+      var N = 64, t = document.createElement('canvas'); t.width = t.height = N;
+      var x = t.getContext('2d'), r = N / 2, i;
+      x.fillStyle = '#fff';
+      if (name === 'soft') { var g = x.createRadialGradient(r, r, 0, r, r, r); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, N, N); }
+      else if (name === 'square') { x.fillRect(6, 6, N - 12, N - 12); }
+      else if (name === 'splatter') { var rs = 7; for (i = 0; i < 26; i++) { rs = (rs * 9301 + 49297) % 233280; var a = rs / 233280 * Math.PI * 2; rs = (rs * 9301 + 49297) % 233280; var d = Math.sqrt(rs / 233280) * (r - 6); rs = (rs * 9301 + 49297) % 233280; x.beginPath(); x.arc(r + Math.cos(a) * d, r + Math.sin(a) * d, 1.5 + rs / 233280 * 4.5, 0, Math.PI * 2); x.fill(); } }
+      else { x.beginPath(); x.arc(r, r, r - 1, 0, Math.PI * 2); x.fill(); }
+      if (name === 'chalk') {
+        // (a rough, dry edge and a broken-up middle)
+        var im = x.getImageData(0, 0, N, N), d2 = im.data, sd = 11;
+        for (i = 3; i < d2.length; i += 4) { sd = (sd * 9301 + 49297) % 233280; var px = (i >> 2) % N - r, py = ((i >> 2) / N | 0) - r, e = Math.hypot(px, py) / r; d2[i] = d2[i] * Math.max(0, Math.min(1, (sd / 233280) * 1.5 - e * 0.6)); }
+        x.putImageData(im, 0, 0);
+      }
+      x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, N, N);
+      return (tipCache[key] = t);
+    }
+    function rnd(k, n) { var v = Math.sin(k * 12.9898 + n * 78.233) * 43758.5453; return v - Math.floor(v); }
+    function stamps(c, S, cfg, box, total) {
+      var T = cfg.set, tip = tipOf(T.tip, cfg.color), wf = widthFn(cfg.w, cfg.tin, cfg.tout, total, T), sp = cfg.sp, j = 0;
+      var n = S.length === 1 ? 1 : Math.floor(total / sp) + 1;
+      for (var k = 0; k < n; k++) {
+        var d = k * sp; while (j < S.length - 2 && S[j + 1].d < d) j++;
+        var a = S[j], b = S[Math.min(S.length - 1, j + 1)], u = b.d > a.d ? Math.max(0, Math.min(1, (d - a.d) / (b.d - a.d))) : 0;
+        if (box && !near(a, box) && !near(b, box)) continue;
+        var w = wf(a, S.length === 1) * (1 - (T.jsize || 0) / 100 * rnd(k, 3));
+        var x = a.x + (b.x - a.x) * u, y = a.y + (b.y - a.y) * u;
+        if (T.scatter) { var ra = rnd(k, 1) * Math.PI * 2, rr = rnd(k, 2) * T.scatter / 100 * cfg.w; x += Math.cos(ra) * rr; y += Math.sin(ra) * rr; }
+        var al = (1 - (T.jopacity || 0) / 100 * rnd(k, 4)) * (T.popacity ? prF(a.pr, T.popacity, T.curve) : 1);
+        var ang = Math.atan2(a.ny, a.nx) + (rnd(k, 5) - 0.5) * Math.PI * 2 * (T.jangle || 0) / 100;
+        c.save(); c.globalAlpha *= al; c.translate(x, y); c.rotate(ang); c.drawImage(tip, -w / 2, -w / 2, w, w); c.restore();
+      }
     }
     // the redraw area, in units and in sheet pixels: everything within reach
     // of the samples that changed (old and new), copied for any symmetry
@@ -1175,19 +1265,65 @@
     symDot.hidden = symTurn.hidden = true; stage.appendChild(symDot); stage.appendChild(symTurn);
     function turnDir() { return st.sym === 'y' ? symA : symA - Math.PI / 2; }
     function drawGuide() {
-      if (st.sym === 'off') { guide.hidden = true; placeSymHandles(); return; }
       var L = Math.hypot(W, H) * 2, c = symCentre(), lines = [], i;
-      var line = function (a, ray) { lines.push([ray ? c.x : c.x - Math.cos(a) * L, ray ? c.y : c.y - Math.sin(a) * L, c.x + Math.cos(a) * L, c.y + Math.sin(a) * L]); };
+      var line = function (a, ray, at, cls) { var o = at || c; lines.push([ray ? o.x : o.x - Math.cos(a) * L, ray ? o.y : o.y - Math.sin(a) * L, o.x + Math.cos(a) * L, o.y + Math.sin(a) * L, cls || '']); };
       if (st.sym === 'x' || st.sym === 'xy') line(symA - Math.PI / 2);
       if (st.sym === 'y' || st.sym === 'xy') line(symA);
       if (st.sym === 'radial') for (i = 0; i < symN; i++) line(symA - Math.PI / 2 + i * 2 * Math.PI / symN, true);
-      guide.hidden = false;
-      guide.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + lines.map(function (l) { return '<line x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>'; }).join('') + '</svg>';
+      // (the drawing assist: the ruler's edge; or each vanishing point's rays,
+      // and the horizon through the first two)
+      if (gMode === 'ruler') line(rulA, false, rulCentre(), 'ruler');
+      else if (gMode && gMode !== 'off') {
+        var V = vpts();
+        V.forEach(function (v, j) { for (var a = 0; a < 24; a++) line(a * Math.PI / 12, true, v, 'faint'); });
+        if (V.length > 1) { var h = Math.atan2(V[1].y - V[0].y, V[1].x - V[0].x); line(h, false, V[0], 'horizon'); }
+        else line(0, false, V[0], 'horizon');
+      }
+      guide.hidden = !lines.length;
+      guide.innerHTML = lines.length ? '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + lines.map(function (l) { return '<line' + (l[4] ? ' class="' + l[4] + '"' : '') + ' x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>'; }).join('') + '</svg>' : '';
       placeSymHandles();
+    }
+    // DRAWING ASSIST: a ruler, or perspective with 1, 2 or 3 vanishing
+    // points. Each stroke goes the way closest to how it starts (along the
+    // ruler or square to it; toward a vanishing point, or level or upright
+    // where those count) and stays straight along it
+    var gMode = 'off', rulC = { x: 0.5, y: 0.5 }, rulA = 0, VP = [{ x: 0.5, y: 0.42 }, { x: 0.12, y: 0.42 }, { x: 0.88, y: 0.42 }, { x: 0.5, y: 1.25 }];
+    function rulCentre() { return { x: rulC.x * W, y: rulC.y * H }; }
+    // (1 point: the middle one; 2 points: left and right; 3: and one below)
+    function vpIdx() { return gMode === 'p1' ? [0] : gMode === 'p2' ? [1, 2] : gMode === 'p3' ? [1, 2, 3] : []; }
+    function vpts() { return vpIdx().map(function (i) { return { x: VP[i].x * W, y: VP[i].y * H }; }); }
+    function assistDirs(s0) {
+      var out = [], unit = function (x, y) { var l = Math.hypot(x, y); if (l > 1e-6) out.push({ x: x / l, y: y / l }); };
+      if (gMode === 'ruler') { unit(Math.cos(rulA), Math.sin(rulA)); unit(-Math.sin(rulA), Math.cos(rulA)); return out; }
+      vpts().forEach(function (v) { unit(v.x - s0.x, v.y - s0.y); });
+      if (gMode === 'p1') { unit(1, 0); unit(0, 1); } else if (gMode === 'p2') unit(0, 1);
+      return out;
+    }
+    // (a point of the stroke, put on the line it's keeping to; the line
+    // tool, dyn, picks the nearest way again as it moves)
+    function assist(q, dyn) {
+      if (gMode === 'off' || !down || !down.start) return q;
+      var s0 = down.start, dx = q.x - s0.x, dy = q.y - s0.y, len = Math.hypot(dx, dy);
+      if (!down.gdir || dyn) {
+        if (len * view.k < 8) return dyn ? q : { x: s0.x, y: s0.y, pr: q.pr };
+        var best = null, bd = 9;
+        assistDirs(s0).forEach(function (d) { var a = Math.acos(Math.min(1, Math.abs(dx * d.x + dy * d.y) / len)); if (a < bd) { bd = a; best = d; } });
+        if (!best) return q;
+        if (dyn) { var t0 = dx * best.x + dy * best.y; return { x: s0.x + best.x * t0, y: s0.y + best.y * t0, pr: q.pr }; }
+        down.gdir = best;
+      }
+      var d = down.gdir, t = dx * d.x + dy * d.y;
+      return { x: s0.x + d.x * t, y: s0.y + d.y * t, pr: q.pr };
+    }
+    function setAssist(m) {
+      gMode = m; drawGuide();
+      var b = $('.paint-mirror'); b.setAttribute('aria-pressed', st.sym !== 'off' || gMode !== 'off' ? 'true' : 'false');
+      if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     var TURN_R = 64; // (how far the turning handle sits from the centre, on the screen)
     function placeSymHandles() {
       if (!symDot) return; // (not made yet)
+      placeAssist();
       var on = st.sym !== 'off';
       symDot.hidden = symTurn.hidden = !on;
       if (!on) return;
@@ -1222,9 +1358,34 @@
       symA = a;
     });
     symDot.addEventListener('dblclick', function () { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); });
+    // (the drawing assist's handles: the ruler's middle (move) and end (turn),
+    // and a dot for each vanishing point; they can go off the picture's edge)
+    var rulDot = document.createElement('button'), rulTurn = document.createElement('button'), vpEls = [];
+    rulDot.type = rulTurn.type = 'button'; rulDot.className = 'paint-symc paint-gd'; rulTurn.className = 'paint-symr paint-gd';
+    rulDot.setAttribute('aria-label', 'Move the ruler'); rulTurn.setAttribute('aria-label', 'Turn the ruler');
+    rulDot.hidden = rulTurn.hidden = true; stage.appendChild(rulDot); stage.appendChild(rulTurn);
+    for (var vi = 0; vi < 4; vi++) { var ve = document.createElement('button'); ve.type = 'button'; ve.className = 'paint-symc paint-gd paint-vp'; ve.setAttribute('aria-label', 'Move this vanishing point'); ve.hidden = true; stage.appendChild(ve); vpEls.push(ve); }
+    function placeAssist() {
+      if (!rulDot || !vpEls) return; // (not made yet)
+      rulDot.hidden = rulTurn.hidden = gMode !== 'ruler';
+      if (gMode === 'ruler') {
+        var c = toScreen(rulCentre()), d = rulA + view.r;
+        rulDot.style.translate = Math.round(c.x) + 'px ' + Math.round(c.y) + 'px';
+        rulTurn.style.translate = Math.round(c.x + Math.cos(d) * TURN_R * 1.6) + 'px ' + Math.round(c.y + Math.sin(d) * TURN_R * 1.6) + 'px';
+      }
+      var ids = vpIdx();
+      vpEls.forEach(function (el, i) { var on = ids.indexOf(i) >= 0; el.hidden = !on; if (on) { var q = toScreen({ x: VP[i].x * W, y: VP[i].y * H }); el.style.translate = Math.round(q.x) + 'px ' + Math.round(q.y) + 'px'; } });
+    }
+    symDrag(rulDot, function (ev, sx, sy) { var q = fromScreen(sx, sy); rulC = { x: Math.max(0, Math.min(1, q.x / W)), y: Math.max(0, Math.min(1, q.y / H)) }; });
+    symDrag(rulTurn, function (ev, sx, sy) {
+      var c = toScreen(rulCentre()), a = Math.atan2(sy - c.y, sx - c.x) - view.r, step = Math.PI / 12, near2 = Math.round(a / step) * step;
+      if (ev.shiftKey || Math.abs(a - near2) < Math.PI / 60) a = near2;
+      rulA = a;
+    });
+    vpEls.forEach(function (el, i) { symDrag(el, function (ev, sx, sy) { var q = fromScreen(sx, sy); VP[i] = { x: Math.max(-2, Math.min(3, q.x / W)), y: Math.max(-2, Math.min(3, q.y / H)) }; }); });
     function setSym(v) {
       st.sym = v; drawGuide(); symOpts();
-      var b = $('.paint-mirror'); b.setAttribute('aria-pressed', v !== 'off' ? 'true' : 'false');
+      var b = $('.paint-mirror'); b.setAttribute('aria-pressed', v !== 'off' || gMode !== 'off' ? 'true' : 'false');
     }
     // SPRAY: an airbrush's cloud of droplets. Where each lands is scattered
     // round the middle by a bell curve, so the cloud is thickest in the
@@ -1262,7 +1423,7 @@
     // how a stroke is laid onto the layer: its opacity, and (for the
     // highlighter) multiply
     function strokeLook(which) {
-      var b = which || (st.tool === 'brush' ? st.brush : '');
+      var b = baseOf(which || (st.tool === 'brush' ? st.brush : ''));
       if (b === 'highlighter') return { mode: 'multiply', alpha: Math.min(st.alpha, 0.45) };
       return { mode: null, alpha: st.alpha * (b === 'marker' ? 0.88 : b === 'pencil' ? 0.92 : 1) };
     }
@@ -2833,6 +2994,7 @@
     });
     function adjustOpen() {
       if (adj) { adjustDone(); return; }
+      if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
       if (!active) return;
       if (textBox) commitText(); openMenu(null); layerPanel(false); anchor();
       var cv = active.cv, src = active.ctx.getImageData(0, 0, cv.width, cv.height);
@@ -2957,11 +3119,113 @@
       var i = row.querySelector('input'); i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; adj.v[i.dataset.adj] = +i.value; adjustQueue();
     });
 
+    // ---- THE BRUSH STUDIO: the brush in hand's settings, with a stroke of
+    // it (pressed lightly, then hard, then lightly) to show what they do ----
+    var BS_SECS = [
+      ['tip', 'Tip', ['stamp']],
+      ['jitter', 'Jitter', ['stamp']],
+      ['pressure', 'Pressure', ['round', 'pencil', 'marker', 'highlighter', 'calligraphy', 'stamp']],
+      ['taper', 'Tapered Ends', ['round', 'pencil', 'stamp']],
+      ['nib', 'Nib', ['marker', 'highlighter', 'calligraphy']],
+      ['grain', 'Paper Grain', ['round', 'pencil', 'feather', 'marker', 'highlighter', 'calligraphy', 'stamp']]
+    ];
+    // (each setting: key, name, lowest, highest, and which kinds of brush have it)
+    var BS_ROWS = {
+      tip: [['spacing', 'Spacing', 2, 200]],
+      jitter: [['scatter', 'Scatter', 0, 100], ['jsize', 'Size', 0, 100], ['jopacity', 'Opacity', 0, 100], ['jangle', 'Angle', 0, 100]],
+      pressure: [['psize', 'Size', 0, 100], ['popacity', 'Opacity', 0, 100, ['stamp']], ['curve', 'Soft ↔ Firm', -100, 100]],
+      taper: [['tin', 'Start', 0, 200], ['tout', 'End', 0, 200]],
+      nib: [['angle', 'Angle', -90, 90]],
+      grain: [['grain', 'Grain', 0, 100]]
+    };
+    var bsBox = document.createElement('div'), bsId = null;
+    bsBox.className = 'paint-adjust paint-studio'; bsBox.hidden = true; bsBox.setAttribute('role', 'dialog'); bsBox.setAttribute('aria-label', 'Brush Studio');
+    left.appendChild(bsBox);
+    draggable(bsBox, '.pa-title', 'studio');
+    function studio(open) {
+      if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); return; }
+      if (adj) adjustDone();
+      bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside');
+      bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px';
+    }
+    function studioBuild() {
+      var D = bdef(bsId), k = D.base, S = D.set;
+      var row = function (r) {
+        return '<label class="pa-row" data-adj-row="' + r[0] + '"><span>' + r[1] + '</span><output>' + S[r[0]] + '</output>' +
+          '<input type="range" min="' + r[2] + '" max="' + r[3] + '" step="1" value="' + S[r[0]] + '" data-bs="' + r[0] + '"></label>';
+      };
+      var secs = BS_SECS.filter(function (q) { return q[2].indexOf(k) >= 0; }).map(function (q) {
+        var body = (q[0] === 'tip' ? '<div class="gm-list bs-tips" role="radiogroup" aria-label="Tip">' + TIPS.map(function (t) { return '<button type="button" class="gm-chip" role="radio" data-bs-tip="' + t[0] + '" aria-checked="' + (S.tip === t[0]) + '"><canvas class="bs-tip" data-tipprev="' + t[0] + '" aria-hidden="true"></canvas><span>' + t[1] + '</span></button>'; }).join('') + '</div>' : '') +
+          '<div class="pa-list">' + BS_ROWS[q[0]].filter(function (r) { return !r[4] || r[4].indexOf(k) >= 0; }).map(row).join('') + '</div>';
+        var was = null; try { was = localStorage.getItem('paint-bs-' + q[0]); } catch (x) {}
+        return '<section class="pr-sec fx-sec' + (was === 'closed' ? ' closed' : '') + '" data-bsec="' + q[0] + '"><div class="fx-head"><button type="button" class="pr-head" aria-expanded="' + (was !== 'closed') + '"><span>' + q[1] + '</span>' + FX_CHEV + '</button></div>' +
+          '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
+      }).join('');
+      var edited = !D.mine && brushEdits[bsId] && Object.keys(brushEdits[bsId]).length;
+      bsBox.innerHTML = '<div class="pa-title">Brush Studio <span class="pa-sub">' + (D.mine ? 'My brush' : D.name) + '</span></div>' +
+        (D.mine ? '<label class="bs-name"><span>Name</span><input type="text" class="p-field" maxlength="24" data-bs-name value="' + D.name.replace(/"/g, '&quot;') + '"></label>' : '') +
+        '<canvas class="bs-prev" aria-label="How the brush looks"></canvas>' +
+        (secs || '<p class="cv-help">This brush has no settings to change. Save it as a new brush to make one of your own from it.</p>') +
+        '<div class="pa-acts">' + (D.mine ? '<button type="button" data-bs-act="delete" class="bs-del">Delete</button>' : '<button type="button" data-bs-act="reset"' + (edited ? '' : ' disabled') + '>Reset</button>') +
+        '<button type="button" data-bs-act="saveas" data-tip="Keep these settings as a brush of your own">Save Copy</button><button type="button" data-adj-act="done" data-bs-act="done">Done</button></div>';
+      Array.prototype.forEach.call(bsBox.querySelectorAll('[data-tipprev]'), function (c) {
+        var d = Math.min(window.devicePixelRatio || 1, 2); c.width = c.height = 22 * d; c.style.width = c.style.height = '22px';
+        c.getContext('2d').drawImage(tipOf(c.dataset.tipprev, getComputedStyle(bsBox).color), 0, 0, c.width, c.height);
+      });
+      studioPreview();
+    }
+    function studioPreview() {
+      var c = bsBox.querySelector('.bs-prev'); if (!c) return;
+      var w = (c.clientWidth || 222), P = [], sz = Math.max(6, Math.min(26, st.size)), h = 64;
+      for (var i = 0; i <= 40; i++) { var t = i / 40; P.push({ x: 14 + (w - 28) * t, y: h / 2 + Math.sin(t * Math.PI * 2) * 12, pr: 0.15 + 0.85 * Math.sin(t * Math.PI) }); }
+      // (in the panel's own ink, so it always shows against it)
+      drawPreview(c, bsId, sz, getComputedStyle(bsBox).color, P, w, h, 1, true);
+    }
+    function studioSet(key, v) {
+      var D = bdef(bsId);
+      if (D.mine) { myBrushes.forEach(function (b) { if (b.id === bsId) b.set[key] = v; }); storeIt('paint-my-brushes', myBrushes); }
+      else { (brushEdits[bsId] = brushEdits[bsId] || {})[key] = v; storeIt('paint-brush-edits', brushEdits); var rs = bsBox.querySelector('[data-bs-act="reset"]'); if (rs) rs.disabled = false; }
+      studioPreview(); brushSamples();
+    }
+    bsBox.addEventListener('input', function (e) {
+      var i = e.target.closest('[data-bs]'); if (i) { i.previousElementSibling.textContent = i.value; studioSet(i.dataset.bs, +i.value); return; }
+      var nm = e.target.closest('[data-bs-name]');
+      if (nm && nm.value.trim()) { myBrushes.forEach(function (b) { if (b.id === bsId) b.name = nm.value.trim(); }); storeIt('paint-my-brushes', myBrushes); ctxSync(); }
+    });
+    bsBox.addEventListener('keydown', function (e) { if (e.target.closest('[data-bs-name]')) e.stopPropagation(); });
+    bsBox.addEventListener('dblclick', function (e) {
+      // (a setting's name, double-clicked: back as the brush was made)
+      var row = e.target.closest('[data-adj-row]'); if (!row) return;
+      var i = row.querySelector('[data-bs]'), D = BDEF[bdef(bsId).base]; if (!i || !(i.dataset.bs in D)) return;
+      i.value = D[i.dataset.bs]; i.previousElementSibling.textContent = i.value; studioSet(i.dataset.bs, D[i.dataset.bs]);
+    });
+    bsBox.addEventListener('click', function (e) {
+      var hd = e.target.closest('.pr-head');
+      if (hd) { var sec = hd.closest('.fx-sec'), on = !sec.classList.contains('closed'); sec.classList.toggle('closed', on); hd.setAttribute('aria-expanded', on ? 'false' : 'true'); try { localStorage.setItem('paint-bs-' + sec.dataset.bsec, on ? 'closed' : 'open'); } catch (x) {} return; }
+      var tp = e.target.closest('[data-bs-tip]');
+      if (tp) { studioSet('tip', tp.dataset.bsTip); Array.prototype.forEach.call(bsBox.querySelectorAll('[data-bs-tip]'), function (b) { b.setAttribute('aria-checked', b === tp ? 'true' : 'false'); }); return; }
+      var a = e.target.closest('[data-bs-act]'); if (!a) return;
+      var w = a.dataset.bsAct, D = bdef(bsId);
+      if (w === 'done') { studio(false); return; }
+      if (w === 'reset') { delete brushEdits[bsId]; storeIt('paint-brush-edits', brushEdits); studioBuild(); brushSamples(); return; }
+      if (w === 'delete') { myBrushes = myBrushes.filter(function (b) { return b.id !== bsId; }); storeIt('paint-my-brushes', myBrushes); if (st.brush === bsId) st.brush = 'round'; studio(false); ctxSync(); brushSamples(); toast('Brush deleted'); return; }
+      if (w === 'saveas') { newBrush(D.base, D.set, D.name + ' copy'); return; }
+    });
+    // a brush of your own: from the one in hand, or a new stamp brush
+    function newBrush(base, set, name) {
+      var n = 1; while (myBrushes.some(function (b) { return b.id === 'u' + n; })) n++;
+      var cp = {}; for (var k in set) cp[k] = set[k];
+      myBrushes.push({ id: 'u' + n, name: (name || 'Brush ' + n).slice(0, 24), base: base, set: cp });
+      storeIt('paint-my-brushes', myBrushes);
+      st.brush = 'u' + n; if (st.tool !== 'brush') setTool('brush'); ctxSync(); brushSamples(); studio(true);
+      toast('Saved as a new brush, in My Brushes');
+    }
+
     // ---- the mouse's brush-size ring ----
     // (a ring on the screen, so it can follow an Apple Pencil, hovering or drawing)
     var ringEl = document.createElement('div'); ringEl.className = 'paint-ring'; ringEl.hidden = true; stage.appendChild(ringEl);
     function brushR() {
-      if (st.tool === 'brush') { var b = { highlighter: Math.max(10, st.size * 2.2), pencil: Math.max(1, st.size * 0.38), marker: Math.max(3, st.size * 1.1), calligraphy: Math.max(4, st.size * 1.5), spray: Math.max(5, st.size * 1.6) * 2 }[st.brush]; if (b) return b / 2; }
+      if (st.tool === 'brush') { var b = { highlighter: Math.max(10, st.size * 2.2), pencil: Math.max(1, st.size * 0.38), marker: Math.max(3, st.size * 1.1), calligraphy: Math.max(4, st.size * 1.5), spray: Math.max(5, st.size * 1.6) * 2 }[baseOf(st.brush)]; if (b) return b / 2; }
       return /smudge|blur|tone/.test(st.tool) ? Math.max(4, st.size) : st.size / 2;
     }
     function showRing(p) {
@@ -2983,7 +3247,7 @@
       var k = st.tool === 'eraser' ? 'eraser' : st.tool === 'brush' ? st.brush : 'round';
       // what a single click (or tap) puts down, at the size it really is
       // (unless that wouldn't fit on the picture), in the middle of the card
-      var cfg = k === 'spray' ? null : brushCfg(k, st.size, '#000');
+      var cfg = baseOf(k) === 'spray' ? null : brushCfg(k, st.size, '#000');
       var reach = cfg ? (cfg.len ? cfg.len / 2 + cfg.thick : cfg.w / 2 + (cfg.blur || 0) * 1.7) + 1 : sprayRadius(st.size) * 1.35;
       var fit2 = Math.min(1, Math.min(stage.clientWidth, stage.clientHeight) * 0.8 / (reach * 2 * view.k)), unit = view.k * fit2;
       var wU = Math.max(reach * 2, 28 / unit);
@@ -3000,7 +3264,7 @@
       cv.width = Math.max(1, Math.round(wU * px)); cv.height = Math.max(1, Math.round(hU * px));
       cv.style.width = wU * unit + 'px'; cv.style.height = hU * unit + 'px';
       var x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.setTransform(px, 0, 0, px, 0, 0);
-      if (k === 'spray') {
+      if (baseOf(k) === 'spray') {
         // (just as it's sprayed: a puff where it starts, then one every so often along the way)
         var gap = Math.max(2, sprayRadius(size) * 0.3), left = 0;
         spray(x, P[0], size, color, 1);
@@ -3061,7 +3325,7 @@
       var c = parseInt(st.color.slice(1), 16), textL = lumOf(+m[0], +m[1], +m[2]), dark = textL > 0.5;
       var col = Math.abs(lumOf(c >> 16 & 255, c >> 8 & 255, c & 255) - (dark ? 0.1 : 0.97)) < 0.22 ? '#' + [m[0], m[1], m[2]].map(function (v) { return (+v | 256).toString(16).slice(1); }).join('') : st.color;
       Array.prototype.forEach.call(host.querySelectorAll('[data-prev]'), function (cv) {
-        var k = cv.dataset.prev, sz = k === 'spray' ? 3 : k === 'highlighter' ? 4 : 5, P = [];
+        var k = cv.dataset.prev, bk = baseOf(k), sz = bk === 'spray' ? 3 : bk === 'highlighter' ? 4 : bk === 'stamp' ? 6 : 5, P = [];
         for (var i = 0; i <= 16; i++) { var t = i / 16; P.push({ x: 6 + 34 * t, y: 10 + Math.sin(t * Math.PI * 2) * 3.2 }); }
         drawPreview(cv, k, sz, col, P, 46, 20, 1, dark);
       });
@@ -3239,7 +3503,7 @@
       if (t === 'eraser') { p.pr = smoothPr(e.pressure); eraseStart(); renderStroke(); return; }
       if (t === 'brush') {
         p.pr = smoothPr(e.pressure);
-        if (kind() === 'spray') {
+        if (baseOf(kind()) === 'spray') {
           // (held still, it keeps spraying: as much more as the time that's passed)
           var flow = function (pr) { return pr == null ? 1 : 0.25 + 0.75 * Math.min(1, pr * 1.25); }, t0 = performance.now();
           down.flow = flow;
@@ -3319,9 +3583,9 @@
         return;
       }
       if (t === 'gradient') { gradient(down.start, p); return; }
-      if (t === 'eraser' || (t === 'brush' && kind() !== 'spray')) {
+      if (t === 'eraser' || (t === 'brush' && baseOf(kind()) !== 'spray')) {
         evs.forEach(function (ev) {
-          var q = pos(ev); q.pr = smoothPr(ev.pressure);
+          var q = assist(pos(ev)); q.pr = smoothPr(ev.pressure);
           if (down.shape) { var sc = ev.shiftKey !== shiftHeld; shiftHeld = ev.shiftKey; shapeFollow(q, sc); return; }
           holdStill(q);
           if (!smoothing) { var l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) pts.push(q); return; }
@@ -3334,7 +3598,7 @@
         evs.forEach(function (ev) {
           // (evenly along the way, one puff every so often, so a fast stroke is
           // as even as a slow one, just lighter)
-          var q = pos(ev), l = down.last, gap = Math.max(2, sprayRadius(st.size) * 0.3), d = Math.hypot(q.x - l.x, q.y - l.y);
+          var q = assist(pos(ev)), l = down.last, gap = Math.max(2, sprayRadius(st.size) * 0.3), d = Math.hypot(q.x - l.x, q.y - l.y);
           q.pr = smoothPr(ev.pressure); pts.push(q);
           if (d < gap) return;
           var n = Math.floor(d / gap), fl = down.flow(q.pr) * 0.5;
@@ -3346,6 +3610,7 @@
       }
       // line and shapes
       octx.clearRect(0, 0, W, H); strokeStyle(octx);
+      if (t === 'line') p = assist(p, true);
       both(octx, function () { shapePath(octx, down.start, p, e.shiftKey); });
       maskOv();
     }
@@ -3385,7 +3650,7 @@
       down.settled = k;
     }
     function holdStill(q) {
-      if (!snapShapes) return;
+      if (!snapShapes || gMode !== 'off') return; // (with a guide on, strokes keep to it instead)
       var a = down.holdAt;
       if (a && Math.hypot(q.x - a.x, q.y - a.y) <= 4 / view.k) return;
       down.holdAt = { x: q.x, y: q.y };
@@ -3681,8 +3946,10 @@
 
     // ---- the buttons ----
     root.addEventListener('click', function (e) {
+      if (e.target.closest('[data-ctx-new]')) { ctxClose(); newBrush('stamp', BDEF.stamp); return; }
       var pk = e.target.closest('[data-pick]');
       if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); ctxClose(); afterTextChange(); ctxSync(); return; }
+      if (pk && pk.dataset.pick === 'brush' && !bsBox.hidden) { st.brush = pk.dataset.val; ctxClose(); ctxSync(); studio(true); return; }
       if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); ctxClose(); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); ctxSync(); return; }
       if (e.target.closest('.paint-selx')) { commitSelection(); return; }
       var t = e.target.closest('button[data-tool]'); // (the picture carries data-tool too, for its cursor)
@@ -4347,6 +4614,7 @@
     var CTX = {
       brush: function () {
         return '<button type="button" class="ctx-btn" data-ctx="brushes" aria-haspopup="menu" aria-expanded="false" data-tip="Choose a brush"><canvas class="pb-prev" data-ctxprev aria-hidden="true"></canvas><span data-ctxname></span>' + CHEV + '</button>' +
+          '<button type="button" class="ctx-btn" data-ctx="bstudio" data-tip="Brush Studio: this brush\u2019s settings (pressure, tapered ends, grain and more), or make a brush of your own">' + CI('<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>') + '<span>Brush Settings</span></button>' +
           sep + smoothRow + sep + taperChip + snapChip;
       },
       eraser: function () { return hint('Rubs out on the current layer') + sep + smoothRow + sep + snapChip; },
@@ -4385,12 +4653,17 @@
         var box = '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/>', dash = ' stroke-dasharray="2 1.8"';
         var SI = { x: box + '<path d="M12 4.5v15"' + dash + '/>', y: box + '<path d="M4.5 12h15"' + dash + '/>', xy: box + '<path d="M12 4.5v15M4.5 12h15"' + dash + '/>',
           radial: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5v15M5.5 8.25l13 7.5M5.5 15.75l13-7.5"' + dash + '/>' };
-        return '<div class="ctx-title">Symmetry</div>' +
+        var AI = { off: 'Off', ruler: 'Ruler', p1: '1-Pt', p2: '2-Pt', p3: '3-Pt' }, ATIP = { off: 'No drawing assist', ruler: 'Ruler: strokes keep straight along it, or square to it', p1: 'One-point perspective: strokes run toward the point, or level, or upright', p2: 'Two-point perspective: strokes run toward either point, or upright', p3: 'Three-point perspective: strokes run toward any of the three points' };
+        return '<div class="ctx-title">Guides</div><div class="ctx-sub">Symmetry</div>' +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Symmetry">' + SYMS.map(function (y) { return '<button type="button" role="tab" data-ctx-sym="' + y[0] + '" aria-label="' + y[1] + '" data-tip="' + y[1] + '">' + (SI[y[0]] ? CI(SI[y[0]]) : 'Off') + '</button>'; }).join('') + '</div>' +
           '<div class="ctx-field" data-ctx="symn" data-sym-when="radial"><span>Segments</span><span class="p-step"><button type="button" data-symd="-1" aria-label="Fewer segments">&#8722;</button><output>6</output><button type="button" data-symd="1" aria-label="More segments">+</button></span></div>' +
           '<div data-sym-when="radial">' + chip('symmirror', 'Mirror', '<path d="M12 4v16"' + dash + '/><path d="M9 8l-4 8h4zM15 8l4 8h-4z"/>', 'Mirror each segment too') + '</div>' +
           '<div data-sym-when="on">' + hint('Drag the guide&#39;s centre to move it, and its handle to turn it') + '</div>' +
           '<button type="button" class="ctx-btn" data-ctx="symreset" data-sym-when="on" data-tip="Put the guide back in the middle, upright">' + CI('<circle cx="12" cy="12" r="7.5"' + dash + '/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>') + '<span>Centre the Guide</span></button>' +
+          '<div class="ctx-sub">Drawing Assist</div>' +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Drawing assist">' + ['off', 'ruler', 'p1', 'p2', 'p3'].map(function (m) { return '<button type="button" role="tab" data-ctx-assist="' + m + '" data-tip="' + ATIP[m] + '">' + AI[m] + '</button>'; }).join('') + '</div>' +
+          '<div data-assist-on>' + hint('Brush, eraser, spray and line strokes keep to it. Drag its points to move them') + '</div>' +
+          '<button type="button" class="ctx-btn" data-ctx="assistreset" data-assist-on data-tip="Put the ruler, or the vanishing points, back where they started">' + CI('<path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/>') + '<span>Reset Guide</span></button>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="symdone" data-tip="Back to the tool&#39;s settings">Done</button>';
       },
       hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
@@ -4400,7 +4673,9 @@
     function ctxDrop(kind, btn) {
       if (!ctxList.hidden && ctxList.dataset.kind === kind) { ctxClose(); return; }
       ctxList.dataset.kind = kind;
-      if (kind === 'brushes') ctxList.innerHTML = BRUSHES.map(function (b) { return '<button type="button" role="menuitemradio" data-pick="brush" data-val="' + b[0] + '" aria-checked="' + (st.brush === b[0]) + '"><canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas><span>' + b[1] + '</span></button>'; }).join('');
+      var bRow = function (b) { return '<button type="button" role="menuitemradio" data-pick="brush" data-val="' + b[0] + '" aria-checked="' + (st.brush === b[0]) + '"><canvas class="pb-prev" data-prev="' + b[0] + '" aria-hidden="true"></canvas><span>' + b[1].replace(/[<&]/g, '') + '</span></button>'; };
+      if (kind === 'brushes') ctxList.innerHTML = BRUSHES.map(bRow).join('') + (myBrushes.length ? '<div class="pf-h">My Brushes</div>' + allBrushes().filter(function (b) { return b[2]; }).map(bRow).join('') : '') +
+        '<button type="button" class="ctx-newbrush" data-ctx-new><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New Brush</span></button>';
       else { ensureFonts(); ctxList.innerHTML = fontList('data-pick="font" data-val'); ctxList.classList.add('paint-fontmenu'); }
       if (kind === 'brushes') ctxList.classList.remove('paint-fontmenu');
       ctxList.hidden = false;
@@ -4469,7 +4744,7 @@
     function ctxSync() {
       var q = function (sel) { return ctxTool.querySelector(sel); }, set = function (sel, attr, on) { var e = q(sel); if (e) e.setAttribute(attr, on ? 'true' : 'false'); };
       var name = q('[data-ctxname]');
-      if (name) { var b = BRUSHES.filter(function (x) { return x[0] === st.brush; })[0]; name.textContent = b ? b[1] : ''; var cv = q('[data-ctxprev]'); cv.dataset.prev = st.brush; brushSamples(ctxTool); }
+      if (name) { if (!allBrushes().some(function (x) { return x[0] === st.brush; })) st.brush = 'round'; name.textContent = bdef(st.brush).name; var cv = q('[data-ctxprev]'); cv.dataset.prev = st.brush; brushSamples(ctxTool); }
       var sm = q('[data-ctx="smoothing"]'); if (sm) { sm.value = smoothing; sm.nextElementSibling.textContent = smoothing ? smoothing : 'Off'; }
       set('[data-ctx="taper"]', 'aria-pressed', taperOn); set('[data-ctx="snap"]', 'aria-pressed', snapShapes);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-tone]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxTone === st.tone ? 'true' : 'false'); });
@@ -4484,6 +4759,8 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-assist]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxAssist === gMode ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-assist-on]'), function (e) { e.hidden = gMode === 'off'; });
       set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pendone' ? 2 : 1); });
     }
@@ -4501,11 +4778,14 @@
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
+      if (k === 'bstudio') { studio(bsBox.hidden || bsId !== st.brush); return; }
       if (b.dataset.ctxSym) { setSym(b.dataset.ctxSym); return; }
       if (b.dataset.symd) { symN = Math.max(2, Math.min(16, symN + +b.dataset.symd)); drawGuide(); ctxSync(); return; }
       if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
       if (k === 'symreset') { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); return; }
       if (k === 'symdone') { ctxSymView(false); return; }
+      if (b.dataset.ctxAssist) { setAssist(b.dataset.ctxAssist); return; }
+      if (k === 'assistreset') { rulC = { x: 0.5, y: 0.5 }; rulA = 0; VP = [{ x: 0.5, y: 0.42 }, { x: 0.12, y: 0.42 }, { x: 0.88, y: 0.42 }, { x: 0.5, y: 1.25 }]; drawGuide(); return; }
       if (k === 'penstroke' || k === 'penfill') {
         if (k === 'penstroke') penStroke = !penStroke; else penFill = !penFill;
         if (!penStroke && !penFill) { if (k === 'penstroke') penFill = true; else penStroke = true; } // (one of them, at least)
@@ -4566,6 +4846,7 @@
         }
         if (k === 'escape' && !lmenu.hidden) { lmenu.hidden = true; return; }
         if (k === 'escape' && adj) { adjustCancel(); return; }
+        if (k === 'escape' && !bsBox.hidden) { studio(false); return; }
         if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) { selAction('done'); return; }

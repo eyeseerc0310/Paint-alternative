@@ -61,6 +61,10 @@ When building or changing anything visual:
   (`L.editMask`), painting tools work on `L.mask.P`, which stands in for the
   layer (`maskIn`/`maskOut`). New layers made next to one join its group
   (`L.group`).
+- **Brushes:** a brush is an id; `bdef(id)` gives its name, the kind it's
+  made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
+  Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how
+  a brush behaves.
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
