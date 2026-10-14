@@ -2998,9 +2998,11 @@
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Effects');
     var FX_CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    // (the sliders whose tracks show what they do: fxTracks, below)
+    var FX_TRACKS = { hue: 1, saturation: 1, vibrance: 1, lightness: 1, warmth: 1, tint: 1 };
     var sliderRow = function (a) {
       return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>' + (a[3] || 0) + '</output>' +
-        '<input type="range" min="' + a[2] + '" max="100" step="1" value="' + (a[3] || 0) + '" data-adj="' + a[0] + '"' + (a[3] ? ' data-def="' + a[3] + '"' : '') + '></label>';
+        '<input type="range" min="' + a[2] + '" max="100" step="1" value="' + (a[3] || 0) + '" data-adj="' + a[0] + '"' + (a[3] ? ' data-def="' + a[3] + '"' : '') + (FX_TRACKS[a[0]] ? ' class="fx-track"' : '') + '></label>';
     };
     var fxBody = {
       levels: '<div class="pa-levels"><canvas class="lv-hist" width="256" height="100"></canvas>' +
@@ -3047,7 +3049,32 @@
       if (k in LV) return v[k] != null && v[k] !== LV[k];
       return !!v[k];
     }
+    // (hue: the colour turned round the colour wheel, keeping its brightness;
+    // c and s are the turn's cosine and sine, and o takes the result)
+    function hueTurn(r, g, b, c, s, o) {
+      var yy = 0.299 * r + 0.587 * g + 0.114 * b, ii = 0.596 * r - 0.274 * g - 0.322 * b, qq = 0.211 * r - 0.523 * g + 0.312 * b;
+      var i2 = ii * c - qq * s, q2 = ii * s + qq * c;
+      o[0] = yy + 0.956 * i2 + 0.621 * q2; o[1] = yy - 0.272 * i2 - 0.647 * q2; o[2] = yy - 1.106 * i2 + 1.703 * q2;
+    }
+    // THE SLIDERS SHOW WHAT THEY DO: Hue's track is a red turned by the same
+    // sums as the picture, all the way round; Saturation, Vibrance and
+    // Lightness run grey, black or white into that colour as Hue has left
+    // it; Warmth runs blue to amber, Tint green to magenta
+    function fxTracks() {
+      var get = function (k) { var i = adjBox.querySelector('[data-adj="' + k + '"]'); return i ? +i.value / 100 : 0; };
+      var set = function (k, cs) { var i = adjBox.querySelector('[data-adj="' + k + '"]'); if (i) i.style.setProperty('--track', 'linear-gradient(to right, ' + cs.join(', ') + ')'); };
+      var cl = function (v) { return Math.max(0, Math.min(255, Math.round(v))); };
+      var css = function (c) { return 'rgb(' + c.map(cl).join(', ') + ')'; };
+      var turn = function (t) { var o = [0, 0, 0]; hueTurn(232, 52, 44, Math.cos(t * Math.PI), Math.sin(t * Math.PI), o); return o.map(cl); };
+      var round = []; for (var j = -6; j <= 6; j++) round.push(css(turn(j / 6)));
+      var C = turn(get('hue')), y = 0.299 * C[0] + 0.587 * C[1] + 0.114 * C[2];
+      var grey = [y, y, y], soft = C.map(function (v) { return y + (v - y) * 0.45; }), vivid = C.map(function (v) { return y + (v - y) * 1.5; });
+      set('hue', round); set('saturation', [css(grey), css(C), css(vivid)]); set('vibrance', [css(soft), css(C), css(vivid)]);
+      set('lightness', ['#000', css(C), '#fff']);
+      set('warmth', ['rgb(72, 136, 236)', 'rgb(206, 206, 206)', 'rgb(244, 164, 56)']); set('tint', ['rgb(64, 176, 96)', 'rgb(206, 206, 206)', 'rgb(214, 86, 200)']);
+    }
     function fxMarks() {
+      fxTracks();
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) { sec.classList.toggle('changed', !!adj && FX_KEYS[sec.dataset.fx].some(fxOn)); });
       var on = adj && adj.v.gmap || '';
       Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
@@ -3262,7 +3289,7 @@
       }
       var sat = 1 + val('saturation'), vib = val('vibrance'), wa = val('warmth') * 28, ti = val('tint') * 24;
       // (hue: the colours turned round the colour wheel, keeping their brightness)
-      var hu = val('hue') * Math.PI, hc = Math.cos(hu), hs = Math.sin(hu), lt = val('lightness');
+      var hu = val('hue') * Math.PI, hc = Math.cos(hu), hs = Math.sin(hu), ho = [0, 0, 0], lt = val('lightness');
       var gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
       if (v.gmap && gms) {
         var gst = gmStops(v.gmap).map(function (c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; });
@@ -3292,11 +3319,7 @@
             var mx = Math.max(r, g, b), mn = Math.min(r, g, b), ff = sat * (1 + vib * (1 - (mx - mn) / 255) * (vib > 0 ? 1 : 0.8));
             r = l + (r - l) * ff; g = l + (g - l) * ff; b = l + (b - l) * ff;
           }
-          if (hu) {
-            var yy = 0.299 * r + 0.587 * g + 0.114 * b, ii = 0.596 * r - 0.274 * g - 0.322 * b, qq = 0.211 * r - 0.523 * g + 0.312 * b;
-            var i2 = ii * hc - qq * hs, q2 = ii * hs + qq * hc;
-            r = yy + 0.956 * i2 + 0.621 * q2; g = yy - 0.272 * i2 - 0.647 * q2; b = yy - 1.106 * i2 + 1.703 * q2;
-          }
+          if (hu) { hueTurn(r, g, b, hc, hs, ho); r = ho[0]; g = ho[1]; b = ho[2]; }
           if (lt) { if (lt > 0) { r += (255 - r) * lt * 0.85; g += (255 - g) * lt * 0.85; b += (255 - b) * lt * 0.85; } else { r *= 1 + lt * 0.85; g *= 1 + lt * 0.85; b *= 1 + lt * 0.85; } }
           if (wa) { r += wa; b -= wa; }
           if (ti) { g -= ti; r += ti * 0.35; b += ti * 0.35; }
