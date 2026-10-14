@@ -343,9 +343,10 @@
     var recentBox = $('.paint-recent');
     function setColor(c) {
       st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples();
+      if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); // (the gradient map made from the colours follows them)
       Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
-    function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); }
+    function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); }
     // the colours used lately: the last four as quick swatches here, and
     // more in the colour picker (kept for next time)
     function pushRecent(c) {
@@ -1322,11 +1323,50 @@
 
     // ---- fill and colour picker ----
     function hexOf(d) { return '#' + [d[0], d[1], d[2]].map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
-    function sampleAt(p) {
-      var t = document.createElement('canvas'); t.width = t.height = 1;
-      var x = t.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1, 1);
-      flattenInto(x, Math.floor(p.x * R), Math.floor(p.y * R), 1, 1, 1, 1);
-      return hexOf(x.getImageData(0, 0, 1, 1).data);
+    // PICKING A COLOUR: while it's held, a loupe above the pointer shows the
+    // pixels under it, close up, in a ring that's the new colour on top and
+    // the colour in hand underneath; the colour's picked where it's let go
+    var loupe = document.createElement('canvas'); loupe.className = 'paint-loupe'; loupe.hidden = true; loupe.setAttribute('aria-hidden', 'true');
+    stage.appendChild(loupe);
+    function pickStart(e, p, alt) {
+      var f = document.createElement('canvas'); f.width = ov.width; f.height = ov.height;
+      var x = f.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, f.height); flattenInto(x);
+      down = { id: e.pointerId, start: p, last: p, pick: { fx: x, flat: f, was: st.color, alt: alt, touch: e.pointerType !== 'mouse' } };
+      loupeAt(e, p);
+    }
+    function pickedAt(p) {
+      var k = down.pick, px = Math.floor(p.x * R), py = Math.floor(p.y * R);
+      if (px < 0 || py < 0 || px >= k.flat.width || py >= k.flat.height) return null;
+      return hexOf(k.fx.getImageData(px, py, 1, 1).data);
+    }
+    function loupeAt(e, p) {
+      var k = down.pick, c = pickedAt(p) || k.was, S = 116, d = Math.min(window.devicePixelRatio || 1, 2), sc = screen(e);
+      down.last = p; k.now = c;
+      if (loupe.width !== S * d) { loupe.width = loupe.height = S * d; loupe.style.width = loupe.style.height = S + 'px'; }
+      // (above the pointer, clear of a finger; below it at the top of the picture)
+      var y = sc.y - S / 2 - (k.touch ? 64 : 44); if (y < 4) y = sc.y + (k.touch ? 64 : 44) - S / 2;
+      loupe.style.left = Math.round(sc.x - S / 2) + 'px'; loupe.style.top = Math.round(y) + 'px'; loupe.hidden = false;
+      var x = loupe.getContext('2d'), r = S / 2, ring = 11, n = 13, px = Math.floor(p.x * R), py = Math.floor(p.y * R);
+      x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, S, S);
+      // the pixels round the point, big, with the one that's picked marked
+      x.save(); x.beginPath(); x.arc(r, r, r - ring, 0, Math.PI * 2); x.clip();
+      x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
+      x.imageSmoothingEnabled = false; var cell = (S - 2 * ring) / n;
+      x.drawImage(k.flat, px - (n - 1) / 2, py - (n - 1) / 2, n, n, ring, ring, S - 2 * ring, S - 2 * ring);
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(0,0,0,.55)'; x.strokeRect(r - cell / 2, r - cell / 2, cell, cell);
+      x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeRect(r - cell / 2 - 1.5, r - cell / 2 - 1.5, cell + 3, cell + 3);
+      x.restore();
+      // the ring: new on top, the colour in hand below
+      var half = function (a0, a1, col) { x.beginPath(); x.arc(r, r, r - ring / 2 - 0.5, a0, a1); x.lineWidth = ring; x.strokeStyle = col; x.stroke(); };
+      half(Math.PI, Math.PI * 2, c); half(0, Math.PI, k.was);
+      x.beginPath(); x.arc(r, r, r - 1, 0, Math.PI * 2); x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.25)'; x.stroke();
+      x.beginPath(); x.arc(r, r, r - ring - 0.5, 0, Math.PI * 2); x.strokeStyle = 'rgba(0,0,0,.18)'; x.stroke();
+    }
+    function pickEnd(cancel) {
+      var k = down.pick; loupe.hidden = true; down = null;
+      if (cancel || !k.now) return;
+      setColor(k.now); useColor();
+      if (!k.alt && st.tool === 'picker') setTool('brush');
     }
     // FILL: the area of (about) the same colour as the spot tapped. The soft
     // edge where it meets a line is filled too: each pixel there is part
@@ -2321,37 +2361,101 @@
       mount(); layerPanel(true);
     }
 
-    // ---- ADJUST: sliders that change the picked layer (only inside the
-    // selection, if there is one); it's shown live and kept with DONE ----
-    var ADJ = [['exposure', 'Exposure', -100], ['contrast', 'Contrast', -100], ['brilliance', 'Brilliance', -100], ['highlights', 'Highlights', -100],
-      ['shadows', 'Shadows', -100], ['whites', 'Whites', -100], ['blacks', 'Blacks', -100], ['saturation', 'Saturation', -100], ['vibrance', 'Vibrance', -100],
-      ['warmth', 'Warmth', -100], ['tint', 'Tint', -100], ['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['vignette', 'Vignette', -100], ['grain', 'Grain', 0], ['fade', 'Fade', 0]];
+    // ---- EFFECTS: everything that changes the look of the picked layer
+    // (only inside the selection, if there is one), in sections that fold:
+    // Light, Levels, Curves, Hue & Saturation, White Balance, Gradient Map,
+    // Detail and Finish. It's shown live, and kept with DONE ----
+    // (each slider: key, name, lowest; they all go up to 100, and start at 0)
+    var FX = [
+      ['light', 'Light', [['exposure', 'Exposure', -100], ['brilliance', 'Brilliance', -100], ['contrast', 'Contrast', -100], ['highlights', 'Highlights', -100], ['shadows', 'Shadows', -100], ['whites', 'Whites', -100], ['blacks', 'Blacks', -100]]],
+      ['levels', 'Levels'],
+      ['curves', 'Curves'],
+      ['hsl', 'Hue & Saturation', [['hue', 'Hue', -100], ['saturation', 'Saturation', -100], ['vibrance', 'Vibrance', -100], ['lightness', 'Lightness', -100]]],
+      ['wb', 'White Balance', [['warmth', 'Warmth', -100], ['tint', 'Tint', -100]]],
+      ['gmap', 'Gradient Map'],
+      ['detail', 'Detail', [['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['grain', 'Grain', 0]]],
+      ['finish', 'Finish', [['vignette', 'Vignette', -100], ['fade', 'Fade', 0]]]
+    ];
+    // (what each section holds, to tell when it's been changed, and to put it back)
+    var FX_KEYS = { light: FX[0][2].map(function (a) { return a[0]; }), levels: ['lb', 'lg', 'lw', 'ob', 'ow'], curves: ['curve'], hsl: FX[3][2].map(function (a) { return a[0]; }),
+      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], finish: ['vignette', 'fade'] };
+    // GRADIENT MAP: the picture's light and dark, recoloured along a gradient
+    // (dark at the start, light at the end); "Your Colours" runs from the
+    // second colour to the main one
+    var GMAPS = [['colours', 'Your Colours'], ['noir', 'Noir', ['#000000', '#ffffff']], ['sepia', 'Sepia', ['#1b0f05', '#7a4a24', '#f3e1c0']],
+      ['sunset', 'Sunset', ['#1a0b3d', '#a8327c', '#f98c4a', '#ffe9a8']], ['ocean', 'Ocean', ['#021428', '#0b5a9c', '#49b6e6', '#e6fbff']],
+      ['duotone', 'Duotone', ['#2b1a6b', '#f7d64a']], ['magma', 'Magma', ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf']], ['mint', 'Mint', ['#0b2e2a', '#2f9e83', '#d9f7e8']]];
+    function gmStops(id) { if (id === 'colours') return [st.color2, st.color]; var g = GMAPS.filter(function (x) { return x[0] === id; })[0]; return g ? g[2] : null; }
     var adjBox = document.createElement('div'), adj = null;
-    adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Adjust');
-    // (three tabs along the top: the sliders, LEVELS and CURVES; switching
-    // tabs keeps what's been done, and DONE keeps the lot)
-    var ADJ_TABS = [['adjust', 'Adjust'], ['levels', 'Levels'], ['curves', 'Curves']], adjTab = 'adjust';
-    adjBox.innerHTML = '<div class="pa-title">Adjust <span>Current layer</span></div>' +
-      '<div class="pa-tabs" role="tablist">' + ADJ_TABS.map(function (t) { return '<button type="button" role="tab" data-adj-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
-      '<div class="pa-list" data-tab="adjust">' + ADJ.map(function (a) {
-      return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>0</output>' +
-        '<input type="range" min="' + a[2] + '" max="100" step="1" value="0" data-adj="' + a[0] + '"></label>';
-    }).join('') + '</div>' +
-      '<div class="pa-levels" data-tab="levels" hidden><canvas class="lv-hist" width="256" height="100"></canvas>' +
-      '<div class="lv-track" data-lv="in"><i data-k="lb" class="lv-b"></i><i data-k="lg" class="lv-g"></i><i data-k="lw" class="lv-w"></i></div>' +
-      '<div class="lv-nums"><output data-o="lb">0</output><output data-o="lg">1.00</output><output data-o="lw">255</output></div>' +
-      '<div class="lv-sub">Output</div><div class="lv-grad"></div>' +
-      '<div class="lv-track" data-lv="out"><i data-k="ob" class="lv-b"></i><i data-k="ow" class="lv-w"></i></div>' +
-      '<div class="lv-nums"><output data-o="ob">0</output><output data-o="ow">255</output></div></div>' +
-      '<div class="pa-curves" data-tab="curves" hidden><canvas class="cv-graph" aria-label="Curve"></canvas>' +
-      '<div class="cv-help">Tap the line to add a point, drag to bend it. Double-tap a point, or drag it off, to remove it.</div></div>' +
-      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
+    adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Effects');
+    var FX_CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var sliderRow = function (a) {
+      return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>' + (a[3] || 0) + '</output>' +
+        '<input type="range" min="' + a[2] + '" max="100" step="1" value="' + (a[3] || 0) + '" data-adj="' + a[0] + '"' + (a[3] ? ' data-def="' + a[3] + '"' : '') + '></label>';
+    };
+    var fxBody = {
+      levels: '<div class="pa-levels"><canvas class="lv-hist" width="256" height="100"></canvas>' +
+        '<div class="lv-track" data-lv="in"><i data-k="lb" class="lv-b"></i><i data-k="lg" class="lv-g"></i><i data-k="lw" class="lv-w"></i></div>' +
+        '<div class="lv-nums"><output data-o="lb">0</output><output data-o="lg">1.00</output><output data-o="lw">255</output></div>' +
+        '<div class="lv-sub">Output</div><div class="lv-grad"></div>' +
+        '<div class="lv-track" data-lv="out"><i data-k="ob" class="lv-b"></i><i data-k="ow" class="lv-w"></i></div>' +
+        '<div class="lv-nums"><output data-o="ob">0</output><output data-o="ow">255</output></div></div>',
+      curves: '<div class="pa-curves"><canvas class="cv-graph" aria-label="Curve"></canvas>' +
+        '<div class="cv-help">Tap the line to add a point, drag to bend it. Double-tap a point, or drag it off, to remove it.</div></div>',
+      gmap: '<div class="gm-list" role="radiogroup" aria-label="Gradient">' +
+          '<button type="button" class="gm-chip gm-none" data-gm="" role="radio" aria-checked="true" data-tip="No gradient map"><i></i><span>None</span></button>' +
+          GMAPS.map(function (g) { return '<button type="button" class="gm-chip" data-gm="' + g[0] + '" role="radio" aria-checked="false" data-tip="' + g[1] + '"><i></i><span>' + g[1] + '</span></button>'; }).join('') + '</div>' +
+        sliderRow(['gms', 'Strength', 0, 100]) +
+        '<button type="button" class="gm-rev" data-gmrev aria-pressed="false" data-tip="Run the gradient the other way: light to dark">Reverse</button>'
+    };
+    adjBox.innerHTML = '<div class="pa-title">Effects <span class="pa-sub">Current layer</span></div><div class="fx-secs">' +
+      FX.map(function (f) {
+        var body = f[2] ? '<div class="pa-list">' + f[2].map(sliderRow).join('') + '</div>' : fxBody[f[0]];
+        return '<section class="pr-sec fx-sec" data-fx="' + f[0] + '"><div class="fx-head">' +
+          '<button type="button" class="pr-head" aria-expanded="true"><span>' + f[1] + '<i class="fx-dot" aria-hidden="true"></i></span>' + FX_CHEV + '</button>' +
+          '<button type="button" class="fx-reset" data-fx-reset="' + f[0] + '" aria-label="Reset ' + f[1] + '" data-tip="Put ' + f[1] + ' back as it was"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/></svg></button></div>' +
+          '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
+      }).join('') + '</div>' +
+      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
     left.appendChild(adjBox);
     draggable(adjBox, '.pa-title', 'adjust');
+    // (the sections fold by their titles, and stay as they were left; Light starts open)
+    Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) {
+      var hd = sec.querySelector('.pr-head'), k = 'paint-fx-' + sec.dataset.fx;
+      var shut = function (on) { sec.classList.toggle('closed', on); hd.setAttribute('aria-expanded', on ? 'false' : 'true'); if (!on) fxShown(sec.dataset.fx); };
+      var was = null; try { was = localStorage.getItem(k); } catch (x) {}
+      shut(was ? was === 'closed' : sec.dataset.fx !== 'light');
+      hd.addEventListener('click', function () { var on = !sec.classList.contains('closed'); shut(on); try { localStorage.setItem(k, on ? 'closed' : 'open'); } catch (x) {} });
+    });
+    Array.prototype.forEach.call(adjBox.querySelectorAll('.gm-chip[data-gm]'), function (b) { var st0 = gmStops(b.dataset.gm); if (st0) b.querySelector('i').style.background = 'linear-gradient(to right,' + st0.join(',') + ')'; });
+    function fxShown(f) { if (!adj) return; if (f === 'levels') { drawHist(); syncLevels(); } else if (f === 'curves') drawCurve(); }
+    // (a section that's been changed shows a dot, and its reset button)
+    function fxOn(k) {
+      var v = adj.v;
+      if (k === 'curve') return !!v.curve;
+      if (k === 'gmap') return !!v.gmap;
+      if (k === 'gms' || k === 'gmr') return false;
+      if (k in LV) return v[k] != null && v[k] !== LV[k];
+      return !!v[k];
+    }
+    function fxMarks() {
+      Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) { sec.classList.toggle('changed', !!adj && FX_KEYS[sec.dataset.fx].some(fxOn)); });
+      var on = adj && adj.v.gmap || '';
+      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
+      var rv = adjBox.querySelector('[data-gmrev]'); rv.setAttribute('aria-pressed', adj && adj.v.gmr ? 'true' : 'false');
+      if (adj && adj.v.gmap === 'colours') adjBox.querySelector('[data-gm="colours"] i').style.background = 'linear-gradient(to right,' + gmStops('colours').join(',') + ')';
+    }
+    function fxReset(f) {
+      if (!adj) return;
+      FX_KEYS[f].forEach(function (k) { delete adj.v[k]; });
+      Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec[data-fx="' + f + '"] input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
+      if (f === 'levels') syncLevels(); if (f === 'curves') drawCurve();
+      adjustQueue();
+    }
     // LEVELS: black, mid (gamma x 100) and white in, black and white out
     var LV = { lb: 0, lg: 100, lw: 255, ob: 0, ow: 255 };
     function lv(k) { return adj && adj.v[k] != null ? adj.v[k] : LV[k]; }
-    function adjChanged() { return !!adj && Object.keys(adj.v).some(function (k) { return k === 'curve' ? !!adj.v.curve : adj.v[k] !== (k in LV ? LV[k] : 0); }); }
+    function adjChanged() { return !!adj && Object.keys(adj.v).some(fxOn); }
     // CURVES: points (in 0-255) joined by a natural cubic spline; the tones
     // just stop at pure black and pure white. 256 values out of it.
     function curveLut(P0) {
@@ -2387,12 +2491,6 @@
       var top = Array.prototype.slice.call(h).sort(function (a, b) { return a - b; })[250] || 1;
       for (i = 0; i < 256; i++) h[i] = Math.min(1, h[i] / top);
       return h;
-    }
-    function adjShowTab(t) {
-      adjTab = t;
-      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-tab]'), function (b) { b.hidden = b.dataset.tab !== t; });
-      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-adj-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.adjTab === t ? 'true' : 'false'); });
-      if (t === 'levels') { drawHist(); syncLevels(); } else if (t === 'curves') drawCurve();
     }
     function midPos() { var lb = lv('lb'), lw = lv('lw'); return lb + (lw - lb) * Math.pow(0.5, lv('lg') / 100); }
     function syncLevels() {
@@ -2436,7 +2534,7 @@
     var cvG = adjBox.querySelector('.cv-graph'), CP = 7, cvLastTap = 0;
     function cvSize() { var w = cvG.clientWidth || 220, h = Math.round(w * 0.85); cvG.style.height = h + 'px'; if (cvG.width !== Math.round(w * R)) { cvG.width = Math.round(w * R); cvG.height = Math.round(h * R); } return { w: w, h: h }; }
     function drawCurve() {
-      if (adjBox.hidden || adjTab !== 'curves') return;
+      if (adjBox.hidden || adjBox.querySelector('.fx-sec[data-fx="curves"]').classList.contains('closed')) return;
       var sz = cvSize(), c = cvG.getContext('2d'), W2 = sz.w - 2 * CP, H2 = sz.h - 2 * CP, P = curvePts(), cs = getComputedStyle(adjBox);
       var ink = cs.getPropertyValue('--text').trim() || '#1d1d1f', acc = cs.getPropertyValue('--accent').trim() || '#ff3b30';
       c.setTransform(R, 0, 0, R, 0, 0); c.clearRect(0, 0, sz.w, sz.h); c.translate(CP, CP); // (a margin, so the end points show whole)
@@ -2496,19 +2594,20 @@
       var cv = active.cv, src = active.ctx.getImageData(0, 0, cv.width, cv.height);
       adj = { L: active, src: src, out: new ImageData(new Uint8ClampedArray(src.data), cv.width, cv.height), mask: sel ? selPixels() : null, v: {}, blur: null, wide: null, queued: false };
       adj.hist = adjHistogram();
-      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = 0; i.previousElementSibling.textContent = '0'; });
-      adjBox.hidden = false; adjShowTab(adjTab); adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px';
+      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
+      adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
+      adjBox.hidden = false; fxMarks(); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open) adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px';
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
     }
-    function adjustClose() { adj = null; adjBox.hidden = true; $('[data-act="adjust"]').setAttribute('aria-expanded', 'false'); }
+    function adjustClose() { adj = null; adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false'); }
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); }
     function adjustDone() {
       if (!adj) return;
-      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src, text: adj.L.text, label: 'Adjust' }); if (adj.L.text) { adj.L.text = null; renderLayers(); } } else adjustPut(adj.src);
+      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); } } else adjustPut(adj.src);
       adjustClose();
     }
     function adjustCancel() { if (!adj) return; adjustPut(adj.src); adjustClose(); }
-    function adjustQueue() { if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustRender(); }); }
+    function adjustQueue() { fxMarks(); if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustRender(); }); }
     // a soft copy of the layer (a box blur, one way then the other), for
     // sharpen (small) and clarity (wide)
     function boxBlur(d, w, h, r) {
@@ -2551,6 +2650,18 @@
         var L = i / 255; blut[i] = L ? Math.max(0, L + br * (0.45 * L * (1 - L) * (1 - L) - 0.25 * L * L * (1 - L))) / L : 1;
       }
       var sat = 1 + val('saturation'), vib = val('vibrance'), wa = val('warmth') * 28, ti = val('tint') * 24;
+      // (hue: the colours turned round the colour wheel, keeping their brightness)
+      var hu = val('hue') * Math.PI, hc = Math.cos(hu), hs = Math.sin(hu), lt = val('lightness');
+      var gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
+      if (v.gmap && gms) {
+        var gst = gmStops(v.gmap).map(function (c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; });
+        if (v.gmr) gst.reverse();
+        gm = new Uint8ClampedArray(768);
+        for (var gi = 0; gi < 256; gi++) {
+          var gt = gi / 255 * (gst.length - 1), g0 = Math.min(gst.length - 2, Math.floor(gt)), gf = gt - g0;
+          for (var gc = 0; gc < 3; gc++) gm[gi * 3 + gc] = gst[g0][gc] + (gst[g0 + 1][gc] - gst[g0][gc]) * gf;
+        }
+      }
       var shp = val('sharpen') * 1.6, cl = val('clarity') * 0.7, vg = val('vignette'), gr = val('grain') * 38;
       var W2 = adj.src.width, H2 = adj.src.height, s = adj.src.data, o = adj.out.data, m = adj.mask;
       if (shp && !adj.blur) adj.blur = boxBlur(s, W2, H2, 1);
@@ -2570,8 +2681,15 @@
             var mx = Math.max(r, g, b), mn = Math.min(r, g, b), ff = sat * (1 + vib * (1 - (mx - mn) / 255) * (vib > 0 ? 1 : 0.8));
             r = l + (r - l) * ff; g = l + (g - l) * ff; b = l + (b - l) * ff;
           }
+          if (hu) {
+            var yy = 0.299 * r + 0.587 * g + 0.114 * b, ii = 0.596 * r - 0.274 * g - 0.322 * b, qq = 0.211 * r - 0.523 * g + 0.312 * b;
+            var i2 = ii * hc - qq * hs, q2 = ii * hs + qq * hc;
+            r = yy + 0.956 * i2 + 0.621 * q2; g = yy - 0.272 * i2 - 0.647 * q2; b = yy - 1.106 * i2 + 1.703 * q2;
+          }
+          if (lt) { if (lt > 0) { r += (255 - r) * lt * 0.85; g += (255 - g) * lt * 0.85; b += (255 - b) * lt * 0.85; } else { r *= 1 + lt * 0.85; g *= 1 + lt * 0.85; b *= 1 + lt * 0.85; } }
           if (wa) { r += wa; b -= wa; }
           if (ti) { g -= ti; r += ti * 0.35; b += ti * 0.35; }
+          if (gm) { var gl = (0.299 * r + 0.587 * g + 0.114 * b) | 0; gl = gl < 0 ? 0 : gl > 255 ? 255 : gl; r += (gm[gl * 3] - r) * gms; g += (gm[gl * 3 + 1] - g) * gms; b += (gm[gl * 3 + 2] - b) * gms; }
           if (vg) { var dv = sstep(0.3, 1.05, Math.hypot(x2 - cx, y - cy) * rr) * vg * 0.75, gv = vg > 0 ? 1 - dv : 1; r = vg > 0 ? r * gv : r - dv * (255 - r); g = vg > 0 ? g * gv : g - dv * (255 - g); b = vg > 0 ? b * gv : b - dv * (255 - b); }
           if (gr) { var n = ((Math.imul(k >> 2, 2654435761) >>> 0) % 1000 / 1000 - 0.5) * gr; r += n; g += n; b += n; }
           o[k] = r; o[k + 1] = g; o[k + 2] = b; o[k + 3] = a;
@@ -2579,6 +2697,12 @@
       }
       adjustPut(adj.out);
     }
+    adjBox.addEventListener('click', function (e) {
+      if (!adj) return;
+      var g = e.target.closest('[data-gm]'); if (g) { if (g.dataset.gm) adj.v.gmap = g.dataset.gm; else delete adj.v.gmap; adjustQueue(); return; }
+      if (e.target.closest('[data-gmrev]')) { adj.v.gmr = !adj.v.gmr; if (!adj.v.gmap) adj.v.gmap = 'colours'; adjustQueue(); return; }
+      var rs = e.target.closest('[data-fx-reset]'); if (rs) { fxReset(rs.dataset.fxReset); return; }
+    });
     adjBox.addEventListener('input', function (e) {
       var i = e.target.closest('[data-adj]'); if (!i || !adj) return;
       adj.v[i.dataset.adj] = +i.value; i.previousElementSibling.textContent = i.value; adjustQueue();
@@ -2586,7 +2710,7 @@
     // double-click (or double-tap) a slider's name to put it back to 0
     adjBox.addEventListener('dblclick', function (e) {
       var row = e.target.closest('[data-adj-row]'); if (!row || !adj) return;
-      var i = row.querySelector('input'); i.value = 0; i.previousElementSibling.textContent = '0'; adj.v[i.dataset.adj] = 0; adjustQueue();
+      var i = row.querySelector('input'); i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; adj.v[i.dataset.adj] = +i.value; adjustQueue();
     });
 
     // ---- the mouse's brush-size ring ----
@@ -2790,6 +2914,7 @@
       stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
+      if (down.pick) { pickEnd(true); return; }
       if (down.penNew && pen) { pen.pts.pop(); down = null; if (pen.pts.length) drawPen(); else cancelPen(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
@@ -2811,9 +2936,9 @@
         selMode = 'scale'; selbar.classList.add('away'); return;
       }
       if (!selTool(t) && sel) anchor();
-      if (t === 'picker') { setColor(sampleAt(p)); setTool('brush'); return; }
+      if (t === 'picker') { pickStart(e, p, false); return; }
       // hold Alt (Option) with any drawing tool to pick up a colour instead
-      if (e.altKey && !selTool(t) && t !== 'hand') { if (textBox) commitText(); setColor(sampleAt(p)); return; }
+      if (e.altKey && !selTool(t) && t !== 'hand') { if (textBox) commitText(); pickStart(e, p, true); return; }
       if (t === 'text') {
         if (textBox) { commitText(); return; }
         // (tapping words already on the picture changes them; anywhere else,
@@ -2885,6 +3010,7 @@
     function move(e) {
       var evs = e.getCoalescedEvents && e.getCoalescedEvents().length ? e.getCoalescedEvents() : [e];
       var p = pos(e), t = st.tool;
+      if (down.pick) { loupeAt(e, p); return; }
       if (down.textDrag) {
         // (the box the words will go in)
         down.last = p; var a0 = down.start;
@@ -3100,6 +3226,7 @@
     function end() {
       var t = st.tool;
       clearTimeout(holdTimerS);
+      if (down.pick) { pickEnd(false); return; }
       if (down.penNew || down.penEdit) { down = null; drawPen(); return; }
       if (down.textDrag) {
         var a0 = down.start, b0 = down.last, bw = Math.abs(b0.x - a0.x);
@@ -3178,7 +3305,7 @@
       if (st.tool === 'hand' || spaceDown || e.button === 1) { var s = screen(e); pan = { x: s.x, y: s.y, vx: view.x, vy: view.y }; stage.classList.add('panning'); return; }
       // (a finger's tap with fill, the colour picker, the wand or text acts
       // when it lifts: a second finger may be about to land, for undo)
-      if (e.pointerType === 'touch' && /^(fill|picker|wand)$/.test(st.tool)) {
+      if (e.pointerType === 'touch' && /^(fill|wand)$/.test(st.tool)) {
         tapLater = { id: e.pointerId, ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
         return;
       }
@@ -3327,7 +3454,6 @@
       if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
-      var at2 = e.target.closest('[data-adj-tab]'); if (at2) { adjShowTab(at2.dataset.adjTab); return; }
       var aa = e.target.closest('[data-adj-act]');
       if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') adjustDone(); else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
@@ -3860,7 +3986,7 @@
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
         group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
-        group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Adjust', 'A']]) +
+        group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         group('Touch & Pencil', [['Undo', 'Two-finger tap'], ['Redo', 'Three-finger tap'], ['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']]) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
@@ -3961,7 +4087,7 @@
       },
       fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
       gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>'; },
-      picker: function () { return hint('Tap the picture to pick up a colour · or <b>Alt</b>-click with any tool'); },
+      picker: function () { return hint('Press on the picture: a loupe shows the colour under it, and letting go picks it \u00b7 or hold <b>Alt</b> with any tool'); },
       select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },

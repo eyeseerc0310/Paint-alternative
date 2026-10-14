@@ -18,7 +18,7 @@ When building or changing anything visual:
   `--accent-soft`, `--hover`, `--hover-strong`, `--selected`, `--outline`,
   `--control` (slider and checkbox colour), `--ok`, `--warn`, `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
-  `--stage`, `--menu-*`. Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
+  `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs`, `--r-sm`, `--r-btn`, `--r-menu`, `--r-panel`.
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`. Icons:
   `--icon`, `--icon-sm`, `--stroke`. Motion: `--dur`, `--ease`. Don't hard-code a colour, radius, shadow or spacing value in a
