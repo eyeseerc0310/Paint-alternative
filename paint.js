@@ -3948,26 +3948,43 @@
       if (ids.length === 2 && ptype[ids[0]] === 'touch' && ptype[ids[1]] === 'touch') {
         // two fingers: pinch to zoom, drag to move the picture, twist to turn
         // it. (A quick tap with two fingers is undo, with three, redo.)
-        cancelStroke(); pan = null; tapLater = null;
+        cancelStroke(); pan = null; tapLater = null; holdOff();
         var a = pointers[ids[0]], b = pointers[ids[1]], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         gesture = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, a: Math.atan2(b.y - a.y, b.x - a.x), k: view.k, r: view.r, p: fromScreen(mid.x, mid.y) };
         fingerTap = { n: 2, t0: firstDown, from: {}, moved: false };
         ids.forEach(function (id) { fingerTap.from[id] = { x: pointers[id].x, y: pointers[id].y }; });
         return;
       }
-      if (ids.length === 3 && fingerTap) { fingerTap.n = 3; fingerTap.from[e.pointerId] = { x: pointers[e.pointerId].x, y: pointers[e.pointerId].y }; return; }
+      if (ids.length >= 3 && fingerTap) { fingerTap.n = Math.max(fingerTap.n, ids.length); fingerTap.from[e.pointerId] = { x: pointers[e.pointerId].x, y: pointers[e.pointerId].y }; return; }
       if (ids.length > 1) return;
       if (st.tool === 'hand' || spaceDown || e.button === 1) { var s = screen(e); pan = { x: s.x, y: s.y, vx: view.x, vy: view.y }; stage.classList.add('panning'); return; }
       // (a finger's tap with fill, the colour picker, the wand or text acts
       // when it lifts: a second finger may be about to land, for undo)
+      if (e.pointerType === 'touch') holdOn(e);
       if (e.pointerType === 'touch' && /^(fill|wand)$/.test(st.tool)) {
         tapLater = { id: e.pointerId, ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
         return;
       }
       begin(e);
     });
+    // TOUCH AND HOLD: one finger kept still on the picture for half a second
+    // does what's set for it (what it began, a dot of paint say, is called off)
+    var holdG = null;
+    function holdOn(e) {
+      holdOff();
+      if (gest.hold === 'none') return;
+      var s0 = screen(e);
+      holdG = { id: e.pointerId, s: s0, ev: { pointerId: e.pointerId, pointerType: 'touch', clientX: e.clientX, clientY: e.clientY }, t: setTimeout(function () {
+        var h = holdG; holdG = null;
+        if (!h || !pointers[h.id] || Object.keys(pointers).length !== 1 || gesture || (down && down.id !== h.id) || pen || lassoOn) return;
+        if (down) cancelStroke(); tapLater = null; pan = null; stage.classList.remove('panning');
+        gestureDo(gest.hold, h.s, gest.hold === 'pick' ? h.ev : null);
+      }, 500) };
+    }
+    function holdOff() { if (holdG) { clearTimeout(holdG.t); holdG = null; } }
     stage.addEventListener('pointermove', function (e) {
       if (pointers[e.pointerId]) { pointers[e.pointerId] = screen(e); busyMove(e); }
+      if (holdG && holdG.id === e.pointerId) { var hs = screen(e); if (Math.hypot(hs.x - holdG.s.x, hs.y - holdG.s.y) > 8) holdOff(); else { holdG.ev.clientX = e.clientX; holdG.ev.clientY = e.clientY; } }
       if (fingerTap && fingerTap.from[e.pointerId] && pointers[e.pointerId]) {
         var f0 = fingerTap.from[e.pointerId], f1 = pointers[e.pointerId];
         if (Math.hypot(f1.x - f0.x, f1.y - f0.y) > 12) fingerTap.moved = true;
@@ -4044,14 +4061,17 @@
     }
     window.addEventListener('blur', function () { busy(false); letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
     function up(e) {
+      if (holdG && holdG.id === e.pointerId) holdOff();
       delete pointers[e.pointerId]; delete ptype[e.pointerId];
       if (!Object.keys(pointers).length) busy(false);
       if (e.pointerType === 'pen') hideRing();
       // (all the fingers of a quick, still tap are up: undo, or redo)
       if (fingerTap && !Object.keys(pointers).length) {
         var ft = fingerTap; fingerTap = null;
-        if (!ft.moved && e.type === 'pointerup' && performance.now() - ft.t0 < 400) {
-          if (ft.n === 2 && undo.length) { doUndo(); toast('Undo'); } else if (ft.n === 3 && redo.length) { doRedo(); toast('Redo'); }
+        if (!ft.moved && e.type === 'pointerup' && performance.now() - ft.t0 < 400 + (ft.n - 2) * 100) {
+          // (what's set for that many fingers; it happens where they were)
+          var ks = Object.keys(ft.from), at = { x: 0, y: 0 }; ks.forEach(function (id) { at.x += ft.from[id].x / ks.length; at.y += ft.from[id].y / ks.length; });
+          gestureDo(gest['tap' + Math.min(4, ft.n)], at);
           gesture = null; return;
         }
       }
@@ -4271,9 +4291,11 @@
         })).then(function (pairs) {
           var ims = pairs.map(function (q) { return q[0]; }), mims = pairs.map(function (q) { return q[1]; });
           var gs = (Array.isArray(d.groups) ? d.groups : []).slice(0, 50).map(function (q) { var G = makeGroup(String(q && q.name || '').slice(0, 24) || null); G.open = !q || q.open !== false; G.visible = !q || q.visible !== false; G.opacity = q && q.opacity >= 0 && q.opacity <= 1 ? +q.opacity : 1; G.blend = q && BLENDS.some(function (b) { return b[0] === q.blend; }) ? q.blend : 'normal'; return G; });
-          finishWork();
-          // (one undo goes back to the drawing that was there before)
-          rememberDoc('Open Project');
+          // (it opens as a drawing of its own: the one that was there stays
+          // in the gallery, or, where there's no gallery, undo brings it back)
+          archive(function (kept) {
+          if (kept) { gid = newGid(); undo = []; redo = []; } else rememberDoc('Open Project');
+          docName = String(file.name || '').replace(/\.paint$/i, '').slice(0, 40) || null;
           setDoc(Math.round(d.width), Math.round(d.height));
           layers = d.layers.slice(0, nMax).map(function (l, i) {
             var L = makeLayer(String(l.name || 'Layer ' + (i + 1)).slice(0, 24), false);
@@ -4295,8 +4317,9 @@
             });
             storeIt('paint-palettes', myPalettes);
           }
-          mount(); fit(); autosave();
+          mount(); fit(); buttons(); autosave();
           toast('Opened the project');
+          });
         });
       };
       rd.readAsText(file);
@@ -4345,7 +4368,15 @@
       clearTimeout(saveTimer); saveTimer = 0;
       if (!window.indexedDB) { docStatus('off'); return; }
       if (restoring || !window.Promise) return;
-      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count }, gl = [];
+      docInfo(function (info) {
+        if (!info) return;
+        db(function (os) { var q = os.put(info, 'picture'); q.onsuccess = function () { if (!saveTimer) docStatus('saved'); }; q.onerror = function () { docStatus('off'); }; });
+      });
+    }
+    // the drawing as it's kept: its size, its layers (each as a PNG, with its
+    // mask) and their groups, and which drawing of the gallery it is
+    function docInfo(then) {
+      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count, gid: gid, name: docName }, gl = [];
       layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
       info.groups = gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; });
       Promise.all(layers.map(function (L) {
@@ -4362,10 +4393,9 @@
           }, 'image/png');
         });
       })).then(function (list) {
-        if (list.some(function (l) { return !l.blob; })) return;
-        info.layers = list;
-        db(function (os) { var q = os.put(info, 'picture'); q.onsuccess = function () { if (!saveTimer) docStatus('saved'); }; q.onerror = function () { docStatus('off'); }; });
-      });
+        if (list.some(function (l) { return !l.blob; })) { then(null); return; }
+        info.layers = list; then(info);
+      }, function () { then(null); });
     }
     function restore() {
       var done = function () { restoring = false; };
@@ -4376,29 +4406,238 @@
         g.onerror = done;
         g.onsuccess = function () {
           var d = g.result;
+          if (d && d.gid) { gid = d.gid; docName = d.name || null; }
           if (!d || !d.layers || undo.length || !restoring) { done(); return; }
-          Promise.all(d.layers.map(function (l) { return createImageBitmap(l.blob); }).concat(d.layers.map(function (l) { return l.mblob ? createImageBitmap(l.mblob).catch(function () { return null; }) : null; }))).then(function (ims) {
-            var mims = ims.slice(d.layers.length), gs = (d.groups || []).map(function (q) { var G = makeGroup(q.name); G.open = q.open !== false; G.visible = q.visible !== false; G.opacity = q.opacity != null ? q.opacity : 1; G.blend = q.blend || 'normal'; return G; });
-            if (undo.length || !restoring) { done(); return; } // (they've started drawing already)
-            // (a picture of a chosen size comes back at that size; an older
-            // one, at the size of the screen)
-            if (d.pw && d.ph) setDoc(d.pw, d.ph);
-            layers = d.layers.map(function (l, i) {
-              var L = makeLayer(l.name, l.bg != null ? l.bg : i === 0); L.visible = l.visible !== false;
-              L.opacity = l.opacity != null ? l.opacity : 1; L.blend = l.blend || 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
-              L.group = gs[l.group] || null;
-              if (mims[i]) { L.mask = makeMask(L); L.mask.ctx.save(); L.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); L.mask.ctx.drawImage(mims[i], 0, 0, L.cv.width, L.cv.height); L.mask.ctx.restore(); maskAlpha(L); }
-              if (d.pw) L.ctx.drawImage(ims[i], 0, 0, ims[i].width / R, ims[i].height / R);
-              else L.ctx.drawImage(ims[i], 0, 0, ims[i].width / d.R, ims[i].height / d.R);
-              return L;
-            });
-            active = layers[Math.max(0, Math.min(layers.length - 1, d.active | 0))] || null;
-            count = layers.length ? Math.max(count, d.count | 0) : 0;
-            mount(); if (d.pw) fit(); done();
-          }, done);
+          applyInfo(d, function () { return !undo.length && restoring; }, done);
         };
       });
     }
+    // (a kept drawing, put back: ready() says whether it still should be,
+    // once its pictures are ready)
+    function applyInfo(d, ready, done) {
+      Promise.all(d.layers.map(function (l) { return createImageBitmap(l.blob); }).concat(d.layers.map(function (l) { return l.mblob ? createImageBitmap(l.mblob).catch(function () { return null; }) : null; }))).then(function (ims) {
+        var mims = ims.slice(d.layers.length), gs = (d.groups || []).map(function (q) { var G = makeGroup(q.name); G.open = q.open !== false; G.visible = q.visible !== false; G.opacity = q.opacity != null ? q.opacity : 1; G.blend = q.blend || 'normal'; return G; });
+        if (!ready()) { done(); return; } // (they've started drawing already)
+        // (a picture of a chosen size comes back at that size; an older
+        // one, at the size of the screen)
+        if (d.pw && d.ph) setDoc(d.pw, d.ph);
+        layers = d.layers.map(function (l, i) {
+          var L = makeLayer(l.name, l.bg != null ? l.bg : i === 0); L.visible = l.visible !== false;
+          L.opacity = l.opacity != null ? l.opacity : 1; L.blend = l.blend || 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
+          L.group = gs[l.group] || null;
+          if (mims[i]) { L.mask = makeMask(L); L.mask.ctx.save(); L.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); L.mask.ctx.drawImage(mims[i], 0, 0, L.cv.width, L.cv.height); L.mask.ctx.restore(); maskAlpha(L); }
+          if (d.pw) L.ctx.drawImage(ims[i], 0, 0, ims[i].width / R, ims[i].height / R);
+          else L.ctx.drawImage(ims[i], 0, 0, ims[i].width / d.R, ims[i].height / d.R);
+          return L;
+        });
+        active = layers[Math.max(0, Math.min(layers.length - 1, d.active | 0))] || null;
+        count = layers.length ? Math.max(count, d.count | 0) : 0;
+        mount(); if (d.pw) fit(); done(true);
+      }, function () { done(); });
+    }
+    // ---- THE GALLERY: every drawing, kept in this browser. The one being
+    // drawn is the autosave ('picture'); each is also kept as 'g:' and its
+    // id, with a list of them all ('gallery': names, when each was last
+    // drawn on, its size and a small picture of it). The one in hand is
+    // brought up to date when the gallery opens and before another one is
+    // opened or started ----
+    var gid = null, docName = null;
+    function newGid() { return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+    // (each call answers once, and soon: a browser that won't keep things
+    // still gets an answer)
+    function dbAsk(fn, cb) {
+      var said = false, say = function (v) { if (!said) { said = true; cb(v); } };
+      if (!window.indexedDB) { say(undefined); return; }
+      setTimeout(function () { say(undefined); }, 4000);
+      try {
+        var r = indexedDB.open('paint-alternative', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('s'); };
+        r.onerror = function () { say(undefined); };
+        r.onsuccess = function () { try { var q = fn(r.result.transaction('s', 'readwrite').objectStore('s')); q.onsuccess = function () { say(q.result === undefined ? null : q.result); }; q.onerror = function () { say(undefined); }; } catch (x) { say(undefined); } };
+      } catch (x) { say(undefined); }
+    }
+    function galList(cb) { dbAsk(function (os) { return os.get('gallery'); }, function (v) { cb(v === undefined ? null : Array.isArray(v) ? v : []); }); }
+    function galSave(list, cb) { dbAsk(function (os) { return os.put(list, 'gallery'); }, function (v) { cb(v !== undefined); }); }
+    // (the picture small, for the gallery; and whether there's anything on it)
+    function thumbOf() {
+      var f = document.createElement('canvas'); f.width = ov.width; f.height = ov.height; flattenInto(f.getContext('2d'));
+      var k = Math.min(1, 320 / Math.max(f.width, f.height)), t = document.createElement('canvas');
+      t.width = Math.max(1, Math.round(f.width * k)); t.height = Math.max(1, Math.round(f.height * k));
+      var x = t.getContext('2d'); x.drawImage(f, 0, 0, t.width, t.height);
+      var d = x.getImageData(0, 0, t.width, t.height).data, blank = true;
+      for (var i = 0; i < d.length && blank; i += 4) if (d[i + 3] > 8 && d[i] + d[i + 1] + d[i + 2] < 740) blank = false;
+      return { url: t.toDataURL('image/png'), blank: blank && layers.every(function (L) { return !L.text; }) };
+    }
+    // KEEP the drawing in hand in the gallery (an empty page that was never
+    // kept isn't); then(true) once it's kept, or there was nothing to keep
+    function archive(then, list0) {
+      finishWork(); if (!gid) gid = newGid();
+      var go = function (list) {
+        if (!list) { then(false); return; }
+        var th = thumbOf(), i = -1; list.forEach(function (e, j) { if (e.id === gid) i = j; });
+        if (th.blank && i < 0) { then(true, list); return; }
+        docInfo(function (info) {
+          if (!info) { then(false); return; }
+          dbAsk(function (os) { return os.put(info, 'g:' + gid); }, function (v) {
+            if (v === undefined) { then(false); return; }
+            var e = i >= 0 ? list[i] : { id: gid };
+            if (i < 0) { docName = docName || nextName(list); list.unshift(e); }
+            e.name = docName || e.name; e.t = Date.now(); e.w = ov.width; e.h = ov.height; e.thumb = th.url;
+            galSave(list, function (ok) { then(ok, list); });
+          });
+        });
+      };
+      if (list0) go(list0); else galList(go);
+    }
+    function nextName(list) { for (var n = list.length + 1; ; n++) { var nm = 'Drawing ' + n; if (!list.some(function (e) { return e.name === nm; })) return nm; } }
+    // OPEN one: the one in hand is kept first, and the new one starts with
+    // nothing to undo
+    // (gone: the one in hand was just deleted, so it isn't kept)
+    function openDrawing(id, gone) {
+      if (id === gid) { closeSheet(); return; }
+      (gone ? function (f) { galList(function (l) { f(!!l, l); }); } : archive)(function (ok, list) {
+        if (!ok) { toast('This browser can\u2019t keep a gallery'); return; }
+        var e = list.filter(function (x) { return x.id === id; })[0];
+        dbAsk(function (os) { return os.get('g:' + id); }, function (d) {
+          if (!d || !d.layers || !e) { toast('That drawing couldn\u2019t be opened'); return; }
+          applyInfo(d, function () { return true; }, function (put) {
+            if (!put) { toast('That drawing couldn\u2019t be opened'); return; }
+            gid = id; docName = e.name; undo = []; redo = []; trimmed = false; buttons(); storeNow();
+            closeSheet(); toast('Opened ' + e.name);
+          });
+        });
+      });
+    }
+    function galDate(t) {
+      var d = new Date(t), now = new Date();
+      if (d.toDateString() === now.toDateString()) return 'Today, ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+    }
+    var galBox = null;
+    function gallery() {
+      galBox = openSheet('gal', '<div class="pa-sheet-title">Gallery</div><div class="gal-grid" aria-busy="true"></div>' +
+        '<div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
+      galBox.querySelector('[data-close]').addEventListener('click', closeSheet);
+      galBox.addEventListener('click', galClick);
+      galBox.addEventListener('keydown', function (e) { var i = e.target.closest('.gal-rename'); if (!i) return; e.stopPropagation(); if (e.key === 'Enter') i.blur(); else if (e.key === 'Escape') { i.dataset.cancel = '1'; i.blur(); } });
+      galBox.addEventListener('focusout', function (e) { var i = e.target.closest('.gal-rename'); if (i) renameDone(i); });
+      archive(function (ok, list) {
+        if (!galBox || !galBox.isConnected) return;
+        if (!ok && !list) { galBox.querySelector('.gal-grid').outerHTML = '<div class="ns-note">This browser isn\u2019t keeping things (a private window, perhaps), so there\u2019s no gallery. Save keeps a copy.</div>'; return; }
+        galDraw(list || []);
+      });
+    }
+    var PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>', DOTS = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg>';
+    function galDraw(list) {
+      list.sort(function (a, b) { return (b.t || 0) - (a.t || 0); }); // (the latest first)
+      galBox.galList = list;
+      var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+      var g = galBox.querySelector('.gal-grid'); g.removeAttribute('aria-busy');
+      g.innerHTML = '<button type="button" class="gal-new" data-gal="new"><span class="gal-th">' + PLUS + '</span><b>New Drawing</b></button>' +
+        list.map(function (e) {
+          var cur = e.id === gid;
+          return '<div class="gal-card' + (cur ? ' on' : '') + '" data-id="' + esc(e.id) + '">' +
+            '<button type="button" class="gal-open" data-gal="open" aria-label="Open ' + esc(e.name) + '"' + (cur ? ' aria-current="true"' : '') + '><span class="gal-th"><img src="' + esc(e.thumb || '') + '" alt=""></span></button>' +
+            '<div class="gal-meta"><span class="gal-name">' + esc(e.name) + '</span><small>' + (cur ? 'Open now' : galDate(e.t)) + ' \u00b7 ' + e.w + ' \u00d7 ' + e.h + '</small></div>' +
+            '<button type="button" class="gal-more" data-gal="more" aria-label="Options for ' + esc(e.name) + '" aria-expanded="false" data-tip="Rename, duplicate or delete">' + DOTS + '</button>' +
+            '<div class="gal-acts" role="menu" hidden><button type="button" role="menuitem" data-gal="rename">Rename</button><button type="button" role="menuitem" data-gal="dup">Duplicate</button><button type="button" role="menuitem" class="gal-del" data-gal="del">Delete</button></div></div>';
+        }).join('');
+      if (!list.length) g.insertAdjacentHTML('beforeend', '<div class="ns-note gal-empty">Your drawings are kept here as you make them.</div>');
+    }
+    function galClick(e) {
+      var b = e.target.closest('[data-gal]'); if (!b) { galMenus(null); return; }
+      var w = b.dataset.gal, card = b.closest('.gal-card'), id = card && card.dataset.id, list = galBox.galList || [];
+      var ent = list.filter(function (x) { return x.id === id; })[0];
+      if (w === 'new') { closeSheet(); newSheet(); return; }
+      if (w === 'open') { openDrawing(id); return; }
+      if (w === 'more') { galMenus(card.querySelector('.gal-acts').hidden ? card : null); return; }
+      if (w === 'rename') {
+        galMenus(null);
+        var nm = card.querySelector('.gal-name'), inp = document.createElement('input');
+        inp.className = 'p-field gal-rename'; inp.value = ent.name; inp.maxLength = 40; inp.setAttribute('aria-label', 'Name');
+        nm.replaceWith(inp); inp.focus(); inp.select(); return;
+      }
+      if (w === 'dup') {
+        galMenus(null);
+        dbAsk(function (os) { return os.get('g:' + id); }, function (d) {
+          if (!d) { toast('That drawing couldn\u2019t be copied'); return; }
+          var nid = newGid(); d.gid = nid; d.name = ent.name + ' Copy';
+          dbAsk(function (os) { return os.put(d, 'g:' + nid); }, function (v) {
+            if (v === undefined) { toast('That drawing couldn\u2019t be copied'); return; }
+            var c = {}; for (var k in ent) c[k] = ent[k]; c.id = nid; c.name = d.name; c.t = Date.now();
+            list.splice(list.indexOf(ent), 0, c);
+            galSave(list, function () { galDraw(list); });
+          });
+        });
+        return;
+      }
+      if (w === 'del') {
+        // (asked twice: the second press deletes it for good)
+        if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'Delete for Good'; return; }
+        galMenus(null);
+        list.splice(list.indexOf(ent), 1);
+        dbAsk(function (os) { return os.delete('g:' + id); }, function () {
+          galSave(list, function () {
+            if (id !== gid) { galDraw(list); return; }
+            // (the one in hand: the next one opens, or a fresh page)
+            gid = null; docName = null;
+            if (list.length) openDrawing(list[0].id, true);
+            else { gid = newGid(); undo = []; redo = []; newPicture0(ov.width, ov.height, true); galDraw(list); }
+          });
+        });
+      }
+    }
+    function galMenus(card) {
+      Array.prototype.forEach.call(galBox.querySelectorAll('.gal-card'), function (c) {
+        var on = c === card, m = c.querySelector('.gal-acts'); m.hidden = !on; c.querySelector('.gal-more').setAttribute('aria-expanded', on ? 'true' : 'false');
+        if (!on) { var d = m.querySelector('.gal-del'); d.classList.remove('sure'); d.textContent = 'Delete'; }
+      });
+    }
+    function renameDone(inp) {
+      if (!inp.isConnected || inp.dataset.done) return; inp.dataset.done = '1';
+      var card = inp.closest('.gal-card'), list = galBox.galList, ent = list.filter(function (x) { return x.id === card.dataset.id; })[0], nm = inp.value.trim().slice(0, 40);
+      if (nm && !inp.dataset.cancel && ent) { ent.name = nm; if (ent.id === gid) { docName = nm; autosave(); } galSave(list, function () {}); }
+      galDraw(list);
+    }
+
+    // ---- GESTURES: what each touch gesture does (kept for next time).
+    // Pinching, moving and turning with two fingers always work ----
+    var GACTS = [['none', 'Nothing'], ['undo', 'Undo'], ['redo', 'Redo'], ['eraser', 'Brush \u21c4 Eraser'], ['pick', 'Colour Picker'], ['swap', 'Swap Colours'], ['focus', 'Focus Mode'], ['fit', 'Fit the Picture'], ['layers', 'Layers'], ['gallery', 'Gallery']];
+    var GDEF = { tap2: 'undo', tap3: 'redo', tap4: 'focus', hold: 'none' }, GNAMES = { tap2: 'Two-finger tap', tap3: 'Three-finger tap', tap4: 'Four-finger tap', hold: 'Touch and hold' };
+    var gest = (function () { var g = stored('paint-gestures', {}), o = {}; for (var k in GDEF) o[k] = GACTS.some(function (a) { return a[0] === g[k]; }) ? g[k] : GDEF[k]; return o; })();
+    function gactName(a) { return (GACTS.filter(function (x) { return x[0] === a; })[0] || GACTS[0])[1]; }
+    var lastPaint = 'brush';
+    // (at: where on the screen it happened; ev: the finger, for the picker
+    // to follow while it's held)
+    function gestureDo(a, at, ev) {
+      if (a === 'undo') { if (undo.length || (pen && pen.pts.length)) { doUndo(); toast('Undo'); } }
+      else if (a === 'redo') { if (redo.length) { doRedo(); toast('Redo'); } }
+      else if (a === 'eraser') { if (st.tool === 'eraser') setTool(lastPaint); else { lastPaint = st.tool; setTool('eraser'); } toast(st.tool === 'eraser' ? 'Eraser' : TOOL_NAMES[st.tool] || 'Brush'); }
+      else if (a === 'pick') {
+        var r = stage.getBoundingClientRect(), e = ev || { pointerId: -1, pointerType: 'touch', clientX: r.left + at.x, clientY: r.top + at.y };
+        pickStart(e, fromScreen(at.x, at.y), true);
+        if (!ev) pickEnd(false);
+      }
+      else if (a === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
+      else if (a === 'focus') focusMode(!document.documentElement.classList.contains('focus-mode'));
+      else if (a === 'fit') fit();
+      else if (a === 'layers') layerPanel(panel.hidden);
+      else if (a === 'gallery') gallery();
+    }
+    function gestureSheet() {
+      var box = openSheet('gs', '<div class="pa-sheet-title">Touch Gestures</div><div class="gs-list">' +
+        Object.keys(GDEF).map(function (k) { return '<label class="gs-row"><span>' + GNAMES[k] + '</span><select class="p-field" data-gest="' + k + '">' + GACTS.map(function (a) { return '<option value="' + a[0] + '"' + (gest[k] === a[0] ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select></label>'; }).join('') +
+        '</div><div class="ns-note">Touch and hold: keep one finger still on the picture for half a second. Pinching to zoom, and moving and turning the picture with two fingers, always work.</div>' +
+        '<div class="pa-sheet-acts"><button type="button" data-gs="reset">Reset</button><button type="button" class="pa-primary" data-gs="done">Done</button></div>');
+      box.addEventListener('change', function (e) { var k = e.target.dataset.gest; if (k) { gest[k] = e.target.value; storeIt('paint-gestures', gest); } });
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-gs]'); if (!b) return;
+        if (b.dataset.gs === 'done') { closeSheet(); return; }
+        for (var k in GDEF) { gest[k] = GDEF[k]; box.querySelector('[data-gest="' + k + '"]').value = GDEF[k]; }
+        storeIt('paint-gestures', gest);
+      });
+    }
+
     document.addEventListener('pageswap:start', function away() { document.removeEventListener('pageswap:start', away); if (saveTimer) storeNow(); });
     window.addEventListener('pagehide', function () { if (saveTimer && document.contains(root)) storeNow(); });
 
@@ -4465,7 +4704,7 @@
         '<button type="button" class="ns-swap" aria-label="Swap width and height" title="Swap width and height"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></button>' +
         '<label>Height<input type="number" inputmode="numeric" min="16" max="' + MAXPX + '" data-ns="h"></label><span class="ns-unit">pixels</span></div>' +
         '<div class="ns-row ns-row-bg"><span class="ns-lab">Background</span><div class="pa-tabs ns-bg" role="tablist"><button type="button" role="tab" data-bg="white" aria-selected="true">White</button><button type="button" role="tab" data-bg="clear" aria-selected="false">Transparent</button></div></div>' +
-        '<div class="ns-note">This replaces the current picture. You can undo it.</div><div class="ns-err" hidden></div>' +
+        '<div class="ns-note">The picture you\u2019re on stays in your Gallery.</div><div class="ns-err" hidden></div>' +
         '<div class="pa-sheet-acts"><button type="button" data-ns-act="cancel">Cancel</button><button type="button" class="pa-primary" data-ns-act="create">Create</button></div>');
       var wIn = box.querySelector('[data-ns="w"]'), hIn = box.querySelector('[data-ns="h"]'), err = box.querySelector('.ns-err'), bg = 'white';
       function pick(id) {
@@ -4490,29 +4729,38 @@
     }
     function newPicture(pw, ph, white) {
       finishWork();
-      rememberDoc('New Picture');
+      // (the drawing that was there stays in the gallery; where the browser
+      // can't keep one, undo brings it back instead)
+      archive(function (kept) {
+        if (kept) { gid = newGid(); docName = null; undo = []; redo = []; } else rememberDoc('New Picture');
+        newPicture0(pw, ph, white);
+      });
+    }
+    function newPicture0(pw, ph, white) {
       setDoc(pw, ph);
       count = 1;
       layers = [makeLayer(white ? 'Background' : 'Layer 1', white)]; active = layers[0];
-      mount(); fit(); autosave();
+      mount(); fit(); buttons(); autosave();
     }
 
     // ---- IMAGE: rotate, flip or crop the whole picture (every layer) ----
     // (on a phone the top bar keeps undo, redo, save and layers; the rest
     // is in its ••• menu)
+    var GEST_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 9.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a5.5 5.5 0 0 1-5.5 5.5h-.6a5 5 0 0 1-4-2l-2.6-3.4a1.5 1.5 0 0 1 2.3-1.9L9 14"/></svg>';
     var moreBox = dropdown('paint-moremenu'); moreBox.setAttribute('role', 'menu');
     function moreMenu(open) {
       if (!open) { moreBox.hidden = true; hb('more').setAttribute('aria-expanded', 'false'); return; }
       closeDrops();
       var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '">' + (src ? src.outerHTML : '') + label + '</button>'; };
-      moreBox.innerHTML = it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
-        it('focus', 'Focus Mode') + it('help', 'Shortcuts') + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
+      moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
+        it('focus', 'Focus Mode') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
       moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
     }
     moreBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-more]'); if (!b) return;
       var k = b.dataset.more; moreMenu(false);
       if (k === 'open') header.querySelector('.paint-open input').click();
+      else if (k === 'gestures') gestureSheet();
       else if (k === 'theme') header.querySelector('.theme-toggle').click();
       else if (hb(k)) { var t = hb(k); setTimeout(function () { t.click(); }, 0); }
     });
@@ -4681,9 +4929,10 @@
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
-        group('Touch & Pencil', [['Undo', 'Two-finger tap'], ['Redo', 'Three-finger tap'], ['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']]) +
-        '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
+        group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
+        '</div><div class="pa-sheet-acts"><button type="button" data-gestures>Touch Gestures\u2026</button><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
+      sheetEl.querySelector('[data-gestures]').addEventListener('click', gestureSheet);
     }
 
     // ---- SHARE: the picture as a PNG, to Messages, Photos, Mail... (or,
@@ -4727,6 +4976,7 @@
       if (w === 'focus') { focusMode(!document.documentElement.classList.contains('focus-mode')); return; }
       if (w === 'more') { moreMenu(moreBox.hidden); return; }
       if (w === 'new') newSheet();
+      else if (w === 'gallery') { closeDrops(); gallery(); }
       else if (w === 'image') imageMenu(imgMenu.hidden);
       else if (w === 'history') historyPanel(histBox.hidden);
       else if (w === 'share') { closeDrops(); share(); }
