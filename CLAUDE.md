@@ -16,7 +16,8 @@ When building or changing anything visual:
   redefined for dark mode under `:root[data-theme="dark"]`). Colours: `--bg`,
   `--text`, `--muted`, `--line`, `--accent`, `--accent-hover`,
   `--accent-soft`, `--hover`, `--hover-strong`, `--selected`, `--outline`,
-  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--panel`, `--panel-solid`,
+  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--brand` (the
+  app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*`. Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs`, `--r-sm`, `--r-btn`, `--r-menu`, `--r-panel`.
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`. Icons:
