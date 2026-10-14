@@ -159,53 +159,119 @@
       // (bg: the white paper at the bottom; delete it and the picture is see-through)
       // (alphaLock: paint only goes where the layer already has some; clip:
       // it shows only where the layer below it has paint)
-      return { cv: c, ctx: x, name: name, visible: true, bg: !!white, opacity: 1, blend: 'normal', alphaLock: false, clip: false, view: null, text: null };
+      return { cv: c, ctx: x, name: name, visible: true, bg: !!white, opacity: 1, blend: 'normal', alphaLock: false, clip: false, view: null, text: null, mask: null, editMask: false, group: null };
     }
     // CLIPPING MASKS: a clipped layer keeps all its own paint, and is shown
     // through the layer under it (the first one below that isn't clipped
-    // itself), on a copy made for showing it: so unclipping brings it all back
+    // itself, in the same group), on a copy made for showing it: so
+    // unclipping brings it all back
     function clipBase(L) {
       var i = layers.indexOf(L);
       if (!L || !L.clip || i <= 0) return null;
-      for (var j = i - 1; j >= 0; j--) if (!layers[j].clip) return layers[j];
+      for (var j = i - 1; j >= 0; j--) { if (layers[j].group !== L.group) return null; if (!layers[j].clip) return layers[j]; }
       return null;
     }
-    function viewOf(L) {
-      var b = clipBase(L); if (!b) return L.cv;
+    // LAYER MASKS: a grey picture the size of the layer; where it's white the
+    // layer shows, where it's black it's hidden, and grey half shows it. It's
+    // painted on like any layer (L.mask.P stands in for the layer while it
+    // is), and turned into a see-through-ness (L.mask.a) to show it
+    function makeMask(L, fill) {
+      var m = { cv: document.createElement('canvas'), a: document.createElement('canvas') };
+      m.cv.width = m.a.width = L.cv.width; m.cv.height = m.a.height = L.cv.height;
+      m.ctx = m.cv.getContext('2d', { willReadFrequently: true }); base(m.ctx);
+      m.actx = m.a.getContext('2d', { willReadFrequently: true });
+      m.ctx.fillStyle = fill || '#fff'; m.ctx.fillRect(0, 0, W, H);
+      m.P = { cv: m.cv, ctx: m.ctx, bg: true, alphaLock: false, clip: false, opacity: 1, blend: 'normal', visible: true, text: null, name: L.name + ' mask', isMask: true, owner: L, mask: null };
+      return m;
+    }
+    // (the grey, as see-through-ness: all of it, or just the parts that
+    // changed; with the stroke still on the sheet laid over it, at alpha)
+    var mScratch = document.createElement('canvas');
+    function maskAlpha(L, rects, alpha) {
+      var m = L.mask; if (!m) return;
+      var Wd = m.cv.width, Hd = m.cv.height;
+      (rects || [[0, 0, Wd, Hd]]).forEach(function (r) {
+        var x0 = Math.max(0, Math.floor(r[0])), y0 = Math.max(0, Math.floor(r[1])), x1 = Math.min(Wd, Math.ceil(r[2])), y1 = Math.min(Hd, Math.ceil(r[3])), w = x1 - x0, h = y1 - y0;
+        if (w <= 0 || h <= 0) return;
+        if (mScratch.width < w || mScratch.height < h) { mScratch.width = Math.max(mScratch.width, w); mScratch.height = Math.max(mScratch.height, h); }
+        var x = mScratch.getContext('2d', { willReadFrequently: true });
+        x.globalCompositeOperation = 'copy'; x.globalAlpha = 1; x.drawImage(m.cv, x0, y0, w, h, 0, 0, w, h);
+        if (alpha) { x.globalCompositeOperation = 'source-over'; x.globalAlpha = alpha; x.drawImage(ov, x0, y0, w, h, 0, 0, w, h); x.globalAlpha = 1; }
+        var d = x.getImageData(0, 0, w, h), D = d.data;
+        for (var i = 0; i < D.length; i += 4) { D[i + 3] = (D[i] * 77 + D[i + 1] * 150 + D[i + 2] * 29) >> 8; D[i] = D[i + 1] = D[i + 2] = 255; }
+        m.actx.putImageData(d, x0, y0);
+      });
+    }
+    // (a layer's look on screen: its paint, through its mask, through the
+    // layer it's clipped to; made on a copy, all of it or just some parts)
+    function usesView(L) { return !!(clipBase(L) || L.mask); }
+    function viewOf(L, rects) {
+      var b = clipBase(L); if (!b && !L.mask) return L.cv;
       var v = L.view;
-      if (!v || v.width !== L.cv.width || v.height !== L.cv.height) { v = L.view = document.createElement('canvas'); v.width = L.cv.width; v.height = L.cv.height; }
+      if (!v || v.width !== L.cv.width || v.height !== L.cv.height) { v = L.view = document.createElement('canvas'); v.width = L.cv.width; v.height = L.cv.height; rects = null; }
       v.style.width = W + 'px'; v.style.height = H + 'px';
-      var x = v.getContext('2d'); x.globalCompositeOperation = 'copy'; x.drawImage(L.cv, 0, 0);
-      x.globalCompositeOperation = 'destination-in'; x.drawImage(b.cv, 0, 0); x.globalCompositeOperation = 'source-over';
+      var x = v.getContext('2d'); x.save();
+      if (rects) { x.beginPath(); rects.forEach(function (r) { x.rect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); x.clip(); }
+      x.globalCompositeOperation = 'copy'; x.drawImage(L.cv, 0, 0);
+      x.globalCompositeOperation = 'destination-in';
+      if (L.mask) x.drawImage(L.mask.a, 0, 0);
+      if (b) x.drawImage(b.mask ? b.view || viewOf(b) : b.cv, 0, 0);
+      x.restore();
       return v;
     }
     // (made again straight after any change, so it never lags a frame behind)
-    function viewsSoon() { layers.forEach(function (L) { if (clipBase(L)) viewOf(L); }); }
+    function viewsSoon() { layers.forEach(function (L) { if (usesView(L)) viewOf(L); }); }
+    // GROUPS: layers side by side in the list can be put in a group (a
+    // folder): L.group, shared by them all. A group is shown, hidden, faded
+    // and blended as one, and can be folded shut in the list
+    var gCount = 0;
+    function makeGroup(name) { return { id: ++gCount, name: name || 'Group ' + gCount, open: true, visible: true, opacity: 1, blend: 'normal', el: null }; }
     function mount() {
       stack.innerHTML = '';
-      layers.forEach(function (L) { var el = viewOf(L); styleLayer(L); stack.appendChild(el); });
+      var G = null;
+      layers.forEach(function (L) {
+        var el = viewOf(L); styleLayer(L);
+        if (L.group && L.group !== G) { G = L.group; G.el = document.createElement('div'); G.el.className = 'paint-gstack'; styleGroup(G); stack.appendChild(G.el); }
+        else if (!L.group) G = null;
+        (L.group ? L.group.el : stack).appendChild(el);
+      });
       renderLayers();
+    }
+    function styleGroup(G) {
+      if (!G.el) return;
+      G.el.style.visibility = G.visible ? '' : 'hidden';
+      G.el.style.opacity = G.opacity < 1 ? G.opacity : '';
+      G.el.style.mixBlendMode = G.blend !== 'normal' ? G.blend : '';
     }
     // a layer's see-through-ness and blend mode show as it's drawn on screen
     // (and are worked in the same way when the picture is saved); a clipped
-    // layer is hidden with the layer it's clipped to
-    function shownVisible(L) { var b = clipBase(L); return L.visible && (!b || b.visible); }
+    // layer is hidden with the layer it's clipped to, and a layer in a
+    // hidden group with the group
+    function shownVisible(L) { var b = clipBase(L); return L.visible && (!b || b.visible) && (!L.group || L.group.visible); }
     function styleLayer(L) {
-      var el = clipBase(L) ? L.view || viewOf(L) : L.cv;
-      el.style.visibility = shownVisible(L) && !L.editing ? '' : 'hidden'; // (a text layer being typed into shows as the words being typed)
+      var el = usesView(L) ? L.view || viewOf(L) : L.cv;
+      el.style.visibility = (L.visible && (!clipBase(L) || clipBase(L).visible)) && !L.editing ? '' : 'hidden'; // (a text layer being typed into shows as the words being typed)
       el.style.opacity = L.opacity < 1 ? L.opacity : '';
       el.style.mixBlendMode = L.blend !== 'normal' ? L.blend : '';
     }
     // every visible layer, laid one on another (with its opacity and blend
-    // mode), onto a canvas: for saving, sharing and picking colours
+    // mode, and its group's), onto a canvas: for saving, sharing and picking colours
     function flattenInto(x, sx, sy, sw, sh, dw, dh) {
-      layers.forEach(function (L) {
-        if (!shownVisible(L)) return;
-        var src = viewOf(L);
-        x.save(); x.globalAlpha = L.opacity; if (L.blend !== 'normal') x.globalCompositeOperation = L.blend;
-        if (sw == null) x.drawImage(src, 0, 0); else x.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
-        x.restore();
-      });
+      var put = function (c, src, alpha, blend) {
+        c.save(); c.globalAlpha = alpha; if (blend !== 'normal') c.globalCompositeOperation = blend;
+        if (sw == null) c.drawImage(src, 0, 0); else c.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
+        c.restore();
+      };
+      for (var i = 0; i < layers.length; i++) {
+        var L = layers[i], G = L.group;
+        if (!G) { if (shownVisible(L)) put(x, viewOf(L), L.opacity, L.blend); continue; }
+        // (a group: its layers together on a sheet of their own, then that, as one)
+        var t = document.createElement('canvas'); t.width = sw == null ? x.canvas.width : dw; t.height = sw == null ? x.canvas.height : dh;
+        var tx = t.getContext('2d');
+        for (; i < layers.length && layers[i].group === G; i++) if (shownVisible(layers[i])) put(tx, viewOf(layers[i]), layers[i].opacity, layers[i].blend);
+        i--;
+        if (G.visible) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = G.opacity; if (G.blend !== 'normal') x.globalCompositeOperation = G.blend; x.drawImage(t, 0, 0); x.restore(); }
+      }
     }
     // THE PICTURE'S SIZE, in real pixels (what a saved PNG comes out at);
     // on screen it's that over the pixel ratio
@@ -676,6 +742,16 @@
     // (each step has a name, for the HISTORY list; fewer steps are kept for
     // a big picture, so they don't fill up the memory)
     var trimmed = false;
+    // HOW MANY LAYERS: as many as the memory allows for a picture this size
+    // (up to 50); near the end, a warning that the app may slow down
+    function maxLayers() { return Math.max(10, Math.min(50, Math.floor(900e6 / (ov.width * ov.height * 4)))); }
+    var roomWarned = 0;
+    function roomFor(n) {
+      var max = maxLayers(), after = layers.length + (n || 1);
+      if (after > max) { toast('Up to ' + max + ' layers for a picture this size: merge or delete one to add more'); return false; }
+      if (after >= Math.ceil(max * 0.8) && roomWarned !== max) { roomWarned = max; toast('That\u2019s a lot of layers for a picture this size: the app may slow down'); }
+      return true;
+    }
     function limit() { return Math.max(4, Math.min(LIMIT, Math.floor(160e6 / (ov.width * ov.height * 4)))); }
     // (what could be redone is kept with the step, so a stroke that's called
     // off at once, like the first finger of a two-finger tap, gives it back)
@@ -686,7 +762,7 @@
       push({ L: active, data: snapOf(active), bg: active.bg, text: active.text, label: label });
       if (active.text) { active.text = null; renderLayers(); if (!quiet) toast('The text is now paint (undo to edit the words again)'); }
     }
-    function props() { return layers.map(function (L) { return { v: L.visible, o: L.opacity, b: L.blend, a: L.alphaLock, c: L.clip, t: L.text }; }); }
+    function props() { return layers.map(function (L) { var G = L.group; return { v: L.visible, o: L.opacity, b: L.blend, a: L.alphaLock, c: L.clip, t: L.text, m: L.mask, g: G, gp: G && [G.name, G.open, G.visible, G.opacity, G.blend] }; }); }
     function rememberLayers(label) { push({ list: layers.slice(), active: active, props: props(), label: label || 'Layers' }); }
     function docState() { return { doc: true, pw: ov.width, ph: ov.height, list: layers.slice(), active: active, props: props() }; }
     function rememberDoc(label) { var e = docState(); e.label = label; push(e); }
@@ -697,10 +773,11 @@
     }
     function apply(e) {
       if (e.parts) { e.parts.forEach(apply); viewsSoon(); return; }
-      if (e.L) { if (e.bg != null) e.L.bg = e.bg; if ('text' in e) e.L.text = e.text || null; if (e.name) e.L.name = e.name; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); renderLayers(); }
+      if (e.L) { if (e.L.isMask) { e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); maskAlpha(e.L.owner); viewsSoon(); renderLayers(); return; }
+        if (e.bg != null) e.L.bg = e.bg; if ('text' in e) e.L.text = e.text || null; if (e.name) e.L.name = e.name; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); viewsSoon(); renderLayers(); }
       else {
         if (e.doc) { clearSel(); if (e.pw !== ov.width || e.ph !== ov.height) setDoc(e.pw, e.ph); }
-        layers = e.list.slice(); layers.forEach(function (L, i) { var q = e.props[i]; L.visible = q.v; L.opacity = q.o; L.blend = q.b; L.alphaLock = !!q.a; L.clip = !!q.c; if ('t' in q) L.text = q.t || null; });
+        layers = e.list.slice(); layers.forEach(function (L, i) { var q = e.props[i]; L.visible = q.v; L.opacity = q.o; L.blend = q.b; L.alphaLock = !!q.a; L.clip = !!q.c; if ('t' in q) L.text = q.t || null; if ('m' in q) { L.mask = q.m || null; if (!L.mask) L.editMask = false; } if ('g' in q) { L.group = q.g || null; if (q.gp) { L.group.name = q.gp[0]; L.group.open = q.gp[1]; L.group.visible = q.gp[2]; L.group.opacity = q.gp[3]; L.group.blend = q.gp[4]; } } });
         active = layers.indexOf(e.active) >= 0 ? e.active : layers[layers.length - 1] || null; mount();
         if (e.doc) fit();
       }
@@ -1039,7 +1116,7 @@
       octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects);
       rects.forEach(function (r) { var w = r[2] - r[0], h = r[3] - r[1]; octx.clearRect(r[0], r[1], w, h); octx.drawImage(sc, r[0], r[1], w, h, r[0], r[1], w, h); });
       base(octx);
-      maskOv(); // (inside the redraw area only, so edges aren't masked twice)
+      maskOv(rects); // (inside the redraw area only, so edges aren't masked twice)
       if (st.tool === 'eraser') eraseFromSheet(rects);
       octx.restore();
     }
@@ -1058,6 +1135,8 @@
       c.drawImage(eraseBase, 0, 0);
       c.globalAlpha = st.alpha; c.globalCompositeOperation = active.bg ? 'source-over' : 'destination-out';
       c.drawImage(ov, 0, 0); c.restore();
+      if (active.isMask) { maskAlpha(active.owner, rects); viewOf(active.owner, rects); } // (on a mask: it shows as it goes)
+      else if (usesView(active)) viewOf(active, rects);
     }
     // SYMMETRY: everything drawn is drawn again for each copy: mirrored
     // across an upright line (vertical), a level one (horizontal) or both
@@ -1566,15 +1645,15 @@
         L.text = T; renderText(L); renderLayers(); useColor(); return;
       }
       if (empty) return;
-      if (layers.length >= 10) {
+      if (layers.length >= maxLayers()) {
         // (no room for another layer: the words are painted onto this one)
         need(); remember('Text', true);
         var c = active.ctx; c.save(); clipTo(c); if (active.alphaLock) c.globalCompositeOperation = 'source-atop'; drawText(c, T); c.restore();
-        toast('Up to 10 layers: the words went onto this layer as paint'); useColor(); return;
+        toast('No room for another layer: the words went onto this layer as paint'); useColor(); return;
       }
       rememberLayers('Text');
       var N = makeLayer(textName(str), false); N.text = T;
-      layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, N); active = N;
+      layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, N); N.group = active ? active.group : null; active = N;
       renderText(N); mount(); autosave(); useColor();
     }
     // HOW THE WORDS ARE LAID OUT, from where they start (0, 0): line by line,
@@ -1877,7 +1956,7 @@
     // selection's exact shape is kept by putting back what's outside it)
     function selPath(c) { if (sel.poly) outline(c, sel.x, sel.y, 1); else { c.beginPath(); c.rect(sel.x, sel.y, sel.w, sel.h); } }
     function clipTo(c) { if (!sel) return; if (sel.mask) { c.beginPath(); c.rect(sel.x, sel.y, sel.w, sel.h); } else selPath(c); c.clip(); }
-    function maskOv() {
+    function maskOv(rects) {
       if (selTool(st.tool)) return;
       if (sel) {
         octx.save(); octx.globalCompositeOperation = 'destination-in';
@@ -1886,13 +1965,40 @@
       }
       // (on an alpha-locked layer the stroke shows only where there's paint
       // already; on a clipped one, only where the layer it's clipped to has paint)
+      // (painting a mask: the sheet stays hidden, and the layer shows the
+      // stroke's effect as it's drawn)
+      if (active && active.isMask) {
+        ov.style.opacity = 0;
+        if (st.tool !== 'eraser') { maskAlpha(active.owner, rects, strokeLook().alpha); viewOf(active.owner, rects); }
+        return;
+      }
       var b = active && clipBase(active);
-      if (st.tool !== 'eraser' && active && (active.alphaLock || b)) {
+      if (st.tool !== 'eraser' && active && (active.alphaLock || b || active.mask)) {
         octx.save(); octx.setTransform(1, 0, 0, 1, 0, 0); octx.globalCompositeOperation = 'destination-in';
         if (active.alphaLock) octx.drawImage(active.cv, 0, 0);
-        if (b) octx.drawImage(b.cv, 0, 0);
+        if (active.mask) octx.drawImage(active.mask.a, 0, 0);
+        if (b) octx.drawImage(b.mask ? b.view || viewOf(b) : b.cv, 0, 0);
         octx.restore();
       }
+    }
+    // PAINTING ON A MASK: while a layer's mask is picked, the tools that paint
+    // work on the mask instead, in greys (each colour's lightness): black
+    // hides the layer, white shows it, and the eraser brings it back
+    var maskSwap = null;
+    // (stretched a little, so the near-black and near-white swatches hide
+    // and show the layer completely)
+    function greyOf(c) { var r = parseInt(c.slice(1, 3), 16), g = parseInt(c.slice(3, 5), 16), b = parseInt(c.slice(5, 7), 16), l = 0.299 * r + 0.587 * g + 0.114 * b; l = Math.round(Math.max(0, Math.min(255, (l - 24) / (232 - 24) * 255))); return hexOf([l, l, l]); }
+    function maskIn() {
+      if (maskSwap || !active || !active.editMask || !active.mask) return false;
+      if (!/^(brush|eraser|line|shape|gradient|fill|pen|smudge|blur|tone)$/.test(st.tool)) return false;
+      maskSwap = { L: active, c1: st.color, c2: st.color2 };
+      st.color = greyOf(st.color); st.color2 = greyOf(st.color2);
+      active = active.mask.P; return true;
+    }
+    function maskOut() {
+      if (!maskSwap) return;
+      var L = maskSwap.L; st.color = maskSwap.c1; st.color2 = maskSwap.c2; maskSwap = null; active = L;
+      maskAlpha(L); viewsSoon(); thumbsSoon(); plainOv();
     }
     function selPixels() {
       var m = document.createElement('canvas'); m.width = ov.width; m.height = ov.height;
@@ -2080,14 +2186,14 @@
         lift();
         rememberLayers('Cut to Layer');
         var L = makeLayer('Cutout', false); putFloat(L.ctx);
-        layers.splice(layers.indexOf(active) + 1, 0, L); active = L;
+        layers.splice(layers.indexOf(active) + 1, 0, L); L.group = active.group; active = L;
         clearSel(); mount(); return;
       }
       if (a === 'delete') { if (!sel.float) lift(); sel.float = null; clearSel(); autosave(); return; }
       if (a === 'copy') {
         // COPY: the selection is copied onto a new layer just above, picked
         // up and ready to move (the original stays where it is)
-        if (layers.length >= 10) return;
+        if (!roomFor()) return;
         var f;
         if (sel.rot && sel.float) {
           // (a turned one: what's picked up is put down, and a copy of it carries on)
@@ -2095,7 +2201,7 @@
           anchor(true);
         } else { anchor(); lift(true); f = sel.float; sel.float = null; undo.pop(); }
         rememberLayers('Copy');
-        var L2 = makeLayer('Copy', false); layers.splice(layers.indexOf(active) + 1, 0, L2); active = L2; mount();
+        var L2 = makeLayer('Copy', false); layers.splice(layers.indexOf(active) + 1, 0, L2); L2.group = active.group; active = L2; mount();
         sel.float = f; sel.x += 14; sel.y += 14; drawSel(); autosave(); return;
       }
       lift();
@@ -2121,12 +2227,26 @@
     renderLayers();
     function renderLayers() {
       if (!panel) return;
+      var esc = function (t) { return t.replace(/[<&"]/g, function (ch) { return ch === '<' ? '&lt;' : ch === '&' ? '&amp;' : '&quot;'; }); };
+      var EYE = function (on) { return '<svg viewBox="0 0 24 24">' + (on ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg>'; };
+      var shownG = [];
       var rows = layers.slice().reverse().map(function (L) {
-        var i = layers.indexOf(L);
-        return '<div class="pl-row' + (L === active ? ' on' : '') + (clipBase(L) ? ' clipped' : '') + '" data-i="' + i + '">' +
+        var i = layers.indexOf(L), G = L.group, head = '';
+        // (a group: its row, then its layers, unless it's folded shut)
+        if (G && shownG.indexOf(G) < 0) {
+          shownG.push(G);
+          head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
+            '<button type="button" class="pl-eye" data-geye="' + G.id + '" aria-label="' + (G.visible ? 'Hide' : 'Show') + ' ' + esc(G.name) + '" aria-pressed="' + (!G.visible) + '">' + EYE(G.visible) + '</button>' +
+            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>' +
+            '<button type="button" class="pl-name" data-gname="' + G.id + '" title="Tap again to rename"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg><span>' + esc(G.name) + '</span></button>' +
+            '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
+        }
+        if (G && !G.open) return head;
+        return head + '<div class="pl-row' + (L === active && !focusG ? ' on' : '') + (clipBase(L) ? ' clipped' : '') + (G ? ' in-grp' : '') + '" data-i="' + i + '">' +
           '<button type="button" class="pl-eye" data-layer-eye="' + i + '" aria-label="' + (L.visible ? 'Hide' : 'Show') + ' ' + L.name + '" aria-pressed="' + (!L.visible) + '">' +
             '<svg viewBox="0 0 24 24">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
-          '<canvas class="pl-thumb" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
+          '<canvas class="pl-thumb' + (L.mask && !L.editMask ? ' picked' : '') + '" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
+          (L.mask ? '<canvas class="pl-thumb pl-mthumb' + (L.editMask ? ' picked' : '') + '" data-mthumb="' + i + '" role="button" aria-label="The mask: tap to paint on it" title="The mask: tap to paint on it (black hides, white shows)"></canvas>' : '') +
           '<button type="button" class="pl-name" data-layer="' + i + '" title="Tap again to rename"><span>' + L.name.replace(/[<&]/g, function (ch) { return ch === '<' ? '&lt;' : '&amp;'; }) + '</span>' +
             (L.text ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Text layer"><path d="M6 7.5V5h12v2.5"/><path d="M12 5v14"/><path d="M9.5 19h5"/></svg>' : '') +
             (L.alphaLock ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Alpha lock on"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>' : '') + '</button>' +
@@ -2134,12 +2254,15 @@
           '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
       }).join('');
       if (!layers.length) rows = '<div class="pl-empty">No layers. Draw, or tap + to add one.</div>';
-      var pr = active ? '<div class="pl-props"><label class="pl-op"><span>Opacity</span><input type="range" min="0" max="100" value="' + Math.round(active.opacity * 100) + '" data-layer-op aria-label="Layer opacity"><output>' + Math.round(active.opacity * 100) + '%</output></label>' +
+      var pr = focusG ? '<div class="pl-props"><label class="pl-op"><span>Group</span><input type="range" min="0" max="100" value="' + Math.round(focusG.opacity * 100) + '" data-group-op aria-label="Group opacity"><output>' + Math.round(focusG.opacity * 100) + '%</output></label>' +
+        '<label class="pl-bl"><span>Blend</span><select data-group-blend aria-label="Group blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === focusG.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' :
+        active ? '<div class="pl-props"><label class="pl-op"><span>Opacity</span><input type="range" min="0" max="100" value="' + Math.round(active.opacity * 100) + '" data-layer-op aria-label="Layer opacity"><output>' + Math.round(active.opacity * 100) + '%</output></label>' +
         '<label class="pl-bl"><span>Blend</span><select data-layer-blend aria-label="Blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === active.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' : '';
       thumbsSoon();
       panel.innerHTML = '<div class="pl-title">Layers</div><div class="pl-list">' + rows + '</div>' + pr +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>' +
+          '<button type="button" data-layer-act="group" title="Put the layer in a new group" aria-label="New group"' + (active && !active.group ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
           '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (!active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
           '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (!active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
           '<button type="button" data-layer-act="delete" title="Delete layer" aria-label="Delete layer"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
@@ -2157,6 +2280,11 @@
         var L = layers[+c.dataset.thumb]; if (!L) return;
         if (c.width !== tw * d) { c.width = tw * d; c.height = th * d; c.style.width = tw + 'px'; c.style.height = th + 'px'; }
         var x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(L.cv, 0, 0, c.width, c.height);
+      });
+      Array.prototype.forEach.call(panel.querySelectorAll('[data-mthumb]'), function (c) {
+        var L = layers[+c.dataset.mthumb]; if (!L || !L.mask) return;
+        if (c.width !== tw * d) { c.width = tw * d; c.height = th * d; c.style.width = tw + 'px'; c.style.height = th + 'px'; }
+        var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(L.mask.cv, 0, 0, c.width, c.height);
       });
       if (peekL) drawPeek();
     }
@@ -2218,12 +2346,13 @@
       var lowest = layers[0] && layers[0].bg ? 1 : 0;
       lmenu.innerHTML =
         (L.text ? item('edittext', 'Edit Text') + item('raster', 'Turn into Image') + '<hr>' : '') +
-        item('select', 'Select') + item('rename', 'Rename') + item('duplicate', 'Duplicate', { off: n >= 10 }) +
-        item('merge', 'Merge Down', { off: i === 0 || !L.visible }) +
+        item('select', 'Select') + item('rename', 'Rename') + item('duplicate', 'Duplicate', { off: n >= maxLayers() }) +
+        item('merge', 'Merge Down', { off: i === 0 || !L.visible || layers[i - 1].group !== L.group }) + (L.group ? item('leavegroup', 'Remove from Group') : '') +
+        '<hr>' + (L.mask ? (L.editMask ? item('editlayer', 'Paint on the Layer') : item('editmask', 'Paint on the Mask')) + item('invertmask', 'Invert Mask') + item('applymask', 'Apply Mask') + item('deletemask', 'Delete Mask', { danger: true }) : item('addmask', sel ? 'Add Mask from Selection' : 'Add Mask')) +
         '<hr>' + item('lock', 'Alpha Lock', { check: L.alphaLock }) + item('clip', 'Clipping Mask', { check: L.clip, off: i === 0 }) +
         '<hr>' + item('hide', L.visible ? 'Hide' : 'Show') + item('up', 'Move Up', { off: i === n - 1 || L.bg }) + item('down', 'Move Down', { off: i <= lowest }) +
         '<hr>' + item('delete', 'Delete', { danger: true });
-      lmenu.dataset.i = i; lmenu.hidden = false;
+      lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
       var left = fromRight ? x - lmenu.offsetWidth : x;
       lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
       lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
@@ -2252,10 +2381,103 @@
     });
     lmenu.addEventListener('click', function (e) {
       var b = e.target.closest('[data-lm]'); if (!b || b.disabled) return;
-      var L = layers[+lmenu.dataset.i]; lmenu.hidden = true;
+      lmenu.hidden = true;
+      if (lmenu.dataset.g) { var G = groupOf(lmenu.dataset.g); if (G) groupOption(b.dataset.lm, G); return; }
+      var L = layers[+lmenu.dataset.i];
       if (L) layerOption(b.dataset.lm, L);
     });
+    var focusG = null, maskTold = false;
+    function groupOf(id) { for (var i = 0; i < layers.length; i++) if (layers[i].group && layers[i].group.id === +id) return layers[i].group; return null; }
+    function membersOf(G) { return layers.filter(function (L) { return L.group === G; }); }
+    // (after layers move: one lands among a group's layers and joins it, or
+    // is moved out of its group's run and leaves it; a group stays together)
+    function fixGroups(moved) {
+      moved.forEach(function (M) {
+        var i = layers.indexOf(M), below = layers[i - 1], above = layers[i + 1];
+        if (below && above && below.group && below.group === above.group) M.group = below.group;
+        else if (M.group && !(below && below.group === M.group) && !(above && above.group === M.group)) M.group = membersOf(M.group).length > 1 ? null : M.group;
+      });
+    }
+    function groupMenu(G, x, y, fromRight) {
+      var item = function (k, label, opt) { opt = opt || {}; return '<button type="button" role="menuitem" data-lm="' + k + '"' + (opt.off ? ' disabled' : '') + (opt.danger ? ' class="lm-danger"' : '') + '>' + label + '</button>'; };
+      var M = membersOf(G), lo = layers.indexOf(M[0]), hi = layers.indexOf(M[M.length - 1]), bottom = layers[0] && layers[0].bg ? 1 : 0;
+      lmenu.innerHTML = item('g-rename', 'Rename') + item('g-merge', 'Merge Group') + item('g-ungroup', 'Ungroup') +
+        '<hr>' + item('g-hide', G.visible ? 'Hide' : 'Show') + item('g-up', 'Move Up', { off: hi >= layers.length - 1 }) + item('g-down', 'Move Down', { off: lo <= bottom }) +
+        '<hr>' + item('g-delete', 'Delete Group', { danger: true });
+      lmenu.dataset.i = ''; lmenu.dataset.g = G.id; lmenu.hidden = false;
+      var left = fromRight ? x - lmenu.offsetWidth : x;
+      lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
+      lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
+    }
+    function groupOption(a, G) {
+      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      var M = membersOf(G); if (!M.length) return;
+      var lo = layers.indexOf(M[0]), hi = layers.indexOf(M[M.length - 1]);
+      if (a === 'g-rename') { renameGroup(G); return; }
+      if (a === 'g-hide') { rememberLayers(G.visible ? 'Hide Group' : 'Show Group'); G.visible = !G.visible; }
+      else if (a === 'g-ungroup') { rememberLayers('Ungroup'); M.forEach(function (L) { L.group = null; }); if (focusG === G) focusG = null; }
+      else if (a === 'g-delete') { rememberLayers('Delete Group'); layers.splice(lo, M.length); if (M.indexOf(active) >= 0) active = layers[Math.max(0, lo - 1)] || null; if (focusG === G) focusG = null; }
+      else if (a === 'g-merge') {
+        // (its layers laid together as they look, the group's fade and blend too, onto one layer)
+        rememberLayers('Merge Group');
+        var N = makeLayer(G.name, false), keep = G.visible; G.visible = true;
+        var t = document.createElement('canvas'); t.width = ov.width; t.height = ov.height; var tx = t.getContext('2d');
+        M.forEach(function (L) { if (!shownVisible(L)) return; tx.save(); tx.globalAlpha = L.opacity; if (L.blend !== 'normal') tx.globalCompositeOperation = L.blend; tx.drawImage(viewOf(L), 0, 0); tx.restore(); });
+        G.visible = keep; N.ctx.save(); N.ctx.setTransform(1, 0, 0, 1, 0, 0); N.ctx.drawImage(t, 0, 0); N.ctx.restore();
+        N.opacity = G.opacity; N.blend = G.blend; N.visible = G.visible;
+        layers.splice(lo, M.length, N); active = N; if (focusG === G) focusG = null;
+      }
+      else if (a === 'g-up' || a === 'g-down') {
+        // (the whole group moves past the layer, or the group, next to it)
+        var nb = a === 'g-up' ? layers[hi + 1] : layers[lo - 1]; if (!nb) return;
+        var span = nb.group ? membersOf(nb.group).length : 1;
+        if (a === 'g-down' && layers[0].bg && lo - span < 1) return;
+        rememberLayers(a === 'g-up' ? 'Move Group Up' : 'Move Group Down');
+        layers.splice(lo, M.length);
+        var at = a === 'g-up' ? lo + span : lo - span;
+        Array.prototype.splice.apply(layers, [at, 0].concat(M));
+      }
+      mount(); layerPanel(true); autosave();
+    }
+    function renameGroup(G) {
+      var btn = panel.querySelector('[data-gname="' + G.id + '"]'); if (!btn) return;
+      var inp = document.createElement('input'), done = false;
+      inp.type = 'text'; inp.className = 'pl-input'; inp.value = G.name; inp.maxLength = 24; inp.setAttribute('aria-label', 'Group name');
+      btn.replaceWith(inp); inp.focus({ preventScroll: true }); inp.select();
+      var finish = function (keep) { if (done) return; done = true; if (keep && inp.value.trim() && inp.value.trim() !== G.name) { rememberLayers('Rename Group'); G.name = inp.value.trim(); } renderLayers(); layerPanel(true); autosave(); };
+      inp.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); });
+      inp.addEventListener('blur', function () { finish(true); });
+    }
+    // MASKS, from the layer's ••• menu: add one (with a selection made, it
+    // shows just what's inside it), paint on it, flip it, fix it into the
+    // layer for good, or take it away
+    function editMaskOf(L, on) {
+      L.editMask = !!(on && L.mask); active = L; focusG = null;
+      if (L.editMask && !maskTold) { maskTold = true; toast('Painting on the mask: black hides the layer, white shows it'); }
+      renderLayers();
+    }
+    function maskOption(a, L) {
+      if (a === 'addmask') {
+        rememberLayers('Add Mask');
+        L.mask = makeMask(L, sel ? '#000' : '#fff');
+        if (sel) { var c = L.mask.ctx; c.save(); c.fillStyle = '#fff'; if (sel.mask) c.drawImage(tinted(sel.mask, '#fff'), sel.x, sel.y, sel.w, sel.h); else { selPath(c); c.fill(); } c.restore(); clearSel(); }
+        maskAlpha(L); editMaskOf(L, true);
+      } else if (a === 'invertmask') {
+        push({ L: L.mask.P, data: snapOf(L.mask.P), label: 'Invert Mask' });
+        var c2 = L.mask.ctx, img = c2.getImageData(0, 0, L.mask.cv.width, L.mask.cv.height), d = img.data;
+        for (var i = 0; i < d.length; i += 4) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; }
+        c2.save(); c2.setTransform(1, 0, 0, 1, 0, 0); c2.putImageData(img, 0, 0); c2.restore(); maskAlpha(L);
+      } else if (a === 'applymask') {
+        push({ parts: [{ L: L, data: snapOf(L), bg: L.bg, text: L.text, name: L.name }, { list: layers.slice(), active: active, props: props() }], label: 'Apply Mask' });
+        var c3 = L.ctx; c3.save(); c3.setTransform(1, 0, 0, 1, 0, 0); c3.globalCompositeOperation = 'destination-in'; c3.drawImage(L.mask.a, 0, 0); c3.restore();
+        L.mask = null; L.editMask = false; L.text = null; L.bg = false;
+      } else if (a === 'deletemask') { rememberLayers('Delete Mask'); L.mask = null; L.editMask = false; }
+      else if (a === 'editmask') { editMaskOf(L, true); return; }
+      else if (a === 'editlayer') { editMaskOf(L, false); return; }
+      mount(); layerPanel(true); autosave();
+    }
     function layerOption(a, L) {
+      if (/mask$|^editlayer$/.test(a)) { if (adj) adjustDone(); if (textBox) commitText(); maskOption(a, L); return; }
       if (a === 'select') { layerPanel(false); selectLayer(L); return; }
       if (a === 'edittext' && L.text) { layerPanel(false); if (st.tool !== 'text') setTool('text'); editText(L); return; }
       if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
@@ -2264,15 +2486,22 @@
       if (a === 'rename') { layerPanel(true); rename(i); return; }
       if (a === 'up' || a === 'down' || a === 'delete') { layerAct(a); return; }
       if (a === 'raster') { if (L.text) { push({ L: L, data: snapOf(L), bg: L.bg, text: L.text, label: 'Turn into Image' }); L.text = null; } }
+      else if (a === 'leavegroup') {
+        // (out of the group: it goes just above or below the group's run)
+        rememberLayers('Remove from Group');
+        var GM = membersOf(L.group), top = layers.indexOf(GM[GM.length - 1]);
+        layers.splice(i, 1); layers.splice(top, 0, L); L.group = null;
+      }
       else if (a === 'hide') { L.visible = !L.visible; }
       else if (a === 'lock') { rememberLayers(L.alphaLock ? 'Alpha Lock Off' : 'Alpha Lock'); L.alphaLock = !L.alphaLock; }
       else if (a === 'clip') { rememberLayers(L.clip ? 'Release Clipping Mask' : 'Clipping Mask'); L.clip = !L.clip; }
       else if (a === 'duplicate') {
-        if (layers.length >= 10) { toast('Up to 10 layers'); return; }
+        if (!roomFor()) return;
         rememberLayers('Duplicate Layer');
         var D = makeLayer(L.name + ' copy', false);
         D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.drawImage(L.cv, 0, 0); D.ctx.restore();
-        D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip; D.text = L.text;
+        D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip; D.text = L.text; D.group = L.group;
+        if (L.mask) { D.mask = makeMask(D); D.mask.ctx.save(); D.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); D.mask.ctx.drawImage(L.mask.cv, 0, 0); D.mask.ctx.restore(); maskAlpha(D); }
         layers.splice(i + 1, 0, D); active = D;
       } else if (a === 'merge') {
         // (it's laid onto the one below as it looks: its opacity, blend mode
@@ -2282,6 +2511,8 @@
         push({ parts: [{ L: B, data: snapOf(B), bg: B.bg, text: B.text }, { list: layers.slice(), active: active, props: props() }], label: 'Merge Down' });
         B.text = null;
         var src = viewOf(L), c = B.ctx;
+        // (a mask on the layer below is fixed into it first, so it looks the same)
+        if (B.mask) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'destination-in'; c.drawImage(B.mask.a, 0, 0); c.restore(); B.mask = null; B.editMask = false; }
         c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = L.opacity; if (L.blend !== 'normal') c.globalCompositeOperation = L.blend;
         c.drawImage(src, 0, 0); c.restore();
         layers.splice(i, 1); active = B;
@@ -2328,11 +2559,21 @@
       function up() {
         g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
         row.classList.remove('dragging'); row.style.transform = '';
-        // the list shows the top layer first
-        var order = Array.prototype.map.call(list.children, function (r) { return layers[+r.dataset.i]; }).reverse();
+        // the list shows the top layer first (a folded group's row stands for
+        // all its layers)
+        var M = layers[+row.dataset.i], order = [];
+        Array.prototype.forEach.call(list.children, function (r) {
+          if (r.dataset.gid) { var G = groupOf(r.dataset.gid); if (G && !G.open) order = order.concat(membersOf(G).reverse()); }
+          else if (r.dataset.i != null) order.push(layers[+r.dataset.i]);
+        });
+        order.reverse();
+        // (where it was dropped decides its group: just under a group's open
+        // title, or between two of its layers, it joins; anywhere else, it's on its own)
+        var pr = row.previousElementSibling, nx = row.nextElementSibling, inG = function (r) { return r && r.dataset.i != null && layers[+r.dataset.i].group; };
+        var Gt = pr && pr.dataset.gid ? (groupOf(pr.dataset.gid) && groupOf(pr.dataset.gid).open ? groupOf(pr.dataset.gid) : null) : inG(pr) && inG(pr) === inG(nx) ? inG(pr) : null;
         // (the white Background always stays at the bottom)
         var b0 = layers[0]; if (b0.bg && order[0] !== b0) { order.splice(order.indexOf(b0), 1); order.unshift(b0); }
-        if (order.some(function (L, i) { return L !== layers[i]; })) { if (sel) commitSelection(); rememberLayers('Reorder Layers'); layers = order; mount(); }
+        if (order.length === layers.length && (order.some(function (L, i) { return L !== layers[i]; }) || M.group !== Gt)) { if (sel) commitSelection(); rememberLayers('Reorder Layers'); layers = order; M.group = Gt; mount(); }
         else renderLayers();
         layerPanel(true);
       }
@@ -2342,9 +2583,12 @@
       if (sel) commitSelection();
       var i = layers.indexOf(active);
       if (a === 'add') {
-        if (layers.length >= 10) { toast('Up to 10 layers'); return; }
+        if (!roomFor()) return;
         rememberLayers('New Layer');
-        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); active = L;
+        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); L.group = active ? active.group : null; active = L;
+      } else if (a === 'group') {
+        if (!active || active.group) return;
+        rememberLayers('New Group'); active.group = makeGroup(); focusG = null;
       } else if (a === 'delete') {
         // any layer can go, the Background and the last one too (then the
         // picture is see-through, and new layers count from 1 again)
@@ -2354,9 +2598,9 @@
         active = layers[Math.max(0, i - 1)] || null;
         if (!layers.length) count = 0;
       } else if (a === 'up' && active && i < layers.length - 1 && !active.bg) {
-        rememberLayers('Move Layer Up'); layers.splice(i, 1); layers.splice(i + 1, 0, active);
+        rememberLayers('Move Layer Up'); layers.splice(i, 1); layers.splice(i + 1, 0, active); fixGroups([active]);
       } else if (a === 'down' && active && i > (layers[0].bg ? 1 : 0)) {
-        rememberLayers('Move Layer Down'); layers.splice(i, 1); layers.splice(i - 1, 0, active);
+        rememberLayers('Move Layer Down'); layers.splice(i, 1); layers.splice(i - 1, 0, active); fixGroups([active]);
       } else return;
       mount(); layerPanel(true);
     }
@@ -2885,7 +3129,8 @@
     }
     function penBack() { if (!pen) return; pen.pts.pop(); if (!pen.pts.length) cancelPen(); else drawPen(); }
     function cancelPen() { pen = null; penHover = null; octx.clearRect(0, 0, W, H); plainOv(); drawSel(); buttons(); ctxSync(); }
-    function finishPen() {
+    function finishPen() { var sw = maskIn(); finishPen0(); if (sw) maskOut(); }
+    function finishPen0() {
       if (!pen) return;
       if (pen.pts.length < 2) { cancelPen(); return; }
       if (active && active.text && !paintAbove()) { cancelPen(); return; }
@@ -2897,9 +3142,9 @@
     // PAINTING WHILE A TEXT LAYER IS PICKED: the paint goes on a new layer
     // just above it, so the words stay words
     function paintAbove() {
-      if (layers.length >= 10) { toast('Up to 10 layers: merge the text down (or Turn into Image) to paint on it'); return false; }
+      if (layers.length >= maxLayers()) { toast('No room for another layer: merge the text down (or Turn into Image) to paint on it'); return false; }
       rememberLayers('New Layer');
-      var L = makeLayer('Layer ' + (++count), false); layers.splice(layers.indexOf(active) + 1, 0, L); active = L; mount();
+      var L = makeLayer('Layer ' + (++count), false); layers.splice(layers.indexOf(active) + 1, 0, L); L.group = active.group; active = L; mount();
       toast('Painting on a new layer, so the text stays editable');
       return true;
     }
@@ -2908,7 +3153,8 @@
     var fingerTap = null, firstDown = 0, tapLater = null;
     var pointers = {}, ptype = {}, gesture = null, pan = null, spaceDown = false, spaceGrab = null, lastMouse = null;
     function screen(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-    function cancelStroke() {
+    function cancelStroke() { cancelStroke0(); maskOut(); }
+    function cancelStroke0() {
       clearTimeout(holdTimerS);
       if (!down) return;
       stage.classList.remove('moving');
@@ -2920,7 +3166,8 @@
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
       down = null; octx.clearRect(0, 0, W, H); plainOv();
     }
-    function begin(e) {
+    function begin(e) { var sw = maskIn(); begin0(e); if (sw && !down) maskOut(); }
+    function begin0(e) {
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
       if (!/^(picker|move|text|pen)$/.test(t)) need();
       if (cq && cq.c === 'rot') {
@@ -3065,7 +3312,12 @@
         else { sel.x = Math.min(sel.ax, p.x); sel.y = Math.min(sel.ay, p.y); sel.w = Math.abs(p.x - sel.ax); sel.h = Math.abs(p.y - sel.ay); }
         drawSel(); return;
       }
-      if (t === 'smudge' || t === 'blur' || t === 'tone') { evs.forEach(function (ev) { var q = pos(ev); dabs(down.last, q, false); down.last = q; }); return; }
+      if (t === 'smudge' || t === 'blur' || t === 'tone') {
+        var a0 = down.last;
+        evs.forEach(function (ev) { var q = pos(ev); dabs(down.last, q, false); down.last = q; });
+        if (active.isMask || usesView(active)) { var rr = (st.size * 2 + 4) * R, b1 = down.last, rc = [[Math.min(a0.x, b1.x) * R - rr, Math.min(a0.y, b1.y) * R - rr, Math.max(a0.x, b1.x) * R + rr, Math.max(a0.y, b1.y) * R + rr]]; if (active.isMask) { maskAlpha(active.owner, rc); viewOf(active.owner, rc); } else viewOf(active, rc); }
+        return;
+      }
       if (t === 'gradient') { gradient(down.start, p); return; }
       if (t === 'eraser' || (t === 'brush' && kind() !== 'spray')) {
         evs.forEach(function (ev) {
@@ -3223,7 +3475,8 @@
       if (!force && Math.abs(k - sh.k) * Math.max(sh.rx, sh.ry) * view.k < 0.5) return;
       sh.k = k; redrawShape(k);
     }
-    function end() {
+    function end() { end0(); maskOut(); }
+    function end0() {
       var t = st.tool;
       clearTimeout(holdTimerS);
       if (down.pick) { pickEnd(false); return; }
@@ -3449,9 +3702,15 @@
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
       var sa = e.target.closest('[data-sel]'); if (sa) { selAction(sa.dataset.sel); return; }
+      var ge = e.target.closest('[data-geye]'); if (ge) { var G1 = groupOf(ge.dataset.geye); if (G1) { G1.visible = !G1.visible; mount(); layerPanel(true); autosave(); } return; }
+      var gf = e.target.closest('[data-gfold]'); if (gf) { var G2 = groupOf(gf.dataset.gfold); if (G2) { G2.open = !G2.open; renderLayers(); layerPanel(true); autosave(); } return; }
+      var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
+      var gm = e.target.closest('[data-gmore]'); if (gm) { e.stopPropagation(); var G4 = groupOf(gm.dataset.gmore); if (!G4) return; if (!lmenu.hidden && lmenu.dataset.g === gm.dataset.gmore) { lmenu.hidden = true; return; } var rg = gm.getBoundingClientRect(); groupMenu(G4, rg.right, rg.bottom + 4, true); return; }
+      var mt = e.target.closest('[data-mthumb]'); if (mt) { if (sel) commitSelection(); editMaskOf(layers[+mt.dataset.mthumb], true); layerPanel(true); return; }
+      var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (L5 !== active && sel) commitSelection(); editMaskOf(L5, false); if (st.tool === 'move') movePick(); layerPanel(true); } return; }
       var le = e.target.closest('[data-layer-eye]'); if (le) { var L = layers[+le.dataset.layerEye]; L.visible = !L.visible; mount(); layerPanel(true); autosave(); return; }
       var ln = e.target.closest('[data-layer]');
-      if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
+      if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active && !focusG) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; focusG = null; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var aa = e.target.closest('[data-adj-act]');
@@ -3577,8 +3836,10 @@
     function isProject(f) { return /\.paint$/i.test(f.name || '') || f.type === 'application/x-paint-alternative'; }
     function saveProject() {
       finishWork();
+      var gl = []; layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
       var out = { app: 'Paint Alternative', version: 1, width: ov.width, height: ov.height, active: layers.indexOf(active), palettes: myPalettes,
-        layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, png: L.cv.toDataURL('image/png') }; }) };
+        groups: gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; }),
+        layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, group: gl.indexOf(L.group), mask: L.mask ? L.mask.cv.toDataURL('image/png') : null, png: L.cv.toDataURL('image/png') }; }) };
       var blob = new Blob([JSON.stringify(out)], { type: 'application/x-paint-alternative' }), a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = 'drawing.paint';
       document.body.appendChild(a); a.click(); a.remove();
@@ -3591,18 +3852,24 @@
       rd.onload = function () {
         var d; try { d = JSON.parse(rd.result); } catch (x) { d = null; }
         if (!d || !d.layers || !d.layers.length || !(d.width > 0) || !(d.height > 0) || d.width > 8192 || d.height > 8192) { toast('That isn’t a Paint Alternative project'); return; }
-        Promise.all(d.layers.slice(0, 10).map(function (l) {
-          return new Promise(function (ok) { var im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { ok(null); }; im.src = typeof l.png === 'string' && /^data:image\/png;base64,/.test(l.png) ? l.png : ''; });
-        })).then(function (ims) {
+        var nMax = Math.max(10, Math.min(50, Math.floor(900e6 / (Math.round(d.width) * Math.round(d.height) * 4))));
+        Promise.all(d.layers.slice(0, nMax).map(function (l) {
+          var load = function (src) { return new Promise(function (ok) { if (typeof src !== 'string' || !/^data:image\/png;base64,/.test(src)) { ok(null); return; } var im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { ok(null); }; im.src = src; }); };
+          return Promise.all([load(l.png), load(l.mask)]);
+        })).then(function (pairs) {
+          var ims = pairs.map(function (q) { return q[0]; }), mims = pairs.map(function (q) { return q[1]; });
+          var gs = (Array.isArray(d.groups) ? d.groups : []).slice(0, 50).map(function (q) { var G = makeGroup(String(q && q.name || '').slice(0, 24) || null); G.open = !q || q.open !== false; G.visible = !q || q.visible !== false; G.opacity = q && q.opacity >= 0 && q.opacity <= 1 ? +q.opacity : 1; G.blend = q && BLENDS.some(function (b) { return b[0] === q.blend; }) ? q.blend : 'normal'; return G; });
           finishWork();
           // (one undo goes back to the drawing that was there before)
           rememberDoc('Open Project');
           setDoc(Math.round(d.width), Math.round(d.height));
-          layers = d.layers.slice(0, 10).map(function (l, i) {
+          layers = d.layers.slice(0, nMax).map(function (l, i) {
             var L = makeLayer(String(l.name || 'Layer ' + (i + 1)).slice(0, 24), false);
             L.bg = !!l.bg; L.visible = l.visible !== false; L.opacity = Math.max(0, Math.min(1, +l.opacity || (l.opacity === 0 ? 0 : 1)));
             L.blend = BLENDS.some(function (b) { return b[0] === l.blend; }) ? l.blend : 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
             if (ims[i]) { L.ctx.save(); L.ctx.setTransform(1, 0, 0, 1, 0, 0); L.ctx.drawImage(ims[i], 0, 0); L.ctx.restore(); }
+            L.group = gs[l.group | 0] && l.group >= 0 ? gs[l.group | 0] : null;
+            if (mims[i]) { L.mask = makeMask(L); L.mask.ctx.save(); L.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); L.mask.ctx.drawImage(mims[i], 0, 0); L.mask.ctx.restore(); maskAlpha(L); }
             return L;
           });
           active = layers[Math.max(0, Math.min(layers.length - 1, d.active | 0))];
@@ -3666,7 +3933,9 @@
       clearTimeout(saveTimer); saveTimer = 0;
       if (!window.indexedDB) { docStatus('off'); return; }
       if (restoring || !window.Promise) return;
-      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count };
+      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count }, gl = [];
+      layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
+      info.groups = gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; });
       Promise.all(layers.map(function (L) {
         var cv = L.cv;
         if (sel && sel.float && L === active) {
@@ -3674,7 +3943,12 @@
           cv = document.createElement('canvas'); cv.width = L.cv.width; cv.height = L.cv.height;
           var x = cv.getContext('2d'); x.drawImage(L.cv, 0, 0); base(x); putFloat(x);
         }
-        return new Promise(function (ok) { cv.toBlob(function (b) { ok({ name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, blob: b }); }, 'image/png'); });
+        return new Promise(function (ok) {
+          cv.toBlob(function (b) {
+            var o = { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, group: gl.indexOf(L.group), blob: b };
+            if (L.mask) L.mask.cv.toBlob(function (mb) { o.mblob = mb; ok(o); }, 'image/png'); else ok(o);
+          }, 'image/png');
+        });
       })).then(function (list) {
         if (list.some(function (l) { return !l.blob; })) return;
         info.layers = list;
@@ -3691,7 +3965,8 @@
         g.onsuccess = function () {
           var d = g.result;
           if (!d || !d.layers || undo.length || !restoring) { done(); return; }
-          Promise.all(d.layers.map(function (l) { return createImageBitmap(l.blob); })).then(function (ims) {
+          Promise.all(d.layers.map(function (l) { return createImageBitmap(l.blob); }).concat(d.layers.map(function (l) { return l.mblob ? createImageBitmap(l.mblob).catch(function () { return null; }) : null; }))).then(function (ims) {
+            var mims = ims.slice(d.layers.length), gs = (d.groups || []).map(function (q) { var G = makeGroup(q.name); G.open = q.open !== false; G.visible = q.visible !== false; G.opacity = q.opacity != null ? q.opacity : 1; G.blend = q.blend || 'normal'; return G; });
             if (undo.length || !restoring) { done(); return; } // (they've started drawing already)
             // (a picture of a chosen size comes back at that size; an older
             // one, at the size of the screen)
@@ -3699,6 +3974,8 @@
             layers = d.layers.map(function (l, i) {
               var L = makeLayer(l.name, l.bg != null ? l.bg : i === 0); L.visible = l.visible !== false;
               L.opacity = l.opacity != null ? l.opacity : 1; L.blend = l.blend || 'normal'; L.alphaLock = !!l.alphaLock; L.clip = !!l.clip; L.text = textFrom(l.text);
+              L.group = gs[l.group] || null;
+              if (mims[i]) { L.mask = makeMask(L); L.mask.ctx.save(); L.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); L.mask.ctx.drawImage(mims[i], 0, 0, L.cv.width, L.cv.height); L.mask.ctx.restore(); maskAlpha(L); }
               if (d.pw) L.ctx.drawImage(ims[i], 0, 0, ims[i].width / R, ims[i].height / R);
               else L.ctx.drawImage(ims[i], 0, 0, ims[i].width / d.R, ims[i].height / d.R);
               return L;
@@ -3867,8 +4144,9 @@
       var olds = layers, act = olds.indexOf(active);
       setDoc(pw, ph);
       layers = olds.map(function (L) {
-        var N = makeLayer(L.name, L.bg); N.visible = L.visible; N.opacity = L.opacity; N.blend = L.blend; N.alphaLock = L.alphaLock; N.clip = L.clip;
+        var N = makeLayer(L.name, L.bg); N.visible = L.visible; N.opacity = L.opacity; N.blend = L.blend; N.alphaLock = L.alphaLock; N.clip = L.clip; N.group = L.group;
         N.ctx.save(); N.ctx.setTransform(1, 0, 0, 1, 0, 0); draw(N.ctx, L.cv); N.ctx.restore();
+        if (L.mask) { N.mask = makeMask(N, '#000'); N.mask.ctx.save(); N.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); draw(N.mask.ctx, L.mask.cv); N.mask.ctx.restore(); maskAlpha(N); }
         return N;
       });
       active = layers[act] || null;
@@ -3902,7 +4180,7 @@
       var im = new Image(), url = URL.createObjectURL(file);
       im.onload = function () {
         URL.revokeObjectURL(url);
-        if (layers.length >= 10) { toast('Up to 10 layers: delete one to add a picture'); return; }
+        if (!roomFor()) return;
         finishWork();
         rememberLayers(how === 'open' ? 'Open Picture' : 'Add Picture');
         // (opened: it fills the picture; pasted or dropped: its own size,
@@ -3910,7 +4188,7 @@
         var nw = im.naturalWidth / R, nh = im.naturalHeight / R, k = how === 'open' ? Math.min(W / nw, H / nh) : Math.min(1, W / nw, H / nh);
         var w = nw * k, h = nh * k, x = (W - w) / 2, y = (H - h) / 2, L = makeLayer(how === 'open' ? 'Picture' : 'Pasted', false);
         L.ctx.drawImage(im, x, y, w, h);
-        layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); active = L; mount();
+        layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; mount();
         if (how !== 'open') {
           // picked up, ready to move into place or size with its corners
           setTool('select'); sel = { x: x, y: y, w: w, h: h, float: null }; selbar.hidden = false; drawSel();
@@ -3942,12 +4220,15 @@
     // ---- LAYERS: each one's opacity and blend mode ----
     var opPending = false;
     panel.addEventListener('input', function (e) {
+      var go = e.target.closest('[data-group-op]');
+      if (go && focusG) { if (!opPending) { rememberLayers('Group Opacity'); opPending = true; } focusG.opacity = +go.value / 100; styleGroup(focusG); go.nextElementSibling.textContent = go.value + '%'; autosave(); return; }
       var o = e.target.closest('[data-layer-op]'); if (!o || !active) return;
       if (!opPending) { rememberLayers('Layer Opacity'); opPending = true; }
       active.opacity = +o.value / 100; styleLayer(active); o.nextElementSibling.textContent = o.value + '%'; autosave();
     });
     panel.addEventListener('change', function (e) {
-      if (e.target.closest('[data-layer-op]')) { opPending = false; return; }
+      if (e.target.closest('[data-layer-op], [data-group-op]')) { opPending = false; return; }
+      var gb = e.target.closest('[data-group-blend]'); if (gb && focusG) { rememberLayers('Group Blend'); focusG.blend = gb.value; styleGroup(focusG); autosave(); return; }
       var b = e.target.closest('[data-layer-blend]'); if (!b || !active) return;
       rememberLayers('Blend Mode'); active.blend = b.value; styleLayer(active); autosave();
     });

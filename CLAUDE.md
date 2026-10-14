@@ -55,6 +55,12 @@ When building or changing anything visual:
   `remember()`, which keeps the words for undo and turns the layer into
   paint; brushes, lines, shapes, gradients and the pen paint on a new layer
   above it instead (`paintAbove`). Keep both rules for new tools.
+- **Masks and groups:** a layer's look on screen and when saved comes from
+  `viewOf(L)` (its paint, through its mask `L.mask`, through what it's
+  clipped to) and `flattenInto` (groups as one). While a mask is picked
+  (`L.editMask`), painting tools work on `L.mask.P`, which stands in for the
+  layer (`maskIn`/`maskOut`). New layers made next to one join its group
+  (`L.group`).
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
