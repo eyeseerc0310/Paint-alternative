@@ -16,12 +16,13 @@ When building or changing anything visual:
   redefined for dark mode under `:root[data-theme="dark"]`). Colours: `--bg`,
   `--text`, `--muted`, `--line`, `--accent`, `--accent-hover`,
   `--accent-soft`, `--hover`, `--hover-strong`, `--selected`, `--outline`,
-  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--danger` (deleting for good), `--seg-on` (the picked part of a segmented control), `--brand` (the
+  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--danger` (deleting for good), `--seg-on` (the picked part of a segmented control), `--focus` (the keyboard's focus ring, blue, never the accent), `--switch-on` (an on switch, green), `--rail` (a slider's track, an off switch), `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
-  `--glass`. Radii: `--r-xs`, `--r-sm`, `--r-btn`, `--r-menu`, `--r-panel`, `--r-sheet`.
-  Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`. Icons:
-  `--icon`, `--icon-sm`, `--stroke`. Motion: `--dur`, `--dur-slow`, `--ease` (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
+  `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`.
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
+  Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
+  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur`, `--dur-slow`, `--ease` (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
   (spacing, radius, type size, motion and so on) so later features can reuse it.
 - **Reuse shared component styles** for the same kind of thing (buttons,
@@ -101,6 +102,11 @@ When building or changing anything visual:
   hand. The Pencil's eraser end rubs out, its barrel button picks a colour.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
+- **Shared looks:** every `input[type="range"]` gets the same thin track
+  and white knob (one rule near the top of `style.css`; a slider whose track
+  shows what it does sets `--track` and keeps it). A Done inside the tool
+  panel is tinted (`--accent-soft` with accent text); Done, Save and Create at
+  the foot of a panel or sheet are solid accent.
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you

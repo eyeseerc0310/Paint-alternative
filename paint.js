@@ -5347,7 +5347,13 @@
     // ---- KEYBOARD SHORTCUTS: press ? for the list ----
     var MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent), CMD = MAC ? '⌘' : 'Ctrl ';
     function helpSheet() {
-      var k = function (keys) { return keys.split(' ').map(function (x) { return '<kbd>' + x + '</kbd>'; }).join(''); };
+      // (keys as keys; a touch gesture, or the word after a key, as words)
+      var isKey = function (x) { return x.length <= 2 || /^(Ctrl|Alt|Shift|Space|Esc|Del|Enter|Backspace|Tab)$/.test(x) || /^[⌘⇧⌥⌫↩←↑→↓]/.test(x); };
+      var k = function (keys) {
+        var t = keys.split(' ');
+        if (!isKey(t[0])) return '<span class="hs-gest">' + keys + '</span>';
+        return t.map(function (x) { return isKey(x) ? '<kbd>' + x + '</kbd>' : '<span class="hs-word">' + x + '</span>'; }).join('');
+      };
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
         group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
