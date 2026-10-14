@@ -55,6 +55,10 @@ When building or changing anything visual:
   `remember()`, which keeps the words for undo and turns the layer into
   paint; brushes, lines, shapes, gradients and the pen paint on a new layer
   above it instead (`paintAbove`). Keep both rules for new tools.
+  Fancy words (`T.fill` other than solid, `T.arc`, or `T.path`, a pen path
+  from where they start) are laid out letter by letter (`glyphsOf`) and,
+  while typed, drawn on the overlay (`textPreview`); keep new text styles
+  in `drawText`/`layoutText` so the box, Move and saving all follow.
 - **Masks and groups:** a layer's look on screen and when saved comes from
   `viewOf(L)` (its paint, through its mask `L.mask`, through what it's
   clipped to) and `flattenInto` (groups as one). While a mask is picked
