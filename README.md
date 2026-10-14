@@ -53,12 +53,17 @@ uploaded.
   HEX / RGB / HSB values, recent colours, and ready-made and your own
   palettes, colour harmonies, and palettes made from a photo (tap either main
   colour; dragging one still fills)
-- **Fill** runs right up under the soft edge of a line, with no pale ring
+- **Fill** runs right up under the soft edge of a line, with no pale ring.
+  A tap with the fill tool, or a colour dragged onto the picture, drops in
+  and spreads out to fill the area (mirrored with symmetry)
 - **Selections** can be moved, resized and turned (the round handle on top)
 - **Touch:** two-finger tap to undo, three-finger tap to redo, four-finger
   tap for focus mode, pinch to zoom, twist two fingers to turn the canvas.
   **Touch Gestures** (in Shortcuts, or the ••• menu) sets what the two, three
   and four-finger taps and touch and hold do
+- **Apple Pencil:** pressure; once it's used, a resting hand (or one finger)
+  doesn't paint, though two fingers still zoom and move (Touch Gestures can
+  let fingers draw too); the eraser end of a pen rubs out
 - **Gallery:** every drawing is kept in this browser, with a small picture
   of each. Open one to carry on, start a new one, or rename, duplicate or
   delete them. New Picture and opening a project keep the one you were on

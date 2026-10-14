@@ -16,12 +16,12 @@ When building or changing anything visual:
   redefined for dark mode under `:root[data-theme="dark"]`). Colours: `--bg`,
   `--text`, `--muted`, `--line`, `--accent`, `--accent-hover`,
   `--accent-soft`, `--hover`, `--hover-strong`, `--selected`, `--outline`,
-  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--brand` (the
+  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--danger` (deleting for good), `--seg-on` (the picked part of a segmented control), `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
-  `--glass`. Radii: `--r-xs`, `--r-sm`, `--r-btn`, `--r-menu`, `--r-panel`.
+  `--glass`. Radii: `--r-xs`, `--r-sm`, `--r-btn`, `--r-menu`, `--r-panel`, `--r-sheet`.
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`. Icons:
-  `--icon`, `--icon-sm`, `--stroke`. Motion: `--dur`, `--ease`. Don't hard-code a colour, radius, shadow or spacing value in a
+  `--icon`, `--icon-sm`, `--stroke`. Motion: `--dur`, `--dur-slow`, `--ease` (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
   (spacing, radius, type size, motion and so on) so later features can reuse it.
 - **Reuse shared component styles** for the same kind of thing (buttons,
@@ -29,7 +29,9 @@ When building or changing anything visual:
   rather than writing new one-off rules. Give new components the shared
   classes, and add a variant only when something truly differs.
 - **Keep interaction behaviour consistent:** the same hover, pressed
-  (slight scale), focus, disabled and selected states everywhere. Selected
+  (slight scale), focus, disabled and selected states everywhere. Hover
+  styles go inside `@media (hover: hover)`, so a tap on a touch screen
+  doesn't leave one behind. Selected
   tools and list items use a neutral rounded outline, not the accent.
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
@@ -76,6 +78,22 @@ When building or changing anything visual:
 - **Gestures:** touch gestures run the action set for them (`gest`, changed
   in the Touch Gestures sheet) through `gestureDo`; add new actions to
   `GACTS`.
+- **Filling:** the fill tool and a colour dropped on the picture both go
+  through `fillDrop` (symmetry, masks, undo), which lays the fill down at
+  once and shows it spreading on a stand-in canvas (`spread`); anything
+  else that happens ends the spread (`endFillAnim`).
+- **Pop-overs and sheets:** a drop-down from the top bar closes the others
+  (`otherPopovers`); `openSheet` closes everything else, moves the focus in
+  and gives it back; `relayout()` keeps everything that floats on the screen
+  when the window changes size; Esc closes the top-most thing first.
+- **Input:** mouse, finger, Apple Pencil and keyboard share the stage's
+  pointer handlers. One finger waits a moment (`touchWait`) before starting
+  anything, so a pinch never begins a stroke; once the Pencil has been used
+  (`penSeen`) a single finger doesn't paint unless Touch Gestures says so
+  (`fingerDraw`), and touches just after the Pencil are ignored as a resting
+  hand. The Pencil's eraser end rubs out, its barrel button picks a colour.
+- **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
+  the drawing is back (`opened()`, called when `restore` is done).
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
