@@ -1141,13 +1141,14 @@ select.p-field {
 .pc-disc.held .pc-knob { transform: scale(1.12); }
 .pc-slide { margin-top: 6px; color: var(--muted); }
 .pc-slide output { color: var(--text) !important; }
-.paint-colorpanel .pc-slide input[type="range"] {
+/* (a slider whose track shows what it does: the colour picker's, and some of Effects') */
+.paint-colorpanel .pc-slide input[type="range"], .paint-adjust input.fx-track {
   -webkit-appearance: none; appearance: none; height: 14px; margin: 4px 0 2px; border-radius: 7px; background: var(--track, var(--hover));
   box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); cursor: pointer;
 }
-.pc-slide input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: var(--knob); }
-.pc-slide input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff; box-shadow: var(--knob); }
-.pc-slide input[type="range"]::-moz-range-track { background: transparent; }
+.pc-slide input[type="range"]::-webkit-slider-thumb, .paint-adjust input.fx-track::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: var(--knob); }
+.pc-slide input[type="range"]::-moz-range-thumb, .paint-adjust input.fx-track::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff; box-shadow: var(--knob); }
+.pc-slide input[type="range"]::-moz-range-track, .paint-adjust input.fx-track::-moz-range-track { background: transparent; }
 .pc-mode { margin: 12px 0 8px !important; }
 .pc-values { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
 .pc-values label { display: flex; flex-direction: column; gap: 3px; }
