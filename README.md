@@ -55,8 +55,13 @@ uploaded.
   colour; dragging one still fills)
 - **Fill** runs right up under the soft edge of a line, with no pale ring
 - **Selections** can be moved, resized and turned (the round handle on top)
-- **Touch:** two-finger tap to undo, three-finger tap to redo, pinch to zoom,
-  twist two fingers to turn the canvas
+- **Touch:** two-finger tap to undo, three-finger tap to redo, four-finger
+  tap for focus mode, pinch to zoom, twist two fingers to turn the canvas.
+  **Touch Gestures** (in Shortcuts, or the ••• menu) sets what the two, three
+  and four-finger taps and touch and hold do
+- **Gallery:** every drawing is kept in this browser, with a small picture
+  of each. Open one to carry on, start a new one, or rename, duplicate or
+  delete them. New Picture and opening a project keep the one you were on
 - **Project files** (Save → Project): every layer and its settings in one
   `.paint` file, to open again on any device
 - **Effects:** for a layer or a selection, in sections that fold: Light

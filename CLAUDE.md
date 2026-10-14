@@ -69,6 +69,13 @@ When building or changing anything visual:
   made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
   Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how
   a brush behaves.
+- **Drawings:** the one in hand is the autosave (`docInfo`/`applyInfo`) and
+  has a gallery id (`gid`). Before another is opened or started, `archive()`
+  keeps it in the gallery, so anything that replaces the whole drawing should
+  go through it (as `newPicture` and `openProject` do).
+- **Gestures:** touch gestures run the action set for them (`gest`, changed
+  in the Touch Gestures sheet) through `gestureDo`; add new actions to
+  `GACTS`.
 - **Test in light and dark mode and at phone width** (560px and narrower).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
