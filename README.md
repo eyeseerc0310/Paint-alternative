@@ -22,6 +22,13 @@ uploaded.
   and alignment) or what can be done with a selection. The tool panel folds
   down to one button, panels can be dragged aside, sections folded, and **Focus mode** (`\`) hides everything but the
   picture
+- **Brush Studio:** each brush's settings (pressure on size and opacity,
+  soft-to-firm pressure, tapered ends, paper grain, nib angle) can be changed
+  and put back; make brushes of your own from stamps (hard, soft, square,
+  chalk or splatter tips, with spacing, scatter and size, opacity and angle
+  jitter), kept in My Brushes
+- **Drawing assist:** a ruler, or 1, 2 or 3-point perspective with vanishing
+  points to drag; strokes and lines keep straight along them
 - **Text layers:** text goes on a layer of its own and stays editable: tap
   the words with the text tool to change them, or drag before typing to make
   a box the words wrap inside. Move them, size them and turn them with Move,
