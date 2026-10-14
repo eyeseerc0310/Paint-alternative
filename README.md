@@ -40,6 +40,10 @@ uploaded.
 - **Text:** 57 fonts (sans, serif, display, handwriting, monospace), and an
   **Aa** button while typing for size, bold, italic, underline, capitals,
   alignment, letter spacing, line height, outline and shadow
+- **Text styles:** fill the words with one colour, a blend of the two
+  colours, a rainbow, or the two colours letter by letter; bend them into an
+  arch or a dip with Curve; or draw a path with the pen and pick **Text on
+  Path** to type along it
 - **Tools:** eraser, smudge, blur, line, shapes, pen, fill, gradient, text, select,
   move, cutout, magic wand, colour picker, hand, and light & dark
 - **Symmetry:** vertical, horizontal, quadrant and radial (2 to 16 segments,

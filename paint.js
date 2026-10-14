@@ -1702,8 +1702,12 @@
     // text tool to type, or move, size and turn them with Move. Drag before
     // typing to make a box the words wrap inside. Merging it into a layer
     // below (or Turn into Image, in its ••• menu) makes it plain paint.
-    var textBox = null, textAt = null, textBtn = null, tpEl = null, textW = 0, textRot = 0, textLayer = null;
-    var tx = { size: 48, bold: false, italic: false, underline: false, caps: false, align: 'left', spacing: 0, lh: 1.2, outline: 0, shadow: false };
+    var textBox = null, textAt = null, textBtn = null, tpEl = null, textW = 0, textRot = 0, textLayer = null, textPath = null;
+    // (fill: one colour, a blend from the main colour to the second, a
+    // rainbow, or the two colours letter by letter; arc bends the lines
+    // round a circle, up or down)
+    var TX0 = { size: 48, bold: false, italic: false, underline: false, caps: false, align: 'left', spacing: 0, lh: 1.2, outline: 0, shadow: false, fill: 'solid', arc: 0 };
+    var tx = {}; for (var tk0 in TX0) tx[tk0] = TX0[tk0];
     function fontSize() { return tx.size; }
     function fontName(v) { var f = FONTS.filter(function (x) { return x[0] === v; })[0]; return f ? f[1] : 'Font'; }
     function placeTextBox() {
@@ -1720,12 +1724,12 @@
       textBox.style.transform = (r ? 'rotate(' + r + 'rad) ' : '') + (textW ? '' : tx.align === 'center' ? 'translateX(-50%)' : tx.align === 'right' ? 'translateX(-100%)' : '');
       textBox.style.webkitTextStroke = tx.outline ? (tx.outline * tx.size / 100 * 2 * k) + 'px ' + st.color2 : '';
       textBox.style.textShadow = tx.shadow ? '0 ' + tx.size * 0.06 * k + 'px ' + tx.size * 0.12 * k + 'px rgba(0,0,0,.45)' : '';
-      placeTextBtn();
+      placeTextBtn(); textPreview();
     }
     function styleTextBox() {
       if (!textBox) return;
       var b = textBox.style;
-      b.fontFamily = st.font; b.color = st.color; b.opacity = st.alpha;
+      b.fontFamily = st.font; b.color = b.caretColor = st.color; b.opacity = st.alpha;
       b.fontWeight = tx.bold ? '700' : '400'; b.fontStyle = tx.italic ? 'italic' : 'normal';
       b.textDecoration = tx.underline ? 'underline' : 'none'; b.textTransform = tx.caps ? 'uppercase' : 'none'; b.textAlign = tx.align;
       placeTextBox();
@@ -1739,13 +1743,14 @@
     }
     // (where to type: p is the top left of a box w wide, or, with no box,
     // the start of the line; L is a text layer whose words are being changed)
-    function startText(p, w, L) {
+    // (path: words along a pen path, its points from where they start)
+    function startText(p, w, L, path) {
       ensureFonts();
-      textAt = { x: p.x, y: p.y }; textW = w || 0; textLayer = L || null; textRot = L ? L.text.rot || 0 : 0;
+      textAt = { x: p.x, y: p.y }; textW = w || 0; textLayer = L || null; textRot = L ? L.text.rot || 0 : 0; textPath = L ? L.text.path || null : path || null;
       if (L) {
         // (its words come back as they were, in their font, size and colour)
         var T = L.text; st.font = T.font; loadFont(T.font);
-        ['size', 'bold', 'italic', 'underline', 'caps', 'align', 'spacing', 'lh', 'outline', 'shadow'].forEach(function (k) { tx[k] = T[k]; });
+        for (var k in TX0) tx[k] = T[k] != null ? T[k] : TX0[k];
         setColor(T.color); if (T.color2) setColor2(T.color2);
         st.alpha = T.alpha; alphaIn.value = Math.round(T.alpha * 100); alphaIn.nextElementSibling.textContent = alphaIn.value;
         L.editing = true; styleLayer(L);
@@ -1768,7 +1773,7 @@
         // (changing words: the caret goes at the end of them)
         if (L && window.getSelection) { var rg = document.createRange(); rg.selectNodeContents(textBox); rg.collapse(false); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }
       }, 0);
-      textBox.addEventListener('input', placeTextBtn);
+      textBox.addEventListener('input', function () { placeTextBtn(); textPreview(); });
       textBox.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelText(); }
         else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
@@ -1784,17 +1789,40 @@
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     function cancelText() {
-      if (textBox) { textBox.remove(); textBox = null; }
+      if (textBox) { textBox.remove(); textBox = null; octx.clearRect(0, 0, W, H); }
       if (textBtn) { textBtn.remove(); textBtn = null; }
       if (textLayer) { textLayer.editing = false; styleLayer(textLayer); textLayer = null; }
       textPanel(false);
     }
+    // the words being typed, as they'd be laid down
+    function curText() {
+      var T = { str: textBox ? textBox.innerText.replace(/\n$/, '') : '', x: textAt.x, y: textAt.y, w: textPath ? 0 : textW, rot: textRot, font: st.font, size: tx.size, color: st.color, color2: st.color2, alpha: st.alpha,
+        bold: tx.bold, italic: tx.italic, underline: tx.underline, caps: tx.caps, align: tx.align, spacing: tx.spacing, lh: tx.lh, outline: tx.outline, shadow: tx.shadow, fill: tx.fill, arc: textPath ? 0 : tx.arc };
+      if (textPath) T.path = textPath;
+      return T;
+    }
+    function fancyText(T) { return (!!T.fill && T.fill !== 'solid') || !!T.arc || !!T.path; }
+    // (words with a blend, letters of their own colours, or on a curve can't
+    // be shown by the typing box: they're drawn on the sheet above the
+    // picture as they're typed, and the box only takes the typing)
+    function textPreview() {
+      if (!textBox) return;
+      var T = curText(), on = fancyText(T);
+      textBox.classList.toggle('fancy', on); textBox.classList.toggle('curved', !!(T.arc || T.path));
+      octx.clearRect(0, 0, W, H);
+      if (!on) return;
+      plainOv();
+      if (T.path) {
+        octx.save(); octx.translate(T.x, T.y); if (T.rot) octx.rotate(T.rot);
+        penPathOn(octx, T.path.pts, T.path.closed); octx.lineWidth = 1 / view.k; octx.setLineDash([4 / view.k, 3 / view.k]); octx.strokeStyle = '#2f7fd6'; octx.stroke();
+        octx.restore();
+      }
+      if (T.str) drawText(octx, T);
+    }
     function textName(str) { return str.replace(/\s+/g, ' ').trim().slice(0, 20) || 'Text'; }
     function commitText() {
       if (!textBox) return;
-      var str = textBox.innerText.replace(/\n$/, ''), L = textLayer, at = textAt;
-      var T = { str: str, x: at.x, y: at.y, w: textW, rot: textRot, font: st.font, size: tx.size, color: st.color, color2: st.color2, alpha: st.alpha,
-        bold: tx.bold, italic: tx.italic, underline: tx.underline, caps: tx.caps, align: tx.align, spacing: tx.spacing, lh: tx.lh, outline: tx.outline, shadow: tx.shadow };
+      var T = curText(), str = T.str, L = textLayer;
       cancelText();
       var empty = !str.trim();
       if (L && layers.indexOf(L) >= 0) {
@@ -1858,7 +1886,76 @@
         return { t: t, x: x, y: i * lh + (lh - (A + D)) / 2 + A, w: w };
       });
       if (!isFinite(x0)) { x0 = 0; x1 = 1; }
-      return { lines: lines, native: native, ls: ls, box: { x: T.w ? 0 : x0, y: 0, w: T.w ? T.w : Math.max(1, x1 - x0), h: Math.max(lh, rows.length * lh) } };
+      var out = { lines: lines, native: native, ls: ls, box: { x: T.w ? 0 : x0, y: 0, w: T.w ? T.w : Math.max(1, x1 - x0), h: Math.max(lh, rows.length * lh) } };
+      if (fancyText(T)) glyphsOf(T, out, widthOf, A, D);
+      return out;
+    }
+    // LETTER BY LETTER: where each one goes (its middle, on the baseline)
+    // and how it's turned. In a line as typed; round a circle (arc: the
+    // lines bend round one middle, so they stay evenly apart); or along a
+    // path, starting, centred or ending on it as the words are aligned
+    function glyphsOf(T, out, widthOf, A, D) {
+      var gl = [], k = 0, lines = out.lines;
+      var each = function (t, x0, fn) {
+        var prev = 0;
+        for (var i = 0; i < t.length; i++) { var nx = widthOf(t.slice(0, i + 1)), ch = t[i]; fn(ch, x0 + prev, nx - prev, /\S/.test(ch) ? k++ : -1); prev = nx; }
+      };
+      if (T.path && T.path.pts && T.path.pts.length > 1) {
+        var tr = pathTrack(T.path), str = lines.map(function (l) { return l.t; }).join(' '), tw = widthOf(str);
+        var s0 = T.align === 'center' ? (tr.len - tw) / 2 : T.align === 'right' ? tr.len - tw : 0;
+        each(str, s0, function (ch, x, w, n) {
+          var m = trackAt(tr, x + w / 2), a = trackAt(tr, x), b = trackAt(tr, x + w);
+          gl.push({ ch: ch, x: m.x, y: m.y, a: Math.atan2(b.y - a.y, b.x - a.x), w: w, k: n });
+        });
+      } else if (T.arc) {
+        var wmax = Math.max.apply(null, lines.map(function (l) { return l.w; }).concat([1])), th = Math.abs(T.arc) / 100 * 1.8 * Math.PI;
+        var r = wmax / th, s = T.arc > 0 ? 1 : -1, cx = out.box.x + out.box.w / 2, y1 = lines[0].y, cy = y1 + s * r;
+        lines.forEach(function (l) {
+          var rl = Math.max(T.size * 0.5, r - s * (l.y - y1));
+          each(l.t, l.x, function (ch, x, w, n) {
+            var f = (x + w / 2 - cx) / rl;
+            gl.push({ ch: ch, x: cx + rl * Math.sin(f), y: cy - s * rl * Math.cos(f), a: s * f, w: w, k: n });
+          });
+        });
+      } else lines.forEach(function (l) { each(l.t, l.x, function (ch, x, w, n) { gl.push({ ch: ch, x: x + w / 2, y: l.y, a: 0, w: w, k: n }); }); });
+      out.glyphs = gl;
+      if (!T.path && !T.arc) return;
+      // (the box round them all, for picking them out and moving them)
+      var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+      gl.forEach(function (g) {
+        if (g.k < 0) return;
+        var co = Math.cos(g.a), si = Math.sin(g.a);
+        [[-g.w / 2, -A], [g.w / 2, -A], [-g.w / 2, D], [g.w / 2, D]].forEach(function (q) {
+          var X = g.x + q[0] * co - q[1] * si, Y = g.y + q[0] * si + q[1] * co;
+          bx0 = Math.min(bx0, X); bx1 = Math.max(bx1, X); by0 = Math.min(by0, Y); by1 = Math.max(by1, Y);
+        });
+      });
+      out.box = isFinite(bx0) ? { x: bx0, y: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0) } : { x: 0, y: -A, w: 1, h: A + D };
+    }
+    // (a path, as short straight pieces, and how far along each one starts)
+    function pathTrack(path) {
+      var P = path.pts, pts = [{ x: P[0].x, y: P[0].y }];
+      var add = function (q) { var l = pts[pts.length - 1]; if (Math.abs(q.x - l.x) + Math.abs(q.y - l.y) > 0.01) pts.push(q); };
+      var seg = function (a, b) {
+        if (!a.o && !b.i) { add({ x: b.x, y: b.y }); return; }
+        var o = a.o || a, i = b.i || b;
+        for (var n = 1; n <= 32; n++) { var t = n / 32, u = 1 - t; add({ x: u * u * u * a.x + 3 * u * u * t * o.x + 3 * u * t * t * i.x + t * t * t * b.x, y: u * u * u * a.y + 3 * u * u * t * o.y + 3 * u * t * t * i.y + t * t * t * b.y }); }
+      };
+      for (var j = 1; j < P.length; j++) seg(P[j - 1], P[j]);
+      if (path.closed) seg(P[P.length - 1], P[0]);
+      if (pts.length < 2) pts.push({ x: pts[0].x + 1, y: pts[0].y });
+      var cum = [0]; for (j = 1; j < pts.length; j++) cum.push(cum[j - 1] + Math.hypot(pts[j].x - pts[j - 1].x, pts[j].y - pts[j - 1].y));
+      return { pts: pts, cum: cum, len: cum[cum.length - 1], closed: !!path.closed };
+    }
+    // (the point d along it; before its start or past its end, the words
+    // carry on straight, unless it goes all the way round)
+    function trackAt(tr, d) {
+      var c = tr.cum, n = c.length;
+      if (tr.closed && tr.len) d = ((d % tr.len) + tr.len) % tr.len;
+      var lo = 1, hi = n - 1;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (c[mid] < d) lo = mid + 1; else hi = mid; }
+      var a = tr.pts[lo - 1], b = tr.pts[lo], t = (d - c[lo - 1]) / ((c[lo] - c[lo - 1]) || 1);
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
     }
     function drawText(c, T) {
       c.save(); c.translate(T.x, T.y); if (T.rot) c.rotate(T.rot);
@@ -1869,6 +1966,7 @@
         for (var i = 0; i < t.length; i++) { c[how](t[i], x, y); x += c.measureText(t[i]).width + ls; }
       }
       var shadow = function (on) { c.shadowColor = on ? 'rgba(0,0,0,.45)' : 'transparent'; c.shadowBlur = on ? fs * 0.12 * R : 0; c.shadowOffsetX = 0; c.shadowOffsetY = on ? fs * 0.06 * R : 0; };
+      if (lay.glyphs) { drawGlyphs(c, T, lay, shadow); c.restore(); return lay.box; }
       lay.lines.forEach(function (l) {
         if (T.outline) { shadow(T.shadow); c.strokeStyle = T.color2 || '#fff'; c.lineWidth = T.outline * fs / 100 * 2; draw(l.t, l.x, l.y, 'strokeText'); shadow(false); }
         else shadow(T.shadow);
@@ -1878,6 +1976,35 @@
       });
       c.restore();
       return lay.box;
+    }
+    // (letter by letter: outlines first, under all of them, then the
+    // letters, each in its colour; a blend runs top to bottom over the
+    // whole of the words, however each letter is turned)
+    function drawGlyphs(c, T, lay, shadow) {
+      var fs = T.size, B = lay.box, hc = hex2rgb(T.color), h0 = rgb2hsv(hc[0], hc[1], hc[2])[0];
+      var colOf = function (g) {
+        if (T.fill === 'rainbow') { var q = hsv2rgb((h0 + g.k * 40) % 360, 0.8, 0.92); return rgb2hex(q[0], q[1], q[2]); }
+        return T.fill === 'two' && g.k % 2 ? T.color2 : T.color;
+      };
+      var blend = function (a, gx, gy) {
+        var co = Math.cos(-a), si = Math.sin(-a), f = function (X, Y) { X -= gx; Y -= gy; return [X * co - Y * si, X * si + Y * co]; };
+        var p = f(0, B.y), q = f(0, B.y + B.h), G = c.createLinearGradient(p[0], p[1], q[0], q[1]); G.addColorStop(0, T.color); G.addColorStop(1, T.color2); return G;
+      };
+      var put = function (g, fill) {
+        c.save(); c.translate(g.x, g.y); if (g.a) c.rotate(g.a);
+        if (fill) { c.fillStyle = T.fill === 'gradient' ? blend(g.a, g.x, g.y) : colOf(g); c.fillText(g.ch, -g.w / 2, 0); } else c.strokeText(g.ch, -g.w / 2, 0);
+        c.restore();
+      };
+      var gl = lay.glyphs.filter(function (g) { return g.k >= 0; });
+      if (T.outline) { shadow(T.shadow); c.strokeStyle = T.color2 || '#fff'; c.lineWidth = T.outline * fs / 100 * 2; gl.forEach(function (g) { put(g, false); }); shadow(false); }
+      else shadow(T.shadow);
+      gl.forEach(function (g) { put(g, true); });
+      shadow(false);
+      // (underlined, when the lines are straight)
+      if (T.underline && !T.arc && !T.path) {
+        c.fillStyle = T.fill === 'gradient' ? blend(0, 0, 0) : T.color;
+        lay.lines.forEach(function (l) { if (l.t) c.fillRect(l.x, l.y + fs * 0.1, Math.max(0, l.w - (lay.native ? 0 : lay.ls)), Math.max(1, fs * 0.06)); });
+      }
     }
     // a text layer, drawn again from its words
     function renderText(L, again) {
@@ -2268,6 +2395,7 @@
       var s = sel.w / sel.w0, T0 = sel.T0, A = selWorld({ x: sel.x + sel.tax * s, y: sel.y + sel.tay * s });
       var T = {}; for (var k in T0) T[k] = T0[k];
       T.size = Math.round(T0.size * s * 100) / 100; T.w = T0.w * s; T.rot = sel.rot || 0; T.x = A.x; T.y = A.y;
+      if (T0.path) { var m = function (h) { return h ? { x: h.x * s, y: h.y * s } : null; }; T.path = { closed: T0.path.closed, pts: T0.path.pts.map(function (q) { return { x: q.x * s, y: q.y * s, i: m(q.i), o: m(q.o) }; }) }; }
       sel.text.text = T; renderText(sel.text);
     }
     // (what a selection of words can do: turn, be put down, or go)
@@ -3346,8 +3474,8 @@
     }
     function drawPen() {
       octx.clearRect(0, 0, W, H); drawSel();
-      var pd = typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]');
-      if (pd) Array.prototype.forEach.call(pd, function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pendone' ? 2 : 1); });
+      var pd = typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"], [data-ctx="pentext"]');
+      if (pd) Array.prototype.forEach.call(pd, function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
       if (!pen || !pen.pts.length) { plainOv(); return; }
       $('[data-act="undo"]').disabled = false; // (undo takes the last point away)
       var P = pen.pts, k = view.k;
@@ -3394,6 +3522,15 @@
     function penBack() { if (!pen) return; pen.pts.pop(); if (!pen.pts.length) cancelPen(); else drawPen(); }
     function cancelPen() { pen = null; penHover = null; octx.clearRect(0, 0, W, H); plainOv(); drawSel(); buttons(); ctxSync(); }
     function finishPen() { var sw = maskIn(); finishPen0(); if (sw) maskOut(); }
+    // TEXT ON A PATH: the path being made becomes the line the words are
+    // typed along (kept with them, from where they start, so they can be
+    // moved, sized and turned, and typed into again)
+    function textOnPath() {
+      if (!pen || pen.pts.length < 2) return;
+      var P = pen.pts, o = P[0], rel = function (q) { return q ? { x: q.x - o.x, y: q.y - o.y } : null; };
+      var path = { pts: P.map(function (q) { return { x: q.x - o.x, y: q.y - o.y, i: rel(q.i), o: rel(q.o) }; }), closed: !!pen.closed };
+      cancelPen(); setTool('text'); startText({ x: o.x, y: o.y }, 0, null, path);
+    }
     function finishPen0() {
       if (!pen) return;
       if (pen.pts.length < 2) { cancelPen(); return; }
@@ -4095,10 +4232,18 @@
     function textFrom(t) {
       if (!t || typeof t !== 'object' || typeof t.str !== 'string') return null;
       var num = function (v, d) { v = +v; return isFinite(v) ? v : d; }, col = function (c, d) { return /^#[0-9a-f]{3,8}$/i.test(c || '') ? c : d; };
-      return { str: t.str.slice(0, 5000), x: num(t.x, 0), y: num(t.y, 0), w: Math.max(0, num(t.w, 0)), rot: num(t.rot, 0), font: typeof t.font === 'string' ? t.font.slice(0, 200) : FONTS[0][0],
+      var out = { str: t.str.slice(0, 5000), x: num(t.x, 0), y: num(t.y, 0), w: Math.max(0, num(t.w, 0)), rot: num(t.rot, 0), font: typeof t.font === 'string' ? t.font.slice(0, 200) : FONTS[0][0],
         size: Math.max(1, Math.min(4000, num(t.size, 48))), color: col(t.color, '#141414'), color2: col(t.color2, '#ffffff'), alpha: Math.max(0, Math.min(1, num(t.alpha, 1))),
         bold: !!t.bold, italic: !!t.italic, underline: !!t.underline, caps: !!t.caps, align: /^(left|center|right)$/.test(t.align) ? t.align : 'left',
-        spacing: num(t.spacing, 0), lh: Math.max(0.5, Math.min(4, num(t.lh, 1.2))), outline: Math.max(0, Math.min(30, num(t.outline, 0))), shadow: !!t.shadow };
+        spacing: num(t.spacing, 0), lh: Math.max(0.5, Math.min(4, num(t.lh, 1.2))), outline: Math.max(0, Math.min(30, num(t.outline, 0))), shadow: !!t.shadow,
+        fill: /^(solid|gradient|rainbow|two)$/.test(t.fill) ? t.fill : 'solid', arc: Math.max(-100, Math.min(100, num(t.arc, 0))) };
+      // (words on a path: its points, and their handles)
+      var pt = function (q) { return q && typeof q === 'object' && isFinite(+q.x) && isFinite(+q.y) ? { x: +q.x, y: +q.y } : null; };
+      if (t.path && Array.isArray(t.path.pts) && t.path.pts.length > 1 && t.path.pts.length <= 2000) {
+        var pts = t.path.pts.map(function (q) { var a = pt(q); if (a) { a.i = pt(q.i); a.o = pt(q.o); } return a; });
+        if (pts.every(Boolean)) { out.path = { pts: pts, closed: !!t.path.closed }; out.arc = 0; out.w = 0; }
+      }
+      return out;
     }
     function isProject(f) { return /\.paint$/i.test(f.name || '') || f.type === 'application/x-paint-alternative'; }
     function saveProject() {
@@ -4611,6 +4756,7 @@
     var smoothRow = '<label class="ctx-slider" data-tip="Smoothing: irons out wobbles. The line still ends right under the pen"><span>Smoothing</span><input type="range" min="0" max="100" data-ctx="smoothing" aria-label="Smoothing"><output>Off</output></label>';
     var snapChip = chip('snap', 'Snap', '<path d="M5 18.5c3-9 11-12 14-12"/><circle cx="19" cy="6.5" r="1.6"/>', 'Snap to shape: hold still at the end of a line, ellipse or rectangle to make it perfect (Shift: a circle or square)');
     var taperChip = chip('taper', 'Taper', '<path d="M3.5 12c4-3 13-3 17 0-4 3-13 3-17 0z"/>', 'Tapered ends: thin, pointed ends on each stroke (off: even thickness all the way)');
+    var TFILLS = [['solid', 'Solid', 'One colour'], ['gradient', 'Blend', 'Blend from the main colour (top) to the second (bottom)'], ['rainbow', 'Rainbow', 'Each letter a colour of the rainbow, starting from the main colour'], ['two', 'Duo', 'Letters in the two colours, turn and turn about']];
     var CTX = {
       brush: function () {
         return '<button type="button" class="ctx-btn" data-ctx="brushes" aria-haspopup="menu" aria-expanded="false" data-tip="Choose a brush"><canvas class="pb-prev" data-ctxprev aria-hidden="true"></canvas><span data-ctxname></span>' + CHEV + '</button>' +
@@ -4632,7 +4778,12 @@
           '<div class="pa-tabs ctx-seg" role="group" aria-label="Style">' +
             '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button></div>' + sep +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Alignment">' + ['left', 'center', 'right'].map(function (a) { return '<button type="button" role="tab" data-ctx-al="' + a + '" aria-label="Align ' + a + '" data-tip="Align ' + a + '">' + CI(a === 'left' ? '<path d="M4 6.5h16M4 10.5h10M4 14.5h16M4 18.5h10"/>' : a === 'center' ? '<path d="M4 6.5h16M7 10.5h10M4 14.5h16M7 18.5h10"/>' : '<path d="M4 6.5h16M10 10.5h10M4 14.5h16M10 18.5h10"/>') + '</button>'; }).join('') + '</div>' + sep +
-          '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>';
+          '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>' + sep +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill">' + TFILLS.map(function (f) { return '<button type="button" role="tab" data-ctx-tf="' + f[0] + '" data-tip="' + f[2] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
+          '<label class="ctx-slider" data-tpath-off data-tip="Curve: bend the words into an arch (to the right) or a dip (to the left)"><span>Curve</span><input type="range" min="-100" max="100" step="1" data-ctx="tarc" aria-label="Curve"><output>0</output></label>' +
+          '<div data-tpath-on>' + hint('The words follow the path') + '</div>' +
+          '<button type="button" class="ctx-btn" data-ctx="tpathoff" data-tpath-on data-tip="Take the words off the path, back onto a straight line">' + CI('<path d="M4 17h16"/><path d="M4 11c4-5 12-5 16 0" stroke-dasharray="2 2"/>') + '<span>Straighten</span></button>' +
+          '<div data-tpath-off>' + hint('For words along a line, draw it with the Pen, then pick <b>Text on Path</b>') + '</div>';
       },
       fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
       gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>'; },
@@ -4645,6 +4796,7 @@
         return hint('Click to add points \u00b7 drag to curve \u00b7 click the first point to close') + sep +
           chip('penstroke', 'Outline', '<path d="M5 18C8 6 16 6 19 18"/>', 'Draw the path as a line, at the brush size') +
           chip('penfill', 'Fill', '<path d="M5 18C8 6 16 6 19 18z" fill="currentColor" fill-opacity=".35"/>', 'Fill the inside of the path with the colour') + sep +
+          '<button type="button" class="ctx-btn" data-ctx="pentext" data-tip="Type words that follow the path">' + CI('<path d="M4 19c3-6 13-6 16 0"/><path d="M8.5 5h7M12 5v8"/>') + '<span>Text on Path</span></button>' +
           '<button type="button" class="ctx-btn" data-ctx="pencancel" data-tip="Let the path go (Esc)">Cancel</button>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="pendone" data-tip="Lay the path down (Return, or double-click)">Done</button>';
       },
@@ -4755,6 +4907,10 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-t]'), function (b) { b.setAttribute('aria-selected', tx[b.dataset.ctxT] ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-al]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.ctxAl ? 'true' : 'false'); });
       var tm = q('[data-ctx="tmore"]'); if (tm) tm.disabled = !textBox;
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-tf]'), function (b) { b.setAttribute('aria-selected', tx.fill === b.dataset.ctxTf ? 'true' : 'false'); });
+      var ta = q('[data-ctx="tarc"]'); if (ta) { ta.value = tx.arc; ta.nextElementSibling.textContent = tx.arc; }
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-tpath-on]'), function (e) { e.hidden = !(textBox && textPath); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-tpath-off]'), function (e) { e.hidden = !!(textBox && textPath); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-sym]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxSym === st.sym ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
@@ -4762,7 +4918,7 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-assist]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxAssist === gMode ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-assist-on]'), function (e) { e.hidden = gMode === 'off'; });
       set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill);
-      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pendone' ? 2 : 1); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"], [data-ctx="pentext"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
     }
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
@@ -4770,6 +4926,7 @@
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
       else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(true); } }
+      else if (k === 'tarc') { tx.arc = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
     });
     ctxEl.addEventListener('keydown', function (e) { if (e.target.dataset.ctx === 'tsize') { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (textBox) textBox.focus({ preventScroll: true }); } } });
     ctxEl.addEventListener('pointerdown', function (e) { if (anyMenu()) openMenu(null); if (textBox && e.target.closest('button')) e.preventDefault(); }); // (so the words being typed keep the caret)
@@ -4793,6 +4950,9 @@
       }
       if (k === 'pendone') { finishPen(); return; }
       if (k === 'pencancel') { cancelPen(); return; }
+      if (k === 'pentext') { textOnPath(); return; }
+      if (k === 'tpathoff') { textPath = null; if (textBox) afterTextChange(); return; }
+      if (b.dataset.ctxTf) { tx.fill = b.dataset.ctxTf; if (textBox) afterTextChange(); ctxSync(); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
       if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
