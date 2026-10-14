@@ -67,6 +67,13 @@ When building or changing anything visual:
   (`L.editMask`), painting tools work on `L.mask.P`, which stands in for the
   layer (`maskIn`/`maskOut`). New layers made next to one join its group
   (`L.group`).
+- **Several layers picked:** `also` holds the layers picked alongside
+  `active` (a swipe right on a row, Shift- or Ctrl/⌘-click); `picks()` gives
+  them all in stack order. A selection or the Move tool lifts every picked
+  layer (`liftMany`: each on a sheet just above its own layer, text layers
+  moved as words), and the ••• menu and the panel's buttons act on them all
+  (`multiOption`). New layer actions should say what they do with several
+  picked: act on all of `picks()`, or be greyed out.
 - **Brushes:** a brush is an id; `bdef(id)` gives its name, the kind it's
   made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
   Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how

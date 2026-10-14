@@ -138,6 +138,17 @@
       size: 6, alpha: +alphaIn.value / 100, solid: false, sym: 'off', tone: 'dodge' };
     var W = 0, H = 0, R = 1, view = { k: 1, x: 0, y: 0, r: 0 }, fitK = 1, fillK = 1;
     var layers = [], active = null, undo = [], redo = [], LIMIT = 14, recent = [];
+    // MORE THAN ONE LAYER PICKED: a swipe right along a layer's row (again,
+    // to let it go), or Shift-click (all between) and Ctrl/⌘-click (one more)
+    // in the Layers panel. `also` holds the layers picked alongside the
+    // current one; together they're moved, sized, turned and flipped (the
+    // Move tool, or a selection), shown or hidden, faded, blended, locked,
+    // duplicated, grouped, merged and deleted at once. A plain tap on a
+    // layer picks just that one again
+    var also = [];
+    function tidyAlso() { also = also.filter(function (L) { return L !== active && layers.indexOf(L) >= 0; }); }
+    function multi() { tidyAlso(); return !!active && also.length > 0; }
+    function picks() { tidyAlso(); return active ? layers.filter(function (L) { return L === active || also.indexOf(L) >= 0; }) : []; }
 
     // ---- the picture: a stack of layers, zoomed and moved as one ----
     W = Math.max(1, Math.round(stage.clientWidth)); H = Math.max(1, Math.round(stage.clientHeight));
@@ -236,6 +247,7 @@
         else if (!L.group) G = null;
         (L.group ? L.group.el : stack).appendChild(el);
       });
+      if (sel && sel.more) drawMore();
       renderLayers();
     }
     function styleGroup(G) {
@@ -795,8 +807,8 @@
         if (e.doc) fit();
       }
     }
-    function doUndo() { endFillAnim(); if (down) { cancelStroke(); return; } if (pen && pen.pts.length) { penBack(); return; } if (adj) adjustDone(); if (textBox) commitText(); if (sel && (sel.float || sel.text)) commitSelection(); if (!undo.length) return; var e = undo.pop(); redo.push(capture(e)); apply(e); buttons(); autosave(); }
-    function doRedo() { endFillAnim(); if (down) return; if (adj) adjustDone(); if (textBox) commitText(); if (sel && (sel.float || sel.text)) commitSelection(); if (!redo.length) return; var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave(); }
+    function doUndo() { endFillAnim(); if (down) { cancelStroke(); return; } if (pen && pen.pts.length) { penBack(); return; } if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return; var e = undo.pop(); redo.push(capture(e)); apply(e); buttons(); autosave(); }
+    function doRedo() { endFillAnim(); if (down) return; if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return; var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave(); }
     function buttons() { $('[data-act="undo"]').disabled = !undo.length; $('[data-act="redo"]').disabled = !redo.length; renderHistory(); }
 
     // ---- brushes ----
@@ -2288,11 +2300,13 @@
     function selMid() { return { x: sel.x + sel.w / 2, y: sel.y + sel.h / 2 }; }
     function selLocal(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx + s * dy, y: m.y - s * dx + c * dy }; }
     function selWorld(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx - s * dy, y: m.y + s * dx + c * dy }; }
-    function putFloat(c) {
-      var r = sel.rot || 0;
-      if (!r) { c.drawImage(sel.float, sel.x, sel.y, sel.w, sel.h); return; }
-      var m = selMid(); c.save(); c.translate(m.x, m.y); c.rotate(r); c.drawImage(sel.float, -sel.w / 2, -sel.h / 2, sel.w, sel.h); c.restore();
+    function putFloat(c, f) {
+      var r = sel.rot || 0; f = f || sel.float;
+      if (!r) { c.drawImage(f, sel.x, sel.y, sel.w, sel.h); return; }
+      var m = selMid(); c.save(); c.translate(m.x, m.y); c.rotate(r); c.drawImage(f, -sel.w / 2, -sel.h / 2, sel.w, sel.h); c.restore();
     }
+    // (something is picked up: on the current layer, or on each picked layer)
+    function lifted() { return !!(sel && (sel.float || sel.more)); }
     function inSel(p) {
       if (sel) p = selLocal(p);
       if (!sel || p.x < sel.x || p.x > sel.x + sel.w || p.y < sel.y || p.y > sel.y + sel.h) return false;
@@ -2388,12 +2402,12 @@
     // (a turned selection is put down and closed: painting inside one isn't
     // possible, only inside an upright one)
     function anchor(keep) {
-      if (!sel || !sel.float) return;
-      putFloat(active.ctx); sel.float = null;
+      if (!lifted()) return;
+      if (sel.more) putMore(); else putFloat(active.ctx); sel.float = null;
       if (sel.rot && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); }
+    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); }
     // the little X on the selection's top left corner closes it
     function placeSelX() {
       if (!sel || (selMode && selMode !== 'scale' && selMode !== 'rotate') || sel.thing) { selx.hidden = true; return; }
@@ -2406,34 +2420,80 @@
       // (a text layer's words aren't lifted: they're drawn again where they go)
       if (sel.text) { if (!sel.lifted) { push({ L: sel.text, data: snapOf(sel.text), bg: sel.text.bg, text: sel.text.text, label: 'Move Text' }); sel.lifted = true; } return; }
       // the pixels come up off the layer (or a copy of them does)
-      if (sel.float) return;
+      if (sel.float || sel.more) return;
+      // (with more than one layer picked, they all come up together)
+      if (!sel.thing && (sel.items || multi())) {
+        var items = sel.items || picks().filter(function (L) { return !L.text; }).map(function (L) { return { L: L, m: null }; });
+        if (items.length > 1 || (items.length && items[0].L !== active) || items.some(function (it) { return it.L.text; })) { liftMany(items, keep); return; }
+      }
       remember('Move');
+      sel.float = liftFrom(active, null, keep); viewsSoon();
+    }
+    // (L's pixels inside the selection, as a canvas of their own; and, unless
+    // keep, a hole left where they were. m: a shape of its own to lift, in
+    // the selection's box)
+    function liftFrom(L, m, keep) {
       var f = document.createElement('canvas'); f.width = Math.max(1, Math.round(sel.w * R)); f.height = Math.max(1, Math.round(sel.h * R));
-      var fx = f.getContext('2d');
-      fx.drawImage(active.cv, Math.round(sel.x * R), Math.round(sel.y * R), f.width, f.height, 0, 0, f.width, f.height);
+      var fx = f.getContext('2d'), mk = m || sel.mask;
+      fx.drawImage(L.cv, Math.round(sel.x * R), Math.round(sel.y * R), f.width, f.height, 0, 0, f.width, f.height);
       if (sel.poly) { fx.globalCompositeOperation = 'destination-in'; outline(fx, 0, 0, R); fx.fill(); fx.globalCompositeOperation = 'source-over'; }
-      if (sel.mask) { fx.globalCompositeOperation = 'destination-in'; fx.drawImage(sel.mask, 0, 0, f.width, f.height); fx.globalCompositeOperation = 'source-over'; }
-      if (!keep && sel.mask) {
-        var cm = active.ctx; cm.save(); cm.setTransform(1, 0, 0, 1, 0, 0);
-        cm.globalCompositeOperation = 'destination-out'; cm.drawImage(sel.mask, Math.round(sel.x * R), Math.round(sel.y * R));
+      if (mk) { fx.globalCompositeOperation = 'destination-in'; fx.drawImage(mk, 0, 0, f.width, f.height); fx.globalCompositeOperation = 'source-over'; }
+      if (!keep && mk) {
+        var cm = L.ctx; cm.save(); cm.setTransform(1, 0, 0, 1, 0, 0);
+        cm.globalCompositeOperation = 'destination-out'; cm.drawImage(mk, Math.round(sel.x * R), Math.round(sel.y * R), f.width, f.height);
         cm.globalCompositeOperation = 'source-over';
-        if (active.bg) cm.drawImage(tinted(sel.mask, '#fff'), Math.round(sel.x * R), Math.round(sel.y * R));
+        if (L.bg) cm.drawImage(tinted(mk, '#fff'), Math.round(sel.x * R), Math.round(sel.y * R), f.width, f.height);
         cm.restore();
       } else if (!keep) {
-        var c = active.ctx; c.save();
+        var c = L.ctx; c.save();
         if (sel.poly) { outline(c, sel.x, sel.y, 1); c.clip(); }
         c.clearRect(sel.x, sel.y, sel.w, sel.h);
-        if (active.bg) { c.fillStyle = '#fff'; c.fillRect(sel.x, sel.y, sel.w, sel.h); }
+        if (L.bg) { c.fillStyle = '#fff'; c.fillRect(sel.x, sel.y, sel.w, sel.h); }
         c.restore();
       }
-      sel.float = f; viewsSoon();
+      return f;
+    }
+    // SEVERAL LAYERS PICKED UP AT ONCE: each one's pixels come up on their
+    // own (shown, while they're moved, on a sheet just above their layer, so
+    // what's above and below still is), and a text layer's words are moved,
+    // sized and turned with them, so they stay words. One step to undo.
+    function liftMany(items, keep) {
+      push({ parts: items.map(function (it) { return { L: it.L, data: snapOf(it.L), bg: it.L.bg, text: it.L.text, name: it.L.name }; }), label: 'Move Layers' });
+      sel.more = items.map(function (it) {
+        if (it.L.text) { var T = it.L.text; return { L: it.L, T0: T, ox: T.x - sel.x, oy: T.y - sel.y, w0: sel.w, h0: sel.h, r0: sel.rot || 0 }; }
+        return { L: it.L, f: liftFrom(it.L, it.m, keep) };
+      });
+      var mine = sel.more.filter(function (it) { return it.L === active && it.f; })[0];
+      sel.float = mine ? mine.f : null; sel.items = null; viewsSoon();
+    }
+    function putMore() {
+      sel.more.forEach(function (it) { if (it.f) putFloat(it.L.ctx, it.f); if (it.cv) it.cv.remove(); });
+      sel.more = null; sel.float = null; viewsSoon(); thumbsSoon();
+    }
+    // (each picked-up layer's sheet, drawn where it's been moved to)
+    function drawMore() {
+      sel.more.forEach(function (it) {
+        if (it.T0) {
+          var sx = sel.w / it.w0, sy = sel.h / it.h0, T0 = it.T0, A = selWorld({ x: sel.x + it.ox * sx, y: sel.y + it.oy * sy }), T = {};
+          for (var k in T0) T[k] = T0[k];
+          T.size = Math.round(T0.size * sx * 100) / 100; T.w = T0.w * sx; T.rot = (T0.rot || 0) + (sel.rot || 0) - it.r0; T.x = A.x; T.y = A.y;
+          if (T0.path) { var mp = function (h) { return h ? { x: h.x * sx, y: h.y * sx } : null; }; T.path = { closed: T0.path.closed, pts: T0.path.pts.map(function (q) { return { x: q.x * sx, y: q.y * sx, i: mp(q.i), o: mp(q.o) }; }) }; }
+          it.L.text = T; renderText(it.L); return;
+        }
+        var el = usesView(it.L) ? it.L.view || viewOf(it.L) : it.L.cv;
+        if (!it.cv) { it.cv = document.createElement('canvas'); it.cv.width = it.L.cv.width; it.cv.height = it.L.cv.height; it.cv.className = 'paint-liftov'; it.cv.setAttribute('aria-hidden', 'true'); }
+        it.cv.style.width = it.L.cv.style.width; it.cv.style.height = it.L.cv.style.height;
+        if (it.cv.previousSibling !== el && el.parentNode) el.parentNode.insertBefore(it.cv, el.nextSibling);
+        it.cv.style.opacity = el.style.opacity; it.cv.style.mixBlendMode = el.style.mixBlendMode; it.cv.style.visibility = el.style.visibility;
+        var x = it.cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, it.cv.width, it.cv.height); base(x); putFloat(x, it.f);
+      });
     }
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
       placeSelX(); selButtons();
       if (!sel) return;
       if (sel.text && sel.lifted) placeTextSel();
-      if (sel.float) putFloat(sctx);
+      if (sel.more) drawMore(); else if (sel.float) putFloat(sctx);
       if (sel.thing) return;
       // (the outline and handles are drawn in the box's own frame, turned with it)
       var turned = !!sel.rot;
@@ -2474,14 +2534,49 @@
     }
     // (what a selection of words can do: turn, be put down, or go)
     function selButtons() {
-      var t = !!(sel && sel.text);
-      Array.prototype.forEach.call(selbar.querySelectorAll('[data-sel]'), function (b) { b.disabled = t && !/^(rot90|done|delete)$/.test(b.dataset.sel); });
+      var t = !!(sel && sel.text), many = !!(sel && (sel.more || sel.items || (multi() && !sel.thing && !sel.text)));
+      var words = many && (sel.more || sel.items || []).some(function (it) { return it.L.text; });
+      Array.prototype.forEach.call(selbar.querySelectorAll('[data-sel]'), function (b) {
+        var k = b.dataset.sel;
+        b.disabled = (t && !/^(rot90|done|delete)$/.test(k)) || (many && (/^(copy|invert|layer)$/.test(k) || (words && /^(fliph|flipv|delete)$/.test(k))));
+        b.title = many && b.disabled ? 'Not with more than one layer picked' : '';
+      });
     }
     // MOVE: what's on the layer is picked up whole, ready to move, size or
     // turn (a selection already made is used as it is)
     function movePick() {
       if (sel || !active) return;
+      if (multi()) { manySel(); return; }
       if (active.text) textSel(active); else { layerSel(active); if (sel) sel.auto = true; }
+    }
+    // (the box round everything on the picked layers, the words of text
+    // layers too; the white Background gives only what's drawn on it)
+    function manySel() {
+      var U = null, items = [], grow = function (x0, y0, x1, y1) { U = U ? { x0: Math.min(U.x0, x0), y0: Math.min(U.y0, y0), x1: Math.max(U.x1, x1), y1: Math.max(U.y1, y1) } : { x0: x0, y0: y0, x1: x1, y1: y1 }; };
+      picks().forEach(function (L) {
+        if (L.text) {
+          var T = L.text, b = tboxOf(L), r = T.rot || 0, co = Math.cos(r), si = Math.sin(r), xs = [], ys = [];
+          [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].forEach(function (q) { xs.push(T.x + co * q[0] - si * q[1]); ys.push(T.y + si * q[0] + co * q[1]); });
+          grow(Math.min.apply(null, xs) * R, Math.min.apply(null, ys) * R, Math.max.apply(null, xs) * R, Math.max.apply(null, ys) * R); items.push({ L: L, m: null }); return;
+        }
+        var w = L.cv.width, h = L.cv.height, d = L.ctx.getImageData(0, 0, w, h).data, x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (var y = 0, k = 0; y < h; y++) for (var x = 0; x < w; x++, k++) { var j = k * 4; if (L.bg ? 765 - d[j] - d[j + 1] - d[j + 2] > 36 : d[j + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+        if (x1 < 0) return;
+        grow(x0, y0, x1 + 1, y1 + 1); items.push({ L: L, m: null, d: d });
+      });
+      if (!U) return;
+      U = { x0: Math.max(0, Math.floor(U.x0)), y0: Math.max(0, Math.floor(U.y0)), x1: Math.min(ov.width, Math.ceil(U.x1)), y1: Math.min(ov.height, Math.ceil(U.y1)) };
+      var mw = Math.max(1, U.x1 - U.x0), mh = Math.max(1, U.y1 - U.y0);
+      // (the Background's white isn't picked up: just what's drawn on it)
+      items.forEach(function (it) {
+        if (!it.L.bg || !it.d) { delete it.d; return; }
+        var m = document.createElement('canvas'); m.width = mw; m.height = mh;
+        var mx = m.getContext('2d'), md = mx.createImageData(mw, mh), w = it.L.cv.width, d = it.d;
+        for (var yy = 0; yy < mh; yy++) for (var xx = 0; xx < mw; xx++) { var j = ((yy + U.y0) * w + xx + U.x0) * 4; if (765 - d[j] - d[j + 1] - d[j + 2] > 36) md.data[(yy * mw + xx) * 4 + 3] = 255; }
+        mx.putImageData(md, 0, 0); it.m = m; delete it.d;
+      });
+      sel = { x: U.x0 / R, y: U.y0 / R, w: mw / R, h: mh / R, float: null, whole: true, auto: true, items: items };
+      selbar.hidden = false; drawSel();
     }
     function rotHandleLocal() { return { x: sel.x + sel.w / 2, y: sel.y - 26 / view.k }; }
     function localCorners() { return [{ x: sel.x, y: sel.y, c: 'nw' }, { x: sel.x + sel.w, y: sel.y, c: 'ne' }, { x: sel.x, y: sel.y + sel.h, c: 'sw' }, { x: sel.x + sel.w, y: sel.y + sel.h, c: 'se' }]; }
@@ -2518,7 +2613,8 @@
     }
     function commitSelection() {
       if (!sel) return;
-      if (sel.float) { putFloat(active.ctx); autosave(); }
+      if (sel.more) { putMore(); autosave(); }
+      else if (sel.float) { putFloat(active.ctx); autosave(); }
       clearSel();
     }
     function invertSel() {
@@ -2554,7 +2650,7 @@
         layers.splice(layers.indexOf(active) + 1, 0, L); L.group = active.group; active = L;
         clearSel(); mount(); return;
       }
-      if (a === 'delete') { if (!sel.float) lift(); sel.float = null; clearSel(); autosave(); return; }
+      if (a === 'delete') { if (!lifted()) lift(); if (sel.more) sel.more.forEach(function (it) { it.f = null; }); sel.float = null; clearSel(); autosave(); return; }
       if (a === 'copy') {
         // COPY: the selection is copied onto a new layer just above, picked
         // up and ready to move (the original stays where it is)
@@ -2570,10 +2666,14 @@
         sel.float = f; sel.x += 14; sel.y += 14; drawSel(); autosave(); return;
       }
       lift();
-      var f = sel.float, g = document.createElement('canvas'); g.width = f.width; g.height = f.height;
-      var gx = g.getContext('2d');
-      if (a === 'fliph') { gx.translate(f.width, 0); gx.scale(-1, 1); } else { gx.translate(0, f.height); gx.scale(1, -1); }
-      gx.drawImage(f, 0, 0); sel.float = g;
+      var flip = function (f) {
+        var g = document.createElement('canvas'); g.width = f.width; g.height = f.height;
+        var gx = g.getContext('2d');
+        if (a === 'fliph') { gx.translate(f.width, 0); gx.scale(-1, 1); } else { gx.translate(0, f.height); gx.scale(1, -1); }
+        gx.drawImage(f, 0, 0); return g;
+      };
+      if (sel.more) { sel.more.forEach(function (it) { if (it.f) { var was = it.f; it.f = flip(was); if (sel.float === was) sel.float = it.f; } }); }
+      else sel.float = flip(sel.float);
       if (sel.poly) sel.poly = sel.poly.map(function (q) { return a === 'fliph' ? { x: sel.w - q.x, y: q.y } : { x: q.x, y: sel.h - q.y }; });
       if (sel.mask) {
         var m2 = document.createElement('canvas'); m2.width = sel.mask.width; m2.height = sel.mask.height;
@@ -2594,20 +2694,21 @@
       if (!panel) return;
       var esc = function (t) { return t.replace(/[<&"]/g, function (ch) { return ch === '<' ? '&lt;' : ch === '&' ? '&amp;' : '&quot;'; }); };
       var EYE = function (on) { return '<svg viewBox="0 0 24 24">' + (on ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg>'; };
-      var shownG = [];
+      var shownG = []; tidyAlso();
       var rows = layers.slice().reverse().map(function (L) {
         var i = layers.indexOf(L), G = L.group, head = '';
         // (a group: its row, then its layers, unless it's folded shut)
         if (G && shownG.indexOf(G) < 0) {
           shownG.push(G);
-          head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
+          var gm0 = membersOf(G);
+          head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (gm0.length && gm0.every(function (M) { return M === active || also.indexOf(M) >= 0; }) && also.length ? ' also' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
             '<button type="button" class="pl-eye" data-geye="' + G.id + '" aria-label="' + (G.visible ? 'Hide' : 'Show') + ' ' + esc(G.name) + '" aria-pressed="' + (!G.visible) + '">' + EYE(G.visible) + '</button>' +
             '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>' +
             '<button type="button" class="pl-name" data-gname="' + G.id + '" title="Tap again to rename"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg><span>' + esc(G.name) + '</span></button>' +
             '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
         }
         if (G && !G.open) return head;
-        return head + '<div class="pl-row' + (L === active && !focusG ? ' on' : '') + (clipBase(L) ? ' clipped' : '') + (G ? ' in-grp' : '') + '" data-i="' + i + '">' +
+        return head + '<div class="pl-row' + (L === active && !focusG ? ' on' : '') + (also.indexOf(L) >= 0 && !focusG ? ' also' : '') + (clipBase(L) ? ' clipped' : '') + (G ? ' in-grp' : '') + '" data-i="' + i + '">' +
           '<button type="button" class="pl-eye" data-layer-eye="' + i + '" aria-label="' + (L.visible ? 'Hide' : 'Show') + ' ' + esc(L.name) + '" aria-pressed="' + (!L.visible) + '">' +
             '<svg viewBox="0 0 24 24">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
           '<canvas class="pl-thumb' + (L.mask && !L.editMask ? ' picked' : '') + '" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
@@ -2624,13 +2725,14 @@
         active ? '<div class="pl-props"><label class="pl-op"><span>Opacity</span><input type="range" min="0" max="100" value="' + Math.round(active.opacity * 100) + '" data-layer-op aria-label="Layer opacity"><output>' + Math.round(active.opacity * 100) + '%</output></label>' +
         '<label class="pl-bl"><span>Blend</span><select data-layer-blend aria-label="Blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === active.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' : '';
       thumbsSoon();
-      panel.innerHTML = '<div class="pl-title">Layers</div><div class="pl-list">' + rows + '</div>' + pr +
+      var nPick = also.length ? also.length + 1 : 0;
+      panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div><div class="pl-list">' + rows + '</div>' + pr +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>' +
-          '<button type="button" data-layer-act="group" title="Put the layer in a new group" aria-label="New group"' + (active && !active.group ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
-          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (!active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
-          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (!active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
-          '<button type="button" data-layer-act="delete" title="Delete layer" aria-label="Delete layer"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
+          '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
+          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
+          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
+          '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
         '</div>';
     }
     // LAYER PREVIEWS: a little picture of what's on each layer (over a
@@ -2708,7 +2810,19 @@
         opt = opt || {};
         return '<button type="button" role="' + (opt.check != null ? 'menuitemcheckbox' : 'menuitem') + '" data-lm="' + k + '"' + (opt.check != null ? ' aria-checked="' + opt.check + '"' : '') + (opt.off ? ' disabled' : '') + (opt.danger ? ' class="lm-danger"' : '') + '>' + label + '</button>';
       };
-      var lowest = layers[0] && layers[0].bg ? 1 : 0;
+      var lowest = layers[0] && layers[0].bg ? 1 : 0, P = picks();
+      if (multi() && P.indexOf(L) >= 0) {
+        lmenu.innerHTML = '<div class="lm-note">' + P.length + ' layers picked</div>' +
+          item('m-hide', P.some(function (M) { return M.visible; }) ? 'Hide' : 'Show') + item('m-lock', 'Alpha Lock', { check: P.every(function (M) { return M.alphaLock; }) }) +
+          '<hr>' + item('m-duplicate', 'Duplicate', { off: n + P.length > maxLayers() }) + item('m-group', 'Group') + item('m-merge', 'Merge Layers') +
+          '<hr>' + item('rename', 'Rename', { off: true }) + item('merge', 'Merge Down', { off: true }) + item('addmask', 'Add Mask', { off: true }) + item('clip', 'Clipping Mask', { off: true }) + item('up', 'Move Up', { off: true }) + item('down', 'Move Down', { off: true }) +
+          '<hr>' + item('m-deselect', 'Pick Just This One') + item('m-delete', 'Delete ' + P.length + ' Layers', { danger: true });
+        lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
+        var left0 = fromRight ? x - lmenu.offsetWidth : x;
+        lmenu.style.left = Math.max(8, Math.min(left0, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
+        lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
+        return;
+      }
       lmenu.innerHTML =
         (L.text ? item('edittext', 'Edit Text') + item('raster', 'Turn into Image') + '<hr>' : '') +
         item('select', 'Select') + item('rename', 'Rename') + item('duplicate', 'Duplicate', { off: n >= maxLayers() }) +
@@ -2842,6 +2956,8 @@
       mount(); layerPanel(true); autosave();
     }
     function layerOption(a, L) {
+      if (a === 'm-deselect') { if (sel) commitSelection(); active = L; also = []; renderLayers(); layerPanel(true); if (st.tool === 'move') movePick(); return; }
+      if (/^m-/.test(a)) { multiOption(a); return; }
       if (/mask$|^editlayer$/.test(a)) { if (adj) adjustDone(); if (textBox) commitText(); maskOption(a, L); return; }
       if (a === 'select') { layerPanel(false); selectLayer(L); return; }
       if (a === 'edittext' && L.text) { layerPanel(false); if (st.tool !== 'text') setTool('text'); editText(L); return; }
@@ -2863,10 +2979,7 @@
       else if (a === 'duplicate') {
         if (!roomFor()) return;
         rememberLayers('Duplicate Layer');
-        var D = makeLayer(L.name + ' copy', false);
-        D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.drawImage(L.cv, 0, 0); D.ctx.restore();
-        D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip; D.text = L.text; D.group = L.group;
-        if (L.mask) { D.mask = makeMask(D); D.mask.ctx.save(); D.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); D.mask.ctx.drawImage(L.mask.cv, 0, 0); D.mask.ctx.restore(); maskAlpha(D); }
+        var D = dupOf(L);
         layers.splice(i + 1, 0, D); active = D;
       } else if (a === 'merge') {
         // (it's laid onto the one below as it looks: its opacity, blend mode
@@ -2908,6 +3021,128 @@
       sel = { x: minX / R, y: minY / R, w: mw / R, h: mh / R, float: null, mask: m, maskData: md.data, whole: true };
       selbar.hidden = false; drawSel();
     }
+    // (picking more layers, or letting one go: Ls are the layers of a row,
+    // one, or a group's; all picked already, and they're let go)
+    function pickToggle(Ls) {
+      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      tidyAlso(); focusG = null;
+      var P = picks(), off = Ls.every(function (L) { return P.indexOf(L) >= 0; });
+      if (off) {
+        also = also.filter(function (L) { return Ls.indexOf(L) < 0; });
+        // (the current layer let go: the top one still picked takes its place)
+        if (Ls.indexOf(active) >= 0) { if (!also.length) { renderLayers(); return; } also = layers.filter(function (L) { return also.indexOf(L) >= 0; }); active = also.pop(); }
+      } else {
+        if (!active) active = Ls[Ls.length - 1];
+        Ls.forEach(function (L) { if (L !== active && also.indexOf(L) < 0) also.push(L); });
+        if (Ls.length === 1 && Ls[0].editMask) Ls[0].editMask = false;
+      }
+      renderLayers(); layerPanel(true);
+      if (st.tool === 'move') movePick();
+    }
+    function pickRun(L) {
+      if (!active) { pickToggle([L]); return; }
+      var a = layers.indexOf(active), b = layers.indexOf(L), lo = Math.min(a, b), hi = Math.max(a, b), run = [];
+      for (var k = lo; k <= hi; k++) if (layers[k] !== active) run.push(layers[k]);
+      if (sel) commitSelection(); focusG = null;
+      run.forEach(function (M) { if (also.indexOf(M) < 0) also.push(M); });
+      renderLayers(); layerPanel(true); if (st.tool === 'move') movePick();
+    }
+    // (a click with Shift or Ctrl/⌘ held picks rather than switches)
+    function pickKeys(e, L) {
+      if (e.shiftKey) { pickRun(L); return true; }
+      if (e.metaKey || e.ctrlKey) { pickToggle([L]); return true; }
+      return false;
+    }
+    // (keys: Shift or Ctrl/⌘ with Return or Space on a layer's name, as a click)
+    panel.addEventListener('keydown', function (e) {
+      if (!(e.key === 'Enter' || e.key === ' ') || !(e.shiftKey || e.metaKey || e.ctrlKey)) return;
+      var n = e.target.closest('[data-layer]'); if (!n) return;
+      e.preventDefault(); e.stopPropagation(); pickKeys(e, layers[+n.dataset.layer]);
+    });
+    // THE SWIPE: a row slides right under the finger (or Pencil, or mouse);
+    // let go past the line and its layer is picked, or let go. A drag up or
+    // down is left alone, for the list to scroll; the grip still reorders
+    var swipe = null, swallow = null;
+    panel.addEventListener('pointerdown', function (e) {
+      swallow = null;
+      var row = e.target.closest('.pl-row'); if (!row || e.button || e.target.closest('.pl-grip, .pl-more, input, select')) return;
+      swipe = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
+    });
+    panel.addEventListener('pointermove', function (e) {
+      var w = swipe; if (!w || e.pointerId !== w.id) return;
+      var dx = e.clientX - w.x, dy = e.clientY - w.y;
+      if (!w.on) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; }
+        if (dx < 12 || dx < Math.abs(dy) * 1.5) return;
+        w.on = true; clearTimeout(holdTimer); w.row.classList.add('swiping'); try { w.row.setPointerCapture(e.pointerId); } catch (x) {}
+      }
+      var t = Math.max(0, dx < 56 ? dx : 56 + (dx - 56) * 0.2);
+      w.row.style.transform = 'translateX(' + t + 'px)'; w.row.classList.toggle('will', dx >= 44);
+    });
+    function swipeEnd(e) {
+      var w = swipe; if (!w || e.pointerId !== w.id) return;
+      swipe = null; if (!w.on) return;
+      swallow = { row: w.row, t: performance.now() };
+      var go = w.row.classList.contains('will') && e.type === 'pointerup';
+      w.row.classList.remove('swiping', 'will'); w.row.style.transform = '';
+      if (!go) return;
+      var Ls = w.row.dataset.gid ? membersOf(groupOf(w.row.dataset.gid)) : [layers[+w.row.dataset.i]];
+      if (Ls.length && Ls[0]) setTimeout(function () { pickToggle(Ls); }, 120); // (after the row has slid back)
+    }
+    panel.addEventListener('pointerup', swipeEnd); panel.addEventListener('pointercancel', swipeEnd);
+    // (the click at the end of a swipe isn't a tap on the row)
+    panel.addEventListener('click', function (e) {
+      var w = swallow; swallow = null;
+      if (w && performance.now() - w.t < 450 && e.target.closest('.pl-row') === w.row) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+    // A FEW LAYERS AT ONCE, from the ••• menu of any of them (or the panel's
+    // own Group and Delete buttons)
+    function dupOf(L) {
+      var D = makeLayer(L.name + ' copy', false);
+      D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.drawImage(L.cv, 0, 0); D.ctx.restore();
+      D.visible = L.visible; D.opacity = L.opacity; D.blend = L.blend; D.alphaLock = L.alphaLock; D.clip = L.clip; D.text = L.text; D.group = L.group;
+      if (L.mask) { D.mask = makeMask(D); D.mask.ctx.save(); D.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); D.mask.ctx.drawImage(L.mask.cv, 0, 0); D.mask.ctx.restore(); maskAlpha(D); }
+      return D;
+    }
+    function multiOption(a) {
+      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      var P = picks(); if (!P.length) return;
+      if (a === 'm-deselect') { also = []; renderLayers(); layerPanel(true); if (st.tool === 'move') movePick(); return; }
+      if (a === 'm-hide') { var show = !P.some(function (L) { return L.visible; }); rememberLayers(show ? 'Show Layers' : 'Hide Layers'); P.forEach(function (L) { L.visible = show; }); }
+      else if (a === 'm-lock') { var on = !P.every(function (L) { return L.alphaLock; }); rememberLayers(on ? 'Alpha Lock' : 'Alpha Lock Off'); P.forEach(function (L) { L.alphaLock = on; }); }
+      else if (a === 'm-delete') {
+        rememberLayers('Delete Layers');
+        var lo = layers.indexOf(P[0]); layers = layers.filter(function (L) { return P.indexOf(L) < 0; });
+        active = layers[Math.max(0, Math.min(layers.length - 1, lo - 1))] || null; also = []; if (!layers.length) count = 0;
+      } else if (a === 'm-duplicate') {
+        if (!roomFor(P.length)) return;
+        rememberLayers('Duplicate Layers');
+        // (each copy just above its layer; the copies are what's picked after)
+        var made = P.map(function (L) { var D = dupOf(L); layers.splice(layers.indexOf(L) + 1, 0, D); return [L, D]; });
+        made.forEach(function (c) { if (c[0] === active) active = c[1]; });
+        also = made.map(function (c) { return c[1]; }).filter(function (D) { return D !== active; });
+      } else if (a === 'm-group') {
+        // (gathered together, in the order they were, where the top one was;
+        // never in the middle of another group; the white Background stays put)
+        var Q = P.filter(function (L) { return !(L.bg && layers.indexOf(L) === 0); }); if (!Q.length) return;
+        rememberLayers('Group Layers');
+        var G = makeGroup(), top = layers.indexOf(Q[Q.length - 1]), below = null;
+        for (var k = top - 1; k >= 0; k--) if (Q.indexOf(layers[k]) < 0) { below = layers[k]; break; }
+        var rest = layers.filter(function (L) { return Q.indexOf(L) < 0; }), at = below ? rest.indexOf(below) + 1 : 0;
+        while (at > 0 && at < rest.length && rest[at - 1].group && rest[at - 1].group === rest[at].group) at++;
+        Array.prototype.splice.apply(rest, [at, 0].concat(Q)); layers = rest; Q.forEach(function (L) { L.group = G; }); focusG = null;
+      } else if (a === 'm-merge') {
+        // (onto the lowest of them, as they look, in order; hidden ones are left as they are)
+        var V = P.filter(function (L) { return L.visible; }); if (V.length < 2) { toast('Pick two or more layers that are showing to merge them'); return; }
+        var B = V[0];
+        push({ parts: [{ L: B, data: snapOf(B), bg: B.bg, text: B.text }, { list: layers.slice(), active: active, props: props() }], label: 'Merge Layers' });
+        B.text = null; var c = B.ctx;
+        if (B.mask) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'destination-in'; c.drawImage(B.mask.a, 0, 0); c.restore(); B.mask = null; B.editMask = false; }
+        V.slice(1).forEach(function (L) { c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = L.opacity; if (L.blend !== 'normal') c.globalCompositeOperation = L.blend; c.drawImage(viewOf(L), 0, 0); c.restore(); });
+        layers = layers.filter(function (L) { return V.indexOf(L) < 1; }); active = B; also = [];
+      }
+      mount(); layerPanel(true); autosave();
+    }
     // reordering: drag a layer by its grip
     panel.addEventListener('pointerdown', function (e) {
       var g = e.target.closest('.pl-grip'); if (!g) return;
@@ -2945,6 +3180,7 @@
       g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
     });
     function layerAct(a) {
+      if (multi() && (a === 'group' || a === 'delete')) { multiOption('m-' + a); return; }
       if (sel) commitSelection();
       var i = layers.indexOf(active);
       if (a === 'add') {
@@ -4221,7 +4457,7 @@
       // (a double-click lays the path down: the second click's point is dropped)
       if (pen && st.tool === 'pen' && !down) { var P = pen.pts; while (P.length > 2 && Math.hypot(P[P.length - 1].x - P[P.length - 2].x, P[P.length - 1].y - P[P.length - 2].y) * view.k < 4) P.pop(); finishPen(); }
     });
-    stage.addEventListener('contextmenu', function (e) { if (sel && !selMode && inSel(pos(e))) { e.preventDefault(); invertSel(); } });
+    stage.addEventListener('contextmenu', function (e) { if (sel && !selMode && inSel(pos(e))) { e.preventDefault(); if (!(sel.more || sel.items || (multi() && !sel.thing))) invertSel(); } });
     // (the system taking the screen mid-stroke: a finger's stroke is called
     // off, as it may have been the start of a gesture; a Pencil's or a
     // mouse's is kept as far as it got)
@@ -4267,13 +4503,13 @@
       var sa = e.target.closest('[data-sel]'); if (sa) { selAction(sa.dataset.sel); return; }
       var ge = e.target.closest('[data-geye]'); if (ge) { var G1 = groupOf(ge.dataset.geye); if (G1) { G1.visible = !G1.visible; mount(); layerPanel(true); autosave(); } return; }
       var gf = e.target.closest('[data-gfold]'); if (gf) { var G2 = groupOf(gf.dataset.gfold); if (G2) { G2.open = !G2.open; renderLayers(); layerPanel(true); autosave(); } return; }
-      var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
+      var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if ((e.shiftKey || e.metaKey || e.ctrlKey) && membersOf(G3).length) { pickToggle(membersOf(G3)); return; } if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
       var gm = e.target.closest('[data-gmore]'); if (gm) { e.stopPropagation(); var G4 = groupOf(gm.dataset.gmore); if (!G4) return; if (!lmenu.hidden && lmenu.dataset.g === gm.dataset.gmore) { lmenu.hidden = true; return; } var rg = gm.getBoundingClientRect(); groupMenu(G4, rg.right, rg.bottom + 4, true); return; }
       var mt = e.target.closest('[data-mthumb]'); if (mt) { if (sel) commitSelection(); editMaskOf(layers[+mt.dataset.mthumb], true); layerPanel(true); return; }
-      var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (L5 !== active && sel) commitSelection(); editMaskOf(L5, false); if (st.tool === 'move') movePick(); layerPanel(true); } return; }
+      var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (pickKeys(e, L5)) return; if (also.length || L5 !== active) { if (sel) commitSelection(); also = []; } editMaskOf(L5, false); if (st.tool === 'move') movePick(); layerPanel(true); } return; }
       var le = e.target.closest('[data-layer-eye]'); if (le) { var L = layers[+le.dataset.layerEye]; L.visible = !L.visible; mount(); layerPanel(true); autosave(); return; }
       var ln = e.target.closest('[data-layer]');
-      if (ln) { var L2 = layers[+ln.dataset.layer]; if (L2 === active && !focusG) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; focusG = null; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
+      if (ln) { var L2 = layers[+ln.dataset.layer]; if (pickKeys(e, L2)) return; if (L2 === active && !focusG && !also.length) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; also = []; focusG = null; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var aa = e.target.closest('[data-adj-act]');
@@ -4505,10 +4741,11 @@
       info.groups = gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; });
       Promise.all(layers.map(function (L) {
         var cv = L.cv;
-        if (sel && sel.float && L === active) {
+        var up = sel && sel.more ? sel.more.filter(function (it) { return it.L === L && it.f; })[0] : null;
+        if (up || (sel && sel.float && !sel.more && L === active)) {
           // (anything lifted and still being moved is kept where it is now)
           cv = document.createElement('canvas'); cv.width = L.cv.width; cv.height = L.cv.height;
-          var x = cv.getContext('2d'); x.drawImage(L.cv, 0, 0); base(x); putFloat(x);
+          var x = cv.getContext('2d'); x.drawImage(L.cv, 0, 0); base(x); putFloat(x, up && up.f);
         }
         return new Promise(function (ok) {
           cv.toBlob(function (b) {
@@ -5072,13 +5309,13 @@
       if (go && focusG) { if (!opPending) { rememberLayers('Group Opacity'); opPending = true; } focusG.opacity = +go.value / 100; styleGroup(focusG); go.nextElementSibling.textContent = go.value + '%'; autosave(); return; }
       var o = e.target.closest('[data-layer-op]'); if (!o || !active) return;
       if (!opPending) { rememberLayers('Layer Opacity'); opPending = true; }
-      active.opacity = +o.value / 100; styleLayer(active); o.nextElementSibling.textContent = o.value + '%'; autosave();
+      picks().forEach(function (L) { L.opacity = +o.value / 100; styleLayer(L); }); if (sel && sel.more) drawSel(); o.nextElementSibling.textContent = o.value + '%'; autosave();
     });
     panel.addEventListener('change', function (e) {
       if (e.target.closest('[data-layer-op], [data-group-op]')) { opPending = false; return; }
       var gb = e.target.closest('[data-group-blend]'); if (gb && focusG) { rememberLayers('Group Blend'); focusG.blend = gb.value; styleGroup(focusG); autosave(); return; }
       var b = e.target.closest('[data-layer-blend]'); if (!b || !active) return;
-      rememberLayers('Blend Mode'); active.blend = b.value; styleLayer(active); autosave();
+      rememberLayers('Blend Mode'); picks().forEach(function (L) { L.blend = b.value; styleLayer(L); }); if (sel && sel.more) drawSel(); autosave();
     });
 
     // ---- HISTORY: every step that can be undone, oldest at the top; tap
@@ -5101,7 +5338,7 @@
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
       var n = +b.dataset.hist, total = undo.length + redo.length;
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel && sel.float) commitSelection();
+      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection();
       n = Math.min(n, undo.length + redo.length); if (undo.length + redo.length !== total) n = undo.length; // (finishing something made a new step)
       while (undo.length > n) doUndo();
       while (undo.length < n && redo.length) doRedo();
@@ -5115,6 +5352,7 @@
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
         group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
+        group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
@@ -5446,6 +5684,7 @@
           if (k === 'backspace' || k === 'delete') { e.preventDefault(); penBack(); return; }
         }
         if (k === 'escape' && !lmenu.hidden) { lmenu.hidden = true; return; }
+        if (k === 'escape' && !panel.hidden && multi()) { multiOption('m-deselect'); return; }
         if (k === 'escape' && !ctxList.hidden) { ctxClose(); return; }
         if (k === 'escape' && !saveMenu.hidden) { savePanel(false); return; }
         if (k === 'escape' && adj) { adjustCancel(); return; }
