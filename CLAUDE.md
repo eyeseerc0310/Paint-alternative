@@ -14,15 +14,20 @@ When building or changing anything visual:
 
 - **Use the shared tokens** (CSS custom properties on `:root` in `style.css`,
   redefined for dark mode under `:root[data-theme="dark"]`). Colours: `--bg`,
+  `--desk` (the page's soft gradient behind everything),
   `--text`, `--muted`, `--line`, `--accent`, `--accent-hover`,
   `--accent-soft`, `--hover`, `--hover-strong`, `--selected`, `--outline`,
-  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--danger` (deleting for good), `--seg-on` (the picked part of a segmented control), `--focus` (the keyboard's focus ring, blue, never the accent), `--switch-on` (an on switch, green), `--rail` (a slider's track, an off switch), `--brand` (the
+  `--control` (slider and checkbox colour), `--ok`, `--warn`, `--danger` (deleting for good), `--seg-on` (the picked part of a segmented control), `--focus` (the keyboard's focus ring, blue, never the accent), `--switch-on` (an on switch, green), `--rail` (a slider's track, an off switch), `--chip`, `--chip-text` and
+  `--chip-shadow` (the tool in hand), `--well-ring` (the rainbow ring round the
+  colour in hand), `--accent-glow` (under a solid accent button), `--scrim`
+  (behind a sheet), `--seg-shadow` (the picked part of a segmented control),
+  `--stage-dot` (the dots in the picture's well), `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
-  `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`.
+  `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
   Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
-  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur`, `--dur-slow`, `--ease` (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
+  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
   (spacing, radius, type size, motion and so on) so later features can reuse it.
 - **Reuse shared component styles** for the same kind of thing (buttons,
@@ -32,8 +37,9 @@ When building or changing anything visual:
 - **Keep interaction behaviour consistent:** the same hover, pressed
   (slight scale), focus, disabled and selected states everywhere. Hover
   styles go inside `@media (hover: hover)`, so a tap on a touch screen
-  doesn't leave one behind. Selected
-  tools and list items use a neutral rounded outline, not the accent.
+  doesn't leave one behind. The tool in hand (and a pressed button in the
+  bars) is a solid neutral chip (`--chip`); picked list items use a neutral
+  rounded outline. Neither uses the accent.
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
@@ -107,6 +113,12 @@ When building or changing anything visual:
   brush. New tools mustn't assume a tool is always in hand.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
+- **The look:** the header has no bar: the app's name, then its buttons in
+  frosted capsules (`.hb-group`). The bars, the context bar and every
+  pop-over are frosted cards (`--panel`/`--menu-bg`, `--glass`, the shadow
+  tokens, which carry a light top edge); the picture sits in a dotted well.
+  Pop-overs open with `pd-in`/`pb-in`/`pl-in` on `--dur-pop` and `--spring`;
+  sheets rise in over a blurred `--scrim`. Titles use `--display` in bold.
 - **Shared looks:** every `input[type="range"]` gets the same thin track
   and white knob (one rule near the top of `style.css`; a slider whose track
   shows what it does sets `--track` and keeps it). A Done inside the tool
