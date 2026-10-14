@@ -477,7 +477,7 @@ body > * { flex-shrink: 0; }
 /* LAYERS */
 .paint-right { position: relative; }
 .paint-layerpanel {
-  position: fixed; z-index: 150; width: 264px; padding: 8px;
+  position: fixed; z-index: 150; width: 296px; padding: 8px;
   animation: pd-in var(--dur) var(--ease);
 }
 .paint-layerpanel[hidden] { display: none; }
@@ -520,6 +520,21 @@ body > * { flex-shrink: 0; }
 .paint .pl-row .pl-more { width: 28px; flex: none; color: var(--muted); border-radius: 7px; }
 .paint .pl-row .pl-more:hover, .paint .pl-row .pl-more[aria-expanded="true"] { color: var(--text); background: var(--hover); }
 .pl-more svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+/* GROUPS: a folder row, with its layers set in beneath it (folded shut,
+   they're hidden); a hidden group's row is faded */
+.paint-gstack { position: absolute; inset: 0; isolation: isolate; }
+.pl-row.pl-grp .pl-name { gap: 6px; font-weight: 600 !important; }
+.pl-folder { flex: none; width: var(--icon-sm); height: var(--icon-sm); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linejoin: round; stroke-linecap: round; opacity: .8; }
+.paint .pl-row .pl-fold { flex: none; width: 22px; color: var(--muted); }
+.paint .pl-row .pl-fold svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
+.pl-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
+.pl-row.pl-grp.off .pl-name, .pl-row.pl-grp.off .pl-folder { opacity: .5; }
+.pl-row.in-grp { margin-left: var(--s-3); }
+.paint .pl-row .pl-name { min-width: 0; } /* (a long name gives way, so the row's buttons always fit) */
+/* MASKS: the mask's own little picture beside the layer's; the one being
+   painted on is ringed */
+.pl-row .pl-thumb.pl-mthumb { margin-left: 3px; cursor: pointer; }
+.pl-row .pl-thumb.picked { box-shadow: 0 0 0 1.5px var(--outline), 0 0 0 3px var(--panel-solid); }
 /* a layer clipped to the one below: set in, with a little hook down to it */
 .pl-row.clipped { position: relative; padding-left: 14px; }
 .pl-row.clipped::before { content: ""; position: absolute; left: 7px; top: 8px; width: 6px; height: 14px; border-left: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); border-bottom-left-radius: 4px; opacity: .8; }
@@ -814,7 +829,7 @@ body > * { flex-shrink: 0; }
   .ctx-field { height: 28px; }
   .ctx-field > span:first-child { display: none; }
   [data-sym-when] > .ctx-hint { display: none; }
-  .paint-layerpanel { width: min(264px, calc(100vw - 16px)); }
+  .paint-layerpanel { width: min(296px, calc(100vw - 16px)); }
   .paint-right { gap: 4px; }
   .paint-right .pr-head { justify-content: center; padding: 0 !important; }
   .paint-right .pr-head span { display: none; }

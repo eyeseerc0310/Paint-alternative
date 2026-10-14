@@ -55,9 +55,15 @@ uploaded.
   grain) and Finish (vignette, fade)
 - **Colour picker loupe:** hold the picker (or Alt) to see the pixels close
   up, with the new colour against the one in hand; let go to pick it
-- **Layers:** up to 10, each with a live preview, its own opacity and blend
-  mode, and a ••• menu: select, rename, duplicate, merge down, alpha lock,
-  clipping mask, hide, move and delete
+- **Layers:** as many as the memory allows for the picture's size (up to
+  50), each with a live preview, its own opacity and blend mode, and a •••
+  menu: select, rename, duplicate, merge down, masks, alpha lock, clipping
+  mask, hide, move and delete
+- **Layer masks:** paint on a layer's mask to hide parts of it without
+  rubbing anything out (black hides, white shows, the eraser brings it
+  back); add one from a selection, invert it, apply it or delete it
+- **Groups:** put layers in a folder, fold it shut, hide it, fade or blend
+  it as one, move it, merge it into one layer or ungroup it
 - **Drag any colour** (a swatch, a recent one or either main colour) onto the
   picture to fill an area
 - **Picture size:** New Picture with presets (square, 16:9, A4, Instagram…)
