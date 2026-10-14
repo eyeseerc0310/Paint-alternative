@@ -48,7 +48,13 @@ uploaded.
   twist two fingers to turn the canvas
 - **Project files** (Save → Project): every layer and its settings in one
   `.paint` file, to open again on any device
-- **Adjust:** sliders, Levels and Curves, for a layer or a selection
+- **Effects:** for a layer or a selection, in sections that fold: Light
+  (exposure, brilliance, contrast, highlights, shadows, whites, blacks),
+  Levels, Curves, Hue & Saturation, White Balance, Gradient Map (presets or
+  your two colours, with strength and reverse), Detail (sharpen, clarity,
+  grain) and Finish (vignette, fade)
+- **Colour picker loupe:** hold the picker (or Alt) to see the pixels close
+  up, with the new colour against the one in hand; let go to pick it
 - **Layers:** up to 10, each with a live preview, its own opacity and blend
   mode, and a ••• menu: select, rename, duplicate, merge down, alpha lock,
   clipping mask, hide, move and delete

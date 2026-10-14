@@ -26,6 +26,7 @@
   --panel-solid: #ffffff;
   --stage: #e9e9ee;
   --menu-bg: rgba(255, 255, 255, .9);
+  --menu-solid: #ffffff; /* (the menus' colour without the see-through, for bars that sit over scrolling content) */
   --menu-line: rgba(0, 0, 0, .07);
   --menu-link: #1d1d1f;
   --tip-bg: rgba(29, 29, 31, .9);
@@ -92,6 +93,7 @@
   --panel-solid: #1f1f23;
   --stage: #1a1a1d;
   --menu-bg: rgba(38, 38, 43, .94);
+  --menu-solid: #26262b;
   --menu-line: rgba(255, 255, 255, .08);
   --menu-link: #ececf1;
   --tip-bg: rgba(236, 236, 241, .94);
@@ -320,6 +322,9 @@ body > * { flex-shrink: 0; }
 .paint .paint-right .paint-zoom button { width: 24px; height: 28px; }
 .paint .paint-right .paint-zoom button:hover { background: var(--panel-solid); }
 .paint .paint-right .paint-zoom button.paint-zoom-val { flex: 1; min-width: 0; padding: 0; font-size: var(--fs-xs); }
+/* the colour picker's loupe */
+.paint-loupe { position: absolute; z-index: 7; pointer-events: none; border-radius: 50%; box-shadow: var(--shadow-pop); }
+.paint-loupe[hidden] { display: none; }
 /* typing on the picture */
 .paint-text {
   position: absolute; z-index: 2; min-width: 1ch; padding: 0; margin: 0; outline: 1px dashed var(--accent); outline-offset: 2px;
@@ -429,6 +434,28 @@ body > * { flex-shrink: 0; }
 .lv-nums { display: flex; justify-content: space-between; font-size: .6875rem; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0 0 6px; }
 .lv-sub { font-size: .75rem; font-weight: 500; margin-top: 4px; }
 .lv-grad { height: 10px; margin: 6px 6px 0; border-radius: 5px; background: linear-gradient(to right, #000, #fff); box-shadow: inset 0 0 0 .5px var(--line); }
+/* EFFECTS: sections that fold like the right-hand panel's; a dot and a
+   reset button show on any that have been changed */
+.fx-secs { display: flex; flex-direction: column; }
+.fx-head { display: flex; align-items: center; gap: 2px; }
+.paint .fx-head .pr-head { flex: 1; height: 28px; font-size: var(--fs-sm); letter-spacing: 0; color: var(--text); }
+.fx-dot { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--control); vertical-align: 1px; opacity: 0; transition: opacity var(--dur) ease; }
+.fx-sec.changed .fx-dot { opacity: 1; }
+.paint .fx-reset { flex: none; width: 26px; height: 26px; border-radius: var(--r-xs); color: var(--muted); visibility: hidden; }
+.paint .fx-reset:hover { color: var(--text); }
+.paint .fx-reset svg { width: var(--icon-sm); height: var(--icon-sm); }
+.fx-sec.changed .fx-reset { visibility: visible; }
+.fx-sec .pr-in { padding-bottom: var(--s-2); }
+/* (the gradient map's gradients, three to a row) */
+.gm-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-1); margin-bottom: var(--s-2); }
+.paint .gm-chip { width: auto; height: auto; flex-direction: column; gap: 3px; padding: 5px 4px 4px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 400; color: var(--menu-link); }
+.gm-chip i { display: block; width: 100%; height: 18px; border-radius: var(--r-xs); box-shadow: inset 0 0 0 .5px var(--line); }
+.gm-none i { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--hover-strong) 4px 5.5px); }
+.paint .gm-chip[aria-checked="true"] { background: var(--selected); box-shadow: inset 0 0 0 1.5px var(--outline); }
+.paint .gm-rev { width: 100%; height: 28px; margin-top: var(--s-2); border-radius: var(--r-sm); background: var(--hover); font-size: var(--fs-sm); color: var(--menu-link); }
+/* (the title stays at the top, and Done and Cancel at the foot, while the sections scroll) */
+.paint-adjust .pa-title { position: sticky; top: -14px; z-index: 1; margin: -14px -14px 6px; padding: 14px 14px 8px; background: var(--menu-solid); }
+.paint-adjust .pa-acts { position: sticky; bottom: -12px; z-index: 1; margin: var(--s-3) -14px -12px; padding: var(--s-2) 14px 12px; background: var(--menu-solid); border-top: .5px solid var(--line); }
 /* CURVES */
 .cv-graph { display: block; width: 100%; touch-action: none; cursor: crosshair; }
 .cv-help { margin-top: 6px; font-size: .6875rem; line-height: 1.4; color: var(--muted); }
@@ -547,7 +574,7 @@ body > * { flex-shrink: 0; }
 .paint-ctx[hidden] { display: none; }
 .paint-ctx.away { opacity: 0; pointer-events: none; }
 /* (out of the way while the picture is being worked on, or a selection resized or turned) */
-.paint-ctx.busy { opacity: 0; pointer-events: none; }
+.paint-ctx.busy, .paint-ctx.aside { opacity: 0; pointer-events: none; }
 .paint-ctx.dragging { box-shadow: var(--shadow-pop); transition: none; }
 .ctx-grip { flex: none; align-self: stretch; width: 10px; margin-right: 2px; border-radius: var(--r-xs); cursor: grab; touch-action: none;
   background: radial-gradient(circle, var(--muted) 1px, transparent 1.4px) 50% 50% / 4px 5px; opacity: .55; transition: opacity var(--dur) ease; }
@@ -789,8 +816,13 @@ body > * { flex-shrink: 0; }
   [data-sym-when] > .ctx-hint { display: none; }
   .paint-layerpanel { width: min(264px, calc(100vw - 16px)); }
   .paint-right { gap: 4px; }
-  .paint .pr-head { justify-content: center; padding: 0; }
-  .paint .pr-head span { display: none; }
+  .paint-right .pr-head { justify-content: center; padding: 0 !important; }
+  .paint-right .pr-head span { display: none; }
+  /* (Effects sits in the left bar: its own buttons keep their sizes) */
+  .paint-left .paint-adjust .gm-chip { height: auto !important; }
+  .paint-left .paint-adjust .pa-acts button { height: 30px !important; }
+  .paint-left .paint-adjust .gm-rev { height: 28px !important; }
+  .paint-left .paint-adjust .fx-head .pr-head { height: 28px !important; }
   .paint .paint-right .paint-zoom button.paint-zoom-val { width: 32px; font-size: .5625rem; }
 }
 
