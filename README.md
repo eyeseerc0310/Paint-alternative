@@ -64,6 +64,10 @@ uploaded.
 - **Apple Pencil:** pressure; once it's used, a resting hand (or one finger)
   doesn't paint, though two fingers still zoom and move (Touch Gestures can
   let fingers draw too); the eraser end of a pen rubs out
+- **Several layers at once:** swipe a layer right in the Layers panel to pick
+  it too (again to let it go), or Shift- / Ctrl-click; the picked layers move,
+  size, turn and flip together with the Move tool or a selection, and can be
+  hidden, faded, locked, duplicated, grouped, merged or deleted together
 - **Gallery:** every drawing is kept in this browser, with a small picture
   of each. Open one to carry on, start a new one, or rename, duplicate or
   delete them. New Picture and opening a project keep the one you were on
