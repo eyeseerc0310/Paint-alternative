@@ -3609,7 +3609,7 @@
     function studio(open) {
       if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); return; }
       if (adj) adjustDone();
-      bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside');
+      bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside'); studioPreview(); // (again, now it can be measured)
       bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px'; keepOnScreen(bsBox);
       if (narrow()) picker(null);
     }
@@ -3629,10 +3629,10 @@
       var edited = !D.mine && brushEdits[bsId] && Object.keys(brushEdits[bsId]).length;
       bsBox.innerHTML = '<div class="pa-title">Brush Studio <span class="pa-sub">' + (D.mine ? 'My brush' : D.name) + '</span></div>' +
         (D.mine ? '<label class="bs-name"><span>Name</span><input type="text" class="p-field" maxlength="24" data-bs-name value="' + D.name.replace(/"/g, '&quot;') + '"></label>' : '') +
-        '<canvas class="bs-prev" aria-label="How the brush looks"></canvas>' +
         (secs || '<p class="cv-help">This brush has no settings to change. Save it as a new brush to make one of your own from it.</p>') +
-        '<div class="pa-acts">' + (D.mine ? '<button type="button" data-bs-act="delete" class="bs-del">Delete</button>' : '<button type="button" data-bs-act="reset"' + (edited ? '' : ' disabled') + '>Reset</button>') +
-        '<button type="button" data-bs-act="saveas" data-tip="Keep these settings as a brush of your own">Save Copy</button><button type="button" data-adj-act="done" data-bs-act="done">Done</button></div>';
+        // (the stroke stays in view at the foot, above the buttons, while the settings scroll)
+        '<div class="bs-foot"><canvas class="bs-prev" aria-label="How the brush looks"></canvas><div class="pa-acts">' + (D.mine ? '<button type="button" data-bs-act="delete" class="bs-del">Delete</button>' : '<button type="button" data-bs-act="reset"' + (edited ? '' : ' disabled') + '>Reset</button>') +
+        '<button type="button" data-bs-act="saveas" data-tip="Keep these settings as a brush of your own">Save Copy</button><button type="button" data-adj-act="done" data-bs-act="done">Done</button></div></div>';
       Array.prototype.forEach.call(bsBox.querySelectorAll('[data-tipprev]'), function (c) {
         var d = Math.min(window.devicePixelRatio || 1, 2); c.width = c.height = 22 * d; c.style.width = c.style.height = '22px';
         c.getContext('2d').drawImage(tipOf(c.dataset.tipprev, getComputedStyle(bsBox).color), 0, 0, c.width, c.height);
@@ -3641,8 +3641,9 @@
     }
     function studioPreview() {
       var c = bsBox.querySelector('.bs-prev'); if (!c) return;
-      var w = (c.clientWidth || 222), P = [], sz = Math.max(6, Math.min(26, st.size)), h = 64;
-      for (var i = 0; i <= 40; i++) { var t = i / 40; P.push({ x: 14 + (w - 28) * t, y: h / 2 + Math.sin(t * Math.PI * 2) * 12, pr: 0.15 + 0.85 * Math.sin(t * Math.PI) }); }
+      c.style.width = c.style.height = ''; // (the size the panel gives it, not the last drawing's)
+      var w = (c.clientWidth || 222), P = [], sz = Math.max(6, Math.min(26, st.size)), h = c.clientHeight || 64;
+      for (var i = 0; i <= 40; i++) { var t = i / 40; P.push({ x: 14 + (w - 28) * t, y: h / 2 + Math.sin(t * Math.PI * 2) * h * 0.19, pr: 0.15 + 0.85 * Math.sin(t * Math.PI) }); }
       // (in the panel's own ink, so it always shows against it)
       drawPreview(c, bsId, sz, getComputedStyle(bsBox).color, P, w, h, 1, true);
     }
