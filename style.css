@@ -258,7 +258,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-right[data-uses=""] .pr-sec[data-sec="brush"] { display: none; }
 /* (folding: the body's height runs smoothly to nothing) */
 .pr-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) ease; }
-.pr-in { min-height: 0; overflow: hidden; padding: var(--s-2) 4px 4px; margin: 0 -4px; }
+.pr-in { min-height: 0; overflow: hidden; padding: var(--s-2) 7px 4px; margin: 0 -7px; } /* (room at the sides for a picked swatch's ring, grown on hover) */
+.pr-in:has(> .paint-colors) { padding-bottom: 7px; }
 .pr-sec.closed .pr-body { grid-template-rows: 0fr; opacity: 0; }
 .pr-sec.closed .pr-in { padding-top: 0; padding-bottom: 0; }
 .pr-sec .pr-in > .paint-colors { overflow: visible; }
@@ -285,7 +286,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint .paint-swap svg { width: 15px; height: 15px; stroke-width: 1.7; transition: transform var(--dur) var(--ease); }
 @media (hover: hover) { .paint .paint-swap:hover svg { transform: rotate(12deg); } }
 
-.paint-swatches, .paint-recent { display: grid; grid-template-columns: repeat(4, 16px); gap: 6px; }
+.paint-swatches, .paint-recent { display: grid; grid-template-columns: repeat(4, 16px); gap: 5px; } /* (79px: inside the bar's 80) */
 .paint-recent:empty { display: none; } /* (it appears once a colour has been used) */
 .paint-recent:not(:empty) { padding-top: 8px; border-top: .5px solid var(--line); }
 .paint-recent:not(:empty)::before { content: "Recent"; grid-column: 1 / -1; margin-bottom: -2px; font-size: var(--fs-xs); font-weight: 500; line-height: 1; color: var(--muted); }
@@ -341,6 +342,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-stage[data-tool="text"] { cursor: text; }
 .paint-stage[data-tool="move"] { cursor: move; }
 .paint-stage[data-tool="pen"] { cursor: crosshair; }
+.paint-stage[data-tool="none"] { cursor: default; } /* (no tool in hand: a drag moves the picture) */
 @media (hover: none) { .paint-stage[data-tool] { cursor: default; } }
 
 /* zoom: − 100% + as a segmented control */

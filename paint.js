@@ -586,7 +586,7 @@
     function pcSet(h, s, v, skip) {
       hsv = [h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v))];
       var hex = pcColor(); pcBusy = true;
-      if (pcWhich === 'main') { setColor(hex); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand/.test(st.tool)) setTool('brush'); }
+      if (pcWhich === 'main') { setColor(hex); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand|none/.test(st.tool)) setTool('brush'); }
       else setColor2(hex);
       pcBusy = false; pcShow(skip);
     }
@@ -4282,7 +4282,7 @@
       // touch whose lift went missing
       if (e.isPrimary) {
         if (e.pointerType === 'pen' && down && !down.pen) cancelStroke(); // (a palm got there first)
-        pointers = {}; ptype = {}; gesture = null; fingerTap = null; firstDown = performance.now(); tapLater = null; holdOff(); waitOff();
+        pointers = {}; ptype = {}; gesture = null; fingerTap = null; firstDown = performance.now(); tapLater = null; offTap = noTap = null; holdOff(); waitOff();
         if (pan) { pan = null; stage.classList.remove('panning'); }
       }
       try { stage.setPointerCapture(e.pointerId); } catch (x) {}
@@ -4294,7 +4294,7 @@
       if (ids.length === 2 && ptype[ids[0]] === 'touch' && ptype[ids[1]] === 'touch') {
         // two fingers: pinch to zoom, drag to move the picture, twist to turn
         // it. (A quick tap with two fingers is undo, with three, redo.)
-        cancelStroke(); pan = null; tapLater = null; holdOff(); waitOff();
+        cancelStroke(); pan = null; tapLater = null; offTap = noTap = null; holdOff(); waitOff();
         pinchFrom(ids);
         fingerTap = { n: 2, t0: firstDown, from: {}, moved: false };
         ids.forEach(function (id) { fingerTap.from[id] = { x: pointers[id].x, y: pointers[id].y }; });
@@ -4302,10 +4302,24 @@
       }
       if (ids.length >= 3 && fingerTap) { fingerTap.n = Math.max(fingerTap.n, ids.length); fingerTap.from[e.pointerId] = { x: pointers[e.pointerId].x, y: pointers[e.pointerId].y }; return; }
       if (ids.length > 1) return;
-      if (st.tool === 'hand' || spaceDown || e.button === 1) { var s = screen(e); pan = { x: s.x, y: s.y, vx: view.x, vy: view.y }; stage.classList.add('panning'); return; }
+      var penBtn = e.pointerType === 'pen' && (e.button === 5 || e.button === 2 || (e.buttons & 32));
+      if (st.tool === 'hand' || spaceDown || e.button === 1 || (st.tool === 'none' && !penBtn && !e.altKey)) {
+        var s = screen(e); pan = { x: s.x, y: s.y, vx: view.x, vy: view.y }; stage.classList.add('panning');
+        if (st.tool === 'none') noTap = { id: e.pointerId, s: s, on: !offPic(pos(e)) };
+        return;
+      }
       // (a finger's tap with fill, the colour picker, the wand or text acts
       // when it lifts: a second finger may be about to land, for undo)
       if (e.pointerType === 'touch' && fingerDraw === 'pencil' && penSeen) return;
+      // A CLICK ON THE EMPTY SPACE AROUND THE PICTURE puts the tool down
+      // (when it lifts without moving: a stroke may start off the edge).
+      // Something open goes first: a selection, the words being typed, a
+      // path or a cutout being drawn, a selection's corners off the edge.
+      var p0 = pos(e);
+      if (offPic(p0) && !penBtn && !e.altKey && !sel && !textBox && !lassoOn && !(pen && pen.pts.length) && !cornerAt(p0, e.pointerType !== 'mouse')) {
+        offTap = { id: e.pointerId, s: screen(e), ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
+        return;
+      }
       if (e.pointerType === 'touch') holdOn(e);
       if (e.pointerType === 'touch' && /^(fill|wand)$/.test(st.tool)) {
         tapLater = { id: e.pointerId, ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
@@ -4323,6 +4337,8 @@
       if (e.pointerType === 'pen' && (e.button === 5 || (e.buttons & 32)) && st.tool !== 'eraser' && !selTool(st.tool) && !/^(text|pen|hand)$/.test(st.tool)) { penErase = st.tool; st.tool = 'eraser'; }
       begin(e);
     });
+    var offTap = null, noTap = null;
+    function offPic(p) { return p.x < 0 || p.y < 0 || p.x > W || p.y > H; }
     var touchWait = null, penErase = null, lastPen = -1e9, penSeen = false, fingerDraw = stored('paint-finger-draw', 'pencil');
     function waitGo() { var w = touchWait; touchWait = null; if (w) { clearTimeout(w.t); if (pointers[w.id] && Object.keys(pointers).length === 1 && !gesture) begin(w.ev); } }
     function waitOff() { if (touchWait) { clearTimeout(touchWait.t); touchWait = null; } }
@@ -4352,6 +4368,8 @@
       if (pointers[e.pointerId]) { pointers[e.pointerId] = screen(e); busyMove(e); }
       if (holdG && holdG.id === e.pointerId) { var hs = screen(e); if (Math.hypot(hs.x - holdG.s.x, hs.y - holdG.s.y) > 8) holdOff(); else { holdG.ev.clientX = e.clientX; holdG.ev.clientY = e.clientY; } }
       if (touchWait && touchWait.id === e.pointerId) { var ws = screen(e); if (Math.hypot(ws.x - touchWait.s.x, ws.y - touchWait.s.y) > 6) waitGo(); }
+      if (offTap && offTap.id === e.pointerId) { var os = screen(e); if (Math.hypot(os.x - offTap.s.x, os.y - offTap.s.y) > (e.pointerType === 'mouse' ? 3 : 6)) { var o = offTap; offTap = null; begin(o.ev); } }
+      if (noTap && noTap.id === e.pointerId) { var ns = screen(e); if (Math.hypot(ns.x - noTap.s.x, ns.y - noTap.s.y) > 6) noTap = null; }
       if (e.pointerType === 'pen') lastPen = performance.now();
       // (a mouse button let go of somewhere the page didn't hear it, like over a menu of the browser's own)
       if (e.pointerType === 'mouse' && down && e.pointerId === down.id && !e.buttons) { up(e); return; }
@@ -4436,6 +4454,8 @@
       delete pointers[e.pointerId]; delete ptype[e.pointerId];
       if (!Object.keys(pointers).length) busy(false);
       if (e.pointerType === 'pen') hideRing();
+      if (offTap && offTap.id === e.pointerId) { offTap = null; if (e.type === 'pointerup') { setTool('none'); hideRing(); } return; }
+      if (noTap && noTap.id === e.pointerId) { var nt = noTap; noTap = null; if (e.type === 'pointerup' && nt.on) toast('Pick a tool to draw'); }
       // (all the fingers of a quick, still tap are up: undo, or redo)
       if (fingerTap && !Object.keys(pointers).length) {
         var ft = fingerTap; fingerTap = null;
@@ -4491,7 +4511,7 @@
         if (st.tool === tl && ctxEl.classList.contains('min')) ctxMin(false);
         setTool(tl); openMenu(null); return;
       }
-      var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand/.test(st.tool)) setTool('brush'); return; }
+      var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand|none/.test(st.tool)) setTool('brush'); return; }
       var pr = e.target.closest('.paint-current, .paint-second');
       // (Enter or Space on it; a tap or a drag was dealt with already, and the
       // click after a touch can look just like a key's)
