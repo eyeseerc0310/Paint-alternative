@@ -100,6 +100,11 @@ When building or changing anything visual:
   (`penSeen`) a single finger doesn't paint unless Touch Gestures says so
   (`fingerDraw`), and touches just after the Pencil are ignored as a resting
   hand. The Pencil's eraser end rubs out, its barrel button picks a colour.
+  A still click or tap on the empty space around the picture puts the tool
+  down (`st.tool` is `'none'`, from `offTap`; a stroke that starts there still
+  paints, and an open selection, words or path is dealt with first): no tool
+  button is lit, a drag moves the picture, and picking a colour takes up the
+  brush. New tools mustn't assume a tool is always in hand.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Shared looks:** every `input[type="range"]` gets the same thin track
