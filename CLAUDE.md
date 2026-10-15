@@ -24,7 +24,8 @@ When building or changing anything visual:
   `--stage-dot` (the dots in the picture's well), `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--hdr-thin` and `--hdr-open`
   (the top bar folded and open; `--hdr` is the one in use, registered so it
-  eases), `--panel`, `--panel-solid`,
+  eases), `--snap` (Smart Guides' lines) and `--grid-line` (the grid's; both
+  drawn on the picture, so the same in both themes), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
   Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
@@ -45,7 +46,7 @@ When building or changing anything visual:
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
-  (new/open/save/share, image, history, focus, help, theme; on phones
+  (new/open/save/share, image, history, Smart Guides, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. It starts folded
   to a thin strip (the mark, the dot and the `.hdr-fold` arrow, in the middle), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
@@ -66,7 +67,12 @@ When building or changing anything visual:
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round
   caps and joins; keep new ones in the same style. Put new tool
   settings there, never in a list beside the left toolbar. Symmetry's
-  settings open in the panel too (its `sym` view), from the mirror button. Pop-out panels can be dragged with
+  settings open in the panel too (its `sym` view), from the mirror button,
+  and so does the **grid** (`gridOn`, `gridSize`): a background on
+  `.paint-grid` inside the picture's world, in the picture's units, its lines
+  a screen pixel wide (`--gw`) and every 2nd/4th... line only when zoomed
+  far out (`gridDraw`, from `applyView`); never part of the picture. The
+  mirror button is lit while symmetry, an assist or the grid is on (`mirrorLit`). Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
   them doesn't paint.
@@ -148,6 +154,16 @@ When building or changing anything visual:
   (`scaleTo`). A picture opened, pasted or dropped comes in selected with the
   Move tool, and what's picked up is the picture at its own size
   (`sel.src`), so sizing it back up loses nothing.
+- **Smart Guides** (`smartOn`, the top bar's toggle): while a selection,
+  picture or words are dragged (`snapMove`, from the move handlers; ended by
+  `snapEnd`), the real box of what's moving (`movingBox`: the float's
+  painted part, turned and sized with the selection) snaps, each way on its
+  own, to the picture's middle (ahead on a tie) and to the edges and middles
+  of the other visible layers (`layerBox`; text from its words), within
+  `SNAP_PX` screen pixels, let go past `SNAP_LET`. Layers' boxes come from
+  `paintBox` (a small copy, then each edge exactly) and are kept until the
+  layer's paint changes (`boxStale` in `push`/`apply`, and `putFloat`). The
+  lines (`snap.lines`) are drawn by `drawSel` on the selection's overlay.
 - **Effects run fast three ways**, all from the same settings (`fxParams`):
   the graphics chip (`fxGL*`: WebGL 2, a shader drawing on a stand-in canvas
   in the layer's place, read back once at Done), a worker (`fxWorker`, for
