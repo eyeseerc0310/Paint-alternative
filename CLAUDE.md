@@ -22,7 +22,9 @@ When building or changing anything visual:
   colour in hand), `--accent-glow` (under a solid accent button), `--scrim`
   (behind a sheet), `--seg-shadow` (the picked part of a segmented control),
   `--stage-dot` (the dots in the picture's well), `--brand` (the
-  app icon's blue gradient, also in `icons/icon.svg`), `--panel`, `--panel-solid`,
+  app icon's blue gradient, also in `icons/icon.svg`), `--hdr-thin` and `--hdr-open`
+  (the top bar folded and open; `--hdr` is the one in use, registered so it
+  eases), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
   Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
@@ -43,10 +45,21 @@ When building or changing anything visual:
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
-  (new/open/save/share, image, history, layers, focus, help, theme; on phones
-  the extras go in its ••• menu) and the saved-status dot. The left bar holds
-  the tools in groups. The right bar holds colour, then size and opacity for
-  the tool in hand (in sections that fold), then undo/redo, then zoom. A tool's own
+  (new/open/save/share, image, history, focus, help, theme; on phones
+  the extras go in its ••• menu) and the saved-status dot. It starts folded
+  to a thin strip (the mark, the dot and the `.hdr-fold` arrow), and opens
+  downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
+  `:root`, set before the page draws): `--hdr` eases and the workspace with
+  it, never covered, with `refit()` each frame. A button in the folded bar
+  can't be seen, so what it opens drops from the arrow (`hdrBtn`). Both
+  toolbars stand down the left in `.paint-side`, as two cards: the tools
+  (`.paint-left`), then (`.paint-right`) colour, size and opacity for the
+  tool in hand (in sections that fold), undo/redo with Layers under them,
+  then zoom. When the window is too short for one under the other at their
+  fullest (`sideFits`), they go side by side (`.wide`, `sideLayout`); panels
+  that open from them open to their right (`besideBar` for fixed ones). The
+  picture's space (`.paint-stage`) takes all the rest, and `fitTo` fits the
+  picture with the same margin of the dotted well all round. A tool's own
   settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
   in `paint.js`), and so do a selection's actions. It stands up at the
   picture's left edge, one setting per row (on/off settings as switches),
@@ -126,6 +139,17 @@ When building or changing anything visual:
   A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
   works on a cutout works on it. Use `selTool(t)` to ask "is this
   selecting?", and `setTool(selKind)` to bring the tool up.
+- **Transforming a selection:** while something is picked up, each move,
+  size, turn or typed size is a step of its own (`sel.hist`/`sel.fut`, kept
+  with `selRecord` at the start and `selTrim` at the end of a press), which
+  undo and redo take first (`selUndo`/`selRedo`); anything that changes the
+  picked-up pixels (a flip) clears them. Corners keep proportions unless
+  Keep proportions is off (`keepRatio`, in Scale); Shift does the other.
+  **Scale** (`.paint-scale`, `scaleSync` from `drawSel`) shows the size as a
+  percentage of `sel.base` and lays a typed size on about the middle
+  (`scaleTo`). A picture opened, pasted or dropped comes in selected with the
+  Move tool, and what's picked up is the picture at its own size
+  (`sel.src`), so sizing it back up loses nothing.
 - **Effects run fast three ways**, all from the same settings (`fxParams`):
   the graphics chip (`fxGL*`: WebGL 2, a shader drawing on a stand-in canvas
   in the layer's place, read back once at Done), a worker (`fxWorker`, for
@@ -134,7 +158,14 @@ When building or changing anything visual:
   slider rests) and the main thread. The pixel sums live in `fxKernel`
   (which must stand alone: it's copied into the worker) and in `FX_FS`: a
   change to how an effect looks goes in both, and `fxcmp`-style checks
-  should show the paths agree. Nothing heavy happens on opening
+  should show the paths agree. Pixelate (`P.px`) is worked a row of blocks at
+  a time in `fxKernel` (block sizes can be fractional, for the worker's
+  smaller copy) and by `FX_PS` on the graphics chip (`fxGLPix`, a texel a
+  block, kept for each size). **Done** in the panel (`adjustApply`) keeps
+  what's set as one step and starts again from the layer as it now is
+  (`adjustRebase`), the panel staying open (and through undo and redo with
+  nothing set); Done with nothing set, and anything else that ends it,
+  closes it (`adjustDone`). Nothing heavy happens on opening
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
   choice, for testing.
@@ -142,7 +173,7 @@ When building or changing anything visual:
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
   will end up (`.focus-measure`, nothing moving), then the header folds,
-  the bars slide off and the stage's size eases there (`.focusing`), with
+  the toolbars' column (`.paint-side`) slides off and the stage's size eases there (`.focusing`), with
   `refit(true)` each frame so the picture keeps its zoom and stays centred.
 - **Light and dark** fade: the colour tokens are registered with
   `@property`, so `.theme-fading` on `:root` eases them all together (new

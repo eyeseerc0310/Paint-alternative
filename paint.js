@@ -34,15 +34,6 @@
   });
 })();
 
-// The header's height, so the drawing area fills the rest of the screen
-(function () {
-  var header = document.querySelector('.site-header');
-  // (not while it's folded away for focus mode, or folding: it comes back at the height it had)
-  function measure() { var c = document.documentElement.classList; if (header && !c.contains('focus-mode') && !c.contains('focusing')) document.documentElement.style.setProperty('--hdr', header.getBoundingClientRect().height + 'px'); }
-  measure();
-  window.addEventListener('resize', measure);
-})();
-
 // Paint: the drawing app.
 // Tools down the left: brush (with a list of brushes), eraser, smudge, blur,
 // line, shapes (a list), fill, gradient, text (a list of fonts), select &
@@ -107,7 +98,7 @@
     var ov = $('.paint-over'), octx = ov.getContext('2d');
     var colorDot = $('.paint-current span'), color2Dot = $('.paint-second span');
     var sizeIn = $('.paint-size'), alphaIn = $('.paint-alpha'), zoomVal = $('.paint-zoom-val'), selbar = $('.paint-selbar');
-    var left = $('.paint-left'), right = $('.paint-right');
+    var left = $('.paint-left'), right = $('.paint-right'), side = $('.paint-side');
 
     // ---- a little label beside the mouse saying what each tool does ----
     var tip = document.createElement('div'), tipOn = null;
@@ -322,15 +313,19 @@
     // (the zoom buttons sit in the picture's bottom right corner)
     function phoneLayout() { return window.matchMedia('(max-width: 560px)').matches; }
     function placeZoom() {}
+    // ("100%": as big as the space allows, with the same margin of the dotted
+    // well all round, narrower on a phone; fillK just fills the space, and
+    // is the first step in)
+    function fitTo(sw, sh) {
+      var m = phoneLayout() ? 8 : 28;
+      fillK = Math.min(sw / W, sh / H) * 0.99;
+      fitK = Math.max(fillK * 0.5, Math.min(fillK, (sw - 2 * m) / W, (sh - 2 * m) / H));
+    }
     function fit() {
       placeZoom();
       var sw = stage.clientWidth, sh = stage.clientHeight;
       if (!sw || !sh) return;
-      // ("100%" leaves a small margin round the picture, except on a phone,
-      // where every bit of width counts; fillK just fills the space)
-      // (the first step in, which just fills the space, reads 110%)
-      fillK = Math.min(sw / W, sh / H) * 0.99;
-      fitK = phoneLayout() ? fillK : fillK / 1.1;
+      fitTo(sw, sh);
       view.k = fitK; view.r = 0; view.x = (sw - W * fitK) / 2; view.y = (sh - H * fitK) / 2; lastStage = { w: sw, h: sh };
       applyView();
     }
@@ -343,7 +338,7 @@
       var sw = stage.clientWidth, sh = stage.clientHeight, was = lastStage;
       if (!sw || !sh) return;
       if (!was || (!keep && !textBox && !view.r && Math.abs(view.k - fitK) < fitK * 0.002)) { fit(); return; }
-      fillK = Math.min(sw / W, sh / H) * 0.99; fitK = phoneLayout() ? fillK : fillK / 1.1;
+      fitTo(sw, sh);
       view.x += (sw - was.w) / 2; view.y += (sh - was.h) / 2; lastStage = { w: sw, h: sh }; applyView();
     }
     function zoomAt(k, cx, cy) {
@@ -354,12 +349,49 @@
     // a panel that drops down under a button in the top bar, lined up with
     // its right edge (or wherever it was last dragged to)
     function dropUnder(el, btn) {
-      if (!btn) return;
+      btn = hdrBtn(btn); if (!btn) return;
       var r = btn.getBoundingClientRect(), vw = document.documentElement.clientWidth;
       el.style.top = Math.round(r.bottom + 8) + 'px';
       el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, r.right - el.offsetWidth + 4))) + 'px';
       keepOnScreen(el);
     }
+    // (a button in the folded top bar can't be seen: what it opens drops
+    // down from the bar's arrow instead)
+    function hdrBtn(btn) { return btn && !document.documentElement.classList.contains('hdr-open') && btn.closest('.site-header') ? document.querySelector('.hdr-fold') || btn : btn; }
+    // a panel that opens beside a button in the toolbars, at its height
+    function besideBar(el, btn) {
+      if (!btn) return;
+      var r = btn.getBoundingClientRect(), b = (btn.closest('.paint-bar') || btn).getBoundingClientRect(), vw = document.documentElement.clientWidth;
+      el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, b.right + (narrow() ? 6 : 10)))) + 'px';
+      el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
+      keepOnScreen(el);
+    }
+    // THE TWO TOOLBARS, one under the other, when the window is tall enough
+    // for both at their fullest (every section open, every slider shown);
+    // otherwise side by side
+    function sideFits() {
+      var html = document.documentElement, was = side.classList.contains('wide'), uses = right.dataset.uses, shut = right.querySelectorAll('.pr-sec.closed'), had = html.classList.contains('focus-measure');
+      html.classList.add('focus-measure'); side.classList.remove('wide'); right.dataset.uses = 'so';
+      Array.prototype.forEach.call(shut, function (x) { x.classList.remove('closed'); });
+      var need = left.offsetHeight + right.offsetHeight + parseFloat(getComputedStyle(side).rowGap || 0), room = side.clientHeight;
+      Array.prototype.forEach.call(shut, function (x) { x.classList.add('closed'); });
+      if (uses == null) delete right.dataset.uses; else right.dataset.uses = uses;
+      side.classList.toggle('wide', was); void side.offsetHeight; if (!had) html.classList.remove('focus-measure');
+      return need <= room + 0.5;
+    }
+    function sideLayout() {
+      if (document.documentElement.classList.contains('focus-mode')) return false;
+      var wide = !sideFits();
+      if (wide === side.classList.contains('wide')) return false;
+      side.classList.toggle('wide', wide); return true;
+    }
+    // (the colour card grew past the room left under the tools, a colour
+    // just used putting up the recent ones: side by side, from then on)
+    if (window.ResizeObserver) new ResizeObserver(function () {
+      var html = document.documentElement;
+      if (side.classList.contains('wide') || html.classList.contains('hdr-anim') || html.classList.contains('focus-mode')) return;
+      if (left.offsetHeight + right.offsetHeight + parseFloat(getComputedStyle(side).rowGap || 0) > side.clientHeight + 0.5) { side.classList.add('wide'); refit(); }
+    }).observe(right);
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
     // filling the space (and stepping back out stops there and at 100%)
     function zoomStep(dir) {
@@ -826,23 +858,30 @@
     function doUndo(whole) {
       endFillAnim(); if (down) { cancelStroke(); return; }
       if (pen && !whole && penUndo()) return;
+      if (!whole && selUndo()) return;
       if (pen) cancelPen(); // (an emptied path gives way)
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return;
-      var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); buttons(); autosave();
+      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return;
+      var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); fxAfter(fx); buttons(); autosave();
     }
     function doRedo(whole) {
       endFillAnim(); if (down) return;
       if (pen && !whole && penRedo()) return;
+      if (!whole && selRedo()) return;
       if (pen && pen.pts.length && !pen.fromUndo && !whole) return; // (a new path in the making: nothing ahead of it)
       if (pen) cancelPen(); // (a path brought back by undo gives way to it being laid down again)
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return;
-      var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave();
+      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return;
+      var e = redo.pop(); undo.push(capture(e)); apply(e); fxAfter(fx); buttons(); autosave();
     }
+    // (Effects open with nothing set, after Done: it stays open through undo
+    // and redo, working from the picture as it then is)
+    function fxStays() { return !!(adj && !adj.finishing && !adj.applying && !adjChanged()); }
+    function fxAfter(on) { if (!on || !adj) return; if (layers.indexOf(adj.L) < 0 || adj.L !== active) adjustClose(); else adjustRebase(); }
     function buttons() { histButtons(); renderHistory(); }
     function histButtons() {
       var P = pen && pen.hist ? pen : null;
-      $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length);
-      $('[data-act="redo"]').disabled = !(P && P.fut.length) && !(redo.length && !(P && P.pts.length && !P.fromUndo));
+      var S = sel && selSteps() ? sel : null;
+      $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length) && !(S && S.hist && S.hist.length);
+      $('[data-act="redo"]').disabled = !(P && P.fut.length) && !(redo.length && !(P && P.pts.length && !P.fromUndo)) && !(S && S.fut && S.fut.length);
     }
 
     // ---- brushes ----
@@ -2355,6 +2394,7 @@
     function selWorld(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx - s * dy, y: m.y + s * dx + c * dy }; }
     function putFloat(c, f) {
       var r = sel.rot || 0; f = f || sel.float;
+      c.imageSmoothingQuality = f.width > sel.w * R * 1.5 ? 'high' : 'low'; // (a picture kept at its own size, drawn smaller)
       if (!r) { c.drawImage(f, sel.x, sel.y, sel.w, sel.h); return; }
       var m = selMid(); c.save(); c.translate(m.x, m.y); c.rotate(r); c.drawImage(f, -sel.w / 2, -sel.h / 2, sel.w, sel.h); c.restore();
     }
@@ -2456,11 +2496,59 @@
     // possible, only inside an upright one)
     function anchor(keep) {
       if (!lifted()) return;
-      if (sel.more) putMore(); else putFloat(active.ctx); sel.float = null;
+      if (sel.more) putMore(); else putFloat(active.ctx); sel.float = null; sel.hist = sel.fut = null; sel.src = null;
       if (sel.rot && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); }
+    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
+    // A SELECTION'S OWN STEPS: while something is picked up, each move, size,
+    // turn (or size typed in Scale) is a step of its own, which undo and redo
+    // take first; undone past the first, it goes back down where it was
+    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null }; }
+    function selRecord() { if (!sel) return; if (!sel.hist) sel.hist = []; sel.hist.push(selGeo()); sel.fut = []; histButtons(); }
+    // (a press that changed nothing isn't a step)
+    function selTrim() { var g = sel && sel.hist && sel.hist[sel.hist.length - 1]; if (g && g.x === sel.x && g.y === sel.y && g.w === sel.w && g.h === sel.h && g.rot === (sel.rot || 0)) { sel.hist.pop(); histButtons(); } }
+    function selPut(g) { sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; refitMask(); drawSel(); autosave(); }
+    function selSteps() { return !!(sel && (lifted() || (sel.text && sel.lifted))); }
+    function selUndo() { if (!selSteps() || !sel.hist || !sel.hist.length) return false; sel.fut.push(selGeo()); selPut(sel.hist.pop()); histButtons(); return true; }
+    function selRedo() { if (!selSteps() || !sel.fut || !sel.fut.length) return false; sel.hist.push(selGeo()); selPut(sel.fut.pop()); histButtons(); return true; }
+    // SCALE: the size of what's selected, as a percentage of its own size (a
+    // picture added: the picture's own size; anything else: the size it was
+    // when it was selected). A size typed in is laid on at once, about the
+    // middle, keeping its proportions; the arrow keys go up and down
+    var scaleEl = $('.paint-scale'), scaleIn = scaleEl.querySelector('.ps-in'), scaleLock = scaleEl.querySelector('.ps-lock'), scaleT = 0;
+    var keepRatio = stored('paint-keep-ratio', true) !== false;
+    function scalePct() { return sel && sel.base ? sel.w / sel.base.w * 100 : 100; }
+    function scaleShow(v) { return String(Math.round(v * 10) / 10 >= 10 ? Math.round(v) : Math.round(v * 10) / 10); }
+    function scaleSync() {
+      if (!scaleEl) return;
+      var on = !!(sel && !sel.thing && selMode !== 'new' && selMode !== 'lasso' && !lassoOn && sel.w > 0 && sel.h > 0);
+      if (on && !sel.base) sel.base = { w: sel.text ? sel.w0 : sel.w, h: sel.text ? sel.h * sel.w0 / sel.w : sel.h };
+      if (scaleEl.hidden === on) scaleEl.hidden = !on;
+      scaleLock.setAttribute('aria-pressed', keepRatio ? 'true' : 'false');
+      if (on && document.activeElement !== scaleIn) scaleIn.value = scaleShow(scalePct());
+    }
+    function scaleTo(pct) {
+      if (!sel || selMode || !(pct > 0)) return;
+      var nw = Math.max(1 / R, Math.min(W * 20, sel.base.w * pct / 100)), k = nw / sel.w;
+      if (Math.abs(k - 1) < 1e-9) return;
+      lift(); selRecord();
+      var m = selMid(), nh = Math.max(1 / R, sel.h * k), P = sel.poly;
+      sel.w = nw; sel.h = nh; sel.x = m.x - nw / 2; sel.y = m.y - nh / 2;
+      if (P) sel.poly = P.map(function (q) { return { x: q.x * k, y: q.y * k }; });
+      refitMask(); drawSel(); autosave();
+    }
+    function scaleRead() { var v = parseFloat(String(scaleIn.value).replace(',', '.').replace(/[^0-9.]/g, '')); return v > 0 ? Math.min(2000, v) : null; }
+    scaleIn.addEventListener('focus', function () { scaleIn.select(); });
+    scaleIn.addEventListener('blur', function () { clearTimeout(scaleT); var v = scaleRead(); if (v) scaleTo(v); scaleSync(); });
+    scaleIn.addEventListener('input', function () { clearTimeout(scaleT); scaleT = setTimeout(function () { var v = scaleRead(); if (v) scaleTo(v); }, 320); });
+    scaleIn.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); clearTimeout(scaleT); var v = scaleRead(); if (v) scaleTo(v); scaleIn.value = scaleShow(scalePct()); scaleIn.select(); }
+      else if (e.key === 'Escape') { e.preventDefault(); clearTimeout(scaleT); scaleIn.blur(); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); clearTimeout(scaleT); var d = (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 10 : 1), c = Math.round(scalePct()); scaleTo(Math.max(1, c + d)); scaleIn.value = scaleShow(scalePct()); }
+    });
+    scaleLock.addEventListener('click', function () { keepRatio = !keepRatio; storeIt('paint-keep-ratio', keepRatio); scaleSync(); toast(keepRatio ? 'Keeping proportions (hold Shift to stretch)' : 'Free to stretch (hold Shift to keep proportions)'); });
     // the little X on the selection's top left corner closes it
     function placeSelX() {
       if (!sel || (selMode && selMode !== 'scale' && selMode !== 'rotate') || sel.thing) { selx.hidden = true; return; }
@@ -2481,6 +2569,9 @@
       }
       remember('Move');
       sel.float = liftFrom(active, null, keep); viewsSoon();
+      // (a picture just added: what comes up is the picture at its own size,
+      // so making it bigger again loses nothing)
+      if (sel.src) { sel.float = sel.src; sel.src = null; }
     }
     // (L's pixels inside the selection, as a canvas of their own; and, unless
     // keep, a hole left where they were. m: a shape of its own to lift, in
@@ -2543,7 +2634,7 @@
     }
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
-      placeSelX(); selButtons();
+      placeSelX(); selButtons(); scaleSync();
       if (!sel) return;
       if (sel.text && sel.lifted) placeTextSel();
       if (sel.more) drawMore(); else if (sel.float) putFloat(sctx);
@@ -2692,7 +2783,7 @@
       if (sel.text && a !== 'rot90' && a !== 'done') return;
       if (a === 'done') { commitSelection(); return; }
       if (a === 'invert') { invertSel(); return; }
-      if (a === 'rot90') { lift(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
+      if (a === 'rot90') { lift(); selRecord(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
       if (a === 'layer') {
         // CUT TO LAYER: the selection comes out onto a layer of its own
         if (!roomFor()) return;
@@ -2727,6 +2818,7 @@
       };
       if (sel.more) { sel.more.forEach(function (it) { if (it.f) { var was = it.f; it.f = flip(was); if (sel.float === was) sel.float = it.f; } }); }
       else sel.float = flip(sel.float);
+      sel.hist = []; sel.fut = []; histButtons();
       if (sel.poly) sel.poly = sel.poly.map(function (q) { return a === 'fliph' ? { x: sel.w - q.x, y: q.y } : { x: q.x, y: sel.h - q.y }; });
       if (sel.mask) {
         var m2 = document.createElement('canvas'); m2.width = sel.mask.width; m2.height = sel.mask.height;
@@ -2845,7 +2937,7 @@
       if (!open) hidePeek(); else thumbsSoon();
       panel.hidden = !open;
       $('[data-act="layers"]').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) dropUnder(panel, $('[data-act="layers"]'));
+      if (open) besideBar(panel, $('[data-act="layers"]'));
       $('[data-act="layers"]').setAttribute('aria-pressed', open ? 'true' : 'false');
     }
     // renaming: tap the picked layer's name again (or double-click any name)
@@ -3276,7 +3368,7 @@
     // ---- EFFECTS: everything that changes the look of the picked layer
     // (only inside the selection, if there is one), in sections that fold:
     // Light, Levels, Curves, Hue & Saturation, White Balance, Gradient Map,
-    // Detail and Finish. It's shown live, and kept with DONE ----
+    // Detail, Pixelate and Finish. It's shown live, and kept with DONE ----
     // (each slider: key, name, lowest; they all go up to 100, and start at 0)
     var FX = [
       ['light', 'Light', [['exposure', 'Exposure', -100], ['brilliance', 'Brilliance', -100], ['contrast', 'Contrast', -100], ['highlights', 'Highlights', -100], ['shadows', 'Shadows', -100], ['whites', 'Whites', -100], ['blacks', 'Blacks', -100]]],
@@ -3286,11 +3378,12 @@
       ['wb', 'White Balance', [['warmth', 'Warmth', -100], ['tint', 'Tint', -100]]],
       ['gmap', 'Gradient Map'],
       ['detail', 'Detail', [['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['grain', 'Grain', 0]]],
+      ['pixel', 'Pixelate', [['pixelate', 'Block Size', 0]]],
       ['finish', 'Finish', [['vignette', 'Vignette', -100], ['fade', 'Fade', 0]]]
     ];
     // (what each section holds, to tell when it's been changed, and to put it back)
     var FX_KEYS = { light: FX[0][2].map(function (a) { return a[0]; }), levels: ['lb', 'lg', 'lw', 'ob', 'ow'], curves: ['curve'], hsl: FX[3][2].map(function (a) { return a[0]; }),
-      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], finish: ['vignette', 'fade'] };
+      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], finish: ['vignette', 'fade'] };
     // GRADIENT MAP: the picture's light and dark, recoloured along a gradient
     // (dark at the start, light at the end); "Your Colours" runs from the
     // second colour to the main one
@@ -3330,7 +3423,7 @@
           '<button type="button" class="fx-reset" data-fx-reset="' + f[0] + '" aria-label="Reset ' + f[1] + '" data-tip="Put ' + f[1] + ' back as it was"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/></svg></button></div>' +
           '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
       }).join('') + '</div>' +
-      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="cancel">Cancel</button><button type="button" data-adj-act="done">Done</button></div>';
+      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="cancel" data-tip="Close, without what\u2019s set now">Cancel</button><button type="button" data-adj-act="done" data-tip="Apply it, and carry on with another effect (with nothing set: close)">Done</button></div>';
     left.appendChild(adjBox);
     draggable(adjBox, '.pa-title', 'adjust');
     // (the sections fold by their titles, and stay as they were left; Light starts open)
@@ -3573,7 +3666,10 @@
       }
       return { lut: lut, blut: blut, br: br, sat: 1 + val('saturation'), vib: val('vibrance'), wa: val('warmth') * 28, ti: val('tint') * 24,
         hu: hu, hc: Math.cos(hu), hs: Math.sin(hu), lt: val('lightness'), gm: gm, gms: gms,
-        shp: val('sharpen') * 1.6, cl: val('clarity') * 0.7, vg: val('vignette'), gr: val('grain') * 38, wideR: Math.max(6, Math.round(14 * R)) };
+        shp: val('sharpen') * 1.6, cl: val('clarity') * 0.7, vg: val('vignette'), gr: val('grain') * 38, wideR: Math.max(6, Math.round(14 * R)),
+        // PIXELATE: square blocks from 2 to 80 of the picture's pixels (more
+        // finely at the small end), each the average of what's in it
+        px: v.pixelate ? Math.max(2, Math.round((1 + Math.pow(val('pixelate'), 1.6) * 79) * R)) : 0 };
     }
     // THE PIXELS: s in, o out (both RGBA), m the selection (or null), blur
     // and wide the soft copies for sharpen and clarity; only the rows and
@@ -3589,11 +3685,27 @@
       var lut = P.lut, blut = P.blut, br = P.br, sat = P.sat, vib = P.vib, wa = P.wa, ti = P.ti, hu = P.hu, hc = P.hc, hs = P.hs, ho = [0, 0, 0], lt = P.lt;
       var gm = P.gm, gms = P.gms, shp = P.shp, cl = P.cl, vg = P.vg, gr = P.gr;
       var cx = W2 / 2, cy = H2 / 2, rr = 1 / Math.hypot(cx, cy);
+      // (pixelate: the blocks' averages, a row of blocks at a time, as the
+      // rows reach it; ps can be fractional, for a smaller copy)
+      var ps = P.px || 0, pa = null, prow = -1, pb0 = 0;
       for (var y = bx.y0; y < bx.y1; y++) {
+        if (ps && Math.floor(y / ps) !== prow) {
+          prow = Math.floor(y / ps);
+          var ya = y, yb = y + 1; while (ya > 0 && Math.floor((ya - 1) / ps) === prow) ya--; while (yb < H2 && Math.floor(yb / ps) === prow) yb++;
+          pb0 = Math.floor(bx.x0 / ps); var pb1 = Math.floor(Math.max(bx.x0, bx.x1 - 1) / ps), nb = pb1 - pb0 + 1;
+          var xa = bx.x0, xb = Math.max(bx.x0 + 1, bx.x1); while (xa > 0 && Math.floor((xa - 1) / ps) === pb0) xa--; while (xb < W2 && Math.floor(xb / ps) === pb1) xb++;
+          if (!pa || pa.length < nb * 5) pa = new Float64Array(nb * 5); else pa.fill(0, 0, nb * 5);
+          for (var yy = ya; yy < yb; yy++) for (var xx = xa, kk = (yy * W2 + xa) * 4; xx < xb; xx++, kk += 4) {
+            var bi = (Math.floor(xx / ps) - pb0) * 5, aa = s[kk + 3];
+            pa[bi] += s[kk] * aa; pa[bi + 1] += s[kk + 1] * aa; pa[bi + 2] += s[kk + 2] * aa; pa[bi + 3] += aa; pa[bi + 4]++;
+          }
+          for (var q5 = 0; q5 < nb * 5; q5 += 5) { var sa = pa[q5 + 3]; pa[q5 + 4] = Math.round(sa / pa[q5 + 4]); if (sa) { pa[q5] = Math.round(pa[q5] / sa); pa[q5 + 1] = Math.round(pa[q5 + 1] / sa); pa[q5 + 2] = Math.round(pa[q5 + 2] / sa); } }
+        }
         for (var x2 = bx.x0, k = (y * W2 + x2) * 4; x2 < bx.x1; x2++, k += 4) {
-          var a = s[k + 3];
+          var a = s[k + 3], r = s[k], g = s[k + 1], b = s[k + 2];
+          if (ps && !(m && !m[k + 3])) { var pq = (Math.floor(x2 / ps) - pb0) * 5; a = pa[pq + 4]; r = pa[pq]; g = pa[pq + 1]; b = pa[pq + 2]; }
           if (!a || (m && !m[k + 3])) { o[k] = s[k]; o[k + 1] = s[k + 1]; o[k + 2] = s[k + 2]; o[k + 3] = a; continue; }
-          var r = s[k], g = s[k + 1], b = s[k + 2], j = (k >> 2) * 3;
+          var j = (k >> 2) * 3;
           if (shp) { var bb = blur; r += shp * (r - bb[j]); g += shp * (g - bb[j + 1]); b += shp * (b - bb[j + 2]); }
           if (cl) { var ww = wide, lw = (s[k] - ww[j] + s[k + 1] - ww[j + 1] + s[k + 2] - ww[j + 2]) / 3; r += cl * lw; g += cl * lw; b += cl * lw; }
           r = lut[r < 0 ? 0 : r > 255 ? 255 : r | 0]; g = lut[g < 0 ? 0 : g > 255 ? 255 : g | 0]; b = lut[b < 0 ? 0 : b > 255 ? 255 : b | 0];
@@ -3656,6 +3768,7 @@
       else { adjustPut(new ImageData(d.buf, adj.src.width, adj.src.height)); adj.shown = d.ver; fxPrevShow(false); }
       fxW.postMessage({ t: 'back', buf: d.buf, prev: d.prev }, [d.buf.buffer]); // (the buffer goes back, for the next time)
       if (adj.finishing && adj.shown === adj.ver) { adjustDone(); return; } // (kept: the full size is here)
+      if (adj.applying && adj.shown === adj.ver) { adjustApply(); return; }
       if (adj.want) { var w = adj.want; adj.want = null; fxPost(w); }
     }
     function fxPost(job) {
@@ -3690,7 +3803,7 @@
     }
     function fxPrevP(P) {
       var q = adj.prev.q, o = {}; for (var k in P) o[k] = P[k];
-      o.wideR = Math.max(1, Math.round(P.wideR * q)); o.shp = P.shp * q; o.gr = P.gr * Math.max(q, 0.5);
+      o.wideR = Math.max(1, Math.round(P.wideR * q)); o.shp = P.shp * q; o.gr = P.gr * Math.max(q, 0.5); o.px = P.px * q;
       return o;
     }
 
@@ -3700,7 +3813,7 @@
     var fxG = null;
     var FX_VS = '#version 300 es\nin vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }';
     var FX_FS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
-      'uniform sampler2D u_src, u_mask, u_lut, u_wide; uniform int u_hasMask, u_flip, u_W, u_H, u_gm;\n' +
+      'uniform sampler2D u_src, u_mask, u_lut, u_wide, u_pix; uniform int u_hasMask, u_flip, u_W, u_H, u_gm, u_px;\n' +
       'uniform float u_shp, u_cl, u_br, u_sat, u_vib, u_hu, u_hc, u_hs, u_lt, u_wa, u_ti, u_gms, u_vg, u_gr, u_rr; uniform vec2 u_c;\n' +
       'out vec4 frag;\n' +
       'float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }\n' +
@@ -3708,9 +3821,11 @@
       'vec3 px(int x, int y) { return floor(texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rgb * 255.0 + 0.5); }\n' +
       'void main() {\n' +
       '  ivec2 q = ivec2(gl_FragCoord.xy); if (u_flip == 1) q.y = u_H - 1 - q.y;\n' +
-      '  vec4 S = texelFetch(u_src, q, 0); float a = S.a; vec3 s = floor(S.rgb * 255.0 + 0.5); vec3 c = s;\n' +
-      '  if (a > 0.0 && (u_hasMask == 0 || texelFetch(u_mask, q, 0).a > 0.0)) {\n' +
-      '    vec3 r = s;\n' +
+      '  vec4 S = texelFetch(u_src, q, 0); float a = S.a; vec3 s = floor(S.rgb * 255.0 + 0.5); vec3 c = s, r0 = s;\n' +
+      '  bool inM = u_hasMask == 0 || texelFetch(u_mask, q, 0).a > 0.0;\n' +
+      '  if (u_px > 0 && inM) { vec4 B = texelFetch(u_pix, q / u_px, 0); r0 = B.rgb; a = B.a / 255.0; c = r0; }\n' +
+      '  if (a > 0.0 && inM) {\n' +
+      '    vec3 r = r0;\n' +
       '    if (u_shp != 0.0) { vec3 bb = vec3(0.0); for (int dy = -1; dy <= 1; dy++) bb += (px(q.x - 1, q.y + dy) + px(q.x, q.y + dy) + px(q.x + 1, q.y + dy)) / 3.0; bb /= 3.0; r += u_shp * (r - bb); }\n' +
       '    if (u_cl != 0.0) { float lw = (s.r + s.g + s.b - texelFetch(u_wide, q, 0).r) / 3.0; r += u_cl * lw; }\n' +
       '    r = vec3(lutAt(r.r), lutAt(r.g), lutAt(r.b));\n' +
@@ -3738,6 +3853,16 @@
       '  for (int d = -u_r; d <= u_r; d++) { ivec2 p = u_dir == 0 ? ivec2(clamp(q.x + d, 0, u_W - 1), q.y) : ivec2(q.x, clamp(q.y + d, 0, u_H - 1));\n' +
       '    vec4 v = texelFetch(u_in, p, 0); t += u_dir == 0 ? dot(floor(v.rgb * 255.0 + 0.5), vec3(1.0)) : v.r; }\n' +
       '  frag = vec4(t / float(2 * u_r + 1), 0.0, 0.0, 1.0); }';
+    // (pixelate's blocks, by the graphics chip: each one's colours, weighted
+    // by how solid they are, added along its rows, then down its columns,
+    // and averaged, into a texture one texel a block)
+    var FX_PS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
+      'uniform sampler2D u_in; uniform int u_b, u_dir, u_W, u_H; out vec4 frag;\n' +
+      'void main() { ivec2 q = ivec2(gl_FragCoord.xy); vec4 t = vec4(0.0);\n' +
+      '  if (u_dir == 0) { for (int d = 0; d < u_b; d++) { int x = q.x * u_b + d; if (x >= u_W) break; vec4 v = texelFetch(u_in, ivec2(x, q.y), 0); t += vec4(floor(v.rgb * 255.0 + 0.5) * v.a, v.a); } frag = t; return; }\n' +
+      '  int n = 0; for (int d = 0; d < u_b; d++) { int y = q.y * u_b + d; if (y >= u_H) break; t += texelFetch(u_in, ivec2(q.x, y), 0); n++; }\n' +
+      '  float cnt = float(min(u_b, u_W - q.x * u_b) * n);\n' +
+      '  frag = t.a > 0.0 ? vec4(floor(t.rgb / t.a + 0.5), floor(t.a * 255.0 / cnt + 0.5)) : vec4(0.0); }';
     function fxGLMake() {
       if (fxG) return fxG.lost ? null : fxG;
       var cv = document.createElement('canvas'), gl = null;
@@ -3750,7 +3875,7 @@
       var sh = function (type, src) { var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
       var prog = function (fs) { var p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, FX_VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
       try {
-        var g = { cv: cv, gl: gl, main: prog(FX_FS), blur: prog(FX_BS), u: {}, lost: false,
+        var g = { cv: cv, gl: gl, main: prog(FX_FS), blur: prog(FX_BS), pix: prog(FX_PS), u: {}, lost: false,
           float: !!gl.getExtension('EXT_color_buffer_float'), max: Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0], gl.getParameter(gl.MAX_VIEWPORT_DIMS)[1]) };
         var buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -3759,7 +3884,7 @@
       } catch (x) { fxG = { lost: true }; return null; }
       return fxG;
     }
-    function fxUni(p, n) { var k = p === fxG.main ? 'm' + n : 'b' + n; if (!(k in fxG.u)) fxG.u[k] = fxG.gl.getUniformLocation(p, n); return fxG.u[k]; }
+    function fxUni(p, n) { var k = (p === fxG.main ? 'm' : p === fxG.pix ? 'p' : 'b') + n; if (!(k in fxG.u)) fxG.u[k] = fxG.gl.getUniformLocation(p, n); return fxG.u[k]; }
     function fxTex(w, h, fmt, data) {
       var gl = fxG.gl, t = gl.createTexture(); gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, t); // (on a unit no sampler reads, so a texture being drawn into is never read at once)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -3791,19 +3916,46 @@
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(f1); gl.deleteFramebuffer(f2); gl.deleteTexture(mid);
       return out;
     }
+    // (the blocks for a block size: worked once for each size, and kept; a
+    // chip that can't draw into float textures gets them from the same sums
+    // as the main thread's)
+    function fxGLPix(b) {
+      var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, nx = Math.ceil(w / b), ny = Math.ceil(h / b);
+      if (T.pix && T.pixB === b) return T.pix;
+      if (T.pix) { gl.deleteTexture(T.pix); T.pix = null; }
+      if (!fxG.float) {
+        var d = adj.gsrc || (adj.gsrc = adj.L.ctx.getImageData(0, 0, w, h).data), one = new Float32Array(nx * ny * 4);
+        for (var by = 0; by < ny; by++) for (var bx = 0; bx < nx; bx++) {
+          var t0 = 0, t1 = 0, t2 = 0, ta = 0, n = 0;
+          for (var y = by * b; y < Math.min(h, by * b + b); y++) for (var x = bx * b, k = (y * w + x) * 4; x < Math.min(w, bx * b + b); x++, k += 4) { var a = d[k + 3]; t0 += d[k] * a; t1 += d[k + 1] * a; t2 += d[k + 2] * a; ta += a; n++; }
+          var o = (by * nx + bx) * 4; one[o + 3] = Math.round(ta / n); if (ta) { one[o] = Math.round(t0 / ta); one[o + 1] = Math.round(t1 / ta); one[o + 2] = Math.round(t2 / ta); }
+        }
+        T.pix = fxTex(nx, ny, 'f', one); T.pixB = b; return T.pix;
+      }
+      var mid = fxTex(nx, h, 'f'), out = fxTex(nx, ny, 'f'), f1 = fxTarget(mid), f2, Pg = fxG.pix;
+      gl.useProgram(Pg); gl.viewport(0, 0, nx, h);
+      gl.uniform1i(fxUni(Pg, 'u_b'), b); gl.uniform1i(fxUni(Pg, 'u_W'), w); gl.uniform1i(fxUni(Pg, 'u_H'), h); gl.uniform1i(fxUni(Pg, 'u_in'), 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.src);
+      gl.uniform1i(fxUni(Pg, 'u_dir'), 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      f2 = fxTarget(out); gl.viewport(0, 0, nx, ny); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mid);
+      gl.uniform1i(fxUni(Pg, 'u_dir'), 1); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(f1); gl.deleteFramebuffer(f2); gl.deleteTexture(mid);
+      T.pix = out; T.pixB = b; return out;
+    }
     // (the effect, drawn: on the stand-in canvas, or, flip 0, the right way
     // up into a texture to be read back when it's kept)
     function fxGLDraw(P, toTex) {
       var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, M = fxG.main;
       if (P.cl && !T.wide) T.wide = fxGLBlur(P.wideR);
+      var pix = P.px ? fxGLPix(P.px) : null;
       var lt = new Float32Array(256 * 2 * 4);
       for (var i = 0; i < 256; i++) { lt[i * 4] = P.lut[i]; lt[i * 4 + 1] = P.blut[i]; if (P.gm) { lt[1024 + i * 4] = P.gm[i * 3]; lt[1025 + i * 4] = P.gm[i * 3 + 1]; lt[1026 + i * 4] = P.gm[i * 3 + 2]; } }
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 2, gl.RGBA, gl.FLOAT, lt);
-      var units = [['u_src', T.src], ['u_mask', T.mask || T.src], ['u_lut', T.lut], ['u_wide', T.wide || T.src]];
+      var units = [['u_src', T.src], ['u_mask', T.mask || T.src], ['u_lut', T.lut], ['u_wide', T.wide || T.src], ['u_pix', pix || T.lut]];
       gl.useProgram(M);
       units.forEach(function (q, n) { gl.activeTexture(gl.TEXTURE0 + n); gl.bindTexture(gl.TEXTURE_2D, q[1]); gl.uniform1i(fxUni(M, q[0]), n); });
       var i1 = function (n, v) { gl.uniform1i(fxUni(M, n), v); }, f1 = function (n, v) { gl.uniform1f(fxUni(M, n), v); };
-      i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0);
+      i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0); i1('u_px', pix ? P.px : 0);
       f1('u_shp', P.shp); f1('u_cl', P.cl); f1('u_br', P.br); f1('u_sat', P.sat); f1('u_vib', P.vib); f1('u_hu', P.hu); f1('u_hc', P.hc); f1('u_hs', P.hs);
       f1('u_lt', P.lt); f1('u_wa', P.wa); f1('u_ti', P.ti); f1('u_gms', P.gms); f1('u_vg', P.vg); f1('u_gr', P.gr);
       gl.uniform2f(fxUni(M, 'u_c'), w / 2, h / 2); f1('u_rr', 1 / Math.hypot(w / 2, h / 2));
@@ -3830,8 +3982,8 @@
     }
     function fxGLFree() {
       var T = adj && adj.gt; if (!T || !fxG || !fxG.gl) return;
-      var gl = fxG.gl; ['src', 'mask', 'lut', 'wide'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); });
-      adj.gt = null;
+      var gl = fxG.gl; ['src', 'mask', 'lut', 'wide', 'pix'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); });
+      adj.gt = null; adj.gsrc = null;
     }
     // (the graphics chip went away mid-way: carry on without it)
     function fxToCPU() { try { fxGLShow(false); } catch (x) {} adj.gt = null; adj.mode = fxWorker() ? 'worker' : 'cpu'; fxSource(); adjustQueue(); }
@@ -3885,30 +4037,63 @@
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); if (usesView(adj.L)) viewOf(adj.L); }
     // KEPT: the full-size result, worked out once (by the graphics chip, or
     // by the same sums as the live look), laid on the layer as one step
+    function adjustKeep() {
+      var before;
+      if (adj.mode === 'gl') {
+        before = adj.L.ctx.getImageData(0, 0, adj.gw, adj.gh); // (the layer itself was never touched: it's as it was)
+        var out = null; try { out = fxGLDraw(fxParams(), true); } catch (x) { out = null; }
+        if (!out) { fxGLShow(false); fxGLFree(); adj.mode = 'cpu'; fxSource(); adjustRender(); } else adjustPut(out);
+      } else {
+        before = adj.src;
+        if (adj.shown !== adj.ver || adj.queued) adjustRender(); // (unless the full-size look is already the one wanted)
+      }
+      push({ L: adj.L, data: before, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); }
+    }
+    // (the worker is still on the full size: it's kept as soon as it's here)
+    function adjustWait() {
+      clearTimeout(adj.settle);
+      if (!adj.queued) { var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }
+    }
+    // CLOSING (another tool, undo, saving...): what's set is kept, and the panel goes
     function adjustDone() {
       if (!adj) return;
       if (adjChanged()) {
-        fxPrepare(); var before;
+        fxPrepare();
         if (adj.mode === 'worker' && !adj.finishing && adj.shown !== adj.ver) {
-          // (the worker is on it: the panel goes now, and the full size goes
-          // down as soon as it's ready; anything done before then finishes
-          // it first, here)
-          adj.finishing = true; adjBox.dataset.finishing = '1'; clearTimeout(adj.settle);
+          // (the panel goes now, and the full size goes down as soon as it's
+          // ready; anything done before then finishes it first, here)
+          adj.finishing = true; adj.applying = false; adjBox.dataset.finishing = '1';
           adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
-          if (!adj.queued) { var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }
-          return;
+          adjustWait(); return;
         }
-        if (adj.mode === 'gl') {
-          before = adj.L.ctx.getImageData(0, 0, adj.gw, adj.gh); // (the layer itself was never touched: it's as it was)
-          var out = null; try { out = fxGLDraw(fxParams(), true); } catch (x) { out = null; }
-          if (!out) { fxGLShow(false); fxGLFree(); adj.mode = 'cpu'; fxSource(); adjustRender(); } else adjustPut(out);
-        } else {
-          before = adj.src;
-          if (adj.shown !== adj.ver || adj.queued) adjustRender(); // (unless the full-size look is already the one wanted)
-        }
-        push({ L: adj.L, data: before, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); }
+        adjustKeep();
       } else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src);
       adjustClose();
+    }
+    // DONE: what's set is kept (one step, to undo) and the sliders go back
+    // to the start, the panel staying open for the next effect, which works
+    // on the picture as it now is. Done with nothing set closes the panel.
+    function adjustApply() {
+      if (!adj || adj.finishing) return;
+      if (!adjChanged()) { adjustDone(); return; }
+      fxPrepare();
+      if (adj.mode === 'worker' && adj.shown !== adj.ver) { if (!adj.applying) { adj.applying = true; adjBox.dataset.finishing = '1'; adjustWait(); } return; }
+      adj.applying = false; delete adjBox.dataset.finishing;
+      adjustKeep(); adjustRebase();
+      toast('Applied (undo takes it back). Ready for the next effect');
+    }
+    // (starting again from the layer as it is: the copies made from it go,
+    // to be made again when a slider next moves, and every slider is back
+    // at its start)
+    function adjustRebase() {
+      clearTimeout(adj.prepT);
+      if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
+      if (adj.mode === 'worker') { clearTimeout(adj.settle); fxPrevShow(false); adj.prev = null; adj.busy = false; adj.want = null; }
+      adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = null; adj.ready = false; adj.queued = false;
+      adj.selOn = adj.selOn && !!sel; adj.v = {}; adj.ver++; adj.shown = adj.ver;
+      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
+      fxMarks(true); fxShown('levels'); fxShown('curves');
+      adj.prepT = setTimeout(function () { if (adj) fxPrepare(); }, 420);
     }
     function adjustCancel() { if (!adj) return; if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src); adjustClose(); }
     function adjustQueue(hue) { adj.ver++; fxMarks(hue); if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustLive(); }); }
@@ -3923,9 +4108,9 @@
         } catch (x) { fxToCPU(); return; }
       }
       if (adj.mode === 'worker') {
-        var P = fxParams(), job = adj.prev && !adj.finishing ? { P: fxPrevP(P), ver: adj.ver, prev: true } : { P: P, ver: adj.ver };
+        var P = fxParams(), job = adj.prev && !adj.finishing && !adj.applying ? { P: fxPrevP(P), ver: adj.ver, prev: true } : { P: P, ver: adj.ver };
         if (adj.busy) adj.want = job; else fxPost(job);
-        if (adj.prev && !adj.finishing) { clearTimeout(adj.settle); adj.settle = setTimeout(function () { if (!adj || adj.mode !== 'worker') return; var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }, 180); }
+        if (adj.prev && !adj.finishing && !adj.applying) { clearTimeout(adj.settle); adj.settle = setTimeout(function () { if (!adj || adj.mode !== 'worker') return; var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }, 180); }
         return;
       }
       adjustRender();
@@ -3967,7 +4152,7 @@
       var rs = e.target.closest('[data-fx-reset]'); if (rs) { fxReset(rs.dataset.fxReset); return; }
     });
     adjBox.addEventListener('input', function (e) {
-      var i = e.target.closest('[data-adj]'); if (!i || !adj) return;
+      var i = e.target.closest('[data-adj]'); if (!i || !adj || adj.applying) return;
       adj.v[i.dataset.adj] = +i.value; i.previousElementSibling.textContent = i.value; adjustQueue(i.dataset.adj === 'hue');
     });
     // double-click (or double-tap) a slider's name to put it back to 0
@@ -4323,9 +4508,9 @@
       if (!down) return;
       stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
-      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
+      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
-      if (selMode === 'move') { selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
+      if (selMode === 'move') { selTrim(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
       if (down.penSnap && pen) { penPut(down.penSnap); down = null; if (pen.pts.length || pen.hist.length || pen.fut.length) { drawPen(); ctxSync(); } else cancelPen(); return; }
       clearInterval(sprayTimer);
@@ -4337,12 +4522,12 @@
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
       if (!/^(picker|move|text|pen)$/.test(t)) need();
       if (cq && cq.c === 'rot') {
-        lift(); var m = selMid();
+        lift(); selRecord(); var m = selMid();
         down = { id: e.pointerId, start: p, last: p, turn: { a0: Math.atan2(p.y - m.y, p.x - m.x), r0: sel.rot || 0 } };
         selMode = 'rotate'; selbar.classList.add('away'); return;
       }
       if (cq) {
-        lift();
+        lift(); selRecord();
         // the opposite corner stays put (where it is on the picture, however the box is turned)
         var A = selWorld({ x: cq.c[1] === 'w' ? sel.x + sel.w : sel.x, y: cq.c[0] === 'n' ? sel.y + sel.h : sel.y });
         down = { id: e.pointerId, start: p, last: p, scale: { A: A, w: sel.w, h: sel.h, poly: sel.poly, sx: cq.c[1] === 'w' ? -1 : 1, sy: cq.c[0] === 'n' ? -1 : 1 } };
@@ -4362,7 +4547,7 @@
       if (t === 'move') {
         if (!sel) movePick();
         if (!sel) { toast(active ? 'There\u2019s nothing on this layer to move' : 'There\u2019s no layer to move'); return; }
-        selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); stage.classList.add('moving');
+        selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); selRecord(); stage.classList.add('moving');
         down = { id: e.pointerId, start: p, last: p }; return;
       }
       if (t === 'pen') {
@@ -4391,7 +4576,7 @@
           down = { id: e.pointerId, start: p, last: p, poly: true };
           drawLasso(null); return;
         }
-        if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); stage.classList.add('moving'); }
+        if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); selRecord(); stage.classList.add('moving'); }
         else if (t === 'wand') { commitSelection(); wandAt(p); selbar.hidden = !sel; drawSel(); return; }
         else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; p.corner = true; lasso = [p]; }
         else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null, oval: t === 'circle' }; }
@@ -4461,12 +4646,12 @@
         sel.rot = ta; drawSel(); return;
       }
       if (selMode === 'scale') {
-        // free to stretch; hold shift for a perfect square (let go of shift
-        // and it's free again)
+        // keeping its proportions (or free to stretch, with Keep proportions
+        // off in Scale); shift held does the other one
         var z = down.scale, r = sel.rot || 0, co = Math.cos(r), si = Math.sin(r), vx = p.x - z.A.x, vy = p.y - z.A.y;
         var lx = co * vx + si * vy, ly = -si * vx + co * vy;
         var nw = Math.max(4 / view.k, lx * z.sx), nh = Math.max(4 / view.k, ly * z.sy);
-        if (sel.text) { var kk = Math.max(nw / z.w, nh / z.h); nw = z.w * kk; nh = z.h * kk; } else if (e.shiftKey) nw = nh = Math.max(nw, nh);
+        if (sel.text || keepRatio !== !!e.shiftKey) { var kk = Math.max(nw / z.w, nh / z.h); nw = z.w * kk; nh = z.h * kk; }
         var hx = z.sx * nw / 2, hy = z.sy * nh / 2, cx = z.A.x + co * hx - si * hy, cy = z.A.y + si * hx + co * hy;
         sel.w = nw; sel.h = nh; sel.x = cx - nw / 2; sel.y = cy - nh / 2;
         if (z.poly) sel.poly = z.poly.map(function (q) { return { x: q.x * nw / z.w, y: q.y * nh / z.h }; });
@@ -4674,7 +4859,7 @@
 
       if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
-      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
+      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
       if (selMode === 'lasso') {
         // already placing points: carry on (a click made a corner, a drag a
         // freehand piece)
@@ -4690,6 +4875,7 @@
       }
       if (selTool(t)) {
         if (selMode === 'new' && (sel.w < 3 || sel.h < 3)) sel = null;
+        if (selMode === 'move') selTrim();
         stage.classList.remove('moving'); selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave(); return;
       }
       down = null; autosave();
@@ -4701,7 +4887,7 @@
     }
 
     // (the controls that sit on the picture: pressing them doesn't paint)
-    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx';
+    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-scale';
     stage.addEventListener('pointerdown', function (e) {
       if (e.target.closest(STAGE_UI)) return;
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -4867,7 +5053,7 @@
       if (!lastMouse || down || pan || gesture || textBox) return;
       var p = lastMouse.p, s = lastMouse.s, L;
       if (adj) adjustDone();
-      if (sel && !selMode && inSel(p)) { lift(); spaceGrab = { sel: true, ox: p.x - sel.x, oy: p.y - sel.y }; }
+      if (sel && !selMode && inSel(p)) { lift(); selRecord(); spaceGrab = { sel: true, ox: p.x - sel.x, oy: p.y - sel.y }; }
       else if ((L = paintAt(p))) {
         commitSelection();
         if (L !== active) { active = L; renderLayers(); }
@@ -4886,7 +5072,7 @@
     function letGoOfSpace() {
       spaceDown = false; stage.classList.remove('space'); if (spaceGrab && !Object.keys(pointers).length) busy(false);
       if (!spaceGrab) return;
-      if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) autosave();
+      if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) { selTrim(); autosave(); }
       spaceGrab = null; stage.classList.remove('panning');
     }
     window.addEventListener('blur', function () { busy(false); letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
@@ -4975,7 +5161,7 @@
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var aa = e.target.closest('[data-adj-act]');
-      if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') adjustDone(); else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
+      if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') { if (aa.closest('.paint-adjust') === adjBox) adjustApply(); else adjustDone(); } else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
       runAct(a.dataset.act);
     });
@@ -5518,6 +5704,7 @@
     // a list that drops down from a header button
     function placeDrop(el, btn) {
       if (!btn.offsetParent && hb('more')) btn = hb('more'); // (on a phone the button is in the ••• menu)
+      btn = hdrBtn(btn);
       var r = btn.getBoundingClientRect();
       el.style.top = Math.round(r.bottom + 8) + 'px';
       el.style.right = Math.round(Math.max(8, document.documentElement.clientWidth - r.right - 4)) + 'px';
@@ -5687,13 +5874,47 @@
     }
     function relayout() {
       closeDrops(); ctxClose(); lmenu.hidden = true;
-      if (!panel.hidden) dropUnder(panel, $('[data-act="layers"]'));
+      if (!panel.hidden) besideBar(panel, $('[data-act="layers"]'));
       if (!saveMenu.hidden) dropUnder(saveMenu, $('[data-act="save"]'));
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       if (tpEl && !tpEl.hidden && textBtn) placeTextPanel();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
       if (ctxEl) keepOnScreen(ctxEl, stage);
     }
+    // THE TOP BAR FOLDS to a thin strip, and opens again, by the arrow at its
+    // end. Its height eases, and the picture's space with it (the bar never
+    // covers the picture); the picture is fitted to the space a frame at a
+    // time (or, zoomed in, keeps its zoom and stays centred). Whether the
+    // two toolbars still fit one under the other is worked out first: if
+    // not, they go side by side at the start; if they fit again, at the end
+    var hdrFold = header && header.querySelector('.hdr-fold'), hdrAnim = 0, hdrEnd = 0;
+    function hdrSync() {
+      if (!hdrFold) return;
+      var o = document.documentElement.classList.contains('hdr-open'), t = o ? 'Hide the toolbar' : 'Show the toolbar';
+      hdrFold.setAttribute('aria-expanded', o ? 'true' : 'false'); hdrFold.setAttribute('aria-label', t); hdrFold.dataset.tip = t;
+    }
+    function headerOpen(on) {
+      var html = document.documentElement;
+      if (!hdrFold || on === html.classList.contains('hdr-open') || html.classList.contains('focus-mode')) return;
+      closeDrops(); moreMenu(false); savePanel(false); hideTip();
+      cancelAnimationFrame(hdrAnim); clearTimeout(hdrEnd);
+      html.classList.add('focus-measure'); html.classList.toggle('hdr-open', on);
+      var fits = sideFits();
+      html.classList.toggle('hdr-open', !on); void side.offsetHeight; html.classList.remove('focus-measure');
+      void getComputedStyle(html).getPropertyValue('--hdr');
+      html.classList.add('hdr-anim'); if (!fits) side.classList.add('wide');
+      html.classList.toggle('hdr-open', on); hdrSync();
+      try { localStorage.setItem('paint-hdr-open', on ? '1' : '0'); } catch (x) {}
+      var t0 = performance.now(), dur = (parseFloat(getComputedStyle(html).transitionDuration) || 0) * 1000;
+      (function frame(t) { refit(); if (t - t0 < dur + 34) hdrAnim = requestAnimationFrame(frame); })(t0);
+      hdrEnd = setTimeout(function () {
+        cancelAnimationFrame(hdrAnim); html.classList.remove('hdr-anim');
+        if (fits) side.classList.remove('wide');
+        refit(); relayout();
+      }, dur + 60);
+    }
+    if (hdrFold) { hdrSync(); hdrFold.addEventListener('click', function () { headerOpen(!document.documentElement.classList.contains('hdr-open')); }); }
+    if (sideLayout()) refit();
     function finishMenus() { openMenu(null); layerPanel(false); savePanel(false); closeDrops(); moreMenu(false); if (!pc.hidden) picker(null); }
     // (before a drop-down from the top bar opens: the others go)
     function otherPopovers() { openMenu(null); layerPanel(false); savePanel(false); lmenu.hidden = true; ctxClose(); }
@@ -5763,13 +5984,18 @@
         // made smaller if it wouldn't fit)
         var nw = im.naturalWidth / R, nh = im.naturalHeight / R, k = how === 'open' ? Math.min(W / nw, H / nh) : Math.min(1, W / nw, H / nh);
         var w = nw * k, h = nh * k, x = (W - w) / 2, y = (H - h) / 2, L = makeLayer(how === 'open' ? 'Picture' : 'Pasted', false);
-        L.ctx.drawImage(im, x, y, w, h);
+        L.ctx.imageSmoothingQuality = 'high'; L.ctx.drawImage(im, x, y, w, h);
         layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; mount();
-        if (how !== 'open') {
-          // picked up, ready to move into place or size with its corners
-          setTool(selKind); sel = { x: x, y: y, w: w, h: h, float: null }; selbar.hidden = false; drawSel();
-          toast('Added on a new layer: drag it into place');
-        }
+        // SELECTED, READY TO TRANSFORM: the Move tool, with the picture's box
+        // round it to drag, size by its corners (keeping its proportions) or
+        // turn by its round handle, and Scale showing its size; what's picked
+        // up is the picture itself at its own size (up to 16 million pixels)
+        var fk = Math.min(1, Math.sqrt(16e6 / (im.naturalWidth * im.naturalHeight))), src = document.createElement('canvas');
+        src.width = Math.max(1, Math.round(im.naturalWidth * fk)); src.height = Math.max(1, Math.round(im.naturalHeight * fk));
+        var sx = src.getContext('2d'); sx.imageSmoothingQuality = 'high'; sx.drawImage(im, 0, 0, src.width, src.height);
+        sel = { x: x, y: y, w: w, h: h, float: null, whole: true, auto: true, src: src, base: { w: nw, h: nh } };
+        setTool('move'); selbar.hidden = false; drawSel();
+        toast(how === 'open' ? 'Opened on a new layer: drag, size or turn it' : 'Added on a new layer: drag it into place, size or turn it');
         autosave();
       };
       im.onerror = function () { URL.revokeObjectURL(url); toast('That picture couldn’t be opened'); };
@@ -5957,7 +6183,7 @@
             '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button></div>' + sep +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Alignment">' + ['left', 'center', 'right'].map(function (a) { return '<button type="button" role="tab" data-ctx-al="' + a + '" aria-label="Align ' + a + '" data-tip="Align ' + a + '">' + CI(a === 'left' ? '<path d="M4 6.5h16M4 10.5h10M4 14.5h16M4 18.5h10"/>' : a === 'center' ? '<path d="M4 6.5h16M7 10.5h10M4 14.5h16M7 18.5h10"/>' : '<path d="M4 6.5h16M10 10.5h10M4 14.5h16M10 18.5h10"/>') + '</button>'; }).join('') + '</div>' + sep +
           '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>' + sep +
-          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill">' + TFILLS.map(function (f) { return '<button type="button" role="tab" data-ctx-tf="' + f[0] + '" data-tip="' + f[2] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
+          '<div class="pa-tabs ctx-seg ctx-seg-fit" role="tablist" aria-label="Fill">' + TFILLS.map(function (f) { return '<button type="button" role="tab" data-ctx-tf="' + f[0] + '" data-tip="' + f[2] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
           '<label class="ctx-slider" data-tpath-off data-tip="Curve: bend the words into an arch (to the right) or a dip (to the left)"><span>Curve</span><input type="range" min="-100" max="100" step="1" data-ctx="tarc" aria-label="Curve"><output>0</output></label>' +
           '<div data-tpath-on>' + hint('The words follow the path') + '</div>' +
           '<button type="button" class="ctx-btn" data-ctx="tpathoff" data-tpath-on data-tip="Take the words off the path, back onto a straight line">' + CI('<path d="M4 17h16"/><path d="M4 11c4-5 12-5 16 0" stroke-dasharray="2 2"/>') + '<span>Straighten</span></button>' +
@@ -6159,7 +6385,7 @@
     // pencil stroke doesn't stutter while it's made)
     (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(function () { texture('pencil'); });
     app = {
-      root: root, fit: function () { refit(); relayout(); },
+      root: root, fit: function () { if (!document.documentElement.classList.contains('hdr-anim')) sideLayout(); refit(); relayout(); },
       key: function (e) {
         if (e.key === 'Shift') shiftChanged(true);
         var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
@@ -6178,7 +6404,7 @@
         if (k === 'alt') { stage.classList.add('picking'); e.preventDefault(); return; }
         // the arrow keys nudge a selection (a pixel at a time; 10 with shift)
         if (sel && !selMode && !mod && /^arrow/.test(k) && e.target.type !== 'range') {
-          e.preventDefault(); lift();
+          e.preventDefault(); lift(); selRecord();
           var d = e.shiftKey ? 10 : 1;
           if (k === 'arrowleft') sel.x -= d; else if (k === 'arrowright') sel.x += d; else if (k === 'arrowup') sel.y -= d; else sel.y += d;
           drawSel(); autosave(); return;
