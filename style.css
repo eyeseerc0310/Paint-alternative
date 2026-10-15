@@ -234,7 +234,10 @@ body > * { flex-shrink: 0; }
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
   -webkit-tap-highlight-color: transparent; transition: color var(--dur) ease, background-color var(--dur) ease, transform var(--dur) var(--spring);
 }
-:root:not(.hdr-open) .hdr-fold { margin-left: auto; }
+/* (in the middle of the bar, folded or open, clear of the toolbars below) */
+.hdr-fold { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
+/* (narrow windows, the bar open: its buttons reach the middle, so the arrow sits after them) */
+@media (min-width: 561px) and (max-width: 900px) { :root.hdr-open .hdr-fold { position: static; translate: none; margin-left: var(--s-2); } }
 .hdr-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-slow) var(--spring); }
 :root.hdr-open .hdr-fold svg { transform: rotate(180deg); }
 @media (hover: hover) { .hdr-fold:hover { color: var(--text); background: var(--panel-solid); } }
