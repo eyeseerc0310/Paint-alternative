@@ -95,7 +95,7 @@
     return out;
   }
   var TOOL_NAMES = { brush: 'Brush', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', line: 'Line', shape: 'Shape', fill: 'Fill', gradient: 'Gradient',
-    text: 'Text', select: 'Move', lasso: 'Move', wand: 'Move', move: 'Move', pen: 'Pen', picker: 'Edit', hand: 'Edit', tone: 'Light & Dark' };
+    text: 'Text', select: 'Move', lasso: 'Move', circle: 'Move', wand: 'Move', move: 'Move', pen: 'Pen', picker: 'Edit', hand: 'Edit', tone: 'Light & Dark' };
   var app = null;
 
   function init(root) {
@@ -595,7 +595,7 @@
     function pcSet(h, s, v, skip) {
       hsv = [h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v))];
       var hex = pcColor(); pcBusy = true;
-      if (pcWhich === 'main') { setColor(hex); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand|none/.test(st.tool)) setTool('brush'); }
+      if (pcWhich === 'main') { setColor(hex); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|circle|wand|none/.test(st.tool)) setTool('brush'); }
       else setColor2(hex);
       pcBusy = false; pcShow(skip);
     }
@@ -760,6 +760,7 @@
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
       var tp = null;
       if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
+      if (selKindOf(t) && t !== selKind) { selKind = t; storeIt('paint-sel-kind', t); selBtnSync(); }
       if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
       if (adj) adjustDone();
       if (textBox) commitText();
@@ -2273,7 +2274,26 @@
       selbar.hidden = !sel; selMode = null; down = null; drawSel();
     }
     function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); drawSel(); }
-    function selTool(t) { return t === 'select' || t === 'lasso' || t === 'wand' || t === 'move'; }
+    function selTool(t) { return selKindOf(t) || t === 'move'; }
+    // THE SELECTION TOOL: one button, four ways to select (picked in the
+    // tool panel, and remembered): a cutout (the first time), a box, a circle
+    // and the magic wand. The button shows the way in use
+    var SEL_KINDS = [
+      ['lasso', 'Cutout', '<path d="M7.4 15.6C5.3 14.5 4 12.8 4 10.9 4 7.4 7.6 4.5 12 4.5s8 2.9 8 6.4-3.6 6.4-8 6.4c-1 0-1.9-.1-2.8-.4" stroke-dasharray="2.4 2.1"/><circle cx="8.4" cy="16.4" r="1.4"/><path d="M8 17.8c-.6 1.2-.2 2.3 1 2.7"/>', 'Cutout (Q): draw round it, or click to place points'],
+      ['select', 'Box', '<path d="M4 8.5V5a1 1 0 0 1 1-1h3.5M15.5 4H19a1 1 0 0 1 1 1v3.5M20 15.5V19a1 1 0 0 1-1 1h-3.5M8.5 20H5a1 1 0 0 1-1-1v-3.5"/><path d="M11 4h2M11 20h2M4 11v2M20 11v2"/>', 'Box (M): drag a box round it'],
+      ['circle', 'Circle', '<circle cx="12" cy="12" r="8" stroke-dasharray="2.6 2.4"/>', 'Circle (C): drag an oval round it, Shift for a circle'],
+      ['wand', 'Magic Wand', '<path d="M4.1 18.5l9-9a1.1 1.1 0 0 1 1.5 0l.4.4a1.1 1.1 0 0 1 0 1.5l-9 9a1.1 1.1 0 0 1-1.5 0l-.4-.4a1.1 1.1 0 0 1 0-1.5z"/><path d="M11.6 11l1.9 1.9"/><path d="M17.5 2.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/><path d="M9.5 3v2.5M8.25 4.25h2.5M20 11v2M19 12h2"/>', 'Magic Wand (W): tap an area of one colour']
+    ];
+    function selKindOf(t) { for (var i = 0; i < SEL_KINDS.length; i++) if (SEL_KINDS[i][0] === t) return SEL_KINDS[i]; return null; }
+    var selKind = stored('paint-sel-kind', 'lasso'); if (!selKindOf(selKind)) selKind = 'lasso';
+    function selBtnSync() {
+      var b = root.querySelector('.paint-selbtn'), k = selKindOf(selKind); if (!b) return;
+      b.dataset.tool = selKind; b.innerHTML = '<svg viewBox="0 0 24 24">' + k[2] + '</svg>';
+      b.setAttribute('aria-label', 'Select: ' + k[1] + ' (M)');
+    }
+    // (a circle: its outline as points round the box it's dragged in)
+    selBtnSync();
+    function ovalPoly(w, h) { var P = []; for (var i = 0; i < 96; i++) { var a = i / 96 * Math.PI * 2; P.push({ x: w / 2 + Math.cos(a) * w / 2, y: h / 2 + Math.sin(a) * h / 2 }); } return P; }
     // MAGIC WAND: every connected pixel of a similar colour on the layer
     // (a mask, kept with the selection)
     // (with paint set, it picks up all the paint joined to that spot instead:
@@ -2676,8 +2696,8 @@
       if (a === 'layer') {
         // CUT TO LAYER: the selection comes out onto a layer of its own
         if (!roomFor()) return;
-        var lifted = !sel.float; lift();
-        var mv = lifted ? undo.pop() : null; rememberLayers('Cut to Layer');
+        var wasDown = !sel.float; lift(); // (not called lifted: that would hide lifted(), which Delete uses)
+        var mv = wasDown ? undo.pop() : null; rememberLayers('Cut to Layer');
         if (mv) { var ls = undo.pop(); delete mv.redoWas; push({ parts: [mv, ls], label: 'Cut to Layer' }); }
         var L = makeLayer('Cutout', false); putFloat(L.ctx);
         layers.splice(layers.indexOf(active) + 1, 0, L); L.group = active.group; active = L;
@@ -3051,7 +3071,7 @@
       // (the Select tool comes up, so a drag moves it rather than painting;
       // for words, Move, so they stay words)
       if (L.text) { setTool('move'); return; }
-      if (!selTool(st.tool)) setTool('select');
+      if (!selTool(st.tool)) setTool(selKind);
       layerSel(L);
     }
     function layerSel(L) {
@@ -4048,7 +4068,7 @@
         if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); stage.classList.add('moving'); }
         else if (t === 'wand') { commitSelection(); wandAt(p); selbar.hidden = !sel; drawSel(); return; }
         else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; p.corner = true; lasso = [p]; }
-        else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null }; }
+        else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null, oval: t === 'circle' }; }
         down = { id: e.pointerId, start: p, last: p };
         return;
       }
@@ -4135,7 +4155,12 @@
       }
       if (selTool(t)) {
         if (selMode === 'move') { sel.x = p.x - selOff.x; sel.y = p.y - selOff.y; }
-        else { sel.x = Math.min(sel.ax, p.x); sel.y = Math.min(sel.ay, p.y); sel.w = Math.abs(p.x - sel.ax); sel.h = Math.abs(p.y - sel.ay); }
+        else {
+          var bw = Math.abs(p.x - sel.ax), bh = Math.abs(p.y - sel.ay);
+          if (sel.oval && e.shiftKey) bw = bh = Math.max(bw, bh); // (Shift: a circle)
+          sel.x = p.x < sel.ax ? sel.ax - bw : sel.ax; sel.y = p.y < sel.ay ? sel.ay - bh : sel.ay; sel.w = bw; sel.h = bh;
+          if (sel.oval) sel.poly = ovalPoly(bw, bh); // (then it's a shape like a cutout's: everything works on it the same)
+        }
         drawSel(); return;
       }
       if (t === 'smudge' || t === 'blur' || t === 'tone') {
@@ -4602,7 +4627,7 @@
         if (st.tool === tl && ctxEl.classList.contains('min')) ctxMin(false);
         setTool(tl); openMenu(null); return;
       }
-      var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|wand|none/.test(st.tool)) setTool('brush'); return; }
+      var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|circle|wand|none/.test(st.tool)) setTool('brush'); return; }
       var pr = e.target.closest('.paint-current, .paint-second');
       // (Enter or Space on it; a tap or a drag was dealt with already, and the
       // click after a touch can look just like a key's)
@@ -5416,7 +5441,7 @@
         layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; mount();
         if (how !== 'open') {
           // picked up, ready to move into place or size with its corners
-          setTool('select'); sel = { x: x, y: y, w: w, h: h, float: null }; selbar.hidden = false; drawSel();
+          setTool(selKind); sel = { x: x, y: y, w: w, h: h, float: null }; selbar.hidden = false; drawSel();
           toast('Added on a new layer: drag it into place');
         }
         autosave();
@@ -5496,7 +5521,7 @@
       };
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
-        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select', 'M'], ['Cutout', 'Q'], ['Magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
+        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select: box', 'M'], ['Select: cutout', 'Q'], ['Select: circle', 'C'], ['Select: magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
@@ -5579,6 +5604,11 @@
     var snapChip = chip('snap', 'Snap', '<path d="M5 18.5c3-9 11-12 14-12"/><circle cx="19" cy="6.5" r="1.6"/>', 'Snap to shape: hold still at the end of a line, ellipse or rectangle to make it perfect (Shift: a circle or square)');
     var taperChip = chip('taper', 'Taper', '<path d="M3.5 12c4-3 13-3 17 0-4 3-13 3-17 0z"/>', 'Tapered ends: thin, pointed ends on each stroke (off: even thickness all the way)');
     var TFILLS = [['solid', 'Solid', 'One colour'], ['gradient', 'Blend', 'Blend from the main colour (top) to the second (bottom)'], ['rainbow', 'Rainbow', 'Each letter a colour of the rainbow, starting from the main colour'], ['two', 'Duo', 'Letters in the two colours, turn and turn about']];
+    // (the selection tool's ways, as a segmented control at the top of its panel)
+    function selWays(how) {
+      return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with">' + SEL_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
+        hint('<b>' + selKindOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>';
+    }
     var CTX = {
       brush: function () {
         return '<button type="button" class="ctx-btn" data-ctx="brushes" aria-haspopup="menu" aria-expanded="false" data-tip="Choose a brush"><canvas class="pb-prev" data-ctxprev aria-hidden="true"></canvas><span data-ctxname></span>' + CHEV + '</button>' +
@@ -5610,9 +5640,10 @@
       fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
       gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>'; },
       picker: function () { return hint('Press on the picture: a loupe shows the colour under it, and letting go picks it \u00b7 or hold <b>Alt</b> with any tool'); },
-      select: function () { return hint('Drag a box round what to select') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
-      lasso: function () { return hint('Draw round it, or click to place points') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
-      wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
+      select: function () { return selWays('Drag a box round what to select'); },
+      lasso: function () { return selWays('Draw round it, or click to place points'); },
+      circle: function () { return selWays('Drag an oval round it \u00b7 <b>Shift</b> for a circle'); },
+      wand: function () { return selWays('Tap an area of one colour'); },
       move: function () { return hint('Drag to move what\u2019s on the layer \u00b7 its corners to size it \u00b7 the round handle to turn it'); },
       pen: function () {
         return '<span class="ctx-hint" data-penhint></span>' + sep +
@@ -5722,6 +5753,7 @@
       var sm = q('[data-ctx="smoothing"]'); if (sm) { sm.value = smoothing; sm.nextElementSibling.textContent = smoothing ? smoothing : 'Off'; }
       set('[data-ctx="taper"]', 'aria-pressed', taperOn); set('[data-ctx="snap"]', 'aria-pressed', snapShapes);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-tone]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxTone === st.tone ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-sel]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxSel === st.tool ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-shape]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxShape === st.shape ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-fill]'), function (b) { b.setAttribute('aria-selected', (b.dataset.ctxFill === '1') === !!st.solid ? 'true' : 'false'); });
       var fn = q('[data-ctxfont]'); if (fn) { fn.textContent = fontName(st.font); fn.style.fontFamily = st.font; }
@@ -5788,6 +5820,7 @@
       if (k === 'all') { selectAll(); return; }
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
+      if (b.dataset.ctxSel) { setTool(b.dataset.ctxSel); return; }
       if (b.dataset.ctxShape) { st.shape = b.dataset.ctxShape; ctxSync(); return; }
       if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; ctxSync(); return; }
       if (b.dataset.ctxT) { tx[b.dataset.ctxT] = !tx[b.dataset.ctxT]; if (textBox) afterTextChange(); ctxSync(); return; }
@@ -5845,7 +5878,7 @@
         if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) { e.preventDefault(); selAction('done'); return; }
-        var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
+        var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', c: 'circle', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
         if (map[k]) setTool(map[k]);
         else if (k === 'a') adjustOpen();
         else if (k === 'x') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
