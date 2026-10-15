@@ -279,20 +279,13 @@ body > * { flex-shrink: 0; }
 
 /* ---------- Paint ---------- */
 .paint {
-  /* the two toolbars down the left, the picture's space taking all the
-     rest: everything in view at once, no scrolling */
+  /* tools on the left, colour and actions on the right, the picture's
+     space taking all the rest: everything in view at once, no scrolling */
   display: flex; justify-content: center; align-items: stretch; gap: 1rem;
   height: calc(100vh - var(--hdr, 52px) - 2 * var(--edge)); height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); min-height: 520px;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 
-/* THE TWO TOOLBARS, one under the other down the left (tools, then
-   colour and actions): two cards of their own. Where the window is too
-   short for both, the second stands beside the first instead (.wide) */
-.paint-side { --side-w: var(--bar); position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); flex: none; width: var(--side-w); max-height: 100%; }
-.paint-side.wide { --side-w: calc(2 * var(--bar) + var(--s-3)); flex-direction: row; }
-/* (the tool panels that open beside the tools open past both cards) */
-.paint-side.wide .paint-left > .paint-adjust, .paint-side.wide .paint-left > .paint-brushes { left: calc(2 * var(--bar) + var(--s-3) + 10px); }
 /* the two panels: frosted glass cards */
 .paint-bar {
   position: relative; flex: none; width: var(--bar);
@@ -305,7 +298,7 @@ body > * { flex-shrink: 0; }
   transition: opacity var(--dur) ease, transform var(--dur) var(--ease);
   animation: bar-in var(--dur-slow) var(--ease) backwards;
 }
-.paint-right { animation-delay: 60ms; }
+.paint-right { animation-name: bar-in-r; }
 @keyframes bar-in { from { opacity: 0; transform: translateX(-10px); } }
 @keyframes bar-in-r { from { opacity: 0; transform: translateX(10px); } }
 /* (above the picture, so their menus and panels open over it) */
@@ -663,7 +656,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-right { position: relative; }
 .paint-layerpanel {
   position: fixed; z-index: 150; width: 312px; padding: 10px;
-  animation: pb-in var(--dur-pop) var(--spring);
+  animation: pl-in var(--dur-pop) var(--spring);
 }
 .paint-layerpanel[hidden] { display: none; }
 .pl-title { font-family: var(--display); font-size: var(--fs-title); font-weight: 700; letter-spacing: -.022em; padding: 4px 6px 10px; }
@@ -1024,17 +1017,17 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .focus-mode .paint { gap: 0; height: calc(100vh - 2 * var(--edge)); height: calc(100svh - 2 * var(--edge)); }
 .focus-mode .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; }
 .focus-mode .paint-bar { opacity: 0; visibility: hidden; pointer-events: none; }
-.focus-mode .paint-side { margin-right: calc(-1 * var(--side-w)); transform: translateX(calc(-100% - 2 * var(--edge))); }
+.focus-mode .paint-left { margin-right: calc(-1 * var(--bar)); transform: translateX(calc(-100% - 2 * var(--edge))); }
+.focus-mode .paint-right { margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
 .focus-mode .paint-ctx { opacity: 0 !important; visibility: hidden; pointer-events: none; }
 .focusing .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
 .focusing .site-main { transition: padding-top var(--dur-slow) var(--ease); }
 .focusing .paint { transition: height var(--dur-slow) var(--ease), gap var(--dur-slow) var(--ease); }
-.focusing .paint-bar { transition: opacity var(--dur) ease, visibility 0s; }
-.focusing .paint-side { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease); }
+.focusing .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
 .focusing .paint-ctx { transition: opacity var(--dur) ease, visibility 0s; }
 /* (going: hidden from the pointer and the keyboard once they've faded) */
 .focusing.focus-mode .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
-.focusing.focus-mode .paint-bar { transition: opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
+.focusing.focus-mode .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
 .focusing.focus-mode .paint-ctx { transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
 .focusing .site-header { overflow: hidden; } /* (its capsules don't spill out while it folds and unfolds) */
 /* (measuring where things will end up: no movement at all) */
@@ -1082,9 +1075,6 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .paint-right .pr-history > * { height: 33px; }
   .paint .pr-history .pr-layers { width: 36px; border-radius: 50%; }
   .paint .pr-layers span { display: none; }
-  .paint-side { gap: 6px; }
-  .paint-side.wide { --side-w: calc(2 * var(--bar) + 6px); }
-  .paint-side.wide .paint-left > .paint-adjust, .paint-side.wide .paint-left > .paint-brushes { left: calc(2 * var(--bar) + 12px); }
   .paint button.paint-layers-btn, .paint button.paint-save { width: 36px; padding: 0; border-radius: 9px; }
   .paint button.paint-layers-btn span, .paint .paint-save span { display: none; }
   .paint .paint-save svg { display: block; }
@@ -1097,7 +1087,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .pa-list { gap: 2px; }
   .paint-savemenu { right: calc(100% + 6px); width: 170px; }
   .paint-layerpanel { right: calc(100% + 6px); width: 220px; }
-  .paint-colorpanel { left: calc(100% + 6px); }
+  .paint-colorpanel { right: calc(100% + 6px); }
   .paint-right .paint-zoom { flex-direction: column; padding: 2px 0; }
   .paint .paint-right .paint-zoom button { width: 32px; height: 24px; }
   .doc-status { padding: 0; width: 22px; justify-content: center; }
@@ -1367,9 +1357,9 @@ select.p-field {
 
 /* THE COLOUR PICKER, beside the two colours */
 .paint-colorpanel {
-  position: absolute; left: calc(100% + 10px); top: 0; z-index: 6; width: 244px; padding: 12px;
+  position: absolute; right: calc(100% + 10px); top: 0; z-index: 6; width: 244px; padding: 12px;
   max-height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); overflow-y: auto; overscroll-behavior: contain;
-  font-size: .75rem; animation: pb-in var(--dur-pop) var(--spring);
+  font-size: .75rem; animation: pl-in var(--dur-pop) var(--spring);
 }
 .paint-colorpanel[hidden] { display: none; }
 .pc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }

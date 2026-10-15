@@ -98,7 +98,7 @@
     var ov = $('.paint-over'), octx = ov.getContext('2d');
     var colorDot = $('.paint-current span'), color2Dot = $('.paint-second span');
     var sizeIn = $('.paint-size'), alphaIn = $('.paint-alpha'), zoomVal = $('.paint-zoom-val'), selbar = $('.paint-selbar');
-    var left = $('.paint-left'), right = $('.paint-right'), side = $('.paint-side');
+    var left = $('.paint-left'), right = $('.paint-right');
 
     // ---- a little label beside the mouse saying what each tool does ----
     var tip = document.createElement('div'), tipOn = null;
@@ -359,39 +359,15 @@
     // down from the bar's arrow instead)
     function hdrBtn(btn) { return btn && !document.documentElement.classList.contains('hdr-open') && btn.closest('.site-header') ? document.querySelector('.hdr-fold') || btn : btn; }
     // a panel that opens beside a button in the toolbars, at its height
+    // (towards the picture: right of the left bar, left of the right one)
     function besideBar(el, btn) {
       if (!btn) return;
-      var r = btn.getBoundingClientRect(), b = (btn.closest('.paint-bar') || btn).getBoundingClientRect(), vw = document.documentElement.clientWidth;
-      el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, b.right + (narrow() ? 6 : 10)))) + 'px';
+      var r = btn.getBoundingClientRect(), bar = btn.closest('.paint-bar') || btn, b = bar.getBoundingClientRect(), vw = document.documentElement.clientWidth, g = narrow() ? 6 : 10;
+      var x = bar === right ? b.left - g - el.offsetWidth : b.right + g;
+      el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, x))) + 'px';
       el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
       keepOnScreen(el);
     }
-    // THE TWO TOOLBARS, one under the other, when the window is tall enough
-    // for both at their fullest (every section open, every slider shown);
-    // otherwise side by side
-    function sideFits() {
-      var html = document.documentElement, was = side.classList.contains('wide'), uses = right.dataset.uses, shut = right.querySelectorAll('.pr-sec.closed'), had = html.classList.contains('focus-measure');
-      html.classList.add('focus-measure'); side.classList.remove('wide'); right.dataset.uses = 'so';
-      Array.prototype.forEach.call(shut, function (x) { x.classList.remove('closed'); });
-      var need = left.offsetHeight + right.offsetHeight + parseFloat(getComputedStyle(side).rowGap || 0), room = side.clientHeight;
-      Array.prototype.forEach.call(shut, function (x) { x.classList.add('closed'); });
-      if (uses == null) delete right.dataset.uses; else right.dataset.uses = uses;
-      side.classList.toggle('wide', was); void side.offsetHeight; if (!had) html.classList.remove('focus-measure');
-      return need <= room + 0.5;
-    }
-    function sideLayout() {
-      if (document.documentElement.classList.contains('focus-mode')) return false;
-      var wide = !sideFits();
-      if (wide === side.classList.contains('wide')) return false;
-      side.classList.toggle('wide', wide); return true;
-    }
-    // (the colour card grew past the room left under the tools, a colour
-    // just used putting up the recent ones: side by side, from then on)
-    if (window.ResizeObserver) new ResizeObserver(function () {
-      var html = document.documentElement;
-      if (side.classList.contains('wide') || html.classList.contains('hdr-anim') || html.classList.contains('focus-mode')) return;
-      if (left.offsetHeight + right.offsetHeight + parseFloat(getComputedStyle(side).rowGap || 0) > side.clientHeight + 0.5) { side.classList.add('wide'); refit(); }
-    }).observe(right);
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
     // filling the space (and stepping back out stops there and at 100%)
     function zoomStep(dir) {
@@ -5884,9 +5860,7 @@
     // THE TOP BAR FOLDS to a thin strip, and opens again, by the arrow at its
     // end. Its height eases, and the picture's space with it (the bar never
     // covers the picture); the picture is fitted to the space a frame at a
-    // time (or, zoomed in, keeps its zoom and stays centred). Whether the
-    // two toolbars still fit one under the other is worked out first: if
-    // not, they go side by side at the start; if they fit again, at the end
+    // time (or, zoomed in, keeps its zoom and stays centred)
     var hdrFold = header && header.querySelector('.hdr-fold'), hdrAnim = 0, hdrEnd = 0;
     function hdrSync() {
       if (!hdrFold) return;
@@ -5898,23 +5872,18 @@
       if (!hdrFold || on === html.classList.contains('hdr-open') || html.classList.contains('focus-mode')) return;
       closeDrops(); moreMenu(false); savePanel(false); hideTip();
       cancelAnimationFrame(hdrAnim); clearTimeout(hdrEnd);
-      html.classList.add('focus-measure'); html.classList.toggle('hdr-open', on);
-      var fits = sideFits();
-      html.classList.toggle('hdr-open', !on); void side.offsetHeight; html.classList.remove('focus-measure');
       void getComputedStyle(html).getPropertyValue('--hdr');
-      html.classList.add('hdr-anim'); if (!fits) side.classList.add('wide');
+      html.classList.add('hdr-anim');
       html.classList.toggle('hdr-open', on); hdrSync();
       try { localStorage.setItem('paint-hdr-open', on ? '1' : '0'); } catch (x) {}
       var t0 = performance.now(), dur = (parseFloat(getComputedStyle(html).transitionDuration) || 0) * 1000;
       (function frame(t) { refit(); if (t - t0 < dur + 34) hdrAnim = requestAnimationFrame(frame); })(t0);
       hdrEnd = setTimeout(function () {
         cancelAnimationFrame(hdrAnim); html.classList.remove('hdr-anim');
-        if (fits) side.classList.remove('wide');
         refit(); relayout();
       }, dur + 60);
     }
     if (hdrFold) { hdrSync(); hdrFold.addEventListener('click', function () { headerOpen(!document.documentElement.classList.contains('hdr-open')); }); }
-    if (sideLayout()) refit();
     function finishMenus() { openMenu(null); layerPanel(false); savePanel(false); closeDrops(); moreMenu(false); if (!pc.hidden) picker(null); }
     // (before a drop-down from the top bar opens: the others go)
     function otherPopovers() { openMenu(null); layerPanel(false); savePanel(false); lmenu.hidden = true; ctxClose(); }
@@ -6385,7 +6354,7 @@
     // pencil stroke doesn't stutter while it's made)
     (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(function () { texture('pencil'); });
     app = {
-      root: root, fit: function () { if (!document.documentElement.classList.contains('hdr-anim')) sideLayout(); refit(); relayout(); },
+      root: root, fit: function () { refit(); relayout(); },
       key: function (e) {
         if (e.key === 'Shift') shiftChanged(true);
         var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
