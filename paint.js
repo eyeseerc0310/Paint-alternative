@@ -317,7 +317,7 @@
     // well all round, narrower on a phone; fillK just fills the space, and
     // is the first step in)
     function fitTo(sw, sh) {
-      var m = phoneLayout() ? 12 : 42;
+      var m = phoneLayout() ? 10 : 34;
       fillK = Math.min(sw / W, sh / H) * 0.99;
       fitK = Math.max(fillK * 0.5, Math.min(fillK, (sw - 2 * m) / W, (sh - 2 * m) / H));
     }
