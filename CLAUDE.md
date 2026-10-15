@@ -111,8 +111,23 @@ When building or changing anything visual:
   paints, and an open selection, words or path is dealt with first): no tool
   button is lit, a drag moves the picture, and picking a colour takes up the
   brush. New tools mustn't assume a tool is always in hand.
+- **The pen's path** has steps of its own while it's being made
+  (`pen.hist`/`pen.fut`, kept with `penRecord`): each point placed, point or
+  handle moved, close or Backspace is one step, and undo/redo take those
+  first (`penUndo`/`penRedo`). Laying the path down keeps it with its 'Pen'
+  undo entry (`e.pen`), so undoing that brings the path back to carry on
+  with (`penRestore`). The History list works on the picture's steps only
+  (`doUndo(true)`). Text on Path is a mode (`penText`) as well as an action.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
+- **Focus mode** animates: `focusMode` measures where the picture's space
+  will end up (`.focus-measure`, nothing moving), then the header folds,
+  the bars slide off and the stage's size eases there (`.focusing`), with
+  `refit(true)` each frame so the picture keeps its zoom and stays centred.
+- **Light and dark** fade: the colour tokens are registered with
+  `@property`, so `.theme-fading` on `:root` eases them all together (new
+  colour tokens must be registered and added to that list); afterwards
+  `paint:theme` is sent so anything drawn in the panel's ink is redrawn.
 - **The look:** the header has no bar: the app's name, then its buttons in
   frosted capsules (`.hb-group`). The bars, the context bar and every
   pop-over are frosted cards (`--panel`/`--menu-bg`, `--glass`, the shadow

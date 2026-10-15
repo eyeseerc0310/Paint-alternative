@@ -9,7 +9,8 @@
 :root {
   /* colours */
   --bg: #eceef2;
-  --desk: radial-gradient(130% 100% at 50% 0%, #f8f9fb 0%, #eceef2 55%, #e4e7ec 100%); /* (the page behind everything) */
+  --desk-1: #f8f9fb; --desk-2: #eceef2; --desk-3: #e4e7ec;
+  --desk: radial-gradient(130% 100% at 50% 0%, var(--desk-1) 0%, var(--desk-2) 55%, var(--desk-3) 100%); /* (the page behind everything) */
   --text: #1d1d1f;
   --muted: #6e6e73;
   --line: rgba(0, 0, 0, .08);
@@ -87,6 +88,7 @@
   --dur: .22s;
   --dur-pop: .34s; /* (a menu or panel popping open) */
   --dur-slow: .42s; /* (for things that come and go as a whole: the opening, sheets) */
+  --dur-theme: .36s; /* (light to dark and back) */
   --ease: cubic-bezier(.32, .72, 0, 1);
   --spring: cubic-bezier(.34, 1.3, .64, 1);
   --edge: clamp(.75rem, 2.2vw, 1.25rem);
@@ -105,7 +107,7 @@
   color-scheme: dark;
   /* deep graphite, with panels a step lighter */
   --bg: #0b0b0d;
-  --desk: radial-gradient(130% 100% at 50% 0%, #1b1b1f 0%, #0f0f12 55%, #0a0a0c 100%);
+  --desk-1: #1b1b1f; --desk-2: #0f0f12; --desk-3: #0a0a0c;
   --text: #f2f2f7;
   --muted: #8e8e96;
   --line: rgba(255, 255, 255, .08);
@@ -144,6 +146,45 @@
   --shadow-pop: 0 0 0 .5px rgba(255, 255, 255, .09), inset 0 .5px 0 rgba(255, 255, 255, .1), 0 8px 20px rgba(0, 0, 0, .35), 0 30px 70px -12px rgba(0, 0, 0, .7);
   --shadow-paper: 0 2px 6px rgba(0, 0, 0, .4), 0 26px 60px -14px rgba(0, 0, 0, .75);
 }
+
+/* (the colour tokens are registered as colours, so light and dark can fade
+   into each other: while .theme-fading is on, the tokens themselves ease to
+   their new values, and everything drawn with them follows, gradients too) */
+@property --bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --desk-1 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --desk-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --desk-3 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --text { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --line { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --accent-hover { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --accent-soft { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --hover { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --hover-strong { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --selected { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --outline { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --chip { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --chip-text { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --focus { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --switch-on { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --rail { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --control { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --ok { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --warn { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --danger { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --seg-on { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --panel { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --panel-solid { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --stage { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --stage-dot { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --menu-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --menu-solid { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --menu-line { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --menu-link { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tip-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tip-text { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --scrim { syntax: "<color>"; inherits: true; initial-value: transparent; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; height: 100%; overflow: hidden; background: var(--bg); }
@@ -893,21 +934,43 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 @keyframes splash-bar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 @keyframes splash-gone { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 
-/* ---------- FOCUS MODE: just the picture (\ or Esc to come back) ---------- */
-.focus-mode { --hdr: 0px; }
-.focus-mode .site-header, .focus-mode .paint-bar, .focus-mode .paint-ctx, .focus-mode .paint-zoom { display: none !important; }
-.focus-mode .paint-stage { max-width: 100%; animation: focus-in var(--dur) var(--ease); }
-@keyframes focus-in { from { opacity: .6; } }
-.paint-focusout { display: none; }
-.focus-mode .paint-focusout {
+/* ---------- FOCUS MODE: just the picture (\ or Esc to come back). The
+   header folds away and the bars slide off to the sides while the picture's
+   space grows to fill the screen (paint.js sizes it as it goes, so the
+   picture keeps its zoom and stays centred); leaving does it all in
+   reverse. The movement is only switched on while that happens
+   (.focusing), so resizing the window never animates ---------- */
+.focus-mode .site-header { height: 0; opacity: 0; visibility: hidden; overflow: hidden; transform: translateY(-12px); pointer-events: none; }
+.focus-mode .site-main { padding-top: var(--edge); }
+.focus-mode .paint { gap: 0; height: calc(100vh - 2 * var(--edge)); height: calc(100svh - 2 * var(--edge)); }
+.focus-mode .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; }
+.focus-mode .paint-bar { opacity: 0; visibility: hidden; pointer-events: none; }
+.focus-mode .paint-left { margin-right: calc(-1 * var(--bar)); transform: translateX(calc(-100% - 2 * var(--edge))); }
+.focus-mode .paint-right { margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
+.focus-mode .paint-ctx { opacity: 0 !important; visibility: hidden; pointer-events: none; }
+.focusing .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
+.focusing .site-main { transition: padding-top var(--dur-slow) var(--ease); }
+.focusing .paint { transition: height var(--dur-slow) var(--ease), gap var(--dur-slow) var(--ease); }
+.focusing .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
+.focusing .paint-ctx { transition: opacity var(--dur) ease, visibility 0s; }
+/* (going: hidden from the pointer and the keyboard once they've faded) */
+.focusing.focus-mode .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
+.focusing.focus-mode .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
+.focusing.focus-mode .paint-ctx { transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
+.focusing .site-header { overflow: hidden; } /* (its capsules don't spill out while it folds and unfolds) */
+/* (measuring where things will end up: no movement at all) */
+.focus-measure, .focus-measure * { transition: none !important; animation: none !important; }
+.paint-focusout {
   position: fixed; top: 12px; right: 12px; z-index: 30; display: flex; align-items: center; justify-content: center;
   width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
   color: var(--text); background: var(--menu-bg); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-  opacity: .45; transition: opacity var(--dur) ease, transform var(--dur) ease;
+  opacity: 0; visibility: hidden; transform: scale(.8); pointer-events: none;
+  transition: opacity var(--dur) ease, transform var(--dur-slow) var(--spring), visibility 0s linear var(--dur);
 }
+.focus-mode .paint-focusout { opacity: .45; visibility: visible; transform: none; pointer-events: auto; transition: opacity var(--dur) ease var(--dur), transform var(--dur-slow) var(--spring) var(--dur), visibility 0s; }
  .focus-mode .paint-focusout:focus-visible { opacity: 1; }
-@media (hover: hover) { .focus-mode .paint-focusout:hover { opacity: 1; } }
-.focus-mode .paint-focusout:active { transform: scale(var(--press)); }
+@media (hover: hover) { .focus-mode .paint-focusout:hover { opacity: 1; transition-delay: 0s; } }
+.focus-mode .paint-focusout:active { transform: scale(var(--press)); transition-delay: 0s; }
 .paint-focusout svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- Phones: two slim panels, one tool per row ---------- */
@@ -1286,6 +1349,16 @@ select.p-field {
 @media (max-width: 560px) {
   .hb-file > :not([data-act="save"]), .hb-pic > :not([data-act="layers"]), .hb-view, .hb-sep.hb-file, .hb-sep.hb-view { display: none !important; }
   .hb-more { display: inline-flex !important; }
+}
+
+/* ---------- Light to dark and back: every colour token eases to its new
+   value together (the page keeps taking the pointer all the while);
+   shadows, which aren't single colours, ease on each element ---------- */
+:root.theme-fading { transition: --bg var(--dur-theme) ease, --desk-1 var(--dur-theme) ease, --desk-2 var(--dur-theme) ease, --desk-3 var(--dur-theme) ease, --text var(--dur-theme) ease, --muted var(--dur-theme) ease, --line var(--dur-theme) ease, --accent var(--dur-theme) ease, --accent-hover var(--dur-theme) ease, --accent-soft var(--dur-theme) ease, --hover var(--dur-theme) ease, --hover-strong var(--dur-theme) ease, --selected var(--dur-theme) ease, --outline var(--dur-theme) ease, --chip var(--dur-theme) ease, --chip-text var(--dur-theme) ease, --focus var(--dur-theme) ease, --switch-on var(--dur-theme) ease, --rail var(--dur-theme) ease, --control var(--dur-theme) ease, --ok var(--dur-theme) ease, --warn var(--dur-theme) ease, --danger var(--dur-theme) ease, --seg-on var(--dur-theme) ease, --panel var(--dur-theme) ease, --panel-solid var(--dur-theme) ease, --stage var(--dur-theme) ease, --stage-dot var(--dur-theme) ease, --menu-bg var(--dur-theme) ease, --menu-solid var(--dur-theme) ease, --menu-line var(--dur-theme) ease, --menu-link var(--dur-theme) ease, --tip-bg var(--dur-theme) ease, --tip-text var(--dur-theme) ease, --scrim var(--dur-theme) ease; }
+.theme-fading *, .theme-fading *::before, .theme-fading *::after { transition: box-shadow var(--dur-theme) ease !important; }
+/* (browsers that can't fade the tokens: each element eases its colours) */
+.theme-fading-each, .theme-fading-each *, .theme-fading-each *::before, .theme-fading-each *::after {
+  transition: background-color var(--dur-theme) ease, color var(--dur-theme) ease, border-color var(--dur-theme) ease, fill var(--dur-theme) ease, stroke var(--dur-theme) ease, box-shadow var(--dur-theme) ease !important;
 }
 
 /* ---------- Less motion, for those who ask for it: things still change,
