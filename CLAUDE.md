@@ -51,14 +51,12 @@ When building or changing anything visual:
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. A button in the folded bar
-  can't be seen, so what it opens drops from the arrow (`hdrBtn`). Both
-  toolbars stand down the left in `.paint-side`, as two cards: the tools
-  (`.paint-left`), then (`.paint-right`) colour, size and opacity for the
-  tool in hand (in sections that fold), undo/redo with Layers under them,
-  then zoom. When the window is too short for one under the other at their
-  fullest (`sideFits`), they go side by side (`.wide`, `sideLayout`); panels
-  that open from them open to their right (`besideBar` for fixed ones). The
-  picture's space (`.paint-stage`) takes all the rest, and `fitTo` fits the
+  can't be seen, so what it opens drops from the arrow (`hdrBtn`). The left
+  bar (`.paint-left`) holds the tools in groups. The right bar
+  (`.paint-right`) holds colour, then size and opacity for the tool in hand
+  (in sections that fold), then undo/redo with Layers under them, then
+  zoom. Panels that open from a bar open towards the picture (`besideBar`
+  for fixed ones). The picture's space (`.paint-stage`) takes all the rest, and `fitTo` fits the
   picture with the same margin of the dotted well all round. A tool's own
   settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
   in `paint.js`), and so do a selection's actions. It stands up at the
@@ -173,7 +171,7 @@ When building or changing anything visual:
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
   will end up (`.focus-measure`, nothing moving), then the header folds,
-  the toolbars' column (`.paint-side`) slides off and the stage's size eases there (`.focusing`), with
+  the bars slide off and the stage's size eases there (`.focusing`), with
   `refit(true)` each frame so the picture keeps its zoom and stays centred.
 - **Light and dark** fade: the colour tokens are registered with
   `@property`, so `.theme-fading` on `:root` eases them all together (new
