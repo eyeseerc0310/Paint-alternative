@@ -1023,6 +1023,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   /* (narrow: the bar's settings wrap onto a second row rather than hide off the edge) */
   .ctx-tool, .paint-ctx .paint-selbar { flex-wrap: wrap; row-gap: 2px; overflow: visible; }
   .ctx-sep { display: none; }
+  .ctx-hint { flex: 1 1 160px; min-width: 0; white-space: normal; line-height: 1.35; } /* (a long hint wraps rather than running off the edge) */
   .ctx-slider { padding: 0 var(--s-1); }
   .ctx-slider input[type="range"] { width: 88px; }
   .ctx-field { height: 28px; }

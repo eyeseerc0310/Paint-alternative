@@ -118,6 +118,14 @@ When building or changing anything visual:
   undo entry (`e.pen`), so undoing that brings the path back to carry on
   with (`penRestore`). The History list works on the picture's steps only
   (`doUndo(true)`). Text on Path is a mode (`penText`) as well as an action.
+- **Selecting:** one button in the left bar (`.paint-selbtn`) is the
+  selection tool; its ways are tool ids of their own, `lasso` (Cutout, the
+  first time), `select` (box), `circle` and `wand`, picked in its panel
+  (`selWays`, `SEL_KINDS`) or by key (Q, M, C, W), and the one last used is
+  remembered (`selKind`); the button takes that way's icon (`selBtnSync`).
+  A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
+  works on a cutout works on it. Use `selTool(t)` to ask "is this
+  selecting?", and `setTool(selKind)` to bring the tool up.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
