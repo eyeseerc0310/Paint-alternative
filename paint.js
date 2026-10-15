@@ -17,21 +17,28 @@
     }
     try { localStorage.setItem('theme-choice', dark ? 'dark' : 'light'); } catch (err) {}
 
-    // Slow, gentle fade: every colour on the page eases to its new value
-    // together, in place. Photos never change, and nothing is lifted out of
-    // the page, so nothing can show through the header or pop at the end.
-    clearTimeout(fadeTimer);
-    root.classList.add('theme-fading');
+    // A quick, soft fade from one look to the other: the colour tokens ease
+    // to their new values together (in place: nothing covers the page, so
+    // it keeps taking clicks and strokes, and nothing flashes). Browsers
+    // that can't fade the tokens fade each element's colours instead.
+    var cls = window.CSS && CSS.registerProperty ? 'theme-fading' : 'theme-fading-each';
+    clearTimeout(fadeTimer); root.classList.remove('theme-fading', 'theme-fading-each');
+    // (once the colours have settled, pictures drawn in them, like the
+    // brushes' samples, are drawn again)
+    var settled = function () { document.dispatchEvent(new Event('paint:theme')); };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { apply(); settled(); return; }
+    root.classList.add(cls);
     void root.offsetWidth;
     apply();
-    fadeTimer = setTimeout(function () { root.classList.remove('theme-fading'); }, 1600);
+    fadeTimer = setTimeout(function () { root.classList.remove(cls); settled(); }, 450);
   });
 })();
 
 // The header's height, so the drawing area fills the rest of the screen
 (function () {
   var header = document.querySelector('.site-header');
-  function measure() { if (header) document.documentElement.style.setProperty('--hdr', header.getBoundingClientRect().height + 'px'); }
+  // (not while it's folded away for focus mode, or folding: it comes back at the height it had)
+  function measure() { var c = document.documentElement.classList; if (header && !c.contains('focus-mode') && !c.contains('focusing')) document.documentElement.style.setProperty('--hdr', header.getBoundingClientRect().height + 'px'); }
   measure();
   window.addEventListener('resize', measure);
 })();
@@ -330,10 +337,12 @@
     // (the window changed size: the whole picture stays the whole picture;
     // zoomed in, the same spot stays in the middle at the same zoom)
     var lastStage = null;
-    function refit() {
+    // (keep: the zoom stays as it is even when the whole picture was in
+    // view, as focus mode's space grows and shrinks)
+    function refit(keep) {
       var sw = stage.clientWidth, sh = stage.clientHeight, was = lastStage;
       if (!sw || !sh) return;
-      if (!was || (!textBox && !view.r && Math.abs(view.k - fitK) < fitK * 0.002)) { fit(); return; }
+      if (!was || (!keep && !textBox && !view.r && Math.abs(view.k - fitK) < fitK * 0.002)) { fit(); return; }
       fillK = Math.min(sw / W, sh / H) * 0.99; fitK = phoneLayout() ? fillK : fillK / 1.1;
       view.x += (sw - was.w) / 2; view.y += (sh - was.h) / 2; lastStage = { w: sw, h: sh }; applyView();
     }
@@ -749,7 +758,8 @@
 
     function setTool(t) {
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
-      if (pen && t !== 'pen') finishPen();
+      var tp = null;
+      if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
       if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
       if (adj) adjustDone();
       if (textBox) commitText();
@@ -760,6 +770,7 @@
       octx.clearRect(0, 0, W, H);
       ctxView = 'tool'; ctxRender();
       if (t === 'move') movePick();
+      if (tp) startText(tp.at, 0, null, tp.path);
     }
 
     // ---- undo / redo: snapshots of one layer, or of the layer list ----
@@ -794,7 +805,7 @@
     function capture(e) {
       if (e.parts) return { parts: e.parts.map(capture), label: e.label }; // (a step that changed a layer and the list, like Merge Down)
       var c = e.doc ? docState() : e.L ? { L: e.L, data: snapOf(e.L), bg: e.L.bg, text: e.L.text, name: e.L.name } : { list: layers.slice(), active: active, props: props() };
-      c.label = e.label; return c;
+      c.label = e.label; if (e.pen) c.pen = e.pen; return c;
     }
     function apply(e) {
       if (e.parts) { e.parts.forEach(apply); viewsSoon(); return; }
@@ -807,9 +818,31 @@
         if (e.doc) fit();
       }
     }
-    function doUndo() { endFillAnim(); if (down) { cancelStroke(); return; } if (pen && pen.pts.length) { penBack(); return; } if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return; var e = undo.pop(); redo.push(capture(e)); apply(e); buttons(); autosave(); }
-    function doRedo() { endFillAnim(); if (down) return; if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return; var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave(); }
-    function buttons() { $('[data-act="undo"]').disabled = !undo.length; $('[data-act="redo"]').disabled = !redo.length; renderHistory(); }
+    // (a path being made with the pen has steps of its own, a point or a
+    // change at a time, undone and redone before the picture's; undoing a
+    // path that was laid down brings it back to be worked on. whole: just
+    // the picture's steps, for the History list)
+    function doUndo(whole) {
+      endFillAnim(); if (down) { cancelStroke(); return; }
+      if (pen && !whole && penUndo()) return;
+      if (pen) cancelPen(); // (an emptied path gives way)
+      if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return;
+      var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); buttons(); autosave();
+    }
+    function doRedo(whole) {
+      endFillAnim(); if (down) return;
+      if (pen && !whole && penRedo()) return;
+      if (pen && pen.pts.length && !pen.fromUndo && !whole) return; // (a new path in the making: nothing ahead of it)
+      if (pen) cancelPen(); // (a path brought back by undo gives way to it being laid down again)
+      if (adj) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return;
+      var e = redo.pop(); undo.push(capture(e)); apply(e); buttons(); autosave();
+    }
+    function buttons() { histButtons(); renderHistory(); }
+    function histButtons() {
+      var P = pen && pen.hist ? pen : null;
+      $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length);
+      $('[data-act="redo"]').disabled = !(P && P.fut.length) && !(redo.length && !(P && P.pts.length && !P.fromUndo));
+    }
 
     // ---- brushes ----
     var down = null, pts = [];
@@ -2737,7 +2770,7 @@
     }
     // LAYER PREVIEWS: a little picture of what's on each layer (over a
     // checkerboard, so see-through parts show), kept up to date while the
-    // panel is open; hover one (or press it) for a bigger look
+    // panel is open; rest the mouse on one for a bigger look
     var thumbQ = false;
     function thumbsSoon() { if (thumbQ) return; thumbQ = true; requestAnimationFrame(function () { thumbQ = false; drawThumbs(); }); }
     function drawThumbs() {
@@ -2771,8 +2804,22 @@
       peek.style.left = Math.max(8, pr.left - peek.offsetWidth - 10) + 'px';
       peek.style.top = Math.max(8, Math.min(window.innerHeight - peek.offsetHeight - 8, r.top + r.height / 2 - peek.offsetHeight / 2)) + 'px';
     }
-    function hidePeek() { peekL = null; peek.hidden = true; }
-    panel.addEventListener('pointerover', function (e) { var t = e.target.closest('[data-thumb]'); if (t) showPeek(t); else if (peekL) hidePeek(); });
+    function hidePeek() { peekCancel(); peekL = null; peek.hidden = true; }
+    // (only a mouse resting on a preview shows the bigger look: never a
+    // finger or the Pencil, nor anything pressed, swiped or dragged, which
+    // is picking layers or moving them)
+    var peekT = 0, peekAt = null;
+    function peekCancel() { clearTimeout(peekT); peekAt = null; }
+    panel.addEventListener('pointermove', function (e) {
+      var busyRow = e.buttons || swipe || (swallow && performance.now() - swallow.t < 400);
+      if (e.pointerType !== 'mouse' || busyRow) { if (peekL || peekAt) hidePeek(); return; }
+      var t = e.target.closest('[data-thumb]');
+      if (!t) { if (peekL || peekAt) hidePeek(); return; }
+      if (peekAt === t || (peekL && peekL === layers[+t.dataset.thumb])) return;
+      peekCancel(); peekAt = t;
+      peekT = setTimeout(function () { if (peekAt === t && document.contains(t) && !swipe) { peekAt = null; showPeek(t); } }, peekL ? 0 : 280);
+    });
+    panel.addEventListener('pointerdown', hidePeek);
     panel.addEventListener('pointerleave', hidePeek);
     function layerPanel(open) {
       if (!open) hidePeek(); else thumbsSoon();
@@ -3074,7 +3121,7 @@
       if (!w.on) {
         if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; }
         if (dx < 12 || dx < Math.abs(dy) * 1.5) return;
-        w.on = true; clearTimeout(holdTimer); w.row.classList.add('swiping'); try { w.row.setPointerCapture(e.pointerId); } catch (x) {}
+        w.on = true; clearTimeout(holdTimer); hidePeek(); w.row.classList.add('swiping'); try { w.row.setPointerCapture(e.pointerId); } catch (x) {}
       }
       var t = Math.max(0, dx < 56 ? dx : 56 + (dx - 56) * 0.2);
       w.row.style.transform = 'translateX(' + t + 'px)'; w.row.classList.toggle('will', dx >= 44);
@@ -3776,6 +3823,7 @@
     // either changes)
     // (in the brush list, or the context bar and its list; with no box given,
     // in all of them that are showing)
+    document.addEventListener('paint:theme', function () { brushSamples(); if (typeof bsBox !== 'undefined' && !bsBox.hidden) studioPreview(); });
     function brushSamples(box) {
       if (!box) {
         if (typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelector('[data-prev]')) brushSamples(ctxTool);
@@ -3803,7 +3851,26 @@
     // moves one handle on its own). Clicking the first point closes it;
     // Done, Return or a double-click lays it down as it is. It's drawn in
     // the colour, at the size and opacity, as an outline, filled, or both ----
-    var pen = null, penHover = null, penStroke = stored('paint-pen-stroke', true), penFill = stored('paint-pen-fill', false);
+    var pen = null, penHover = null, penStroke = stored('paint-pen-stroke', true), penFill = stored('paint-pen-fill', false), penText = stored('paint-pen-text', false);
+    // (the path's steps: hist holds how it was before each point placed or
+    // changed, fut what was undone; fromUndo: brought back by undoing the
+    // step that laid it down, which is still there to redo)
+    function newPen() { return { pts: [], closed: false, hist: [], fut: [] }; }
+    function penPts(P) { var h = function (v) { return v ? { x: v.x, y: v.y } : null; }; return P.map(function (q) { return { x: q.x, y: q.y, i: h(q.i), o: h(q.o) }; }); }
+    function penSnap() { return { pts: penPts(pen.pts), closed: !!pen.closed }; }
+    function penPut(sn) { pen.pts = penPts(sn.pts); pen.closed = sn.closed; penHover = null; }
+    function penRecord(sn) {
+      pen.hist.push(sn); pen.fut = [];
+      if (pen.fromUndo) { pen.fromUndo = false; redo = []; } // (changed: the path laid down before is no longer ahead)
+      buttons();
+    }
+    function penUndo() { if (!pen.hist.length) return false; pen.fut.push(penSnap()); penPut(pen.hist.pop()); drawPen(); buttons(); ctxSync(); return true; }
+    function penRedo() { if (!pen.fut.length) return false; pen.hist.push(penSnap()); penPut(pen.fut.pop()); drawPen(); buttons(); ctxSync(); return true; }
+    function penRestore(k) {
+      pen = { pts: penPts(k.pts), closed: k.closed, hist: k.hist.slice(), fut: [], fromUndo: true }; penHover = null;
+      if (st.tool !== 'pen') setTool('pen');
+      drawPen(); ctxSync();
+    }
     function penPathOn(c, P, closed) {
       var seg = function (a, b) { if (a.o || b.i) { var o = a.o || a, i = b.i || b; c.bezierCurveTo(o.x, o.y, i.x, i.y, b.x, b.y); } else c.lineTo(b.x, b.y); };
       c.beginPath(); c.moveTo(P[0].x, P[0].y);
@@ -3812,14 +3879,15 @@
     }
     function drawPen() {
       octx.clearRect(0, 0, W, H); drawSel();
-      var pd = typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"], [data-ctx="pentext"]');
+      var pd = typeof ctxTool !== 'undefined' && ctxTool && ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]');
       if (pd) Array.prototype.forEach.call(pd, function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
+      histButtons();
       if (!pen || !pen.pts.length) { plainOv(); return; }
-      $('[data-act="undo"]').disabled = false; // (undo takes the last point away)
       var P = pen.pts, k = view.k;
       ov.style.opacity = st.alpha * (active ? active.opacity : 1); ov.style.mixBlendMode = '';
       strokeStyle(octx);
-      both(octx, function () {
+      // (for words, the path is only the line they'll follow: it isn't painted)
+      if (!penText) both(octx, function () {
         if (P.length < 2) return;
         penPathOn(octx, P, pen.closed);
         if (penFill && (pen.closed || P.length > 2)) octx.fill();
@@ -3830,7 +3898,8 @@
       // selection's sheet: not part of the drawing)
       var c = sctx, blue = '#2f7fd6', last = P[P.length - 1];
       c.save(); c.lineWidth = 1 / k; c.strokeStyle = blue;
-      if (penHover && !down) {
+      if (penText && P.length > 1) { c.lineWidth = 1.5 / k; penPathOn(c, P, pen.closed); c.stroke(); c.lineWidth = 1 / k; }
+      if (penHover && !down && !pen.closed) {
         c.setLineDash([4 / k, 3 / k]); c.beginPath(); c.moveTo(last.x, last.y);
         if (last.o) c.quadraticCurveTo(last.o.x, last.o.y, penHover.x, penHover.y); else c.lineTo(penHover.x, penHover.y);
         c.stroke(); c.setLineDash([]);
@@ -3857,25 +3926,35 @@
       }
       return null;
     }
-    function penBack() { if (!pen) return; pen.pts.pop(); if (!pen.pts.length) cancelPen(); else drawPen(); }
+    // (Backspace: the last point goes, as a step that can be undone)
+    function penBack() { if (!pen || !pen.pts.length) return; var sn = penSnap(); pen.pts.pop(); pen.closed = false; penRecord(sn); drawPen(); ctxSync(); }
     function cancelPen() { pen = null; penHover = null; octx.clearRect(0, 0, W, H); plainOv(); drawSel(); buttons(); ctxSync(); }
     function finishPen() { var sw = maskIn(); finishPen0(); if (sw) maskOut(); }
     // TEXT ON A PATH: the path being made becomes the line the words are
     // typed along (kept with them, from where they start, so they can be
     // moved, sized and turned, and typed into again)
-    function textOnPath() {
-      if (!pen || pen.pts.length < 2) return;
+    // (Text, in the pen's settings, can be picked before the path is
+    // drawn: then finishing it starts the words, rather than painting it)
+    function pathForText() {
+      if (!pen || pen.pts.length < 2) return null;
       var P = pen.pts, o = P[0], rel = function (q) { return q ? { x: q.x - o.x, y: q.y - o.y } : null; };
-      var path = { pts: P.map(function (q) { return { x: q.x - o.x, y: q.y - o.y, i: rel(q.i), o: rel(q.o) }; }), closed: !!pen.closed };
-      cancelPen(); setTool('text'); startText({ x: o.x, y: o.y }, 0, null, path);
+      return { at: { x: o.x, y: o.y }, path: { pts: P.map(function (q) { return { x: q.x - o.x, y: q.y - o.y, i: rel(q.i), o: rel(q.o) }; }), closed: !!pen.closed } };
+    }
+    function textOnPath() {
+      var tp = pathForText(); if (!tp) return;
+      cancelPen(); setTool('text'); startText(tp.at, 0, null, tp.path);
     }
     function finishPen0() {
       if (!pen) return;
       if (pen.pts.length < 2) { cancelPen(); return; }
+      if (penText) { textOnPath(); return; }
       if (active && active.text && !paintAbove()) { cancelPen(); return; }
       need();
       penHover = null; drawPen();
-      remember('Pen'); commit(null, st.alpha);
+      // (the path, and how it was made, go with the step: undoing it brings
+      // the path back to carry on with)
+      var keep = { pts: penPts(pen.pts), closed: !!pen.closed, hist: pen.hist.slice() };
+      remember('Pen'); commit(null, st.alpha); undo[undo.length - 1].pen = keep;
       pen = null; drawSel(); buttons(); ctxSync(); useColor();
     }
     // PAINTING WHILE A TEXT LAYER IS PICKED: the paint goes on a new layer
@@ -3902,7 +3981,7 @@
       if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
       if (selMode === 'move') { selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
-      if (down.penNew && pen) { pen.pts.pop(); down = null; if (pen.pts.length) drawPen(); else cancelPen(); return; }
+      if (down.penSnap && pen) { penPut(down.penSnap); down = null; if (pen.pts.length || pen.hist.length || pen.fut.length) { drawPen(); ctxSync(); } else cancelPen(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
       down = null; octx.clearRect(0, 0, W, H); plainOv();
@@ -3942,12 +4021,18 @@
       }
       if (t === 'pen') {
         var pr = (e.pointerType !== 'mouse' ? 16 : 8) / view.k;
-        if (!pen) pen = { pts: [], closed: false };
-        if (pen.pts.length >= 2 && Math.hypot(p.x - pen.pts[0].x, p.y - pen.pts[0].y) <= pr) { pen.closed = true; finishPen(); return; }
+        if (!pen) pen = newPen();
+        var sn = penSnap();
+        // the first point again closes the path: a drag from it shapes the
+        // closing curve, and the path is finished when it's let go
+        if (!pen.closed && pen.pts.length >= 2 && Math.hypot(p.x - pen.pts[0].x, p.y - pen.pts[0].y) <= pr) {
+          pen.closed = true; penHover = null; down = { id: e.pointerId, start: p, last: p, penClose: pen.pts[0], penSnap: sn }; drawPen(); return;
+        }
         var ph = penHit(p, pr);
-        if (ph) { down = { id: e.pointerId, start: p, last: p, penEdit: ph }; return; }
+        if (ph) { down = { id: e.pointerId, start: p, last: p, penEdit: ph, penSnap: sn }; return; }
+        if (pen.closed) return; // (a closed path takes no more points: Done lays it down)
         var pa = { x: p.x, y: p.y, i: null, o: null }; pen.pts.push(pa);
-        down = { id: e.pointerId, start: p, last: p, penNew: pa }; penHover = null; drawPen(); return;
+        down = { id: e.pointerId, start: p, last: p, penNew: pa, penSnap: sn }; penHover = null; drawPen(); return;
       }
       // (brushes, lines and shapes on a text layer: onto a new layer above it)
       if (active && active.text && /^(brush|line|shape|gradient)$/.test(t) && !paintAbove()) return;
@@ -4006,13 +4091,13 @@
         octx.strokeRect(Math.min(a0.x, p.x), Math.min(a0.y, p.y), Math.abs(p.x - a0.x), Math.abs(p.y - a0.y)); octx.restore();
         return;
       }
-      if (down.penNew) {
-        var a = down.penNew;
+      if (down.penNew || down.penClose) {
+        var a = down.penNew || down.penClose;
         if (Math.hypot(p.x - a.x, p.y - a.y) * view.k > 3) { a.o = { x: p.x, y: p.y }; a.i = { x: 2 * a.x - p.x, y: 2 * a.y - p.y }; }
         down.last = p; drawPen(); return;
       }
       if (down.penEdit) {
-        var h = down.penEdit, q = h.q, ddx = p.x - down.last.x, ddy = p.y - down.last.y;
+        var h = down.penEdit, q = h.q, ddx = p.x - down.last.x, ddy = p.y - down.last.y; if (ddx || ddy) down.moved = true;
         if (h.h === 'p') { q.x += ddx; q.y += ddy; if (q.i) { q.i.x += ddx; q.i.y += ddy; } if (q.o) { q.o.x += ddx; q.o.y += ddy; } }
         else {
           // (the handle opposite stays in line, as long as it was, unless Alt is held)
@@ -4222,7 +4307,12 @@
       var t = st.tool;
       clearTimeout(holdTimerS);
       if (down.pick) { pickEnd(false); return; }
-      if (down.penNew || down.penEdit) { down = null; drawPen(); return; }
+      if (down.penNew || down.penEdit || down.penClose) {
+        var dn = down; down = null;
+        if (dn.penNew || dn.penClose || dn.moved) penRecord(dn.penSnap);
+        if (dn.penClose) { finishPen(); return; }
+        drawPen(); ctxSync(); return;
+      }
       if (down.textDrag) {
         var a0 = down.start, b0 = down.last, bw = Math.abs(b0.x - a0.x);
         down = null; octx.clearRect(0, 0, W, H);
@@ -5206,13 +5296,42 @@
     focusOut.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4"/><path d="M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4"/><path d="M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20"/><path d="M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20"/></svg>';
     document.body.appendChild(focusOut);
     focusOut.addEventListener('click', function () { focusMode(false); });
+    // FOCUS MODE: the tools go and the picture's space grows to fill the
+    // screen, smoothly, the picture keeping its zoom and staying centred
+    // (and back again). Where the space ends up is measured first, with
+    // nothing moving; then everything eases there together, the space by
+    // its size, which the picture follows a frame at a time
+    var focusAnim = 0, focusEnd = 0;
     function focusMode(on) {
       var html = document.documentElement;
       if (on === html.classList.contains('focus-mode')) return;
-      finishMenus();
+      finishMenus(); hideTip();
+      cancelAnimationFrame(focusAnim); clearTimeout(focusEnd);
+      var from = stage.getBoundingClientRect();
+      ['flex', 'maxWidth', 'width', 'height', 'transition'].forEach(function (k) { stage.style[k] = ''; });
+      html.classList.add('focus-measure'); html.classList.remove('focusing');
+      html.classList.toggle('focus-mode', on);
+      var to = { w: stage.clientWidth, h: stage.clientHeight };
+      html.classList.toggle('focus-mode', !on);
+      stage.style.flex = 'none'; stage.style.maxWidth = 'none'; stage.style.width = from.width + 'px'; stage.style.height = from.height + 'px';
+      void getComputedStyle(stage).width;
+      html.classList.remove('focus-measure'); html.classList.add('focusing');
+      void getComputedStyle(stage).width;
       html.classList.toggle('focus-mode', on);
       if (hb('focus')) hb('focus').setAttribute('aria-pressed', on ? 'true' : 'false');
-      fit();
+      stage.style.transition = 'width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease)';
+      stage.style.width = to.w + 'px'; stage.style.height = to.h + 'px';
+      var t0 = performance.now(), dur = (parseFloat(getComputedStyle(stage).transitionDuration) || 0) * 1000;
+      (function frame(t) {
+        refit(true);
+        if (t - t0 < dur + 34) focusAnim = requestAnimationFrame(frame);
+      })(t0);
+      focusEnd = setTimeout(function () {
+        cancelAnimationFrame(focusAnim);
+        ['flex', 'maxWidth', 'width', 'height', 'transition'].forEach(function (k) { stage.style[k] = ''; });
+        html.classList.remove('focusing');
+        refit(true); relayout();
+      }, dur + 60);
       if (on) toast('Focus mode: press \\ or Esc to bring the tools back');
     }
     function relayout() {
@@ -5359,10 +5478,10 @@
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
       var n = +b.dataset.hist, total = undo.length + redo.length;
-      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection();
+      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection(); if (pen) cancelPen();
       n = Math.min(n, undo.length + redo.length); if (undo.length + redo.length !== total) n = undo.length; // (finishing something made a new step)
-      while (undo.length > n) doUndo();
-      while (undo.length < n && redo.length) doRedo();
+      while (undo.length > n) doUndo(true);
+      while (undo.length < n && redo.length) doRedo(true);
     });
 
     // ---- KEYBOARD SHORTCUTS: press ? for the list ----
@@ -5496,10 +5615,10 @@
       wand: function () { return hint('Tap an area of one colour') + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>'; },
       move: function () { return hint('Drag to move what\u2019s on the layer \u00b7 its corners to size it \u00b7 the round handle to turn it'); },
       pen: function () {
-        return hint('Click to add points \u00b7 drag to curve \u00b7 click the first point to close') + sep +
+        return '<span class="ctx-hint" data-penhint></span>' + sep +
           chip('penstroke', 'Outline', '<path d="M5 18C8 6 16 6 19 18"/>', 'Draw the path as a line, at the brush size') +
           chip('penfill', 'Fill', '<path d="M5 18C8 6 16 6 19 18z" fill="currentColor" fill-opacity=".35"/>', 'Fill the inside of the path with the colour') + sep +
-          '<button type="button" class="ctx-btn" data-ctx="pentext" data-tip="Type words that follow the path">' + CI('<path d="M4 19c3-6 13-6 16 0"/><path d="M8.5 5h7M12 5v8"/>') + '<span>Text on Path</span></button>' +
+          chip('pentext', 'Text on Path', '<path d="M4 19c3-6 13-6 16 0"/><path d="M8.5 5h7M12 5v8"/>', 'Words that follow the path: pick it before drawing, or once the path is drawn') + sep +
           '<button type="button" class="ctx-btn" data-ctx="pencancel" data-tip="Let the path go (Esc)">Cancel</button>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="pendone" data-tip="Lay the path down (Return, or double-click)">Done</button>';
       },
@@ -5620,8 +5739,10 @@
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-assist]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxAssist === gMode ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-assist-on]'), function (e) { e.hidden = gMode === 'off'; });
-      set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill);
-      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"], [data-ctx="pentext"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
+      set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill); set('[data-ctx="pentext"]', 'aria-pressed', penText);
+      var ph = q('[data-penhint]'); if (ph) ph.textContent = 'Click to add points \u00b7 drag to curve \u00b7 click the first point to close' + (penText ? ', then type: the words follow the path' : '');
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="penstroke"], [data-ctx="penfill"]'), function (b) { b.disabled = penText; });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
     }
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
@@ -5653,7 +5774,12 @@
       }
       if (k === 'pendone') { finishPen(); return; }
       if (k === 'pencancel') { cancelPen(); return; }
-      if (k === 'pentext') { textOnPath(); return; }
+      if (k === 'pentext') {
+        // (on with a path already drawn: the words start along it now;
+        // otherwise it's the mode the next path is drawn in)
+        if (!penText && pen && pen.pts.length >= 2) { textOnPath(); return; }
+        penText = !penText; storeIt('paint-pen-text', penText); ctxSync(); if (pen) drawPen(); return;
+      }
       if (k === 'tpathoff') { textPath = null; if (textBox) afterTextChange(); return; }
       if (b.dataset.ctxTf) { tx.fill = b.dataset.ctxTf; if (textBox) afterTextChange(); ctxSync(); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
