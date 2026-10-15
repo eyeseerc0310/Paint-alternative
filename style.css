@@ -525,7 +525,11 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-brushes .paint-solid::before { content: ""; position: absolute; left: .5rem; right: .5rem; top: -4px; height: .5px; background: var(--menu-line); }
 .paint-brushes .paint-solid[aria-checked="true"] i.ps-fill { background: currentColor !important; } /* (filled in when it's on) */
 
-/* ADJUST: a panel of sliders beside the tools */
+/* ADJUST: a panel of sliders beside the tools. It sits over the picture,
+   which changes every frame while a slider moves: so it's the solid menu
+   colour (it was all but solid already, like its title and buttons), and
+   nothing behind it has to be blurred again each frame */
+.paint .paint-adjust { background: var(--menu-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .paint-adjust {
   position: absolute; left: calc(100% + 10px); z-index: 6; width: 250px; max-height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); overflow: auto; padding: 14px 14px 12px;
   animation: pb-in var(--dur-pop) var(--spring); overscroll-behavior: contain;
