@@ -3376,8 +3376,9 @@
       set('lightness', ['#000', css(C), '#fff']);
       set('warmth', ['rgb(72, 136, 236)', 'rgb(206, 206, 206)', 'rgb(244, 164, 56)']); set('tint', ['rgb(64, 176, 96)', 'rgb(206, 206, 206)', 'rgb(214, 86, 200)']);
     }
-    function fxMarks() {
-      fxTracks();
+    // (tracks: the coloured slider tracks too, which only change with Hue)
+    function fxMarks(tracks) {
+      if (tracks) fxTracks();
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) { sec.classList.toggle('changed', !!adj && FX_KEYS[sec.dataset.fx].some(fxOn)); });
       var on = adj && adj.v.gmap || '';
       Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
@@ -3389,7 +3390,7 @@
       FX_KEYS[f].forEach(function (k) { delete adj.v[k]; });
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec[data-fx="' + f + '"] input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       if (f === 'levels') syncLevels(); if (f === 'curves') drawCurve();
-      adjustQueue();
+      adjustQueue(f === 'hsl');
     }
     // LEVELS: black, mid (gamma x 100) and white in, black and white out
     var LV = { lb: 0, lg: 100, lw: 255, ob: 0, ow: 255 };
@@ -3424,9 +3425,12 @@
     function curvePts() { return (adj && adj.v.curve) || [[0, 0], [255, 255]]; }
     // the layer's spread of tones (inside the selection, if there is one),
     // scaled so a few tall spikes don't flatten the rest
+    // (worked out the first time Levels or Curves is shown, then kept)
+    function adjHist() { if (!adj.hist) adj.hist = adjHistogram(); return adj.hist; }
     function adjHistogram() {
-      var d = adj.src.data, m = adj.mask, h = new Float32Array(256), i;
-      for (i = 0; i < d.length; i += 4) { if (!d[i + 3] || (m && !m[i + 3])) continue; h[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++; }
+      var d = adj.src ? adj.src.data : adj.L.ctx.getImageData(0, 0, adj.L.cv.width, adj.L.cv.height).data;
+      var m = adj.src ? adj.mask : adj.selOn && sel ? selPixels() : null, h = new Float32Array(256), i, step = 4 * Math.max(1, Math.ceil(d.length / 4 / 2e6));
+      for (i = 0; i < d.length; i += step) { if (!d[i + 3] || (m && !m[i + 3])) continue; h[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++; }
       var top = Array.prototype.slice.call(h).sort(function (a, b) { return a - b; })[250] || 1;
       for (i = 0; i < 256; i++) h[i] = Math.min(1, h[i] / top);
       return h;
@@ -3440,9 +3444,9 @@
     }
     function drawHist() {
       var c = adjBox.querySelector('.lv-hist'), x = c.getContext('2d');
-      x.clearRect(0, 0, 256, 100); if (!adj) return;
+      x.clearRect(0, 0, 256, 100); if (!adj || adjBox.querySelector('.fx-sec[data-fx="levels"]').classList.contains('closed')) return;
       x.fillStyle = getComputedStyle(c).color;
-      for (var i = 0; i < 256; i++) { var v = adj.hist[i] * 100; x.fillRect(i, 100 - v, 1, v); }
+      var hs = adjHist(); for (var i = 0; i < 256; i++) { var v = hs[i] * 100; x.fillRect(i, 100 - v, 1, v); }
     }
     adjBox.querySelector('.pa-levels').addEventListener('pointerdown', function (e) {
       var tr = e.target.closest('.lv-track'); if (!tr || !adj) return;
@@ -3479,7 +3483,7 @@
       c.setTransform(R, 0, 0, R, 0, 0); c.clearRect(0, 0, sz.w, sz.h); c.translate(CP, CP); // (a margin, so the end points show whole)
       c.save(); c.globalAlpha = 0.06; c.fillStyle = ink; c.fillRect(0, 0, W2, H2); c.restore();
       // the layer's tones, faintly underneath
-      if (adj && adj.hist) { c.save(); c.globalAlpha = 0.14; c.fillStyle = ink; for (var i = 0; i < 256; i++) { var v = adj.hist[i] * H2 * 0.9; c.fillRect(i / 256 * W2, H2 - v, W2 / 256 + 0.5, v); } c.restore(); }
+      if (adj) { var hs = adjHist(); c.save(); c.globalAlpha = 0.14; c.fillStyle = ink; for (var i = 0; i < 256; i++) { var v = hs[i] * H2 * 0.9; c.fillRect(i / 256 * W2, H2 - v, W2 / 256 + 0.5, v); } c.restore(); }
       c.save(); c.globalAlpha = 0.18; c.strokeStyle = ink; c.lineWidth = 1;
       for (var g = 1; g < 4; g++) { c.beginPath(); c.moveTo(g * W2 / 4, 0); c.lineTo(g * W2 / 4, H2); c.moveTo(0, g * H2 / 4); c.lineTo(W2, g * H2 / 4); c.stroke(); }
       c.beginPath(); c.moveTo(0, H2); c.lineTo(W2, 0); c.setLineDash([3, 3]); c.stroke(); c.restore(); // (the straight line, where it started)
@@ -3526,51 +3530,18 @@
       function up() { cvG.removeEventListener('pointermove', mv); cvG.removeEventListener('pointerup', up); cvG.removeEventListener('pointercancel', up); }
       cvG.addEventListener('pointermove', mv); cvG.addEventListener('pointerup', up); cvG.addEventListener('pointercancel', up);
     });
-    function adjustOpen() {
-      if (adj) { adjustDone(); return; }
-      if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
-      if (!active) return;
-      if (textBox) commitText(); openMenu(null); layerPanel(false); anchor();
-      var cv = active.cv, src = active.ctx.getImageData(0, 0, cv.width, cv.height);
-      adj = { L: active, src: src, out: new ImageData(new Uint8ClampedArray(src.data), cv.width, cv.height), mask: sel ? selPixels() : null, v: {}, blur: null, wide: null, queued: false };
-      adj.hist = adjHistogram();
-      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
-      adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
-      adjBox.hidden = false; fxMarks(); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
-      adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox);
-      $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
-    }
-    function adjustClose() { adj = null; adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false'); }
-    function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); if (usesView(adj.L)) viewOf(adj.L); }
-    function adjustDone() {
-      if (!adj) return;
-      if (adjChanged()) { if (adj.queued) adjustRender(); push({ L: adj.L, data: adj.src, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); } } else adjustPut(adj.src);
-      adjustClose();
-    }
-    function adjustCancel() { if (!adj) return; adjustPut(adj.src); adjustClose(); }
-    function adjustQueue() { fxMarks(); if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustRender(); }); }
-    // a soft copy of the layer (a box blur, one way then the other), for
-    // sharpen (small) and clarity (wide)
-    function boxBlur(d, w, h, r) {
-      var a = new Float32Array(w * h * 3), b = new Float32Array(w * h * 3), x, y, c, n = 2 * r + 1;
-      for (y = 0; y < h; y++) for (c = 0; c < 3; c++) {
-        var s = 0, row = y * w;
-        for (x = -r; x <= r; x++) s += d[(row + Math.min(w - 1, Math.max(0, x))) * 4 + c];
-        for (x = 0; x < w; x++) { a[(row + x) * 3 + c] = s / n; s += d[(row + Math.min(w - 1, x + r + 1)) * 4 + c] - d[(row + Math.max(0, x - r)) * 4 + c]; }
-      }
-      for (x = 0; x < w; x++) for (c = 0; c < 3; c++) {
-        var t = 0;
-        for (y = -r; y <= r; y++) t += a[(Math.min(h - 1, Math.max(0, y)) * w + x) * 3 + c];
-        for (y = 0; y < h; y++) { b[(y * w + x) * 3 + c] = t / n; t += a[(Math.min(h - 1, y + r + 1) * w + x) * 3 + c] - a[(Math.max(0, y - r) * w + x) * 3 + c]; }
-      }
-      return b;
-    }
-    function sstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-    function adjustRender() {
-      adj.queued = false;
+    // ---- EFFECTS, FAST. The look is worked out pixel by pixel by fxKernel,
+    // a function that stands on its own, so the very same sums run on the
+    // main thread (when the effect is kept) and in a worker (live, without
+    // holding up the page). With WebGL 2 the live look is drawn by the
+    // graphics chip (fxGL): the same sums in a shader, on a canvas standing
+    // in for the layer, so nothing is read back or written to the layer while
+    // the sliders move, and Done renders it once at full size ----
+    // (the settings as numbers and tables: the tone curve, brilliance and
+    // the gradient map worked out once for all 256 levels)
+    function fxParams() {
       var v = adj.v, val = function (k) { return (v[k] || 0) / 100; };
       var ex = Math.pow(2, val('exposure') * 1.5), co = val('contrast'), hi = val('highlights'), sh = val('shadows'), wh = val('whites'), bl = val('blacks'), fa = val('fade');
-      // one curve for the tones, worked out once for all 256 levels
       var lut = new Uint8ClampedArray(256), blut = new Float32Array(256), br = val('brilliance');
       var lb = lv('lb'), lw = lv('lw'), lg = lv('lg') / 100, ob = lv('ob'), ow = lv('ow'), cl8 = v.curve ? curveLut(v.curve) : null;
       for (var i = 0; i < 256; i++) {
@@ -3590,10 +3561,7 @@
         // brilliance: brings up the darker parts and holds back the brightest
         var L = i / 255; blut[i] = L ? Math.max(0, L + br * (0.45 * L * (1 - L) * (1 - L) - 0.25 * L * L * (1 - L))) / L : 1;
       }
-      var sat = 1 + val('saturation'), vib = val('vibrance'), wa = val('warmth') * 28, ti = val('tint') * 24;
-      // (hue: the colours turned round the colour wheel, keeping their brightness)
-      var hu = val('hue') * Math.PI, hc = Math.cos(hu), hs = Math.sin(hu), ho = [0, 0, 0], lt = val('lightness');
-      var gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
+      var hu = val('hue') * Math.PI, gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
       if (v.gmap && gms) {
         var gst = gmStops(v.gmap).map(function (c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; });
         if (v.gmr) gst.reverse();
@@ -3603,18 +3571,31 @@
           for (var gc = 0; gc < 3; gc++) gm[gi * 3 + gc] = gst[g0][gc] + (gst[g0 + 1][gc] - gst[g0][gc]) * gf;
         }
       }
-      var shp = val('sharpen') * 1.6, cl = val('clarity') * 0.7, vg = val('vignette'), gr = val('grain') * 38;
-      var W2 = adj.src.width, H2 = adj.src.height, s = adj.src.data, o = adj.out.data, m = adj.mask;
-      if (shp && !adj.blur) adj.blur = boxBlur(s, W2, H2, 1);
-      if (cl && !adj.wide) adj.wide = boxBlur(s, W2, H2, Math.max(6, Math.round(14 * R)));
+      return { lut: lut, blut: blut, br: br, sat: 1 + val('saturation'), vib: val('vibrance'), wa: val('warmth') * 28, ti: val('tint') * 24,
+        hu: hu, hc: Math.cos(hu), hs: Math.sin(hu), lt: val('lightness'), gm: gm, gms: gms,
+        shp: val('sharpen') * 1.6, cl: val('clarity') * 0.7, vg: val('vignette'), gr: val('grain') * 38, wideR: Math.max(6, Math.round(14 * R)) };
+    }
+    // THE PIXELS: s in, o out (both RGBA), m the selection (or null), blur
+    // and wide the soft copies for sharpen and clarity; only the rows and
+    // columns of the box (where the selection is) are worked: outside it, o
+    // already holds s. (Nothing from outside: it also runs in the worker.)
+    function fxKernel(P, s, o, m, blur, wide, W2, H2, bx) {
+      function sstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+      function hueTurn(r, g, b, c, s, o) {
+        var yy = 0.299 * r + 0.587 * g + 0.114 * b, ii = 0.596 * r - 0.274 * g - 0.322 * b, qq = 0.211 * r - 0.523 * g + 0.312 * b;
+        var i2 = ii * c - qq * s, q2 = ii * s + qq * c;
+        o[0] = yy + 0.956 * i2 + 0.621 * q2; o[1] = yy - 0.272 * i2 - 0.647 * q2; o[2] = yy - 1.106 * i2 + 1.703 * q2;
+      }
+      var lut = P.lut, blut = P.blut, br = P.br, sat = P.sat, vib = P.vib, wa = P.wa, ti = P.ti, hu = P.hu, hc = P.hc, hs = P.hs, ho = [0, 0, 0], lt = P.lt;
+      var gm = P.gm, gms = P.gms, shp = P.shp, cl = P.cl, vg = P.vg, gr = P.gr;
       var cx = W2 / 2, cy = H2 / 2, rr = 1 / Math.hypot(cx, cy);
-      for (var y = 0, k = 0; y < H2; y++) {
-        for (var x2 = 0; x2 < W2; x2++, k += 4) {
+      for (var y = bx.y0; y < bx.y1; y++) {
+        for (var x2 = bx.x0, k = (y * W2 + x2) * 4; x2 < bx.x1; x2++, k += 4) {
           var a = s[k + 3];
           if (!a || (m && !m[k + 3])) { o[k] = s[k]; o[k + 1] = s[k + 1]; o[k + 2] = s[k + 2]; o[k + 3] = a; continue; }
           var r = s[k], g = s[k + 1], b = s[k + 2], j = (k >> 2) * 3;
-          if (shp) { var bb = adj.blur; r += shp * (r - bb[j]); g += shp * (g - bb[j + 1]); b += shp * (b - bb[j + 2]); }
-          if (cl) { var ww = adj.wide, lw = (s[k] - ww[j] + s[k + 1] - ww[j + 1] + s[k + 2] - ww[j + 2]) / 3; r += cl * lw; g += cl * lw; b += cl * lw; }
+          if (shp) { var bb = blur; r += shp * (r - bb[j]); g += shp * (g - bb[j + 1]); b += shp * (b - bb[j + 2]); }
+          if (cl) { var ww = wide, lw = (s[k] - ww[j] + s[k + 1] - ww[j + 1] + s[k + 2] - ww[j + 2]) / 3; r += cl * lw; g += cl * lw; b += cl * lw; }
           r = lut[r < 0 ? 0 : r > 255 ? 255 : r | 0]; g = lut[g < 0 ? 0 : g > 255 ? 255 : g | 0]; b = lut[b < 0 ? 0 : b > 255 ? 255 : b | 0];
           var l = 0.299 * r + 0.587 * g + 0.114 * b;
           if (br) { var f = blut[l | 0]; r *= f; g *= f; b *= f; l *= f; }
@@ -3632,7 +3613,352 @@
           o[k] = r; o[k + 1] = g; o[k + 2] = b; o[k + 3] = a;
         }
       }
-      adjustPut(adj.out);
+    }
+    // (where the selection is: the only part worth working on)
+    function maskBox(m, W2, H2) {
+      if (!m) return { x0: 0, y0: 0, x1: W2, y1: H2 };
+      var x0 = W2, y0 = H2, x1 = -1, y1 = -1;
+      for (var y = 0, k = 3; y < H2; y++) for (var x = 0; x < W2; x++, k += 4) if (m[k]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      return x1 < 0 ? { x0: 0, y0: 0, x1: 0, y1: 0 } : { x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 };
+    }
+
+    // THE WORKER: the live look worked out off the main thread (only the
+    // newest settings are worked: any asked for in between are skipped), in
+    // two buffers that go back and forth, so nothing new is made each time
+    var fxW = null;
+    function fxWorker() {
+      if (fxW || typeof Worker === 'undefined' || typeof Blob === 'undefined') return fxW;
+      try {
+        var code = boxBlur.toString() + '\n' + fxKernel.toString() + '\n' +
+          'var S = {}, free = {};\n' +
+          'onmessage = function (e) { var d = e.data, k = d.prev ? "p" : "f", Q = S[k];\n' +
+          '  if (d.t === "src") { S[k] = { s: d.s, m: d.m, W: d.W, H: d.H, box: d.box, blur: null, wide: null }; free[k] = []; return; }\n' +
+          '  if (d.t === "end") { S = {}; free = {}; return; }\n' +
+          '  if (d.t === "back") { if (Q && d.buf.length === Q.s.length) free[k].push(d.buf); return; }\n' +
+          '  if (d.t === "run" && Q) { var P = d.P;\n' +
+          '    if (P.shp && !Q.blur) Q.blur = boxBlur(Q.s, Q.W, Q.H, 1);\n' +
+          '    if (P.cl && !Q.wide) Q.wide = boxBlur(Q.s, Q.W, Q.H, P.wideR);\n' +
+          '    var o = free[k].pop() || new Uint8ClampedArray(Q.s);\n' +
+          '    fxKernel(P, Q.s, o, Q.m, Q.blur, Q.wide, Q.W, Q.H, Q.box);\n' +
+          '    postMessage({ t: "out", ver: d.ver, sid: d.sid, prev: d.prev, buf: o }, [o.buffer]); } };';
+        fxW = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+        fxW.onmessage = fxFromWorker;
+        fxW.onerror = function () { fxW = null; if (adj) { adj.mode = 'cpu'; adjustQueue(); } };
+      } catch (x) { fxW = null; }
+      return fxW;
+    }
+    var fxSid = 0;
+    function fxFromWorker(e) {
+      var d = e.data; if (d.t !== 'out') return;
+      if (!adj || adj.mode !== 'worker' || d.sid !== adj.sid) return;
+      adj.busy = false;
+      if (d.prev) { var pv = adj.prev; pv.ctx.putImageData(new ImageData(d.buf, pv.w, pv.h), 0, 0); fxPrevShow(true); }
+      else { adjustPut(new ImageData(d.buf, adj.src.width, adj.src.height)); adj.shown = d.ver; fxPrevShow(false); }
+      fxW.postMessage({ t: 'back', buf: d.buf, prev: d.prev }, [d.buf.buffer]); // (the buffer goes back, for the next time)
+      if (adj.finishing && adj.shown === adj.ver) { adjustDone(); return; } // (kept: the full size is here)
+      if (adj.want) { var w = adj.want; adj.want = null; fxPost(w); }
+    }
+    function fxPost(job) {
+      if (job.prev && job.ver !== adj.ver) return; // (a newer look is on its way)
+      if (!job.prev && job.ver === adj.shown) return; // (already there)
+      adj.busy = true; fxW.postMessage({ t: 'run', P: job.P, ver: job.ver, sid: adj.sid, prev: job.prev });
+    }
+    // WHILE A SLIDER MOVES, without the graphics chip: the live look is worked
+    // on a copy the size the layer is seen at (no more than about 1.5 million
+    // pixels), shown on a canvas in its place; a moment after the slider
+    // stops, the full size is worked and laid on the layer. (The soft
+    // copies, grain and vignette are scaled to match.)
+    function fxPrevMake() {
+      var cv = adj.L.cv, q = Math.min(1, view.k * (window.devicePixelRatio || 1) / R, Math.sqrt(1.5e6 / (cv.width * cv.height)));
+      if (q > 0.85 || usesView(adj.L)) return null; // (near full size, or seen through a mask or a clip: the full size it is)
+      var w = Math.max(1, Math.round(cv.width * q)), h = Math.max(1, Math.round(cv.height * q));
+      var c = document.createElement('canvas'); c.width = w; c.height = h; var x = c.getContext('2d', { willReadFrequently: true });
+      x.imageSmoothingQuality = 'high'; x.drawImage(cv, 0, 0, w, h);
+      var s0 = x.getImageData(0, 0, w, h).data, m = null;
+      if (adj.selOn && sel) { var mc = document.createElement('canvas'); mc.width = w; mc.height = h; var mx = mc.getContext('2d', { willReadFrequently: true }); mx.drawImage(selCanvas(), 0, 0, w, h); m = mx.getImageData(0, 0, w, h).data; }
+      fxW.postMessage({ t: 'src', prev: true, s: s0, m: m, W: w, H: h, box: maskBox(m, w, h) }, [s0.buffer]);
+      c.className = 'paint-fxprev'; c.style.width = cv.style.width; c.style.height = cv.style.height;
+      return { q: q, w: w, h: h, cv: c, ctx: x };
+    }
+    function fxPrevShow(on) {
+      var pv = adj.prev, L = adj.L; if (!pv) return;
+      if (on && pv.cv.previousSibling !== L.cv) {
+        if (!adj.hidSet) { adj.hid = L.cv.style.visibility; adj.hidSet = true; }
+        pv.cv.style.opacity = L.cv.style.opacity; pv.cv.style.mixBlendMode = L.cv.style.mixBlendMode; pv.cv.style.visibility = adj.hid;
+        L.cv.parentNode.insertBefore(pv.cv, L.cv.nextSibling); L.cv.style.visibility = 'hidden';
+      } else if (!on && pv.cv.parentNode) { pv.cv.parentNode.removeChild(pv.cv); L.cv.style.visibility = adj.hid || ''; }
+    }
+    function fxPrevP(P) {
+      var q = adj.prev.q, o = {}; for (var k in P) o[k] = P[k];
+      o.wideR = Math.max(1, Math.round(P.wideR * q)); o.shp = P.shp * q; o.gr = P.gr * Math.max(q, 0.5);
+      return o;
+    }
+
+    // THE GRAPHICS CHIP (WebGL 2): the layer as a texture; two passes of a
+    // box blur make the soft copies for sharpen and clarity (once each, then
+    // kept); the effect is drawn on a canvas standing in for the layer
+    var fxG = null;
+    var FX_VS = '#version 300 es\nin vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }';
+    var FX_FS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
+      'uniform sampler2D u_src, u_mask, u_lut, u_wide; uniform int u_hasMask, u_flip, u_W, u_H, u_gm;\n' +
+      'uniform float u_shp, u_cl, u_br, u_sat, u_vib, u_hu, u_hc, u_hs, u_lt, u_wa, u_ti, u_gms, u_vg, u_gr, u_rr; uniform vec2 u_c;\n' +
+      'out vec4 frag;\n' +
+      'float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }\n' +
+      'float lutAt(float v) { int i = v < 0.0 ? 0 : v > 255.0 ? 255 : int(v); return texelFetch(u_lut, ivec2(i, 0), 0).r; }\n' +
+      'vec3 px(int x, int y) { return floor(texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rgb * 255.0 + 0.5); }\n' +
+      'void main() {\n' +
+      '  ivec2 q = ivec2(gl_FragCoord.xy); if (u_flip == 1) q.y = u_H - 1 - q.y;\n' +
+      '  vec4 S = texelFetch(u_src, q, 0); float a = S.a; vec3 s = floor(S.rgb * 255.0 + 0.5); vec3 c = s;\n' +
+      '  if (a > 0.0 && (u_hasMask == 0 || texelFetch(u_mask, q, 0).a > 0.0)) {\n' +
+      '    vec3 r = s;\n' +
+      '    if (u_shp != 0.0) { vec3 bb = vec3(0.0); for (int dy = -1; dy <= 1; dy++) bb += (px(q.x - 1, q.y + dy) + px(q.x, q.y + dy) + px(q.x + 1, q.y + dy)) / 3.0; bb /= 3.0; r += u_shp * (r - bb); }\n' +
+      '    if (u_cl != 0.0) { float lw = (s.r + s.g + s.b - texelFetch(u_wide, q, 0).r) / 3.0; r += u_cl * lw; }\n' +
+      '    r = vec3(lutAt(r.r), lutAt(r.g), lutAt(r.b));\n' +
+      '    float l = 0.299 * r.r + 0.587 * r.g + 0.114 * r.b;\n' +
+      '    if (u_br != 0.0) { float f = texelFetch(u_lut, ivec2(int(l), 0), 0).g; r *= f; l *= f; }\n' +
+      '    if (u_sat != 1.0 || u_vib != 0.0) { float mx = max(max(r.r, r.g), r.b), mn = min(min(r.r, r.g), r.b); float ff = u_sat * (1.0 + u_vib * (1.0 - (mx - mn) / 255.0) * (u_vib > 0.0 ? 1.0 : 0.8)); r = l + (r - l) * ff; }\n' +
+      '    if (u_hu != 0.0) { float yy = 0.299 * r.r + 0.587 * r.g + 0.114 * r.b, ii = 0.596 * r.r - 0.274 * r.g - 0.322 * r.b, qq = 0.211 * r.r - 0.523 * r.g + 0.312 * r.b;\n' +
+      '      float i2 = ii * u_hc - qq * u_hs, q2 = ii * u_hs + qq * u_hc; r = vec3(yy + 0.956 * i2 + 0.621 * q2, yy - 0.272 * i2 - 0.647 * q2, yy - 1.106 * i2 + 1.703 * q2); }\n' +
+      '    if (u_lt != 0.0) { if (u_lt > 0.0) r += (255.0 - r) * u_lt * 0.85; else r *= 1.0 + u_lt * 0.85; }\n' +
+      '    if (u_wa != 0.0) { r.r += u_wa; r.b -= u_wa; }\n' +
+      '    if (u_ti != 0.0) { r.g -= u_ti; r.r += u_ti * 0.35; r.b += u_ti * 0.35; }\n' +
+      '    if (u_gm == 1) { int gl = clamp(int(0.299 * r.r + 0.587 * r.g + 0.114 * r.b), 0, 255); vec3 G = texelFetch(u_lut, ivec2(gl, 1), 0).rgb; r += (G - r) * u_gms; }\n' +
+      '    if (u_vg != 0.0) { float dv = sstep(0.3, 1.05, length(vec2(q) - u_c) * u_rr) * u_vg * 0.75; if (u_vg > 0.0) r *= 1.0 - dv; else r -= dv * (255.0 - r); }\n' +
+      '    if (u_gr != 0.0) { uint h = uint(q.y * u_W + q.x) * 2654435761u; r += (float(h % 1000u) / 1000.0 - 0.5) * u_gr; }\n' +
+      '    c = clamp(roundEven(r), 0.0, 255.0);\n' +
+      '  }\n' +
+      '  frag = u_flip == 1 ? vec4(c / 255.0 * a, a) : vec4(c / 255.0, a);\n' +
+      '}';
+    // (one pass of the box blur, one way: the first from the layer, in 0-255)
+    // (clarity's soft copy: only the three channels added together matter
+    // to it, so that's all that's blurred, into one float channel)
+    var FX_BS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
+      'uniform sampler2D u_in; uniform int u_r, u_dir, u_W, u_H; out vec4 frag;\n' +
+      'void main() { ivec2 q = ivec2(gl_FragCoord.xy); float t = 0.0;\n' +
+      '  for (int d = -u_r; d <= u_r; d++) { ivec2 p = u_dir == 0 ? ivec2(clamp(q.x + d, 0, u_W - 1), q.y) : ivec2(q.x, clamp(q.y + d, 0, u_H - 1));\n' +
+      '    vec4 v = texelFetch(u_in, p, 0); t += u_dir == 0 ? dot(floor(v.rgb * 255.0 + 0.5), vec3(1.0)) : v.r; }\n' +
+      '  frag = vec4(t / float(2 * u_r + 1), 0.0, 0.0, 1.0); }';
+    function fxGLMake() {
+      if (fxG) return fxG.lost ? null : fxG;
+      var cv = document.createElement('canvas'), gl = null;
+      try { gl = cv.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false }); } catch (x) {}
+      if (!gl) { fxG = { lost: true }; return null; }
+      // (WebGL drawn by the processor, not a graphics chip, is slower than
+      // the worker: so it's left alone, unless asked for)
+      var dbg = gl.getExtension('WEBGL_debug_renderer_info'), rn = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '', pref = stored('paint-fx-gpu', 'auto');
+      if (pref === 'off' || (pref !== 'on' && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(rn))) { fxG = { lost: true }; return null; }
+      var sh = function (type, src) { var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+      var prog = function (fs) { var p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, FX_VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
+      try {
+        var g = { cv: cv, gl: gl, main: prog(FX_FS), blur: prog(FX_BS), u: {}, lost: false,
+          float: !!gl.getExtension('EXT_color_buffer_float'), max: Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0], gl.getParameter(gl.MAX_VIEWPORT_DIMS)[1]) };
+        var buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        cv.addEventListener('webglcontextlost', function (e) { e.preventDefault(); g.lost = true; if (adj && adj.mode === 'gl') fxToCPU(); });
+        fxG = g;
+      } catch (x) { fxG = { lost: true }; return null; }
+      return fxG;
+    }
+    function fxUni(p, n) { var k = p === fxG.main ? 'm' + n : 'b' + n; if (!(k in fxG.u)) fxG.u[k] = fxG.gl.getUniformLocation(p, n); return fxG.u[k]; }
+    function fxTex(w, h, fmt, data) {
+      var gl = fxG.gl, t = gl.createTexture(); gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, t); // (on a unit no sampler reads, so a texture being drawn into is never read at once)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      if (fmt === 'f') gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data || null);
+      else if (fmt === 'r') gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, w, h, 0, gl.RED, gl.FLOAT, data || null);
+      else if (fmt === 'img') { gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, data); }
+      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data || null);
+      return t;
+    }
+    function fxTarget(t) { var gl = fxG.gl, f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return f; }
+    // (clarity's soft copy: two passes, one way then the other, kept until
+    // Effects closes; a chip that can't draw into float textures gets it
+    // worked out by the same sums as the main thread's)
+    function fxGLBlur(r) {
+      var gl = fxG.gl, w = adj.gw, h = adj.gh;
+      if (!fxG.float) {
+        var d = adj.L.ctx.getImageData(0, 0, w, h).data, b = boxBlur(d, w, h, r), one = new Float32Array(w * h);
+        for (var i = 0; i < one.length; i++) one[i] = b[i * 3] + b[i * 3 + 1] + b[i * 3 + 2];
+        return fxTex(w, h, 'r', one);
+      }
+      var mid = fxTex(w, h, 'r'), out = fxTex(w, h, 'r'), f1 = fxTarget(mid), f2;
+      gl.useProgram(fxG.blur); gl.viewport(0, 0, w, h);
+      gl.uniform1i(fxUni(fxG.blur, 'u_r'), r); gl.uniform1i(fxUni(fxG.blur, 'u_W'), w); gl.uniform1i(fxUni(fxG.blur, 'u_H'), h); gl.uniform1i(fxUni(fxG.blur, 'u_in'), 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, adj.gt.src);
+      gl.uniform1i(fxUni(fxG.blur, 'u_dir'), 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      f2 = fxTarget(out); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mid);
+      gl.uniform1i(fxUni(fxG.blur, 'u_dir'), 1); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(f1); gl.deleteFramebuffer(f2); gl.deleteTexture(mid);
+      return out;
+    }
+    // (the effect, drawn: on the stand-in canvas, or, flip 0, the right way
+    // up into a texture to be read back when it's kept)
+    function fxGLDraw(P, toTex) {
+      var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, M = fxG.main;
+      if (P.cl && !T.wide) T.wide = fxGLBlur(P.wideR);
+      var lt = new Float32Array(256 * 2 * 4);
+      for (var i = 0; i < 256; i++) { lt[i * 4] = P.lut[i]; lt[i * 4 + 1] = P.blut[i]; if (P.gm) { lt[1024 + i * 4] = P.gm[i * 3]; lt[1025 + i * 4] = P.gm[i * 3 + 1]; lt[1026 + i * 4] = P.gm[i * 3 + 2]; } }
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 2, gl.RGBA, gl.FLOAT, lt);
+      var units = [['u_src', T.src], ['u_mask', T.mask || T.src], ['u_lut', T.lut], ['u_wide', T.wide || T.src]];
+      gl.useProgram(M);
+      units.forEach(function (q, n) { gl.activeTexture(gl.TEXTURE0 + n); gl.bindTexture(gl.TEXTURE_2D, q[1]); gl.uniform1i(fxUni(M, q[0]), n); });
+      var i1 = function (n, v) { gl.uniform1i(fxUni(M, n), v); }, f1 = function (n, v) { gl.uniform1f(fxUni(M, n), v); };
+      i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0);
+      f1('u_shp', P.shp); f1('u_cl', P.cl); f1('u_br', P.br); f1('u_sat', P.sat); f1('u_vib', P.vib); f1('u_hu', P.hu); f1('u_hc', P.hc); f1('u_hs', P.hs);
+      f1('u_lt', P.lt); f1('u_wa', P.wa); f1('u_ti', P.ti); f1('u_gms', P.gms); f1('u_vg', P.vg); f1('u_gr', P.gr);
+      gl.uniform2f(fxUni(M, 'u_c'), w / 2, h / 2); f1('u_rr', 1 / Math.hypot(w / 2, h / 2));
+      var tex = null, fb = null;
+      if (toTex) { tex = fxTex(w, h, ''); fb = fxTarget(tex); } else gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, w, h); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (!toTex) return null;
+      var px = new Uint8ClampedArray(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb); gl.deleteTexture(tex);
+      return new ImageData(px, w, h);
+    }
+    // (the stand-in canvas takes the layer's place, the same size, blend and see-through-ness)
+    function fxGLShow(on) {
+      var L = adj.L, c = fxG.cv;
+      if (on) {
+        c.width = adj.gw; c.height = adj.gh; c.style.width = L.cv.style.width; c.style.height = L.cv.style.height;
+        if (!adj.hidSet) { adj.hid = L.cv.style.visibility; adj.hidSet = true; } // (how the layer was seen, to put back)
+        c.style.opacity = L.cv.style.opacity; c.style.mixBlendMode = L.cv.style.mixBlendMode; c.style.visibility = adj.hid;
+        L.cv.parentNode.insertBefore(c, L.cv.nextSibling); L.cv.style.visibility = 'hidden';
+      } else {
+        if (c.parentNode) c.parentNode.removeChild(c);
+        L.cv.style.visibility = adj.hid || '';
+      }
+    }
+    function fxGLFree() {
+      var T = adj && adj.gt; if (!T || !fxG || !fxG.gl) return;
+      var gl = fxG.gl; ['src', 'mask', 'lut', 'wide'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); });
+      adj.gt = null;
+    }
+    // (the graphics chip went away mid-way: carry on without it)
+    function fxToCPU() { try { fxGLShow(false); } catch (x) {} adj.gt = null; adj.mode = fxWorker() ? 'worker' : 'cpu'; fxSource(); adjustQueue(); }
+    // (the layer's own pixels and the selection's, for the main thread and the worker)
+    function fxSource() {
+      if (adj.src) return;
+      var cv = adj.L.cv; adj.src = adj.L.ctx.getImageData(0, 0, cv.width, cv.height);
+      adj.mask = adj.selOn ? selPixels() : null; adj.box = maskBox(adj.mask, cv.width, cv.height);
+      if (adj.mode === 'worker') { adj.sid = ++fxSid; var cp = new Uint8ClampedArray(adj.src.data), mc = adj.mask ? new Uint8ClampedArray(adj.mask) : null; fxW.postMessage({ t: 'src', s: cp, m: mc, W: cv.width, H: cv.height, box: adj.box }, mc ? [cp.buffer, mc.buffer] : [cp.buffer]); adj.prev = fxPrevMake(); }
+    }
+    // (the selection as a picture, for the graphics chip)
+    function selCanvas() { var m = document.createElement('canvas'); m.width = ov.width; m.height = ov.height; var x = m.getContext('2d'); base(x); if (sel.mask) x.drawImage(sel.mask, sel.x, sel.y, sel.w, sel.h); else { selPath(x); x.fill(); } return m; }
+
+    function adjustOpen() {
+      if (adj) { var was = adj.finishing; adjustDone(); if (!was) return; }
+      if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+      if (!active) return;
+      if (textBox) commitText(); openMenu(null); layerPanel(false); anchor();
+      var cv = active.cv;
+      adj = { L: active, src: null, out: null, mask: null, box: null, selOn: !!sel, v: {}, blur: null, wide: null, queued: false, hist: null, ver: 0, shown: 0, mode: 'cpu' };
+      // the graphics chip if it can (the layer seen on its own, and not too
+      // big for it); otherwise the worker; otherwise the main thread
+      var g = !usesView(active) && fxGLMake();
+      if (g && cv.width <= g.max && cv.height <= g.max) { adj.mode = 'gl'; adj.gw = cv.width; adj.gh = cv.height; }
+      else adj.mode = fxWorker() ? 'worker' : 'cpu';
+      // (the copies it works from are made when a slider first moves, or once
+      // the panel has popped open, so opening it is instant)
+      adj.prepT = setTimeout(function () { if (adj) fxPrepare(); }, 420);
+      Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
+      adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
+      adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
+      adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox);
+      $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
+    }
+    function fxPrepare() {
+      if (adj.ready) return; adj.ready = true; clearTimeout(adj.prepT);
+      if (adj.mode === 'gl') {
+        try { adj.gt = { src: fxTex(0, 0, 'img', adj.L.cv), mask: adj.selOn && sel ? fxTex(0, 0, 'img', selCanvas()) : null, lut: fxTex(256, 2, 'f') }; return; }
+        catch (x) { fxGLFree(); adj.gt = null; adj.mode = fxWorker() ? 'worker' : 'cpu'; }
+      }
+      fxSource();
+    }
+    function adjustClose() {
+      if (adj) {
+        clearTimeout(adj.prepT);
+        if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
+        if (adj.mode === 'worker' && fxW) { clearTimeout(adj.settle); fxPrevShow(false); fxW.postMessage({ t: 'end' }); } // (the worker lets its copies go)
+      }
+      adj = null; adjBox.hidden = true; delete adjBox.dataset.finishing; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
+    }
+    function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); if (usesView(adj.L)) viewOf(adj.L); }
+    // KEPT: the full-size result, worked out once (by the graphics chip, or
+    // by the same sums as the live look), laid on the layer as one step
+    function adjustDone() {
+      if (!adj) return;
+      if (adjChanged()) {
+        fxPrepare(); var before;
+        if (adj.mode === 'worker' && !adj.finishing && adj.shown !== adj.ver) {
+          // (the worker is on it: the panel goes now, and the full size goes
+          // down as soon as it's ready; anything done before then finishes
+          // it first, here)
+          adj.finishing = true; adjBox.dataset.finishing = '1'; clearTimeout(adj.settle);
+          adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
+          if (!adj.queued) { var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }
+          return;
+        }
+        if (adj.mode === 'gl') {
+          before = adj.L.ctx.getImageData(0, 0, adj.gw, adj.gh); // (the layer itself was never touched: it's as it was)
+          var out = null; try { out = fxGLDraw(fxParams(), true); } catch (x) { out = null; }
+          if (!out) { fxGLShow(false); fxGLFree(); adj.mode = 'cpu'; fxSource(); adjustRender(); } else adjustPut(out);
+        } else {
+          before = adj.src;
+          if (adj.shown !== adj.ver || adj.queued) adjustRender(); // (unless the full-size look is already the one wanted)
+        }
+        push({ L: adj.L, data: before, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); }
+      } else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src);
+      adjustClose();
+    }
+    function adjustCancel() { if (!adj) return; if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src); adjustClose(); }
+    function adjustQueue(hue) { adj.ver++; fxMarks(hue); if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustLive(); }); }
+    // THE LIVE LOOK, once a frame at most: drawn by the graphics chip, or
+    // asked of the worker (the newest settings only), or worked out here
+    function adjustLive() {
+      adj.queued = false; fxPrepare();
+      if (adj.mode === 'gl') {
+        try {
+          if (fxG.cv.previousSibling !== adj.L.cv) fxGLShow(true); // (the layers were laid out again: back in its place)
+          fxGLDraw(fxParams(), false); adj.shown = adj.ver; return;
+        } catch (x) { fxToCPU(); return; }
+      }
+      if (adj.mode === 'worker') {
+        var P = fxParams(), job = adj.prev && !adj.finishing ? { P: fxPrevP(P), ver: adj.ver, prev: true } : { P: P, ver: adj.ver };
+        if (adj.busy) adj.want = job; else fxPost(job);
+        if (adj.prev && !adj.finishing) { clearTimeout(adj.settle); adj.settle = setTimeout(function () { if (!adj || adj.mode !== 'worker') return; var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }, 180); }
+        return;
+      }
+      adjustRender();
+    }
+    // a soft copy of the layer (a box blur, one way then the other), for
+    // sharpen (small) and clarity (wide)
+    function boxBlur(d, w, h, r) {
+      var a = new Float32Array(w * h * 3), b = new Float32Array(w * h * 3), x, y, c, n = 2 * r + 1;
+      for (y = 0; y < h; y++) for (c = 0; c < 3; c++) {
+        var s = 0, row = y * w;
+        for (x = -r; x <= r; x++) s += d[(row + Math.min(w - 1, Math.max(0, x))) * 4 + c];
+        for (x = 0; x < w; x++) { a[(row + x) * 3 + c] = s / n; s += d[(row + Math.min(w - 1, x + r + 1)) * 4 + c] - d[(row + Math.max(0, x - r)) * 4 + c]; }
+      }
+      // (then down the columns, all of them at once, a row at a time: the
+      // same sums, in the same order, but reading the memory in its order)
+      var w3 = w * 3, T = new Float64Array(w3), i, o, p, q;
+      for (y = -r; y <= r; y++) { o = Math.min(h - 1, Math.max(0, y)) * w3; for (i = 0; i < w3; i++) T[i] += a[o + i]; }
+      for (y = 0; y < h; y++) {
+        o = y * w3; p = Math.min(h - 1, y + r + 1) * w3; q = Math.max(0, y - r) * w3;
+        for (i = 0; i < w3; i++) { b[o + i] = T[i] / n; T[i] += a[p + i] - a[q + i]; }
+      }
+      return b;
+    }
+    function sstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+    // (on the main thread: the full size, for keeping, or when there's no worker)
+    function adjustRender() {
+      adj.queued = false; fxSource();
+      var P = fxParams(), s = adj.src.data, W2 = adj.src.width, H2 = adj.src.height;
+      if (!adj.out) adj.out = new ImageData(new Uint8ClampedArray(s), W2, H2);
+      if (P.shp && !adj.blur) adj.blur = boxBlur(s, W2, H2, 1);
+      if (P.cl && !adj.wide) adj.wide = boxBlur(s, W2, H2, P.wideR);
+      fxKernel(P, s, adj.out.data, adj.mask, adj.blur, adj.wide, W2, H2, adj.box);
+      adjustPut(adj.out); adj.shown = adj.ver;
     }
     adjBox.addEventListener('click', function (e) {
       if (!adj) return;
@@ -3642,12 +3968,12 @@
     });
     adjBox.addEventListener('input', function (e) {
       var i = e.target.closest('[data-adj]'); if (!i || !adj) return;
-      adj.v[i.dataset.adj] = +i.value; i.previousElementSibling.textContent = i.value; adjustQueue();
+      adj.v[i.dataset.adj] = +i.value; i.previousElementSibling.textContent = i.value; adjustQueue(i.dataset.adj === 'hue');
     });
     // double-click (or double-tap) a slider's name to put it back to 0
     adjBox.addEventListener('dblclick', function (e) {
       var row = e.target.closest('[data-adj-row]'); if (!row || !adj) return;
-      var i = row.querySelector('input'); i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; adj.v[i.dataset.adj] = +i.value; adjustQueue();
+      var i = row.querySelector('input'); i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; adj.v[i.dataset.adj] = +i.value; adjustQueue(i.dataset.adj === 'hue');
     });
 
     // ---- THE BRUSH STUDIO: the brush in hand's settings, with a stroke of

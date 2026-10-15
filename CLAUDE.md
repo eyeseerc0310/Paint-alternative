@@ -126,6 +126,18 @@ When building or changing anything visual:
   A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
   works on a cutout works on it. Use `selTool(t)` to ask "is this
   selecting?", and `setTool(selKind)` to bring the tool up.
+- **Effects run fast three ways**, all from the same settings (`fxParams`):
+  the graphics chip (`fxGL*`: WebGL 2, a shader drawing on a stand-in canvas
+  in the layer's place, read back once at Done), a worker (`fxWorker`, for
+  layers seen through a mask or a clip, no WebGL 2, or software WebGL; live
+  at the size the layer is seen at, `fxPrevMake`, then full size once the
+  slider rests) and the main thread. The pixel sums live in `fxKernel`
+  (which must stand alone: it's copied into the worker) and in `FX_FS`: a
+  change to how an effect looks goes in both, and `fxcmp`-style checks
+  should show the paths agree. Nothing heavy happens on opening
+  (`fxPrepare` runs at the first change); the histogram is made when
+  Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
+  choice, for testing.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
