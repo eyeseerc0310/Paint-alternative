@@ -95,6 +95,22 @@
     // (some controls live in the top bar, outside the drawing area)
     var $ = function (q) { return root.querySelector(q) || document.querySelector('.site-header ' + q); };
     var stage = $('.paint-stage'), world = $('.paint-world'), stack = $('.paint-layers'), guide = $('.paint-guide');
+    // THE GRID (from the Symmetry panel): evenly spaced lines over the
+    // picture, in its own units, so they stay put as it's zoomed, moved and
+    // turned; a background on one element, not part of the picture (never
+    // saved). Its lines are a screen pixel wide at any zoom, and zoomed far
+    // out, only every second (fourth...) one shows, so it never turns solid
+    var gridOn = stored('paint-grid-on', false) === true, gridSize = stored('paint-grid-size', 40), gridSeen = '';
+    var gridEl = document.createElement('div'); gridEl.className = 'paint-grid'; gridEl.hidden = true; gridEl.setAttribute('aria-hidden', 'true'); guide.parentNode.insertBefore(gridEl, guide);
+    function gridDraw() {
+      gridEl.hidden = !gridOn; if (!gridOn) { gridSeen = ''; return; }
+      var s = gridSize; while (s * view.k < 6) s *= 2;
+      var key = s + ':' + view.k; if (key === gridSeen) return; gridSeen = key;
+      gridEl.style.setProperty('--gs', s + 'px'); gridEl.style.setProperty('--gw', (1 / view.k) + 'px');
+    }
+    // (the slider: 4 to 256 of the picture's pixels, finely at the small end)
+    function gridFromSlider(v) { return Math.round(4 * Math.pow(64, v / 100)); }
+    function gridToSlider(g) { return Math.round(Math.log(g / 4) / Math.log(64) * 100); }
     var ov = $('.paint-over'), octx = ov.getContext('2d');
     var colorDot = $('.paint-current span'), color2Dot = $('.paint-second span');
     var sizeIn = $('.paint-size'), alphaIn = $('.paint-alpha'), zoomVal = $('.paint-zoom-val'), selbar = $('.paint-selbar');
@@ -306,7 +322,7 @@
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       if (textBox) placeTextBox();
-      placeSelX(); placeSymHandles();
+      placeSelX(); placeSymHandles(); gridDraw();
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
     // in the picture's corner instead
@@ -800,7 +816,7 @@
     function limit() { return Math.max(4, Math.min(LIMIT, Math.floor(160e6 / (ov.width * ov.height * 4)))); }
     // (what could be redone is kept with the step, so a stroke that's called
     // off at once, like the first finger of a two-finger tap, gives it back)
-    function push(e) { endFillAnim(); if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
+    function push(e) { boxStale(e); endFillAnim(); if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
     // (a text layer's words are kept with its pixels; any other change to
     // its pixels makes it plain paint: undo brings the words back)
     function remember(label, quiet) {
@@ -817,6 +833,7 @@
       c.label = e.label; if (e.pen) c.pen = e.pen; return c;
     }
     function apply(e) {
+      boxStale(e);
       if (e.parts) { e.parts.forEach(apply); viewsSoon(); return; }
       if (e.L) { if (e.L.isMask) { e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); maskAlpha(e.L.owner); viewsSoon(); renderLayers(); return; }
         if (e.bg != null) e.L.bg = e.bg; if ('text' in e) e.L.text = e.text || null; if (e.name) e.L.name = e.name; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); viewsSoon(); renderLayers(); }
@@ -1391,7 +1408,7 @@
     }
     function setAssist(m) {
       gMode = m; drawGuide();
-      var b = $('.paint-mirror'); b.setAttribute('aria-pressed', st.sym !== 'off' || gMode !== 'off' ? 'true' : 'false');
+      mirrorLit();
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     var TURN_R = 64; // (how far the turning handle sits from the centre, on the screen)
@@ -1458,9 +1475,12 @@
     });
     vpEls.forEach(function (el, i) { symDrag(el, function (ev, sx, sy) { var q = fromScreen(sx, sy); VP[i] = { x: Math.max(-2, Math.min(3, q.x / W)), y: Math.max(-2, Math.min(3, q.y / H)) }; }); });
     function setSym(v) {
-      st.sym = v; drawGuide(); symOpts();
-      var b = $('.paint-mirror'); b.setAttribute('aria-pressed', v !== 'off' || gMode !== 'off' ? 'true' : 'false');
+      st.sym = v; drawGuide(); symOpts(); mirrorLit();
     }
+    // (lit while symmetry, a drawing assist or the grid is on)
+    function mirrorLit() { var b = $('.paint-mirror'); if (b) b.setAttribute('aria-pressed', st.sym !== 'off' || gMode !== 'off' || gridOn ? 'true' : 'false'); }
+    function setGrid(on) { gridOn = on; storeIt('paint-grid-on', on); gridDraw(); mirrorLit(); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
+    mirrorLit();
     // SPRAY: an airbrush's cloud of droplets. Where each lands is scattered
     // round the middle by a bell curve, so the cloud is thickest in the
     // middle and thins out smoothly to nothing: no edge, no ring. Droplets
@@ -2370,6 +2390,7 @@
     function selWorld(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx - s * dy, y: m.y + s * dx + c * dy }; }
     function putFloat(c, f) {
       var r = sel.rot || 0; f = f || sel.float;
+      if (c !== sctx && c.canvas) c.canvas.boxV = (c.canvas.boxV || 0) + 1; // (a layer's paint changed: its box is measured again)
       c.imageSmoothingQuality = f.width > sel.w * R * 1.5 ? 'high' : 'low'; // (a picture kept at its own size, drawn smaller)
       if (!r) { c.drawImage(f, sel.x, sel.y, sel.w, sel.h); return; }
       var m = selMid(); c.save(); c.translate(m.x, m.y); c.rotate(r); c.drawImage(f, -sel.w / 2, -sel.h / 2, sel.w, sel.h); c.restore();
@@ -2614,7 +2635,7 @@
       if (!sel) return;
       if (sel.text && sel.lifted) placeTextSel();
       if (sel.more) drawMore(); else if (sel.float) putFloat(sctx);
-      if (sel.thing) return;
+      if (sel.thing) { if (snap && snap.lines.length) drawSnapLines(); return; }
       // (the outline and handles are drawn in the box's own frame, turned with it)
       var turned = !!sel.rot;
       if (turned) { var m0 = selMid(); sctx.save(); sctx.translate(m0.x, m0.y); sctx.rotate(sel.rot); sctx.translate(-m0.x, -m0.y); }
@@ -2635,6 +2656,134 @@
       }
       sctx.restore();
       if (turned) sctx.restore();
+      if (snap && snap.lines.length) drawSnapLines();
+    }
+    // SMART GUIDES: while something is dragged, its box (what's really in it,
+    // as it's turned and sized) snaps to the picture's middle, and to the
+    // edges and middles of what's on the other layers, each way on its own:
+    // within a few screen pixels it takes the line (and keeps it until it's
+    // pulled a little further away), and a thin line shows what lines up.
+    // The picture's middle wins a tie. The other layers' boxes are measured
+    // once (a small copy, then the exact edge), and again only when they change
+    var smartOn = stored('paint-smart-guides', true) !== false, snap = null, boxCache = new WeakMap();
+    var SNAP_PX = 6, SNAP_LET = 10; // (in screen pixels: to take a line, and to let it go)
+    function smartGuides(on) { smartOn = on; storeIt('paint-smart-guides', on); var b = hb('guides'); if (b) b.setAttribute('aria-pressed', on ? 'true' : 'false'); snapEnd(); }
+    // (a step that changes a layer's paint: its box is measured again; steps
+    // that change only the list of layers leave every layer's paint as it was)
+    function boxStale(e) {
+      if (!e) return;
+      if (e.parts) { e.parts.forEach(boxStale); return; }
+      if (e.L && e.L.cv) e.L.cv.boxV = (e.L.cv.boxV || 0) + 1;
+    }
+    // (the box round what's painted on a canvas, in its own pixels; null if nothing)
+    var boxScratch = document.createElement('canvas');
+    function paintBox(cv) {
+      var w = cv.width, h = cv.height; if (!w || !h) return null;
+      var s = Math.min(1, 256 / Math.max(w, h)), sw = Math.max(1, Math.ceil(w * s)), sh = Math.max(1, Math.ceil(h * s));
+      boxScratch.width = sw; boxScratch.height = sh;
+      var bx = boxScratch.getContext('2d', { willReadFrequently: true }); bx.clearRect(0, 0, sw, sh); bx.drawImage(cv, 0, 0, sw, sh);
+      var d = bx.getImageData(0, 0, sw, sh).data, x0 = sw, y0 = sh, x1 = -1, y1 = -1, x, y;
+      for (y = 0; y < sh; y++) for (x = 0; x < sw; x++) if (d[(y * sw + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 < 0) return null;
+      if (s === 1) return { x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 };
+      // (then each edge exactly, in the strip of full-size pixels it can be in)
+      var cx = cv.getContext('2d'), k = 1 / s, clamp = function (v, m) { return Math.max(0, Math.min(m, v)); };
+      var ya = clamp(Math.floor((y0 - 1) * k), h), yb = clamp(Math.ceil((y1 + 2) * k), h), xa = clamp(Math.floor((x0 - 1) * k), w), xb = clamp(Math.ceil((x1 + 2) * k), w);
+      var scan = function (sx, sy, sw2, sh2, byCol, fromEnd) {
+        if (sw2 <= 0 || sh2 <= 0) return -1;
+        var q = cx.getImageData(sx, sy, sw2, sh2).data, n = byCol ? sw2 : sh2, m = byCol ? sh2 : sw2;
+        for (var i = 0; i < n; i++) { var a = fromEnd ? n - 1 - i : i; for (var j = 0; j < m; j++) { var px = byCol ? a : j, py = byCol ? j : a; if (q[(py * sw2 + px) * 4 + 3]) return a; } }
+        return -1;
+      };
+      var L0 = clamp(Math.floor((x0 - 1) * k), w), L1 = clamp(Math.ceil((x0 + 1) * k), w), R0 = clamp(Math.floor(x1 * k), w), R1 = clamp(Math.ceil((x1 + 2) * k), w);
+      var T0 = clamp(Math.floor((y0 - 1) * k), h), T1 = clamp(Math.ceil((y0 + 1) * k), h), B0 = clamp(Math.floor(y1 * k), h), B1 = clamp(Math.ceil((y1 + 2) * k), h);
+      var l = scan(L0, ya, L1 - L0, yb - ya, true, false), r = scan(R0, ya, R1 - R0, yb - ya, true, true);
+      var t = scan(xa, T0, xb - xa, T1 - T0, false, false), b = scan(xa, B0, xb - xa, B1 - B0, false, true);
+      return { x0: l < 0 ? x0 * k : L0 + l, x1: r < 0 ? (x1 + 1) * k : R0 + r + 1, y0: t < 0 ? y0 * k : T0 + t, y1: b < 0 ? (y1 + 1) * k : B0 + b + 1 };
+    }
+    // (a text layer's box, as its words are turned: the box round the turned box)
+    function wordsBox(L) {
+      var T = L.text, b = tboxOf(L), r = T.rot || 0, co = Math.cos(r), si = Math.sin(r), xs = [], ys = [];
+      [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].forEach(function (q) { xs.push(T.x + co * q[0] - si * q[1]); ys.push(T.y + si * q[0] + co * q[1]); });
+      return { x0: Math.min.apply(null, xs), y0: Math.min.apply(null, ys), x1: Math.max.apply(null, xs), y1: Math.max.apply(null, ys) };
+    }
+    // (each other layer's box, in the picture's units)
+    function layerBox(L, fresh) {
+      if (L.text) return wordsBox(L);
+      var c = boxCache.get(L.cv), v = L.cv.boxV || 0;
+      if (!c || c.v !== v || fresh) { var b = paintBox(L.cv); c = { v: v, b: b ? { x0: b.x0 / R, y0: b.y0 / R, x1: b.x1 / R, y1: b.y1 / R } : null }; boxCache.set(L.cv, c); }
+      return c.b;
+    }
+    // (what's being moved: its real box, turned and sized with the selection)
+    function movingBox() {
+      var f = { x0: 0, y0: 0, x1: 1, y1: 1 };
+      if (sel.float && !sel.more && !sel.text) {
+        if (sel.fboxOf !== sel.float) { var b = paintBox(sel.float), fw = sel.float.width, fh = sel.float.height; sel.fbox = b ? { x0: b.x0 / fw, y0: b.y0 / fh, x1: b.x1 / fw, y1: b.y1 / fh } : f; sel.fboxOf = sel.float; }
+        f = sel.fbox;
+      }
+      var xs = [], ys = [];
+      [[f.x0, f.y0], [f.x1, f.y0], [f.x0, f.y1], [f.x1, f.y1]].forEach(function (q) { var p = selWorld({ x: sel.x + q[0] * sel.w, y: sel.y + q[1] * sel.h }); xs.push(p.x); ys.push(p.y); });
+      return { x0: Math.min.apply(null, xs), y0: Math.min.apply(null, ys), x1: Math.max.apply(null, xs), y1: Math.max.apply(null, ys) };
+    }
+    function snapStart() {
+      var B = movingBox(), moving = [];
+      if (sel.more) sel.more.forEach(function (it) { moving.push(it.L); });
+      if (sel.items) sel.items.forEach(function (it) { moving.push(it.L); });
+      if (sel.text) moving.push(sel.text);
+      var boxes = [];
+      layers.forEach(function (L) {
+        if (L.bg || !shownVisible(L) || moving.indexOf(L) >= 0) return;
+        // (the layer it was lifted from: what's left on it, measured afresh)
+        var b = L === active && lifted() && !sel.more ? layerBox(L, true) : L === active && !L.text && !lifted() ? null : layerBox(L);
+        if (b && b.x1 - b.x0 > 0 && b.y1 - b.y0 > 0) boxes.push(b);
+      });
+      var X = [{ v: W / 2, c: true }], Y = [{ v: H / 2, c: true }];
+      boxes.forEach(function (b) { [b.x0, (b.x0 + b.x1) / 2, b.x1].forEach(function (v) { X.push({ v: v, b: b }); }); [b.y0, (b.y0 + b.y1) / 2, b.y1].forEach(function (v) { Y.push({ v: v, b: b }); }); });
+      // (where the box's edges and middle are, from the selection's corner)
+      snap = { ox: [B.x0 - sel.x, (B.x0 + B.x1) / 2 - sel.x, B.x1 - sel.x], oy: [B.y0 - sel.y, (B.y0 + B.y1) / 2 - sel.y, B.y1 - sel.y], bw: B.x1 - B.x0, bh: B.y1 - B.y0, X: X, Y: Y, hx: null, hy: null, lines: [] };
+    }
+    // (one way: the line it takes, if any, given where the pointer puts it)
+    function snapAxis(raw, off, T, held) {
+      var take = SNAP_PX / view.k, keep = SNAP_LET / view.k;
+      if (held && Math.abs(raw + off[held.i] - held.t.v) < keep) return held;
+      var best = null, bd = take;
+      T.forEach(function (t) {
+        // (the picture's middle: only for the box's middle, and ahead on a tie)
+        for (var i = t.c ? 1 : 0; i < (t.c ? 2 : 3); i++) { var d = Math.abs(raw + off[i] - t.v) - (t.c ? 0.5 / view.k : 0); if (d < bd) { bd = d; best = { t: t, i: i }; } }
+      });
+      return best;
+    }
+    function snapMove() {
+      if (!smartOn || !sel || sel.w <= 0) { if (snap) snapEnd(); return; }
+      if (!snap) snapStart();
+      var S = snap, rx = sel.x, ry = sel.y;
+      S.hx = snapAxis(rx, S.ox, S.X, S.hx); S.hy = snapAxis(ry, S.oy, S.Y, S.hy);
+      if (S.hx) sel.x = S.hx.t.v - S.ox[S.hx.i];
+      if (S.hy) sel.y = S.hy.t.v - S.oy[S.hy.i];
+      // (the lines: the picture's middle right across; along what lines up
+      // otherwise, from end to end of all the boxes on it)
+      var bx0 = sel.x + S.ox[0], bx1 = sel.x + S.ox[2], by0 = sel.y + S.oy[0], by1 = sel.y + S.oy[2], e = 0.5 / view.k, lines = [];
+      if (S.hx) {
+        var vx = S.hx.t.v;
+        if (S.hx.t.c) lines.push([vx, 0, vx, H]);
+        else { var a = by0, z = by1; S.X.forEach(function (t) { if (t.b && Math.abs(t.v - vx) < e) { a = Math.min(a, t.b.y0); z = Math.max(z, t.b.y1); } }); lines.push([vx, a, vx, z]); }
+      }
+      if (S.hy) {
+        var vy = S.hy.t.v;
+        if (S.hy.t.c) lines.push([0, vy, W, vy]);
+        else { var a2 = bx0, z2 = bx1; S.Y.forEach(function (t) { if (t.b && Math.abs(t.v - vy) < e) { a2 = Math.min(a2, t.b.x0); z2 = Math.max(z2, t.b.x1); } }); lines.push([a2, vy, z2, vy]); }
+      }
+      S.lines = lines;
+    }
+    function snapEnd() { if (!snap) return; var had = snap.lines.length; snap = null; if (had) drawSel(); }
+    var snapInk = null;
+    document.addEventListener('paint:theme', function () { snapInk = null; });
+    function drawSnapLines() {
+      if (!snapInk) snapInk = getComputedStyle(document.documentElement).getPropertyValue('--snap').trim() || '#ff2d78';
+      sctx.save(); sctx.setLineDash([]); sctx.lineCap = 'butt';
+      // (a soft light edge under a thin line, so it shows on light and dark paint)
+      snap.lines.forEach(function (l) { sctx.beginPath(); sctx.moveTo(l[0], l[1]); sctx.lineTo(l[2], l[3]); sctx.strokeStyle = 'rgba(255, 255, 255, .55)'; sctx.lineWidth = 3 / view.k; sctx.stroke(); sctx.strokeStyle = snapInk; sctx.lineWidth = 1 / view.k; sctx.stroke(); });
+      sctx.restore();
     }
     // MOVE ON A TEXT LAYER: the box round its words is moved, sized (keeping
     // its shape) and turned like a selection, and the words are drawn again
@@ -4486,7 +4635,7 @@
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
-      if (selMode === 'move') { selTrim(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
+      if (selMode === 'move') { selTrim(); snapEnd(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
       if (down.penSnap && pen) { penPut(down.penSnap); down = null; if (pen.pts.length || pen.hist.length || pen.fut.length) { drawPen(); ctxSync(); } else cancelPen(); return; }
       clearInterval(sprayTimer);
@@ -4641,7 +4790,7 @@
         return;
       }
       if (selTool(t)) {
-        if (selMode === 'move') { sel.x = p.x - selOff.x; sel.y = p.y - selOff.y; }
+        if (selMode === 'move') { sel.x = p.x - selOff.x; sel.y = p.y - selOff.y; snapMove(); }
         else {
           var bw = Math.abs(p.x - sel.ax), bh = Math.abs(p.y - sel.ay);
           if (sel.oval && e.shiftKey) bw = bh = Math.max(bw, bh); // (Shift: a circle)
@@ -4851,7 +5000,7 @@
       }
       if (selTool(t)) {
         if (selMode === 'new' && (sel.w < 3 || sel.h < 3)) sel = null;
-        if (selMode === 'move') selTrim();
+        if (selMode === 'move') { selTrim(); snapEnd(); }
         stage.classList.remove('moving'); selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave(); return;
       }
       down = null; autosave();
@@ -5042,13 +5191,13 @@
       stage.classList.add('panning'); octx.clearRect(0, 0, W, H); busy(true);
     }
     function moveGrab() {
-      if (spaceGrab.sel) { sel.x = lastMouse.p.x - spaceGrab.ox; sel.y = lastMouse.p.y - spaceGrab.oy; drawSel(); }
+      if (spaceGrab.sel) { sel.x = lastMouse.p.x - spaceGrab.ox; sel.y = lastMouse.p.y - spaceGrab.oy; snapMove(); drawSel(); }
       else { view.x = spaceGrab.vx + lastMouse.s.x - spaceGrab.x; view.y = spaceGrab.vy + lastMouse.s.y - spaceGrab.y; applyView(); }
     }
     function letGoOfSpace() {
       spaceDown = false; stage.classList.remove('space'); if (spaceGrab && !Object.keys(pointers).length) busy(false);
       if (!spaceGrab) return;
-      if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) { selTrim(); autosave(); }
+      snapEnd(); if (spaceGrab.thing) commitSelection(); else if (spaceGrab.sel) { selTrim(); autosave(); }
       spaceGrab = null; stage.classList.remove('panning');
     }
     window.addEventListener('blur', function () { busy(false); letGoOfSpace(); stage.classList.remove('picking'); shiftChanged(false); });
@@ -5677,6 +5826,7 @@
     // ---- the header: New, Image, History, Share, Shortcuts (and Install) ----
     var header = document.querySelector('.site-header');
     function hb(name) { return header && header.querySelector('[data-hb="' + name + '"]'); }
+    if (hb('guides')) hb('guides').setAttribute('aria-pressed', smartOn ? 'true' : 'false');
     // a list that drops down from a header button
     function placeDrop(el, btn) {
       if (!btn.offsetParent && hb('more')) btn = hb('more'); // (on a phone the button is in the ••• menu)
@@ -5792,7 +5942,7 @@
       closeDrops(); otherPopovers();
       var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '">' + (src ? src.outerHTML : '') + label + '</button>'; };
       moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
-        it('focus', 'Focus Mode') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
+        it('focus', 'Focus Mode') + it('guides', smartOn ? 'Smart Guides: On' : 'Smart Guides: Off') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
       moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
     }
     moreBox.addEventListener('click', function (e) {
@@ -6092,6 +6242,7 @@
       var b = e.target.closest('[data-hb]'); if (!b) return;
       var w = b.dataset.hb;
       if (w === 'focus') { focusMode(!document.documentElement.classList.contains('focus-mode')); return; }
+      if (w === 'guides') { smartGuides(!smartOn); toast(smartOn ? 'Smart Guides on: what you move snaps into line' : 'Smart Guides off'); return; }
       if (w === 'more') { moreMenu(moreBox.hidden); return; }
       if (w === 'new') newSheet();
       else if (w === 'gallery') { closeDrops(); gallery(); }
@@ -6190,6 +6341,9 @@
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Drawing assist">' + ['off', 'ruler', 'p1', 'p2', 'p3'].map(function (m) { return '<button type="button" role="tab" data-ctx-assist="' + m + '" data-tip="' + ATIP[m] + '">' + AI[m] + '</button>'; }).join('') + '</div>' +
           '<div data-assist-on>' + hint('Brush, eraser, spray and line strokes keep to it. Drag its points to move them') + '</div>' +
           '<button type="button" class="ctx-btn" data-ctx="assistreset" data-assist-on data-tip="Put the ruler, or the vanishing points, back where they started">' + CI('<path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/>') + '<span>Reset Guide</span></button>' +
+          '<div class="ctx-sub">Grid</div>' +
+          chip('grid', 'Show Grid', '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><path d="M9.5 4.5v15M14.5 4.5v15M4.5 9.5h15M4.5 14.5h15"/>', 'Show a grid over the picture, to draw to (it isn&#39;t part of the picture, and isn&#39;t saved)') +
+          '<label class="ctx-slider" data-grid-on data-tip="How far apart the grid&#39;s lines are, in the picture&#39;s pixels"><span>Spacing</span><input type="range" min="0" max="100" data-ctx="gridsize" aria-label="Grid spacing"><output>40</output></label>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="symdone" data-tip="Back to the tool&#39;s settings">Done</button>';
       },
       hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
@@ -6290,6 +6444,9 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
+      set('[data-ctx="grid"]', 'aria-pressed', gridOn);
+      var gz = q('[data-ctx="gridsize"]'); if (gz) { if (document.activeElement !== gz) gz.value = gridToSlider(gridSize); gz.nextElementSibling.textContent = gridSize + ' px'; }
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-grid-on]'), function (e) { e.hidden = !gridOn; });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-assist]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxAssist === gMode ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-assist-on]'), function (e) { e.hidden = gMode === 'off'; });
       set('[data-ctx="penstroke"]', 'aria-pressed', penStroke); set('[data-ctx="penfill"]', 'aria-pressed', penFill); set('[data-ctx="pentext"]', 'aria-pressed', penText);
@@ -6302,6 +6459,7 @@
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
+      else if (k === 'gridsize') { gridSize = gridFromSlider(+e.target.value); storeIt('paint-grid-size', gridSize); gridDraw(); ctxSync(); }
       else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(true); } }
       else if (k === 'tarc') { tx.arc = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
     });
@@ -6316,6 +6474,7 @@
       if (b.dataset.ctxSym) { setSym(b.dataset.ctxSym); return; }
       if (b.dataset.symd) { symN = Math.max(2, Math.min(16, symN + +b.dataset.symd)); drawGuide(); ctxSync(); return; }
       if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
+      if (k === 'grid') { setGrid(!gridOn); return; }
       if (k === 'symreset') { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); return; }
       if (k === 'symdone') { ctxSymView(false); return; }
       if (b.dataset.ctxAssist) { setAssist(b.dataset.ctxAssist); return; }
