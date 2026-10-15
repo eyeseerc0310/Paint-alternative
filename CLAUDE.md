@@ -47,7 +47,7 @@ When building or changing anything visual:
 - **Where controls live:** the top bar has the document actions
   (new/open/save/share, image, history, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. It starts folded
-  to a thin strip (the mark, the dot and the `.hdr-fold` arrow), and opens
+  to a thin strip (the mark, the dot and the `.hdr-fold` arrow, in the middle), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. A button in the folded bar
