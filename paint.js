@@ -522,7 +522,12 @@
     var harmony = stored('paint-harmony', 'complementary');
     var pc = document.createElement('div'), pcWhich = 'main', pcMode = stored('paint-colour-values', 'hex'), hsv = [0, 0, 0], pcWas = null;
     pc.className = 'paint-colorpanel'; pc.hidden = true; pc.setAttribute('role', 'dialog'); pc.setAttribute('aria-label', 'Colour');
-    pc.innerHTML =
+    // (in the dock it has the tool settings' own top: their lock, a grip to
+    // move it by while unlocked, and a button that folds the menu away)
+    var pcTop = '<div class="pc-top"><span class="ctx-grip" aria-hidden="true" data-tip="Drag to move (double-click: back to its place)"></span>' +
+      ($('.paint-ctx .ctx-lock') ? $('.paint-ctx .ctx-lock').outerHTML : '') +
+      '<button type="button" class="ctx-min" aria-label="Fold the menu away" data-tip="Fold the menu away"><svg class="cm-hide" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button></div>';
+    pc.innerHTML = pcTop +
       '<div class="pc-grab" aria-hidden="true" data-tip="Drag to move (double-click: back in place)"></div>' +
       '<div class="pc-head">' +
         '<div class="pa-tabs pc-which" role="tablist"><button type="button" role="tab" data-pc-which="main"><i></i>Main</button><button type="button" role="tab" data-pc-which="second"><i></i>Second</button></div>' +
@@ -741,6 +746,8 @@
       im.src = url;
     });
     pc.addEventListener('click', function (e) {
+      if (e.target.closest('.pc-top .ctx-lock')) { lockToggle(); return; }
+      if (e.target.closest('.pc-top .ctx-min')) { picker(null); if (!ctxEl.classList.contains('min')) ctxMin(true); return; }
       var w = e.target.closest('[data-pc-which]'); if (w) { if (w.dataset.pcWhich !== pcWhich) { pcDone(); pcWhich = w.dataset.pcWhich; pcLoad(); pairOpen(); } return; }
       var md = e.target.closest('[data-pc-mode]'); if (md) { pcMode = md.dataset.pcMode; storeIt('paint-colour-values', pcMode); pcShow(); return; }
       if (e.target.closest('.pc-was')) { if (pcWas) pcFrom(pcWas); return; }
@@ -6833,8 +6840,9 @@
     var ctxLocked = (function () { try { var v = localStorage.getItem('paint-ctx-lock'); return v != null ? v === 'true' : !localStorage.getItem('paint-pos-ctx2'); } catch (x) { return true; } })();
     function ctxLock(on) {
       ctxLocked = on; storeIt('paint-ctx-lock', on); ctxEl.classList.toggle('locked', on);
-      var b = ctxEl.querySelector('.ctx-lock'), t = on ? 'Unlock the tool settings, to move them' : 'Lock the tool settings in their place beside the picture (it makes room for them)';
-      b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', t); b.dataset.tip = t; hideTip();
+      var t = on ? 'Unlock the tool settings, to move them' : 'Lock the tool settings in their place beside the picture (it makes room for them)';
+      [ctxEl, pc].forEach(function (el) { var b = el.querySelector('.ctx-lock'); if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', t); b.dataset.tip = t; } });
+      hideTip(); if (pc.parentNode === dock) pc.classList.toggle('locked', on);
       if (on) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} }
       dockSync(ctxReady);
     }
@@ -6846,7 +6854,7 @@
       var d = !phoneLayout();
       DOCKED_PANELS.forEach(function (x) {
         var el = x[0], home = d ? dock : x[1];
-        el.classList.toggle('in-dock', d); el.classList.toggle('locked', d); // (in its place: not dragged about)
+        el.classList.toggle('in-dock', d); el.classList.toggle('locked', d && (el !== pc || ctxLocked)); // (in its place: not dragged about; the picker, while the settings are unlocked, by its grip)
         if (el.parentNode !== home) { home.appendChild(el); el.style.translate = el.style.top = el.style.left = ''; }
         if (d) dockPlace(el);
       });
@@ -6864,6 +6872,12 @@
       var x = Math.max(W.left, Math.min(W.right - w, d.right - w + o.x)), y = Math.max(W.top, Math.min(W.bottom - h, d.top + o.y));
       el.style.translate = Math.round(x - (d.right - w)) + 'px ' + Math.round(y - d.top) + 'px';
     }
+    // (the lock, from the tool settings or the colour picker: locking opens
+    // them out in their place, and the picture makes room)
+    function lockToggle() {
+      var lk = !ctxLocked; ctxLock(lk); if (lk && ctxEl.classList.contains('min')) ctxMin(false);
+      if (!pc.hidden) dockPlace(pc);
+    }
     function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
@@ -6873,6 +6887,11 @@
       paintEl.classList.toggle('dock-on', on); refitWhile(dock);
     }
     draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', ctxBox, function () { dockSync(true); });
+    // (the colour picker, unlocked, by its own grip: the tool settings move with it, so it opens there again)
+    draggable(pc, '.pc-top .ctx-grip', 'ctx2', null, ctxBox, function () {
+      ctxEl.style.translate = pc.style.translate; keepOnScreen(ctxEl, ctxBox());
+      var q = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [q.x, q.y]);
+    });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
@@ -7167,7 +7186,7 @@
     ctxEl.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
-      if (b.classList.contains('ctx-lock')) { var lk = !ctxLocked; ctxLock(lk); if (lk && ctxEl.classList.contains('min')) ctxMin(false); return; } // (locking opens it out in its place, and the picture makes room)
+      if (b.classList.contains('ctx-lock')) { lockToggle(); return; }
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
       if (k === 'bstudio') { studio(bsBox.hidden || bsId !== st.brush); return; }

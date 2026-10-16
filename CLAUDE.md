@@ -72,6 +72,10 @@ When building or changing anything visual:
   `ctxAside`; the picker's wheel is sized to fit, `discSize`): locked, in
   the dock's place; unlocked, where the settings were moved to, kept within
   the workspace (`dockPlace`, worked out from the layout as they pop in).
+  The picker there has the tool settings' top (`.pc-top`): the same lock
+  (`lockToggle`, either one), a grip to move it by while unlocked (the tool
+  settings move with it, `paint-pos-ctx2`), and a fold button that closes it
+  and folds the tool settings.
   On those screens the dock is above the bars (z-index 6). On phones the
   picker opens above the bottom bar, its middle over the two colours
   (`placePicker`), and Effects beside the left bar. There's no right bar,

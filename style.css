@@ -833,12 +833,12 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 @media (hover: hover) { .paint .ctx-lock:hover { color: var(--menu-link); background: var(--hover-strong); } }
 .paint .ctx-lock svg { width: var(--icon-sm); height: var(--icon-sm); }
 /* (its icon shows which: it isn't lit like a pressed button) */
-.paint .paint-ctx .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
-@media (hover: hover) { .paint .paint-ctx .ctx-lock[aria-pressed]:hover { color: var(--menu-link); background: var(--hover-strong); } }
-.ctx-lock .cl-off, .paint-ctx:not(.locked) .ctx-lock .cl-on { display: none; }
-.paint-ctx:not(.locked) .ctx-lock .cl-off { display: block; }
-.paint-ctx.locked .ctx-grip { cursor: default; }
-.paint-ctx.locked .ctx-grip::before { opacity: .2 !important; }
+.paint .paint-ctx .ctx-lock[aria-pressed], .paint .pc-top .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
+@media (hover: hover) { .paint .paint-ctx .ctx-lock[aria-pressed]:hover, .paint .pc-top .ctx-lock[aria-pressed]:hover { color: var(--menu-link); background: var(--hover-strong); } }
+.ctx-lock .cl-off, .ctx-lock[aria-pressed="false"] .cl-on { display: none; }
+.ctx-lock[aria-pressed="false"] .cl-off { display: block; }
+.paint-ctx.locked .ctx-grip, .paint-colorpanel.locked .ctx-grip { cursor: default; }
+.paint-ctx.locked .ctx-grip::before, .paint-colorpanel.locked .ctx-grip::before { opacity: .2 !important; }
 .paint-ctx.locked.min .ctx-min { cursor: pointer; }
 .paint-ctx.min > :not(.ctx-min):not(.ctx-grip):not(.ctx-lock) { display: none !important; }
 .paint-ctx.min .ctx-min { cursor: grab; touch-action: none; } /* (folded, it can be dragged by its grip or by the button itself) */
@@ -1440,6 +1440,10 @@ select.p-field {
 .paint-dock > .paint-adjust .pa-title { top: -10px; margin: -10px -10px 6px; padding: 10px 10px 8px; }
 .paint-dock > .paint-adjust .pa-acts { bottom: -10px; margin: var(--s-3) -10px -10px; padding: var(--s-2) 10px 10px; }
 .paint-dock > .paint-colorpanel .pc-grab { display: none; }
+/* (its top: the tool settings' lock, grip and fold button, where theirs are) */
+.pc-top { display: none; }
+.paint-dock > .paint-colorpanel .pc-top { display: block; position: relative; height: 24px; margin: -10px -10px 2px; }
+.paint-dock > .paint-colorpanel .pc-top .ctx-grip { display: block; height: 20px; margin: 4px 0 0; }
 .paint-dock > .paint-colorpanel .pc-grid { grid-template-columns: repeat(6, 1fr); }
 .paint-dock > .paint-colorpanel .pc-head { gap: 6px; }
 .paint-dock > .paint-colorpanel .pc-compare { width: 34px; }
