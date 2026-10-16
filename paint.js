@@ -148,7 +148,7 @@
       document.removeEventListener('pageswap:start', gone);
       tip.remove();
     });
-    var st = { tool: 'brush', brush: 'round', shape: 'rect', font: FONTS[0][0], color: '#141414', color2: '#ffffff',
+    var st = { tool: 'brush', brush: 'round', shape: SHAPES.some(function (q) { return q[0] === stored('paint-shape', 'rect'); }) ? stored('paint-shape', 'rect') : 'rect', font: FONTS[0][0], color: '#141414', color2: '#ffffff',
       size: 6, alpha: +alphaIn.value / 100, solid: false, sym: 'off', tone: 'dodge' };
     var W = 0, H = 0, R = 1, view = { k: 1, x: 0, y: 0, r: 0 }, fitK = 1, fillK = 1;
     var layers = [], active = null, undo = [], redo = [], LIMIT = 14, recent = [];
@@ -757,6 +757,35 @@
     var MAX_SIZE = 500, SIZE_CURVE = 2.4;
     function sizeAt(pos) { return 1 + (MAX_SIZE - 1) * Math.pow(Math.max(0, Math.min(1000, pos)) / 1000, SIZE_CURVE); }
     function posOf(size) { return Math.round(1000 * Math.pow((size - 1) / (MAX_SIZE - 1), 1 / SIZE_CURVE)); }
+    function setAlpha(a) { st.alpha = Math.max(0.05, Math.min(1, a)); alphaIn.value = Math.round(st.alpha * 100); alphaIn.nextElementSibling.textContent = alphaIn.value; }
+    // SHAPES: one button for lines and shapes (the line is a tool of its own,
+    // 'line', and the shapes 'shape', picked in its panel; the one last used
+    // is remembered). BLEND: one button for smudge, blur, lighten and darken
+    // (the tools 'smudge', 'blur' and 'tone', with st.tone for lighten or
+    // darken), each keeping its own size and opacity
+    var shapeKind = stored('paint-shape-kind', 'shape'), blendTool = stored('paint-blend-tool', 'smudge'), blendSet = stored('paint-blend-set', {}) || {}, blendOut = null;
+    if (shapeKind !== 'line') shapeKind = 'shape';
+    if (!/^(smudge|blur|tone)$/.test(blendTool)) blendTool = 'smudge';
+    function isBlend(t) { return t === 'smudge' || t === 'blur' || t === 'tone'; }
+    function blendMode() { return st.tool === 'tone' ? st.tone : st.tool; }
+    function blendSave() { blendSet[blendMode()] = { size: st.size, alpha: st.alpha }; storeIt('paint-blend-set', blendSet); }
+    function blendLoad() { var q = blendSet[blendMode()]; if (q) { setSize(q.size); setAlpha(q.alpha); } }
+    var LINE_ICON = '<path d="M7.2 16.8l9.6-9.6"/><circle cx="5.8" cy="18.2" r="2"/><circle cx="18.2" cy="5.8" r="2"/>', SHAPES_ICON = '<rect x="3.5" y="11.5" width="8" height="8" rx="1.5"/><circle cx="16" cy="8" r="4.5"/><path d="M16.5 14.5l4 6h-8z"/>';
+    function comboSync() {
+      var sb = root.querySelector('.paint-shapebtn'), bb = root.querySelector('.paint-blendbtn');
+      if (sb) { sb.dataset.tool = shapeKind; sb.innerHTML = '<svg viewBox="0 0 24 24">' + (shapeKind === 'line' ? LINE_ICON : SHAPES_ICON) + '</svg>'; sb.setAttribute('aria-label', shapeKind === 'line' ? 'Shapes: Line (L)' : 'Shapes (R)'); }
+      if (bb) bb.dataset.tool = blendTool;
+    }
+    comboSync();
+    // (a Blend mode picked in its panel: lighten and darken are one tool, so
+    // going between them keeps each one's own size and opacity here)
+    function blendPick(m) {
+      if (m === 'dodge' || m === 'burn') {
+        if (st.tool === 'tone') { if (st.tone !== m) { blendSave(); st.tone = m; blendLoad(); } ctxSync(); ctxRender(); return; }
+        st.tone = m; setTool('tone'); return;
+      }
+      setTool(m);
+    }
     function setSize(v, fromSlider) {
       st.size = Math.max(1, Math.min(MAX_SIZE, Math.round(v)));
       if (!fromSlider) sizeIn.value = posOf(st.size);
@@ -785,11 +814,16 @@
       var tp = null;
       if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
       if (selKindOf(t) && t !== selKind) { selKind = t; storeIt('paint-sel-kind', t); selBtnSync(); }
+      if ((t === 'line' || t === 'shape') && t !== shapeKind) { shapeKind = t; storeIt('paint-shape-kind', t); comboSync(); }
+      if (isBlend(t) && t !== blendTool) { blendTool = t; storeIt('paint-blend-tool', t); comboSync(); }
+      var wasBlend = isBlend(st.tool);
+      if (wasBlend) blendSave(); else if (isBlend(t)) blendOut = { size: st.size, alpha: st.alpha };
       if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
       if (adj) adjustDone();
       if (textBox) commitText();
       if (sel && !selTool(t)) anchor();
       st.tool = t;
+      if (isBlend(t)) blendLoad(); else if (wasBlend && blendOut) { setSize(blendOut.size); setAlpha(blendOut.alpha); blendOut = null; }
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
@@ -3493,7 +3527,7 @@
     // ---- EFFECTS: everything that changes the look of the picked layer
     // (only inside the selection, if there is one), in sections that fold:
     // Light, Levels, Curves, Hue & Saturation, White Balance, Gradient Map,
-    // Detail, Pixelate and Finish. It's shown live, and kept with DONE ----
+    // Detail, Pixelate, Blur and Finish. It's shown live, and kept with DONE ----
     // (each slider: key, name, lowest; they all go up to 100, and start at 0)
     var FX = [
       ['light', 'Light', [['exposure', 'Exposure', -100], ['brilliance', 'Brilliance', -100], ['contrast', 'Contrast', -100], ['highlights', 'Highlights', -100], ['shadows', 'Shadows', -100], ['whites', 'Whites', -100], ['blacks', 'Blacks', -100]]],
@@ -3504,11 +3538,12 @@
       ['gmap', 'Gradient Map'],
       ['detail', 'Detail', [['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['grain', 'Grain', 0]]],
       ['pixel', 'Pixelate', [['pixelate', 'Block Size', 0]]],
+      ['blur', 'Blur'],
       ['finish', 'Finish', [['vignette', 'Vignette', -100], ['fade', 'Fade', 0]]]
     ];
     // (what each section holds, to tell when it's been changed, and to put it back)
     var FX_KEYS = { light: FX[0][2].map(function (a) { return a[0]; }), levels: ['lb', 'lg', 'lw', 'ob', 'ow'], curves: ['curve'], hsl: FX[3][2].map(function (a) { return a[0]; }),
-      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], finish: ['vignette', 'fade'] };
+      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], blur: ['gblur', 'mblur', 'mangle'], finish: ['vignette', 'fade'] };
     // GRADIENT MAP: the picture's light and dark, recoloured along a gradient
     // (dark at the start, light at the end); "Your Colours" runs from the
     // second colour to the main one
@@ -3523,9 +3558,13 @@
     var FX_TRACKS = { hue: 1, saturation: 1, vibrance: 1, lightness: 1, warmth: 1, tint: 1 };
     var sliderRow = function (a) {
       return '<label class="pa-row" data-adj-row="' + a[0] + '"><span>' + a[1] + '</span><output>' + (a[3] || 0) + '</output>' +
-        '<input type="range" min="' + a[2] + '" max="100" step="1" value="' + (a[3] || 0) + '" data-adj="' + a[0] + '"' + (a[3] ? ' data-def="' + a[3] + '"' : '') + (FX_TRACKS[a[0]] ? ' class="fx-track"' : '') + '></label>';
+        '<input type="range" min="' + a[2] + '" max="' + (a[4] || 100) + '" step="1" value="' + (a[3] || 0) + '" data-adj="' + a[0] + '"' + (a[3] ? ' data-def="' + a[3] + '"' : '') + (FX_TRACKS[a[0]] ? ' class="fx-track"' : '') + '></label>';
     };
+    // (motion blur's way: across, up and down, and the two diagonals, or any angle on the slider)
+    var FX_DIRS = [[0, 'Across', '<path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/>'], [90, 'Up and down', '<path d="M12 4v16M9 7l3-3 3 3M9 17l3 3 3-3"/>'], [45, 'Diagonal, rising', '<path d="M6 18L18 6M10 6h8v8"/>'], [135, 'Diagonal, falling', '<path d="M6 6l12 12M18 10v8h-8"/>']];
     var fxBody = {
+      blur: '<div class="pa-list">' + sliderRow(['gblur', 'Gaussian', 0]) + sliderRow(['mblur', 'Motion', 0]) + sliderRow(['mangle', 'Angle', 0, 0, 180]) +
+        '<div class="pa-tabs fx-dirs" role="group" aria-label="Motion direction">' + FX_DIRS.map(function (d) { return '<button type="button" data-fxdir="' + d[0] + '" aria-label="' + d[1] + '" aria-pressed="false" data-tip="Motion: ' + d[1].toLowerCase() + ' (' + d[0] + '\u00b0)"><svg viewBox="0 0 24 24" aria-hidden="true">' + d[2] + '</svg></button>'; }).join('') + '</div></div>',
       levels: '<div class="pa-levels"><canvas class="lv-hist" width="256" height="100"></canvas>' +
         '<div class="lv-track" data-lv="in"><i data-k="lb" class="lv-b"></i><i data-k="lg" class="lv-g"></i><i data-k="lw" class="lv-w"></i></div>' +
         '<div class="lv-nums"><output data-o="lb">0</output><output data-o="lg">1.00</output><output data-o="lw">255</output></div>' +
@@ -3566,7 +3605,7 @@
       var v = adj.v;
       if (k === 'curve') return !!v.curve;
       if (k === 'gmap') return !!v.gmap;
-      if (k === 'gms' || k === 'gmr') return false;
+      if (k === 'gms' || k === 'gmr' || k === 'mangle') return false; // (a way, or an angle, alone changes nothing)
       if (k in LV) return v[k] != null && v[k] !== LV[k];
       return !!v[k];
     }
@@ -3601,6 +3640,8 @@
       var on = adj && adj.v.gmap || '';
       Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
       var rv = adjBox.querySelector('[data-gmrev]'); rv.setAttribute('aria-pressed', adj && adj.v.gmr ? 'true' : 'false');
+      var ang = adj && adj.v.mangle || 0;
+      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-fxdir]'), function (b) { b.setAttribute('aria-pressed', +b.dataset.fxdir === ang ? 'true' : 'false'); });
       if (adj && adj.v.gmap === 'colours') adjBox.querySelector('[data-gm="colours"] i').style.background = 'linear-gradient(to right,' + gmStops('colours').join(',') + ')';
     }
     function fxReset(f) {
@@ -3789,18 +3830,98 @@
           for (var gc = 0; gc < 3; gc++) gm[gi * 3 + gc] = gst[g0][gc] + (gst[g0 + 1][gc] - gst[g0][gc]) * gf;
         }
       }
+      var gb = v.gblur ? (0.4 + Math.pow(val('gblur'), 1.6) * 40) * R : 0, md = v.mblur ? (1 + Math.pow(val('mblur'), 1.5) * 150) * R : 0;
       return { lut: lut, blut: blut, br: br, sat: 1 + val('saturation'), vib: val('vibrance'), wa: val('warmth') * 28, ti: val('tint') * 24,
         hu: hu, hc: Math.cos(hu), hs: Math.sin(hu), lt: val('lightness'), gm: gm, gms: gms,
         shp: val('sharpen') * 1.6, cl: val('clarity') * 0.7, vg: val('vignette'), gr: val('grain') * 38, wideR: Math.max(6, Math.round(14 * R)),
         // PIXELATE: square blocks from 2 to 80 of the picture's pixels (more
         // finely at the small end), each the average of what's in it
-        px: v.pixelate ? Math.max(2, Math.round((1 + Math.pow(val('pixelate'), 1.6) * 79) * R)) : 0 };
+        px: v.pixelate ? Math.max(2, Math.round((1 + Math.pow(val('pixelate'), 1.6) * 79) * R)) : 0,
+        // BLUR: Gaussian, up to a spread of 40 of the picture's pixels; motion,
+        // up to 150 long, at the angle set (both finely at the small end)
+        gb: gb, md: md, ang: v.mangle || 0, bl: fxBlurPlan(gb, md, v.mangle || 0) };
+    }
+    // HOW A BLUR IS WORKED, the same by the graphics chip, the worker and the
+    // main thread: the layer (its colours weighted by how solid they are, so
+    // see-through edges don't darken) is made smaller by f first when the
+    // blur is big enough not to show it; Gaussian is three box blurs each way
+    // (radii br); motion is n1 samples s1 apart along the angle, then n2
+    // filling the gaps between them; then it's brought back to full size
+    function fxBlurPlan(sigma, dist, deg) {
+      if (sigma < 0.6 && dist < 1) return null;
+      var fg = 1, fm = 1; while (sigma / fg > 3 && fg < 64) fg *= 2; while (dist / fm > 12 && fm < 64) fm *= 2;
+      var f = Math.max(sigma >= 0.6 ? fg : 1, dist >= 1 ? fm : 1), B = { f: f, br: null, n1: 1, s1: 0, n2: 1, dx: 1, dy: 0 };
+      if (sigma >= 0.6) {
+        var sg = sigma / f, wi = Math.sqrt(12 * sg * sg / 3 + 1), wl = Math.floor(wi); if (wl % 2 === 0) wl--;
+        var mi = Math.round((12 * sg * sg - 3 * wl * wl - 12 * wl - 9) / (-4 * wl - 4)), br = [];
+        for (var i = 0; i < 3; i++) br.push(((i < mi ? wl : wl + 2) - 1) / 2);
+        if (br.some(function (r) { return r > 0; })) B.br = br;
+      }
+      if (dist >= 1) {
+        var d = dist / f, a = deg * Math.PI / 180;
+        B.n1 = Math.max(1, Math.ceil(Math.sqrt(d))); B.s1 = d / B.n1; B.n2 = Math.max(1, Math.ceil(B.s1));
+        B.dx = Math.cos(a); B.dy = -Math.sin(a);
+      }
+      if (!B.br && B.n1 === 1 && B.n2 === 1) return null;
+      return B;
+    }
+    // (the blur itself, by the processor: s in, the blurred layer out, both RGBA.
+    // Nothing from outside: it also runs in the worker)
+    function fxBlurRun(B, s, W, H) {
+      var f = B.f, w = Math.ceil(W / f), h = Math.ceil(H / f), n = w * h, A = new Float32Array(n * 4), C = new Float32Array(n * 4), x, y, k, j, q, t;
+      if (f === 1) { for (k = 0; k < n * 4; k += 4) { var a1 = s[k + 3] / 255; A[k] = s[k] * a1; A[k + 1] = s[k + 1] * a1; A[k + 2] = s[k + 2] * a1; A[k + 3] = s[k + 3]; } }
+      else {
+        var cnt = new Float32Array(n);
+        for (y = 0; y < H; y++) { var by = (y / f | 0) * w; for (x = 0, k = y * W * 4; x < W; x++, k += 4) { j = by + (x / f | 0); q = j * 4; var a2 = s[k + 3] / 255; A[q] += s[k] * a2; A[q + 1] += s[k + 1] * a2; A[q + 2] += s[k + 2] * a2; A[q + 3] += s[k + 3]; cnt[j]++; } }
+        for (j = 0; j < n; j++) { var m = 1 / cnt[j]; q = j * 4; A[q] *= m; A[q + 1] *= m; A[q + 2] *= m; A[q + 3] *= m; }
+      }
+      // (a box blur one way, the edges carried on as they are)
+      var box = function (src, dst, r, across) {
+        var len = across ? w : h, lines = across ? h : w, st = across ? 4 : w * 4, inv = 1 / (2 * r + 1);
+        for (var L = 0; L < lines; L++) {
+          var b0 = across ? L * w * 4 : L * 4;
+          for (var c = 0; c < 4; c++) {
+            var sum = 0, i;
+            for (i = -r; i <= r; i++) sum += src[b0 + Math.min(len - 1, Math.max(0, i)) * st + c];
+            for (i = 0; i < len; i++) { dst[b0 + i * st + c] = sum * inv; sum += src[b0 + Math.min(len - 1, i + r + 1) * st + c] - src[b0 + Math.max(0, i - r) * st + c]; }
+          }
+        }
+      };
+      if (B.br) for (t = 0; t < 3; t++) if (B.br[t]) { box(A, C, B.br[t], true); box(C, A, B.br[t], false); }
+      // (one pass of the motion blur: N samples, sp apart, along the angle)
+      var at = function (src, fx, fy, o) {
+        fx = Math.max(0, Math.min(w - 1, fx)); fy = Math.max(0, Math.min(h - 1, fy));
+        var x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1), tx = fx - x0, ty = fy - y0;
+        var i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4, i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
+        for (var c = 0; c < 4; c++) { var top = src[i00 + c] + (src[i10 + c] - src[i00 + c]) * tx, bot = src[i01 + c] + (src[i11 + c] - src[i01 + c]) * tx; o[c] += top + (bot - top) * ty; }
+      };
+      var pass = function (src, dst, N, sp) {
+        var o = [0, 0, 0, 0], inv = 1 / N;
+        for (var yy = 0; yy < h; yy++) for (var xx = 0; xx < w; xx++) {
+          o[0] = o[1] = o[2] = o[3] = 0;
+          for (var i = 0; i < N; i++) { var off = (i - (N - 1) / 2) * sp; at(src, xx + B.dx * off, yy + B.dy * off, o); }
+          var kk = (yy * w + xx) * 4; dst[kk] = o[0] * inv; dst[kk + 1] = o[1] * inv; dst[kk + 2] = o[2] * inv; dst[kk + 3] = o[3] * inv;
+        }
+      };
+      if (B.n1 > 1) { pass(A, C, B.n1, B.s1); t = A; A = C; C = t; }
+      if (B.n2 > 1) { pass(A, C, B.n2, B.s1 / B.n2); t = A; A = C; C = t; }
+      // (back to full size, and the colours un-weighted)
+      var out = new Uint8ClampedArray(W * H * 4), px = [0, 0, 0, 0];
+      for (y = 0; y < H; y++) for (x = 0, k = y * W * 4; x < W; x++, k += 4) {
+        px[0] = px[1] = px[2] = px[3] = 0;
+        if (f === 1) { q = (y * w + x) * 4; px[0] = A[q]; px[1] = A[q + 1]; px[2] = A[q + 2]; px[3] = A[q + 3]; } else at(A, (x + 0.5) / f - 0.5, (y + 0.5) / f - 0.5, px);
+        var pa = px[3];
+        if (pa > 0) { out[k] = px[0] * 255 / pa; out[k + 1] = px[1] * 255 / pa; out[k + 2] = px[2] * 255 / pa; }
+        out[k + 3] = pa;
+      }
+      return out;
     }
     // THE PIXELS: s in, o out (both RGBA), m the selection (or null), blur
     // and wide the soft copies for sharpen and clarity; only the rows and
     // columns of the box (where the selection is) are worked: outside it, o
     // already holds s. (Nothing from outside: it also runs in the worker.)
-    function fxKernel(P, s, o, m, blur, wide, W2, H2, bx) {
+    function fxKernel(P, s, o, m, blur, wide, W2, H2, bx, bs) {
+      var src = bs || s; // (blurred first, if there's a blur)
       function sstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
       function hueTurn(r, g, b, c, s, o) {
         var yy = 0.299 * r + 0.587 * g + 0.114 * b, ii = 0.596 * r - 0.274 * g - 0.322 * b, qq = 0.211 * r - 0.523 * g + 0.312 * b;
@@ -3821,15 +3942,16 @@
           var xa = bx.x0, xb = Math.max(bx.x0 + 1, bx.x1); while (xa > 0 && Math.floor((xa - 1) / ps) === pb0) xa--; while (xb < W2 && Math.floor(xb / ps) === pb1) xb++;
           if (!pa || pa.length < nb * 5) pa = new Float64Array(nb * 5); else pa.fill(0, 0, nb * 5);
           for (var yy = ya; yy < yb; yy++) for (var xx = xa, kk = (yy * W2 + xa) * 4; xx < xb; xx++, kk += 4) {
-            var bi = (Math.floor(xx / ps) - pb0) * 5, aa = s[kk + 3];
-            pa[bi] += s[kk] * aa; pa[bi + 1] += s[kk + 1] * aa; pa[bi + 2] += s[kk + 2] * aa; pa[bi + 3] += aa; pa[bi + 4]++;
+            var bi = (Math.floor(xx / ps) - pb0) * 5, aa = src[kk + 3];
+            pa[bi] += src[kk] * aa; pa[bi + 1] += src[kk + 1] * aa; pa[bi + 2] += src[kk + 2] * aa; pa[bi + 3] += aa; pa[bi + 4]++;
           }
           for (var q5 = 0; q5 < nb * 5; q5 += 5) { var sa = pa[q5 + 3]; pa[q5 + 4] = Math.round(sa / pa[q5 + 4]); if (sa) { pa[q5] = Math.round(pa[q5] / sa); pa[q5 + 1] = Math.round(pa[q5 + 1] / sa); pa[q5 + 2] = Math.round(pa[q5 + 2] / sa); } }
         }
         for (var x2 = bx.x0, k = (y * W2 + x2) * 4; x2 < bx.x1; x2++, k += 4) {
-          var a = s[k + 3], r = s[k], g = s[k + 1], b = s[k + 2];
-          if (ps && !(m && !m[k + 3])) { var pq = (Math.floor(x2 / ps) - pb0) * 5; a = pa[pq + 4]; r = pa[pq]; g = pa[pq + 1]; b = pa[pq + 2]; }
-          if (!a || (m && !m[k + 3])) { o[k] = s[k]; o[k + 1] = s[k + 1]; o[k + 2] = s[k + 2]; o[k + 3] = a; continue; }
+          if (m && !m[k + 3]) { o[k] = s[k]; o[k + 1] = s[k + 1]; o[k + 2] = s[k + 2]; o[k + 3] = s[k + 3]; continue; }
+          var a = src[k + 3], r = src[k], g = src[k + 1], b = src[k + 2];
+          if (ps) { var pq = (Math.floor(x2 / ps) - pb0) * 5; a = pa[pq + 4]; r = pa[pq]; g = pa[pq + 1]; b = pa[pq + 2]; }
+          if (!a) { o[k] = r; o[k + 1] = g; o[k + 2] = b; o[k + 3] = 0; continue; }
           var j = (k >> 2) * 3;
           if (shp) { var bb = blur; r += shp * (r - bb[j]); g += shp * (g - bb[j + 1]); b += shp * (b - bb[j + 2]); }
           if (cl) { var ww = wide, lw = (s[k] - ww[j] + s[k + 1] - ww[j + 1] + s[k + 2] - ww[j + 2]) / 3; r += cl * lw; g += cl * lw; b += cl * lw; }
@@ -3866,7 +3988,7 @@
     function fxWorker() {
       if (fxW || typeof Worker === 'undefined' || typeof Blob === 'undefined') return fxW;
       try {
-        var code = boxBlur.toString() + '\n' + fxKernel.toString() + '\n' +
+        var code = boxBlur.toString() + '\n' + fxKernel.toString() + '\n' + fxBlurRun.toString() + '\n' +
           'var S = {}, free = {};\n' +
           'onmessage = function (e) { var d = e.data, k = d.prev ? "p" : "f", Q = S[k];\n' +
           '  if (d.t === "src") { S[k] = { s: d.s, m: d.m, W: d.W, H: d.H, box: d.box, blur: null, wide: null }; free[k] = []; return; }\n' +
@@ -3876,7 +3998,8 @@
           '    if (P.shp && !Q.blur) Q.blur = boxBlur(Q.s, Q.W, Q.H, 1);\n' +
           '    if (P.cl && !Q.wide) Q.wide = boxBlur(Q.s, Q.W, Q.H, P.wideR);\n' +
           '    var o = free[k].pop() || new Uint8ClampedArray(Q.s);\n' +
-          '    fxKernel(P, Q.s, o, Q.m, Q.blur, Q.wide, Q.W, Q.H, Q.box);\n' +
+          '    var bs = null; if (P.bl) { var bk = JSON.stringify(P.bl); if (Q.bkey !== bk) { Q.bs = fxBlurRun(P.bl, Q.s, Q.W, Q.H); Q.bkey = bk; } bs = Q.bs; }\n' +
+          '    fxKernel(P, Q.s, o, Q.m, Q.blur, Q.wide, Q.W, Q.H, Q.box, bs);\n' +
           '    postMessage({ t: "out", ver: d.ver, sid: d.sid, prev: d.prev, buf: o }, [o.buffer]); } };';
         fxW = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
         fxW.onmessage = fxFromWorker;
@@ -3929,6 +4052,7 @@
     function fxPrevP(P) {
       var q = adj.prev.q, o = {}; for (var k in P) o[k] = P[k];
       o.wideR = Math.max(1, Math.round(P.wideR * q)); o.shp = P.shp * q; o.gr = P.gr * Math.max(q, 0.5); o.px = P.px * q;
+      o.bl = fxBlurPlan(P.gb * q, P.md * q, P.ang); // (a blur the size it is on the smaller copy)
       return o;
     }
 
@@ -3938,7 +4062,7 @@
     var fxG = null;
     var FX_VS = '#version 300 es\nin vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }';
     var FX_FS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
-      'uniform sampler2D u_src, u_mask, u_lut, u_wide, u_pix; uniform int u_hasMask, u_flip, u_W, u_H, u_gm, u_px;\n' +
+      'uniform sampler2D u_src, u_mask, u_lut, u_wide, u_pix, u_bsrc; uniform int u_hasMask, u_flip, u_W, u_H, u_gm, u_px, u_hasBl;\n' +
       'uniform float u_shp, u_cl, u_br, u_sat, u_vib, u_hu, u_hc, u_hs, u_lt, u_wa, u_ti, u_gms, u_vg, u_gr, u_rr; uniform vec2 u_c;\n' +
       'out vec4 frag;\n' +
       'float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }\n' +
@@ -3946,8 +4070,9 @@
       'vec3 px(int x, int y) { return floor(texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rgb * 255.0 + 0.5); }\n' +
       'void main() {\n' +
       '  ivec2 q = ivec2(gl_FragCoord.xy); if (u_flip == 1) q.y = u_H - 1 - q.y;\n' +
-      '  vec4 S = texelFetch(u_src, q, 0); float a = S.a; vec3 s = floor(S.rgb * 255.0 + 0.5); vec3 c = s, r0 = s;\n' +
+      '  vec4 S = texelFetch(u_src, q, 0); vec3 s = floor(S.rgb * 255.0 + 0.5);\n' +
       '  bool inM = u_hasMask == 0 || texelFetch(u_mask, q, 0).a > 0.0;\n' +
+      '  vec4 SB = u_hasBl == 1 && inM ? texelFetch(u_bsrc, q, 0) : S; float a = SB.a; vec3 sb = floor(SB.rgb * 255.0 + 0.5); vec3 c = sb, r0 = sb;\n' +
       '  if (u_px > 0 && inM) { vec4 B = texelFetch(u_pix, q / u_px, 0); r0 = B.rgb; a = B.a / 255.0; c = r0; }\n' +
       '  if (a > 0.0 && inM) {\n' +
       '    vec3 r = r0;\n' +
@@ -3988,6 +4113,29 @@
       '  int n = 0; for (int d = 0; d < u_b; d++) { int y = q.y * u_b + d; if (y >= u_H) break; t += texelFetch(u_in, ivec2(q.x, y), 0); n++; }\n' +
       '  float cnt = float(min(u_b, u_W - q.x * u_b) * n);\n' +
       '  frag = t.a > 0.0 ? vec4(floor(t.rgb / t.a + 0.5), floor(t.a * 255.0 / cnt + 0.5)) : vec4(0.0); }';
+    // THE BLUR on the graphics chip, the same steps as fxBlurRun: made smaller
+    // (and weighted by how solid), box blurs each way, the motion passes,
+    // then back to full size, un-weighted, into a texture the effect reads
+    var FX_HEAD = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n';
+    var FX_AT = 'vec4 at(vec2 f) { f = clamp(f, vec2(0.0), vec2(float(u_w - 1), float(u_h - 1))); ivec2 p0 = ivec2(floor(f)), p1 = min(p0 + 1, ivec2(u_w - 1, u_h - 1)); vec2 t = f - vec2(p0);\n' +
+      '  vec4 a = texelFetch(u_in, p0, 0), b = texelFetch(u_in, ivec2(p1.x, p0.y), 0), c = texelFetch(u_in, ivec2(p0.x, p1.y), 0), d = texelFetch(u_in, p1, 0);\n' +
+      '  vec4 top = a + (b - a) * t.x, bot = c + (d - c) * t.x; return top + (bot - top) * t.y; }\n';
+    var FX_BD = FX_HEAD + 'uniform sampler2D u_in; uniform int u_f, u_W, u_H; out vec4 frag;\n' +
+      'void main() { ivec2 q = ivec2(gl_FragCoord.xy); vec4 t = vec4(0.0); float n = 0.0;\n' +
+      '  for (int dy = 0; dy < u_f; dy++) { int y = q.y * u_f + dy; if (y >= u_H) break; for (int dx = 0; dx < u_f; dx++) { int x = q.x * u_f + dx; if (x >= u_W) break;\n' +
+      '    vec4 v = texelFetch(u_in, ivec2(x, y), 0); float a = floor(v.a * 255.0 + 0.5); t += vec4(floor(v.rgb * 255.0 + 0.5) * (a / 255.0), a); n += 1.0; } }\n' +
+      '  frag = t / n; }';
+    var FX_BB = FX_HEAD + 'uniform sampler2D u_in; uniform int u_r, u_dir, u_w, u_h; out vec4 frag;\n' +
+      'void main() { ivec2 q = ivec2(gl_FragCoord.xy); vec4 t = vec4(0.0);\n' +
+      '  for (int d = -u_r; d <= u_r; d++) t += texelFetch(u_in, u_dir == 0 ? ivec2(clamp(q.x + d, 0, u_w - 1), q.y) : ivec2(q.x, clamp(q.y + d, 0, u_h - 1)), 0);\n' +
+      '  frag = t / float(2 * u_r + 1); }';
+    var FX_BM = FX_HEAD + 'uniform sampler2D u_in; uniform int u_N, u_w, u_h; uniform float u_sp; uniform vec2 u_d; out vec4 frag;\n' + FX_AT +
+      'void main() { vec2 q = vec2(ivec2(gl_FragCoord.xy)); vec4 t = vec4(0.0);\n' +
+      '  for (int i = 0; i < u_N; i++) t += at(q + u_d * ((float(i) - float(u_N - 1) / 2.0) * u_sp));\n' +
+      '  frag = t / float(u_N); }';
+    var FX_BU = FX_HEAD + 'uniform sampler2D u_in; uniform int u_f, u_w, u_h; out vec4 frag;\n' + FX_AT +
+      'void main() { ivec2 q = ivec2(gl_FragCoord.xy); vec4 v = u_f == 1 ? texelFetch(u_in, q, 0) : at((vec2(q) + 0.5) / float(u_f) - 0.5);\n' +
+      '  frag = v.a > 0.0 ? vec4(v.rgb / v.a, v.a / 255.0) : vec4(0.0); }';
     function fxGLMake() {
       if (fxG) return fxG.lost ? null : fxG;
       var cv = document.createElement('canvas'), gl = null;
@@ -4000,8 +4148,9 @@
       var sh = function (type, src) { var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
       var prog = function (fs) { var p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, FX_VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
       try {
-        var g = { cv: cv, gl: gl, main: prog(FX_FS), blur: prog(FX_BS), pix: prog(FX_PS), u: {}, lost: false,
+        var g = { cv: cv, gl: gl, main: prog(FX_FS), blur: prog(FX_BS), pix: prog(FX_PS), bd: prog(FX_BD), bb: prog(FX_BB), bm: prog(FX_BM), bu: prog(FX_BU), u: {}, lost: false,
           float: !!gl.getExtension('EXT_color_buffer_float'), max: Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0], gl.getParameter(gl.MAX_VIEWPORT_DIMS)[1]) };
+        g.main.uk = 'm'; g.pix.uk = 'p'; g.blur.uk = 'b'; g.bd.uk = 'd'; g.bb.uk = 'x'; g.bm.uk = 'y'; g.bu.uk = 'u'; // (each one's uniforms kept apart)
         var buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
         cv.addEventListener('webglcontextlost', function (e) { e.preventDefault(); g.lost = true; if (adj && adj.mode === 'gl') fxToCPU(); });
@@ -4009,12 +4158,13 @@
       } catch (x) { fxG = { lost: true }; return null; }
       return fxG;
     }
-    function fxUni(p, n) { var k = (p === fxG.main ? 'm' : p === fxG.pix ? 'p' : 'b') + n; if (!(k in fxG.u)) fxG.u[k] = fxG.gl.getUniformLocation(p, n); return fxG.u[k]; }
+    function fxUni(p, n) { var k = (p.uk || 'b') + n; if (!(k in fxG.u)) fxG.u[k] = fxG.gl.getUniformLocation(p, n); return fxG.u[k]; }
     function fxTex(w, h, fmt, data) {
       var gl = fxG.gl, t = gl.createTexture(); gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, t); // (on a unit no sampler reads, so a texture being drawn into is never read at once)
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       if (fmt === 'f') gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data || null);
+      else if (fmt === 'h') gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
       else if (fmt === 'r') gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, w, h, 0, gl.RED, gl.FLOAT, data || null);
       else if (fmt === 'img') { gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, data); }
       else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, data || null);
@@ -4044,43 +4194,71 @@
     // (the blocks for a block size: worked once for each size, and kept; a
     // chip that can't draw into float textures gets them from the same sums
     // as the main thread's)
-    function fxGLPix(b) {
-      var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, nx = Math.ceil(w / b), ny = Math.ceil(h / b);
-      if (T.pix && T.pixB === b) return T.pix;
+    // (the blurred layer, worked once for each blur, and kept)
+    function fxGLBlurTex(B) {
+      var gl = fxG.gl, T = adj.gt, W2 = adj.gw, H2 = adj.gh, key = JSON.stringify(B);
+      if (T.bsrc && T.bkey === key) return T.bsrc;
+      if (T.bsrc) { gl.deleteTexture(T.bsrc); T.bsrc = null; }
+      // (a chip that can't draw into float textures: the processor's sums, sent up)
+      if (!fxG.float) { var d0 = adj.gsrc || (adj.gsrc = adj.L.ctx.getImageData(0, 0, W2, H2).data); adj.gbsArr = fxBlurRun(B, d0, W2, H2); T.bsrc = fxTex(W2, H2, '', new Uint8Array(adj.gbsArr.buffer)); T.bkey = key; return T.bsrc; }
+      var f = B.f, w = Math.ceil(W2 / f), h = Math.ceil(H2 / f), fmt = w * h > 2e6 ? 'h' : 'f', A = fxTex(w, h, fmt), C = fxTex(w, h, fmt), tmp;
+      var i1 = function (p, n, v) { gl.uniform1i(fxUni(p, n), v); };
+      var run = function (p, out, ow, oh, input, set) {
+        var fb = fxTarget(out); gl.useProgram(p); gl.viewport(0, 0, ow, oh);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, input); i1(p, 'u_in', 0); set(p);
+        gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(fb);
+      };
+      run(fxG.bd, A, w, h, T.src, function (p) { i1(p, 'u_f', f); i1(p, 'u_W', W2); i1(p, 'u_H', H2); });
+      if (B.br) B.br.forEach(function (r) {
+        if (!r) return;
+        run(fxG.bb, C, w, h, A, function (p) { i1(p, 'u_r', r); i1(p, 'u_dir', 0); i1(p, 'u_w', w); i1(p, 'u_h', h); });
+        run(fxG.bb, A, w, h, C, function (p) { i1(p, 'u_r', r); i1(p, 'u_dir', 1); i1(p, 'u_w', w); i1(p, 'u_h', h); });
+      });
+      var mot = function (N, sp) { run(fxG.bm, C, w, h, A, function (p) { i1(p, 'u_N', N); gl.uniform1f(fxUni(p, 'u_sp'), sp); gl.uniform2f(fxUni(p, 'u_d'), B.dx, B.dy); i1(p, 'u_w', w); i1(p, 'u_h', h); }); tmp = A; A = C; C = tmp; };
+      if (B.n1 > 1) mot(B.n1, B.s1);
+      if (B.n2 > 1) mot(B.n2, B.s1 / B.n2);
+      var out = fxTex(W2, H2, '');
+      run(fxG.bu, out, W2, H2, A, function (p) { i1(p, 'u_f', f); i1(p, 'u_w', w); i1(p, 'u_h', h); });
+      gl.deleteTexture(A); gl.deleteTexture(C);
+      T.bsrc = out; T.bkey = key; return out;
+    }
+    function fxGLPix(b, bsrc) {
+      var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, nx = Math.ceil(w / b), ny = Math.ceil(h / b), pk = b + '|' + (bsrc ? T.bkey : '');
+      if (T.pix && T.pixB === pk) return T.pix;
       if (T.pix) { gl.deleteTexture(T.pix); T.pix = null; }
       if (!fxG.float) {
-        var d = adj.gsrc || (adj.gsrc = adj.L.ctx.getImageData(0, 0, w, h).data), one = new Float32Array(nx * ny * 4);
+        var d = bsrc ? adj.gbsArr : adj.gsrc || (adj.gsrc = adj.L.ctx.getImageData(0, 0, w, h).data), one = new Float32Array(nx * ny * 4);
         for (var by = 0; by < ny; by++) for (var bx = 0; bx < nx; bx++) {
           var t0 = 0, t1 = 0, t2 = 0, ta = 0, n = 0;
           for (var y = by * b; y < Math.min(h, by * b + b); y++) for (var x = bx * b, k = (y * w + x) * 4; x < Math.min(w, bx * b + b); x++, k += 4) { var a = d[k + 3]; t0 += d[k] * a; t1 += d[k + 1] * a; t2 += d[k + 2] * a; ta += a; n++; }
           var o = (by * nx + bx) * 4; one[o + 3] = Math.round(ta / n); if (ta) { one[o] = Math.round(t0 / ta); one[o + 1] = Math.round(t1 / ta); one[o + 2] = Math.round(t2 / ta); }
         }
-        T.pix = fxTex(nx, ny, 'f', one); T.pixB = b; return T.pix;
+        T.pix = fxTex(nx, ny, 'f', one); T.pixB = pk; return T.pix;
       }
       var mid = fxTex(nx, h, 'f'), out = fxTex(nx, ny, 'f'), f1 = fxTarget(mid), f2, Pg = fxG.pix;
       gl.useProgram(Pg); gl.viewport(0, 0, nx, h);
       gl.uniform1i(fxUni(Pg, 'u_b'), b); gl.uniform1i(fxUni(Pg, 'u_W'), w); gl.uniform1i(fxUni(Pg, 'u_H'), h); gl.uniform1i(fxUni(Pg, 'u_in'), 0);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.src);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bsrc || T.src);
       gl.uniform1i(fxUni(Pg, 'u_dir'), 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
       f2 = fxTarget(out); gl.viewport(0, 0, nx, ny); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mid);
       gl.uniform1i(fxUni(Pg, 'u_dir'), 1); gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.deleteFramebuffer(f1); gl.deleteFramebuffer(f2); gl.deleteTexture(mid);
-      T.pix = out; T.pixB = b; return out;
+      T.pix = out; T.pixB = pk; return out;
     }
     // (the effect, drawn: on the stand-in canvas, or, flip 0, the right way
     // up into a texture to be read back when it's kept)
     function fxGLDraw(P, toTex) {
       var gl = fxG.gl, T = adj.gt, w = adj.gw, h = adj.gh, M = fxG.main;
       if (P.cl && !T.wide) T.wide = fxGLBlur(P.wideR);
-      var pix = P.px ? fxGLPix(P.px) : null;
+      var bsrc = P.bl ? fxGLBlurTex(P.bl) : null, pix = P.px ? fxGLPix(P.px, bsrc) : null;
       var lt = new Float32Array(256 * 2 * 4);
       for (var i = 0; i < 256; i++) { lt[i * 4] = P.lut[i]; lt[i * 4 + 1] = P.blut[i]; if (P.gm) { lt[1024 + i * 4] = P.gm[i * 3]; lt[1025 + i * 4] = P.gm[i * 3 + 1]; lt[1026 + i * 4] = P.gm[i * 3 + 2]; } }
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 2, gl.RGBA, gl.FLOAT, lt);
-      var units = [['u_src', T.src], ['u_mask', T.mask || T.src], ['u_lut', T.lut], ['u_wide', T.wide || T.src], ['u_pix', pix || T.lut]];
+      var units = [['u_src', T.src], ['u_mask', T.mask || T.src], ['u_lut', T.lut], ['u_wide', T.wide || T.src], ['u_pix', pix || T.lut], ['u_bsrc', bsrc || T.src]];
       gl.useProgram(M);
       units.forEach(function (q, n) { gl.activeTexture(gl.TEXTURE0 + n); gl.bindTexture(gl.TEXTURE_2D, q[1]); gl.uniform1i(fxUni(M, q[0]), n); });
       var i1 = function (n, v) { gl.uniform1i(fxUni(M, n), v); }, f1 = function (n, v) { gl.uniform1f(fxUni(M, n), v); };
-      i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0); i1('u_px', pix ? P.px : 0);
+      i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0); i1('u_px', pix ? P.px : 0); i1('u_hasBl', bsrc ? 1 : 0);
       f1('u_shp', P.shp); f1('u_cl', P.cl); f1('u_br', P.br); f1('u_sat', P.sat); f1('u_vib', P.vib); f1('u_hu', P.hu); f1('u_hc', P.hc); f1('u_hs', P.hs);
       f1('u_lt', P.lt); f1('u_wa', P.wa); f1('u_ti', P.ti); f1('u_gms', P.gms); f1('u_vg', P.vg); f1('u_gr', P.gr);
       gl.uniform2f(fxUni(M, 'u_c'), w / 2, h / 2); f1('u_rr', 1 / Math.hypot(w / 2, h / 2));
@@ -4107,8 +4285,8 @@
     }
     function fxGLFree() {
       var T = adj && adj.gt; if (!T || !fxG || !fxG.gl) return;
-      var gl = fxG.gl; ['src', 'mask', 'lut', 'wide', 'pix'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); });
-      adj.gt = null; adj.gsrc = null;
+      var gl = fxG.gl; ['src', 'mask', 'lut', 'wide', 'pix', 'bsrc'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); });
+      adj.gt = null; adj.gsrc = null; adj.gbsArr = null;
     }
     // (the graphics chip went away mid-way: carry on without it)
     function fxToCPU() { try { fxGLShow(false); } catch (x) {} adj.gt = null; adj.mode = fxWorker() ? 'worker' : 'cpu'; fxSource(); adjustQueue(); }
@@ -4214,7 +4392,7 @@
       clearTimeout(adj.prepT);
       if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
       if (adj.mode === 'worker') { clearTimeout(adj.settle); fxPrevShow(false); adj.prev = null; adj.busy = false; adj.want = null; }
-      adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = null; adj.ready = false; adj.queued = false;
+      adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = adj.bs = adj.bkey = null; adj.ready = false; adj.queued = false;
       adj.selOn = adj.selOn && !!sel; adj.v = {}; adj.ver++; adj.shown = adj.ver;
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       fxMarks(true); fxShown('levels'); fxShown('curves');
@@ -4267,7 +4445,8 @@
       if (!adj.out) adj.out = new ImageData(new Uint8ClampedArray(s), W2, H2);
       if (P.shp && !adj.blur) adj.blur = boxBlur(s, W2, H2, 1);
       if (P.cl && !adj.wide) adj.wide = boxBlur(s, W2, H2, P.wideR);
-      fxKernel(P, s, adj.out.data, adj.mask, adj.blur, adj.wide, W2, H2, adj.box);
+      var bs = null; if (P.bl) { var bk = JSON.stringify(P.bl); if (adj.bkey !== bk) { adj.bs = fxBlurRun(P.bl, s, W2, H2); adj.bkey = bk; } bs = adj.bs; }
+      fxKernel(P, s, adj.out.data, adj.mask, adj.blur, adj.wide, W2, H2, adj.box, bs);
       adjustPut(adj.out); adj.shown = adj.ver;
     }
     adjBox.addEventListener('click', function (e) {
@@ -4275,6 +4454,8 @@
       var g = e.target.closest('[data-gm]'); if (g) { if (g.dataset.gm) adj.v.gmap = g.dataset.gm; else delete adj.v.gmap; adjustQueue(); return; }
       if (e.target.closest('[data-gmrev]')) { adj.v.gmr = !adj.v.gmr; if (!adj.v.gmap) adj.v.gmap = 'colours'; adjustQueue(); return; }
       var rs = e.target.closest('[data-fx-reset]'); if (rs) { fxReset(rs.dataset.fxReset); return; }
+      var fd = e.target.closest('[data-fxdir]');
+      if (fd) { var ai = adjBox.querySelector('[data-adj="mangle"]'); ai.value = fd.dataset.fxdir; ai.previousElementSibling.textContent = ai.value; adj.v.mangle = +ai.value; adjustQueue(); return; }
     });
     adjBox.addEventListener('input', function (e) {
       var i = e.target.closest('[data-adj]'); if (!i || !adj || adj.applying) return;
@@ -6192,7 +6373,7 @@
       };
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
-        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Smudge', 'S'], ['Blur', 'U'], ['Light & dark', 'O'], ['Select: box', 'M'], ['Select: cutout', 'Q'], ['Select: circle', 'C'], ['Select: magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
+        group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Shapes: line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Blend: smudge', 'S'], ['Blend: blur', 'U'], ['Blend: lighten or darken', 'O'], ['Select: box', 'M'], ['Select: cutout', 'Q'], ['Select: circle', 'C'], ['Select: magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
         group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
@@ -6281,6 +6462,16 @@
       return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with">' + SEL_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
         hint('<b>' + selKindOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>';
     }
+    // (the Shapes tool's kinds: the line, then each shape, in one segmented control)
+    function shapeWays() {
+      return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Line or shape"><button type="button" role="tab" data-ctx-shape="line" aria-label="Line" data-tip="Line (L)">' + CI(LINE_ICON) + '</button>' +
+        SHAPES.map(function (q) { return '<button type="button" role="tab" data-ctx-shape="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[1] + '">' + CI(SHAPE_ICONS[q[0]] || '') + '</button>'; }).join('') + '</div>';
+    }
+    // (the Blend tool's modes)
+    var BLEND_MODES = [['smudge', 'Smudge', 'Smudge (S): push and blend colours together like a finger'], ['blur', 'Blur', 'Blur (U): soften the paint you brush over'], ['dodge', 'Lighten', 'Lighten (O): brush light into the picture'], ['burn', 'Darken', 'Darken (O): brush shadow into the picture']];
+    function blendWays(how) {
+      return '<div class="pa-tabs ctx-seg ctx-seg-2x2" role="tablist" aria-label="Blend">' + BLEND_MODES.map(function (q) { return '<button type="button" role="tab" data-ctx-blend="' + q[0] + '" data-tip="' + q[2] + '">' + q[1] + '</button>'; }).join('') + '</div>' + hint(how);
+    }
     var CTX = {
       brush: function () {
         return '<button type="button" class="ctx-btn" data-ctx="brushes" aria-haspopup="menu" aria-expanded="false" data-tip="Choose a brush"><canvas class="pb-prev" data-ctxprev aria-hidden="true"></canvas><span data-ctxname></span>' + CHEV + '</button>' +
@@ -6288,12 +6479,12 @@
           sep + smoothRow + sep + taperChip + snapChip;
       },
       eraser: function () { return hint('Rubs out on the current layer') + sep + smoothRow + sep + snapChip; },
-      smudge: function () { return hint('Drag to push and blend the paint'); },
-      blur: function () { return hint('Drag to soften the paint'); },
-      tone: function () { return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Light or dark">' + TONES.map(function (t) { return '<button type="button" role="tab" data-ctx-tone="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' + hint('Brush over the picture'); },
-      line: function () { return hint('Drag to draw a line · <b>Shift</b> for steps of 45°'); },
+      smudge: function () { return blendWays('Drag to push and blend the paint'); },
+      blur: function () { return blendWays('Drag to soften the paint'); },
+      tone: function () { return blendWays('Brush over the picture to lighten or darken it, like in a darkroom'); },
+      line: function () { return shapeWays() + hint('Drag to draw a line · <b>Shift</b> for steps of 45°'); },
       shape: function () {
-        return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Shape">' + SHAPES.map(function (q) { return '<button type="button" role="tab" data-ctx-shape="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[1] + '">' + CI(SHAPE_ICONS[q[0]] || '') + '</button>'; }).join('') + '</div>' + sep +
+        return shapeWays() + sep +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill"><button type="button" role="tab" data-ctx-fill="0">Outline</button><button type="button" role="tab" data-ctx-fill="1">Filled</button></div>' + hint('<b>Shift</b>: perfect shape');
       },
       text: function () {
@@ -6398,7 +6589,7 @@
       // (and the right-hand panel: which of size and opacity this tool uses)
       var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
       right.dataset.uses = uses;
-      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Stroke', shape: 'Stroke', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: 'Light & Dark', fill: 'Fill', gradient: 'Gradient', text: 'Text', pen: 'Pen' }[st.tool] || 'Brush';
+      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Line', shape: 'Shape', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: st.tone === 'burn' ? 'Darken' : 'Lighten', fill: 'Fill', gradient: 'Gradient', text: 'Text', pen: 'Pen' }[st.tool] || 'Brush';
     }
     // (symmetry's settings take the panel's place while they're open)
     function ctxSymView(on) {
@@ -6429,7 +6620,8 @@
       set('[data-ctx="taper"]', 'aria-pressed', taperOn); set('[data-ctx="snap"]', 'aria-pressed', snapShapes);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-tone]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxTone === st.tone ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-sel]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxSel === st.tool ? 'true' : 'false'); });
-      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-shape]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxShape === st.shape ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-shape]'), function (b) { var k = b.dataset.ctxShape; b.setAttribute('aria-selected', (k === 'line' ? st.tool === 'line' : st.tool === 'shape' && k === st.shape) ? 'true' : 'false'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-blend]'), function (b) { b.setAttribute('aria-selected', isBlend(st.tool) && b.dataset.ctxBlend === blendMode() ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-fill]'), function (b) { b.setAttribute('aria-selected', (b.dataset.ctxFill === '1') === !!st.solid ? 'true' : 'false'); });
       var fn = q('[data-ctxfont]'); if (fn) { fn.textContent = fontName(st.font); fn.style.fontFamily = st.font; }
       var ts = q('[data-ctx="tsize"]'); if (ts && document.activeElement !== ts) ts.value = tx.size;
@@ -6501,7 +6693,8 @@
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
       if (b.dataset.ctxSel) { setTool(b.dataset.ctxSel); return; }
-      if (b.dataset.ctxShape) { st.shape = b.dataset.ctxShape; ctxSync(); return; }
+      if (b.dataset.ctxShape) { var sk = b.dataset.ctxShape; if (sk === 'line') { if (st.tool !== 'line') setTool('line'); return; } st.shape = sk; storeIt('paint-shape', sk); if (st.tool !== 'shape') setTool('shape'); else ctxSync(); return; }
+      if (b.dataset.ctxBlend) { blendPick(b.dataset.ctxBlend); return; }
       if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; ctxSync(); return; }
       if (b.dataset.ctxT) { tx[b.dataset.ctxT] = !tx[b.dataset.ctxT]; if (textBox) afterTextChange(); ctxSync(); return; }
       if (b.dataset.ctxAl) { tx.align = b.dataset.ctxAl; if (textBox) afterTextChange(); ctxSync(); return; }

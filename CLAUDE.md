@@ -135,6 +135,14 @@ When building or changing anything visual:
   undo entry (`e.pen`), so undoing that brings the path back to carry on
   with (`penRestore`). The History list works on the picture's steps only
   (`doUndo(true)`). Text on Path is a mode (`penText`) as well as an action.
+- **Shapes and Blend** are one button each, like Selecting: the Shapes button
+  (`.paint-shapebtn`) is the tools `line` and `shape` (picked in its panel,
+  `shapeWays`; the last used is `shapeKind`), and the Blend button
+  (`.paint-blendbtn`) is `smudge`, `blur` and `tone` (lighten or darken, by
+  `st.tone`), picked in its panel (`blendWays`, `blendPick`; the last used is
+  `blendTool`). `comboSync` keeps both buttons on the tool in use. Each Blend
+  mode keeps its own size and opacity (`blendSet`, saved and loaded in
+  `setTool`), and the other tools get theirs back (`blendOut`).
 - **Selecting:** one button in the left bar (`.paint-selbtn`) is the
   selection tool; its ways are tool ids of their own, `lasso` (Cutout, the
   first time), `select` (box), `circle` and `wand`, picked in its panel
@@ -175,7 +183,14 @@ When building or changing anything visual:
   should show the paths agree. Pixelate (`P.px`) is worked a row of blocks at
   a time in `fxKernel` (block sizes can be fractional, for the worker's
   smaller copy) and by `FX_PS` on the graphics chip (`fxGLPix`, a texel a
-  block, kept for each size). **Done** in the panel (`adjustApply`) keeps
+  block, kept for each size). **Blur** (Gaussian, and motion at an angle) is
+  worked first, by the same steps everywhere (`fxBlurPlan`): the layer, its
+  colours weighted by how solid they are, made smaller by `f` when the blur
+  is big enough, three box blurs each way, the motion passes (`n1` samples
+  `s1` apart, then `n2` between), back to full size; `fxBlurRun` on the
+  processor (it stands alone too), `FX_BD`/`FX_BB`/`FX_BM`/`FX_BU` on the chip
+  (`fxGLBlurTex`), each kept until the blur changes; the effect then reads its
+  colours from the blurred layer (`bs`, `u_bsrc`) inside the selection. **Done** in the panel (`adjustApply`) keeps
   what's set as one step and starts again from the layer as it now is
   (`adjustRebase`), the panel staying open (and through undo and redo with
   nothing set); Done with nothing set, and anything else that ends it,
