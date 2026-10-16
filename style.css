@@ -103,7 +103,7 @@
   /* the space between the workspace's columns (bars, picture, dock) */
   --pgap: 1rem;
   /* the bottom bar: its height, and how long its two sliders are */
-  --bbar-h: 52px;
+  --bbar-h: 52px; --bbar-gap: var(--s-3); /* (the bottom bar, and the gap above it) */
   --bbar-slider: 132px;
   /* the symmetry guide's lines and handles */
   --guide: color-mix(in srgb, var(--accent) 75%, transparent);
@@ -317,6 +317,9 @@ body > * { flex-shrink: 0; }
 @keyframes bar-in { from { opacity: 0; transform: translateX(-10px); } }
 /* (above the picture, so their menus and panels open over it) */
 .paint-left { z-index: 5; }
+/* (its middle level with the middle of the picture's space, above the bottom
+   bar; at the top, as before, when it's too tall for that, or "safe" isn't known) */
+.paint-left { align-self: flex-start; align-self: safe center; margin-bottom: calc(var(--bbar-h) + var(--bbar-gap)); }
 .paint-group { display: grid; grid-template-columns: repeat(2, 40px); gap: 3px 4px; justify-content: space-between; }
 /* related tools sit together; a short, soft divider between groups (both panels) */
 .paint-bar > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
@@ -426,7 +429,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 
 /* ---- the picture ---- */
 /* THE MIDDLE: the picture's space, and the bottom bar under it, centred */
-.paint-centre { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--s-3); }
+.paint-centre { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--bbar-gap); }
 .paint-stage {
   /* all the room the toolbars leave (the picture is fitted inside it) */
   position: relative; flex: 1 1 auto; align-self: stretch; min-width: 0; min-height: 0;
@@ -1134,7 +1137,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; border-radius: 16px; }
   /* (the bottom bar: the full width, the sliders sharing what's left, without their names) */
   :root { --bbar-h: 46px; --bbar-slider: 64px; --pgap: .4rem; }
-  .paint-centre { gap: var(--s-2); }
+  :root { --bbar-gap: var(--s-2); }
   .paint-bottom { align-self: stretch; padding: 0 var(--s-2); gap: 2px; }
   .pb-slider { flex: 1 1 0; gap: var(--s-1); }
   .pb-slider > span { display: none; }
