@@ -94,7 +94,7 @@
   --edge: clamp(.75rem, 2.2vw, 1.25rem);
   --bar: 100px;
   /* the top bar: a thin strip when folded, full height when open */
-  --hdr-thin: 30px;
+  --hdr-thin: 38px;
   --hdr-open: 64px;
   /* space between groups in a toolbar */
   --group-gap: 10px;
@@ -165,7 +165,7 @@
    into each other: while .theme-fading is on, the tokens themselves ease to
    their new values, and everything drawn with them follows, gradients too) */
 /* (the top bar's height, registered too, so the workspace eases along with it as it folds and opens) */
-@property --hdr { syntax: "<length>"; inherits: true; initial-value: 30px; }
+@property --hdr { syntax: "<length>"; inherits: true; initial-value: 38px; }
 :root { --hdr: var(--hdr-thin); }
 :root.hdr-open { --hdr: var(--hdr-open); }
 :root.hdr-anim { transition: --hdr var(--dur-slow) var(--ease); }
@@ -227,21 +227,16 @@ body > * { flex-shrink: 0; }
   height: var(--hdr); padding: 0 var(--edge);
   background: none;
 }
-/* FOLDED (the usual): a thin strip with the app's mark, the saved dot and
-   an arrow; the arrow opens it downward to the full bar, the workspace
-   easing smaller to make room (never covered), and folds it again */
-.site-header .brand-icon, .site-header .brand-name, .doc-status { transition: width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease), border-radius var(--dur-slow) var(--ease), font-size var(--dur-slow) var(--ease), color var(--dur) ease, background-color var(--dur) ease; }
-.site-header .brand-icon svg { transition: width var(--dur-slow) var(--ease), height var(--dur-slow) var(--ease); }
-:root:not(.hdr-open) .site-header .brand { gap: var(--s-2); }
-:root:not(.hdr-open) .site-header .brand-icon { width: 20px; height: 20px; border-radius: 6px; }
-:root:not(.hdr-open) .site-header .brand-icon svg { width: 12px; height: 12px; }
-:root:not(.hdr-open) .site-header .brand-name { font-size: var(--fs-sm); }
-:root:not(.hdr-open) .doc-status { height: 20px; }
+/* FOLDED (the usual): a slim strip with the saved dot and an arrow; the
+   arrow opens it downward to the full bar, the workspace easing smaller to
+   make room (never covered), and folds it again */
+.doc-status { transition: height var(--dur-slow) var(--ease), color var(--dur) ease, background-color var(--dur) ease; }
+:root:not(.hdr-open) .doc-status { height: 24px; }
 .header-tools { margin-left: auto; transition: opacity var(--dur) ease calc(var(--dur) * .4), transform var(--dur-slow) var(--spring) calc(var(--dur) * .2), visibility 0s; }
 :root:not(.hdr-open) .header-tools { opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-12px) scale(.96); transition: opacity calc(var(--dur) * .7) ease, transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur); }
 .hdr-fold {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 40px; height: 22px; padding: 0; border: 0; border-radius: var(--r-pill); color: var(--muted); cursor: pointer;
+  width: 44px; height: 26px; padding: 0; border: 0; border-radius: var(--r-pill); color: var(--muted); cursor: pointer;
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
   -webkit-tap-highlight-color: transparent; transition: color var(--dur) ease, background-color var(--dur) ease, transform var(--dur) var(--spring);
 }
@@ -254,6 +249,8 @@ body > * { flex-shrink: 0; }
 @media (hover: hover) { .hdr-fold:hover { color: var(--text); background: var(--panel-solid); } }
 .hdr-fold:active { transform: scale(var(--press)); }
 .brand { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+/* (there for screen readers only) */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .brand-icon {
   display: flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 9px; color: #fff;
@@ -261,7 +258,6 @@ body > * { flex-shrink: 0; }
   box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 6px 14px -4px rgba(31, 111, 224, .55), inset 0 0 0 .5px rgba(255, 255, 255, .3);
 }
 .brand-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.brand-name { margin: 0; font-family: var(--display); font-size: 1.1875rem; font-weight: 700; letter-spacing: -.025em; white-space: nowrap; }
 /* saved-status: a quiet glass chip by the name */
 .doc-status {
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: var(--r-pill);
@@ -1106,11 +1102,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 /* ---------- Phones: two slim panels, one tool per row ---------- */
 @media (max-width: 560px) {
   :root { --bar: 46px; --edge: .5rem; --group-gap: 6px; --hdr-open: 54px; }
-  .brand-icon { width: 30px; height: 30px; border-radius: 8px; }
-  .brand-icon svg { width: 16px; height: 16px; }
   .hb-group, .hb-more { padding: 2px; }
   .header-tools { gap: 6px; }
-  .brand-name { font-size: 1rem; }
   .paint { gap: .4rem; }
   .paint-bar { padding: 5px; border-radius: 14px; }
   .paint-group { grid-template-columns: 36px; gap: 3px; justify-content: center; }
@@ -1348,11 +1341,8 @@ kbd {
 .paint-stage.drop { box-shadow: inset 0 0 0 3px var(--accent); }
 .paint-stage.drop::after { content: "Drop to add as a layer"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; padding: .5rem 1rem; border-radius: 980px; font-size: .875rem; font-weight: 500; color: #fff; background: var(--accent); pointer-events: none; }
 
-/* narrower windows: the app's name goes, so the header's capsules fit */
-@media (max-width: 900px) { .brand-name { display: none; } }
-/* phones: the app name goes, so the header's tools fit */
+/* phones: smaller buttons, so the header's tools fit */
 @media (max-width: 600px) {
-  .brand-name { display: none; }
   .hb { width: 36px; height: 36px; }
   .hb-sep { margin: 0 3px; }
   .hb-install span { display: none; }

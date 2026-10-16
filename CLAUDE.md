@@ -50,7 +50,8 @@ When building or changing anything visual:
 - **Where controls live:** the top bar has the document actions
   (new/open/save/share, image, history, Smart Guides, focus, help, theme; on phones
   the extras go in its ••• menu) and the saved-status dot. It starts folded
-  to a thin strip (the mark, the dot and the `.hdr-fold` arrow, in the middle), and opens
+  to a slim strip (the saved dot and the `.hdr-fold` arrow, in the middle; no
+  app name or mark, only a hidden heading for screen readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. A button in the folded bar
@@ -242,7 +243,7 @@ When building or changing anything visual:
   `@property`, so `.theme-fading` on `:root` eases them all together (new
   colour tokens must be registered and added to that list); afterwards
   `paint:theme` is sent so anything drawn in the panel's ink is redrawn.
-- **The look:** the header has no bar: the app's name, then its buttons in
+- **The look:** the header has no bar: the saved dot, then its buttons in
   frosted capsules (`.hb-group`). The bars, the context bar and every
   pop-over are frosted cards (`--panel`/`--menu-bg`, `--glass`, the shadow
   tokens, which carry a light top edge); the picture sits in a dotted well.
