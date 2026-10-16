@@ -29,7 +29,7 @@ When building or changing anything visual:
   so the same in both themes), `--check` (with `--paper`, a see-through
   checkerboard), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
-  `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
+  `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
   Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
   `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
@@ -66,11 +66,16 @@ When building or changing anything visual:
   (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
   like the top bar's capsules) holds, in this order, Size, Undo, the two
   colours (`.paint-pair`, the swap tucked at their top), Redo and Opacity;
-  a slider the tool doesn't use is greyed out (`data-uses`), and the colour
-  picker opens above it, its middle over the two colours (`placePicker`).
-  There's no right bar, and no quick swatches: the picker has the palettes
-  and recent colours. Panels that open from the left bar open towards the
-  picture (`besideBar`). The picture's space (`.paint-stage`) takes all the
+  a slider the tool doesn't use is greyed out (`data-uses`). On wider
+  screens the colour picker and Effects open in the dock's place, as wide
+  as it, over the tool settings, which step aside (`dockPanels`, `in-dock`,
+  `ctxAside`; the picker's wheel is sized to fit, `discSize`); on phones the
+  picker opens above the bottom bar, its middle over the two colours
+  (`placePicker`), and Effects beside the left bar. There's no right bar,
+  and no quick swatches: the picker has the palettes and recent colours, as
+  round swatches that can be dragged onto the picture to fill, like the two
+  colours (`colourDrag`). Other panels that open from the left bar open
+  towards the picture (`besideBar`). The picture's space (`.paint-stage`) takes all the
   rest, and `fitTo` fits the picture with the same margin of the dotted well
   all round. A tool's own settings go in the **context bar** (`.paint-ctx`,
   built per tool by `CTX` in `paint.js`), and so do a selection's actions.
@@ -245,7 +250,8 @@ When building or changing anything visual:
   what's set as one step and starts again from the layer as it now is
   (`adjustRebase`), the panel staying open (and through undo and redo with
   nothing set); Done with nothing set, and anything else that ends it,
-  closes it (`adjustDone`). Nothing heavy happens on opening
+  closes it (`adjustDone`). There's no Cancel button: Esc (`adjustCancel`)
+  or Reset All takes back what's set. Nothing heavy happens on opening
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
   choice, for testing.

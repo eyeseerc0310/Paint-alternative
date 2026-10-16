@@ -546,8 +546,16 @@
     bbar.appendChild(pc);
     draggable(pc, '.pc-grab', 'colour');
     var pcDisc = pc.querySelector('.pc-disc canvas'), pcHK = pc.querySelector('.pc-hk'), pcSK = pc.querySelector('.pc-sk');
-    var DISC = 212, RING = 20, SQ = Math.floor((DISC / 2 - RING - 7) * Math.SQRT2), SQ0 = (DISC - SQ) / 2;
+    var DISC = 0, RING = 20, SQ = 0, SQ0 = 0;
     var ringImg = null;
+    // (its size: 212 under the bottom bar, the dock's width less its edges in the dock)
+    function discSize(n) {
+      if (n === DISC) return;
+      DISC = n; SQ = Math.floor((DISC / 2 - RING - 7) * Math.SQRT2); SQ0 = (DISC - SQ) / 2; ringImg = null;
+      var d = pcDisc.parentNode; d.style.width = d.style.height = pcDisc.style.width = pcDisc.style.height = n + 'px';
+      if (!pc.hidden) pcShow();
+    }
+    discSize(212);
     function drawDisc() {
       var dpr = Math.min(window.devicePixelRatio || 1, 2), c = pcDisc.getContext('2d'), m = DISC / 2;
       if (pcDisc.width !== DISC * dpr) { pcDisc.width = pcDisc.height = DISC * dpr; ringImg = null; }
@@ -643,7 +651,7 @@
     // (it opens above the bottom bar, its middle over the two colours, as
     // far as the window allows; on a phone, along the bottom of the screen)
     function placePicker() {
-      if (phoneLayout()) { pc.style.left = ''; return; }
+      if (phoneLayout() || pc.parentNode === dock) { pc.style.left = ''; return; }
       var b = $('.paint-pair'), br = bbar.getBoundingClientRect(), pr = b.getBoundingClientRect(), vw = document.documentElement.clientWidth;
       var x = pr.left + pr.width / 2 - pc.offsetWidth / 2;
       x = Math.max(8, Math.min(vw - pc.offsetWidth - 8, x));
@@ -656,7 +664,7 @@
         if (narrow() && typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
         pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
-      pairOpen();
+      pairOpen(); ctxAside();
     }
     function pairOpen() {
       $('.paint-current').setAttribute('aria-expanded', !pc.hidden && pcWhich === 'main' ? 'true' : 'false');
@@ -3943,7 +3951,7 @@
           '<button type="button" class="fx-reset" data-fx-reset="' + f[0] + '" aria-label="Reset ' + f[1] + '" data-tip="Put ' + f[1] + ' back as it was"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/></svg></button></div>' +
           '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
       }).join('') + '</div>' +
-      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="cancel" data-tip="Close, without what\u2019s set now">Cancel</button><button type="button" data-adj-act="done" data-tip="Apply it, and carry on with another effect (with nothing set: close)">Done</button></div>';
+      '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="done" data-tip="Apply it, and carry on with another effect (with nothing set: close)">Done</button></div>';
     left.appendChild(adjBox);
     draggable(adjBox, '.pa-title', 'adjust');
     // (the sections fold by their titles, and stay as they were left; Light starts open)
@@ -4674,7 +4682,7 @@
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
       adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
-      adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox);
+      if (adjBox.parentNode === left) { adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox); }
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
     }
     function fxPrepare() {
@@ -5828,7 +5836,7 @@
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var aa = e.target.closest('[data-adj-act]');
-      if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') { if (aa.closest('.paint-adjust') === adjBox) adjustApply(); else adjustDone(); } else if (w2 === 'cancel') adjustCancel(); else { adjustCancel(); adjustOpen(); } return; }
+      if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') { if (aa.closest('.paint-adjust') === adjBox) adjustApply(); else adjustDone(); } else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
       runAct(a.dataset.act);
     });
@@ -5866,17 +5874,17 @@
     // does. (A tap is told apart here, not by the click after it: a touch
     // that moved can still end in a click.) ----
     var blob = null, pairPressed = -1e9;
-    bbar.addEventListener('pointerdown', function (e) {
-      var sw = e.target.closest('.paint-current, .paint-second');
+    function colourDrag(e) {
+      var sw = e.target.closest('.paint-current, .paint-second, .paint-colorpanel [data-pc-color]');
       if (!sw || (e.pointerType === 'mouse' && e.button !== 0)) return;
       var main = sw.classList.contains('paint-current'), pair = main || sw.classList.contains('paint-second');
-      var start = { x: e.clientX, y: e.clientY, c: sw.dataset.color || (main ? st.color : st.color2), el: sw, id: e.pointerId, on: false };
-      if (pair) e.preventDefault(); // (no text selection or focus ring from a drag)
+      var start = { x: e.clientX, y: e.clientY, c: sw.dataset.pcColor || (main ? st.color : st.color2), el: sw, id: e.pointerId, on: false };
+      e.preventDefault(); // (no text selection or focus ring from a drag)
       try { sw.setPointerCapture(e.pointerId); } catch (x) {}
       function mv(ev) {
         if (!start.on) {
           if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
-          start.on = true;
+          start.on = true; clearTimeout(pcHold); // (a drag isn't a press and hold)
           blob = document.createElement('div'); blob.className = 'paint-blob'; blob.style.background = start.c; busy(true);
           document.body.appendChild(blob);
         }
@@ -5906,7 +5914,8 @@
         }
       }
       sw.addEventListener('pointermove', mv); sw.addEventListener('pointerup', done); sw.addEventListener('pointercancel', done);
-    });
+    }
+    paintEl.addEventListener('pointerdown', colourDrag); // (the bottom bar's two colours, and the picker's, wherever it is)
     function plopFill(p, color) {
       if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) return;
       if (adj) adjustDone(); if (textBox) commitText(); need(); anchor();
@@ -6547,7 +6556,7 @@
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       if (tpEl && !tpEl.hidden && textBtn) placeTextPanel();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
-      if (ctxEl) { keepOnScreen(ctxEl, ctxBox()); dockSync(false); }
+      if (ctxEl) { dockPanels(); keepOnScreen(ctxEl, ctxBox()); dockSync(false); }
     }
     // THE TOP BAR FOLDS to a thin strip, and opens again, by the arrow at its
     // end. Its height eases, and the picture's space with it (the bar never
@@ -6828,6 +6837,23 @@
       if (on) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} }
       dockSync(ctxReady);
     }
+    // (wider screens: Effects and the colour picker open in the dock's place,
+    // as wide as it, over the tool settings, which step aside; on a phone
+    // where they were, beside the left bar and over the bottom bar)
+    var DOCKED_PANELS = [[adjBox, left], [pc, bbar]];
+    function dockPanels() {
+      var d = !phoneLayout();
+      DOCKED_PANELS.forEach(function (x) {
+        var el = x[0], home = d ? dock : x[1];
+        el.classList.toggle('in-dock', d); el.classList.toggle('locked', d); // (in its place: not dragged about)
+        if (el.parentNode !== home) { home.appendChild(el); el.style.translate = el.style.top = el.style.left = ''; }
+        if (d) el.style.translate = '';
+      });
+      discSize(d ? Math.max(150, (parseFloat(getComputedStyle(paintEl).getPropertyValue('--ctx-w')) || 196) - 20) : 212);
+      if (!pc.hidden) placePicker();
+      ctxAside();
+    }
+    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
       var on = !phoneLayout() && ctxLocked && !ctxEl.classList.contains('min');
@@ -7115,7 +7141,7 @@
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     var ctxReady = false;
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
-    ctxLock(ctxLocked); dockSync(false); ctxReady = true;
+    ctxLock(ctxLocked); dockSync(false); dockPanels(); ctxReady = true;
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
