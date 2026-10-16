@@ -249,6 +249,8 @@ body > * { flex-shrink: 0; }
 @media (hover: hover) { .hdr-fold:hover { color: var(--text); background: var(--panel-solid); } }
 .hdr-fold:active { transform: scale(var(--press)); }
 .brand { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+/* (the saved pill sits centred over the left toolbar, the same width as it) */
+.site-header .brand { flex: none; width: var(--bar); justify-content: center; }
 /* (there for screen readers only) */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .brand-icon {
