@@ -824,7 +824,20 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint .ctx-min svg { width: var(--icon-sm); height: var(--icon-sm); }
 .ctx-min .cm-show, .paint-ctx.min .ctx-min .cm-hide { display: none; }
 .paint-ctx.min .ctx-min .cm-show { display: block; }
-.paint-ctx.min > :not(.ctx-min):not(.ctx-grip) { display: none !important; }
+/* the lock: locked, the bar keeps to its place beside the picture (which
+   makes room for it) and can't be dragged; unlocked, it floats */
+.paint .ctx-lock { flex: none; width: 28px; height: 28px; border-radius: var(--r-sm); color: var(--muted); }
+@media (hover: hover) { .paint .ctx-lock:hover { color: var(--menu-link); background: var(--hover-strong); } }
+.paint .ctx-lock svg { width: var(--icon-sm); height: var(--icon-sm); }
+/* (its icon shows which: it isn't lit like a pressed button) */
+.paint .paint-ctx .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
+@media (hover: hover) { .paint .paint-ctx .ctx-lock[aria-pressed]:hover { color: var(--menu-link); background: var(--hover-strong); } }
+.ctx-lock .cl-off, .paint-ctx:not(.locked) .ctx-lock .cl-on { display: none; }
+.paint-ctx:not(.locked) .ctx-lock .cl-off { display: block; }
+.paint-ctx.locked .ctx-grip { cursor: default; }
+.paint-ctx.locked .ctx-grip::before { opacity: .2 !important; }
+.paint-ctx.locked.min .ctx-min { cursor: pointer; }
+.paint-ctx.min > :not(.ctx-min):not(.ctx-grip):not(.ctx-lock) { display: none !important; }
 .paint-ctx.min .ctx-min { cursor: grab; touch-action: none; } /* (folded, it can be dragged by its grip or by the button itself) */
 .paint-ctx.min { padding: 3px; }
 .paint .paint-ctx.min .ctx-min { width: 34px; height: 34px; color: var(--menu-link); }
@@ -914,6 +927,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .ctx-grip::before { content: ""; position: absolute; left: 50%; top: 7px; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px; background: var(--muted); opacity: .4; transition: opacity var(--dur) ease; }
   @media (hover: hover) { .ctx-grip:hover::before { opacity: .8; } }
   .paint .ctx-min { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; }
+  .paint .ctx-lock { position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; }
+  .paint .paint-ctx.min .ctx-lock { position: static; width: 34px; height: 26px; }
   .paint-ctx.min { width: auto; overflow: visible; }
   .paint .paint-ctx.min .ctx-min { position: static; }
   .paint-ctx.min .ctx-grip { height: 14px; margin: 0; }
