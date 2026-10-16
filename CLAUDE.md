@@ -76,11 +76,13 @@ When building or changing anything visual:
   built per tool by `CTX` in `paint.js`), and so do a selection's actions.
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
   as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
-  settings as switches), so it never covers the picture; folded (its
-  `.ctx-min` button, remembered) or dragged away, the dock eases shut and the
-  picture's space grows into it (`dockSync`, `refitWhile`), and dropped back
-  near its place (or its grip double-clicked) it docks again. It's kept
-  within the workspace (`ctxBox`). On phones it's a wrapping strip along the
+  settings as switches), so it never covers the picture, while it's
+  **locked** (`ctxLocked`, its `.ctx-lock` button, remembered; locked, it
+  can't be dragged). Folded (its `.ctx-min` button, remembered) the dock
+  eases shut and the picture's space grows into it (`dockSync`,
+  `refitWhile`); unlocked, it floats where it's dragged and the dock stays
+  shut; locking puts it back in its place. It's kept within the workspace
+  (`ctxBox`). On phones it's a wrapping strip along the
   top of the picture (the dock takes no room there). Its lists open on the
   side towards the picture's middle.
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round

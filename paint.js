@@ -439,6 +439,7 @@
     function draggable(el, handle, key, btnHandle, within, moved0) {
       try { var saved = JSON.parse(localStorage.getItem('paint-pos-' + key)); if (saved) { el.style.translate = saved[0] + 'px ' + saved[1] + 'px'; requestAnimationFrame(function () { keepOnScreen(el, within); }); } } catch (x) {}
       el.addEventListener('pointerdown', function (e) {
+        if (el.classList.contains('locked')) return; // (locked in its place)
         var bh = btnHandle && e.target.closest(btnHandle);
         var h = bh || e.target.closest(handle);
         if (!h || !el.contains(h) || e.button || (!bh && e.target.closest('button, input, select, textarea, a, [data-nodrag]'))) return;
@@ -6805,11 +6806,12 @@
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxView = ctxView || 'tool';
     ctxEl.appendChild(selbar);
-    // THE DOCK: the tool options stand in a space of their own at the right
-    // of the workspace, so they never cover the picture. Dragged away (or
-    // folded to its button) the space goes and the picture's grows into it,
-    // easing; dropped back near its place, it docks again (so does a
-    // double-click on its grip). On a phone it's a strip over the picture
+    // THE DOCK: locked (ctxLocked, its lock button), the tool options stand
+    // in a space of their own at the right of the workspace, so they never
+    // cover the picture, and can't be dragged; folded to their button, the
+    // space goes and the picture's grows into it, easing. Unlocked, they
+    // float: dragged anywhere, never making room. Locking puts them back in
+    // their place. On a phone it's a strip over the picture
     // (the box it's kept in: the stage on a phone; otherwise the workspace,
     // a little larger, so in its own place, flush with the workspace's
     // edge, it isn't nudged in)
@@ -6818,17 +6820,22 @@
       return { getBoundingClientRect: function () { var r = paintEl.getBoundingClientRect(); return { left: r.left - 6, top: r.top - 6, right: r.right + 6, bottom: r.bottom + 6 }; } };
     }
     function ctxDocked() { var o = panelOffset(ctxEl); return !o.x && !o.y; }
+    var ctxLocked = (function () { try { var v = localStorage.getItem('paint-ctx-lock'); return v != null ? v === 'true' : !localStorage.getItem('paint-pos-ctx2'); } catch (x) { return true; } })();
+    function ctxLock(on) {
+      ctxLocked = on; storeIt('paint-ctx-lock', on); ctxEl.classList.toggle('locked', on);
+      var b = ctxEl.querySelector('.ctx-lock'), t = on ? 'Unlock the tool settings, to move them' : 'Lock the tool settings in their place beside the picture (it makes room for them)';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', t); b.dataset.tip = t; hideTip();
+      if (on) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} }
+      dockSync(ctxReady);
+    }
     function dockSync(ease) {
-      var on = !phoneLayout() && !ctxEl.classList.contains('min') && ctxDocked();
+      if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
+      var on = !phoneLayout() && ctxLocked && !ctxEl.classList.contains('min');
       if (paintEl.classList.contains('dock-on') === on) return;
       if (!ease) { paintEl.classList.add('dock-instant'); paintEl.classList.toggle('dock-on', on); void dock.offsetWidth; paintEl.classList.remove('dock-instant'); refit(); return; }
       paintEl.classList.toggle('dock-on', on); refitWhile(dock);
     }
-    draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', ctxBox, function () {
-      var o = panelOffset(ctxEl);
-      if (o.x || o.y) { if (Math.hypot(o.x, o.y) < 48) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} } }
-      dockSync(true);
-    });
+    draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', ctxBox, function () { dockSync(true); });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
@@ -7108,7 +7115,7 @@
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     var ctxReady = false;
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
-    dockSync(false); ctxReady = true;
+    ctxLock(ctxLocked); dockSync(false); ctxReady = true;
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
@@ -7123,6 +7130,7 @@
     ctxEl.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
+      if (b.classList.contains('ctx-lock')) { ctxLock(!ctxLocked); return; }
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
       if (k === 'bstudio') { studio(bsBox.hidden || bsId !== st.brush); return; }
