@@ -103,9 +103,9 @@
     // Square, or ISOMETRIC: lines upright and at 30° either way, making
     // triangles whose sides are the spacing (a tile s√3 wide and s high,
     // its diagonals the slanted lines). Its opacity can be turned down, and
-    // what's drawn can snap to it (gridPt, gridDirs)
+    // with Drawing Assist on, strokes keep along its lines' ways (gridDirs)
     var gridOn = stored('paint-grid-on', false) === true, gridSize = stored('paint-grid-size', 40), gridSeen = '';
-    var gridKind = stored('paint-grid-kind', 'square') === 'iso' ? 'iso' : 'square', gridAlpha = Math.max(0.1, Math.min(1, +stored('paint-grid-alpha', 1) || 1)), gridSnap = stored('paint-grid-snap', false) === true;
+    var gridKind = stored('paint-grid-kind', 'square') === 'iso' ? 'iso' : 'square', gridAlpha = Math.max(0.1, Math.min(1, +stored('paint-grid-alpha', 1) || 1));
     var gridEl = document.createElement('div'); gridEl.className = 'paint-grid'; gridEl.hidden = true; gridEl.setAttribute('aria-hidden', 'true'); guide.parentNode.insertBefore(gridEl, guide);
     function gridDraw() {
       gridEl.hidden = !gridOn; if (!gridOn) { gridSeen = ''; return; }
@@ -115,22 +115,9 @@
       gridEl.style.setProperty('--gs', s + 'px'); gridEl.style.setProperty('--gx', (s * Math.sqrt(3)) + 'px'); gridEl.style.setProperty('--gw', (1 / view.k) + 'px');
       gridEl.style.opacity = gridAlpha;
     }
-    // SNAP TO GRID (while it shows): points go to the nearest crossing, and
-    // a stroke keeps straight along the nearest of its lines' ways
-    function snapping() { return gridOn && gridSnap; }
-    function gridPt(p) {
-      var s = gridSize;
-      if (gridKind !== 'iso') return { x: Math.round(p.x / s) * s, y: Math.round(p.y / s) * s, pr: p.pr };
-      // (the crossings: i columns s√3/2 apart, each with one every s, half a step down per column)
-      var cx = s * Math.sqrt(3) / 2, i0 = Math.floor(p.x / cx), best = null, bd = Infinity;
-      for (var i = i0; i <= i0 + 1; i++) {
-        var y0 = i * s / 2, y = y0 + Math.round((p.y - y0) / s) * s, d = (p.x - i * cx) * (p.x - i * cx) + (p.y - y) * (p.y - y);
-        if (d < bd) { bd = d; best = { x: i * cx, y: y, pr: p.pr }; }
-      }
-      return best;
-    }
+    // (the ways a stroke can keep to with the grid: across and up and down,
+    // or upright and 30° either way for isometric)
     function gridDirs() { return gridKind === 'iso' ? [{ x: 0, y: 1 }, { x: Math.sqrt(3) / 2, y: 0.5 }, { x: Math.sqrt(3) / 2, y: -0.5 }] : [{ x: 1, y: 0 }, { x: 0, y: 1 }]; }
-    function gsnap(p) { return snapping() ? gridPt(p) : { x: p.x, y: p.y }; }
     // (the slider: 4 to 256 of the picture's pixels, finely at the small end)
     function gridFromSlider(v) { return Math.round(4 * Math.pow(64, v / 100)); }
     function gridToSlider(g) { return Math.round(Math.log(g / 4) / Math.log(64) * 100); }
@@ -793,10 +780,11 @@
     function blendMode() { return st.tool === 'tone' ? st.tone : st.tool; }
     function blendSave() { blendSet[blendMode()] = { size: st.size, alpha: st.alpha }; storeIt('paint-blend-set', blendSet); }
     function blendLoad() { var q = blendSet[blendMode()]; if (q) { setSize(q.size); setAlpha(q.alpha); } }
-    var LINE_ICON = '<path d="M7.2 16.8l9.6-9.6"/><circle cx="5.8" cy="18.2" r="2"/><circle cx="18.2" cy="5.8" r="2"/>', SHAPES_ICON = '<rect x="3.5" y="11.5" width="8" height="8" rx="1.5"/><circle cx="16" cy="8" r="4.5"/><path d="M16.5 14.5l4 6h-8z"/>';
+    var LINE_ICON = '<path d="M7.2 16.8l9.6-9.6"/><circle cx="5.8" cy="18.2" r="2"/><circle cx="18.2" cy="5.8" r="2"/>';
     function comboSync() {
       var sb = root.querySelector('.paint-shapebtn'), bb = root.querySelector('.paint-blendbtn');
-      if (sb) { sb.dataset.tool = shapeKind; sb.innerHTML = '<svg viewBox="0 0 24 24">' + (shapeKind === 'line' ? LINE_ICON : SHAPES_ICON) + '</svg>'; sb.setAttribute('aria-label', shapeKind === 'line' ? 'Shapes: Line (L)' : 'Shapes (R)'); }
+      // (the Shapes button keeps its own icon, whichever kind is picked in its panel)
+      if (sb) sb.dataset.tool = shapeKind;
       if (bb) bb.dataset.tool = blendTool;
     }
     comboSync();
@@ -1441,10 +1429,16 @@
       guide.innerHTML = lines.length ? '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + lines.map(function (l) { return '<line' + (l[4] ? ' class="' + l[4] + '"' : '') + ' x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>'; }).join('') + '</svg>' : '';
       placeSymHandles();
     }
-    // DRAWING ASSIST: a ruler, or perspective with 1, 2 or 3 vanishing
-    // points. Each stroke goes the way closest to how it starts (along the
-    // ruler or square to it; toward a vanishing point, or level or upright
-    // where those count) and stays straight along it
+    // GUIDES: a ruler, or perspective with 1, 2 or 3 vanishing points, shown
+    // over the picture (gMode); on their own they don't touch what's drawn.
+    // DRAWING ASSIST (assistOn, its own switch): a stroke goes the way
+    // closest to how it starts (along the ruler or square to it; toward a
+    // vanishing point, or level or upright where those count; or, with no
+    // ruler or perspective, along the grid's lines, shown or not, if it's
+    // within ASSIST_TOL of one, so other ways stay freehand), and stays
+    // straight along it, from just where it started. The way is chosen once,
+    // after ASSIST_PX on the screen
+    var assistOn = stored('paint-assist', false) === true, ASSIST_PX = 10, ASSIST_TOL = 20 * Math.PI / 180;
     var gMode = 'off', rulC = { x: 0.5, y: 0.5 }, rulA = 0, VP = [{ x: 0.5, y: 0.42 }, { x: 0.12, y: 0.42 }, { x: 0.88, y: 0.42 }, { x: 0.5, y: 1.25 }];
     function rulCentre() { return { x: rulC.x * W, y: rulC.y * H }; }
     // (1 point: the middle one; 2 points: left and right; 3: and one below)
@@ -1458,16 +1452,17 @@
       if (gMode === 'p1') { unit(1, 0); unit(0, 1); } else if (gMode === 'p2') unit(0, 1);
       return out;
     }
-    // (a point of the stroke, put on the line it's keeping to; the line
-    // tool, dyn, picks the nearest way again as it moves)
+    // (a point of the stroke, put on the line it's keeping to; a stroke
+    // started in no way near one stays freehand (gfree). The line tool,
+    // dyn, picks the nearest way again as it moves)
     function assist(q, dyn) {
-      if ((gMode === 'off' && !snapping()) || !down || !down.start) return q;
+      if (!assistOn || !down || !down.start || down.gfree) return q;
       var s0 = down.start, dx = q.x - s0.x, dy = q.y - s0.y, len = Math.hypot(dx, dy);
       if (!down.gdir || dyn) {
-        if (len * view.k < 8) return dyn ? q : { x: s0.x, y: s0.y, pr: q.pr };
-        var best = null, bd = 9;
+        if (len * view.k < ASSIST_PX) return dyn ? q : { x: s0.x, y: s0.y, pr: q.pr };
+        var best = null, bd = gMode === 'off' ? ASSIST_TOL : 9; // (a ruler or perspective always takes its nearest way)
         assistDirs(s0).forEach(function (d) { var a = Math.acos(Math.min(1, Math.abs(dx * d.x + dy * d.y) / len)); if (a < bd) { bd = a; best = d; } });
-        if (!best) return q;
+        if (!best) { if (!dyn) down.gfree = true; return q; }
         if (dyn) { var t0 = dx * best.x + dy * best.y; return { x: s0.x + best.x * t0, y: s0.y + best.y * t0, pr: q.pr }; }
         down.gdir = best;
       }
@@ -1479,6 +1474,7 @@
       mirrorLit();
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
+    function setAssistOn(on) { assistOn = on; storeIt('paint-assist', on); mirrorLit(); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
     var TURN_R = 64; // (how far the turning handle sits from the centre, on the screen)
     function placeSymHandles() {
       if (!symDot) return; // (not made yet)
@@ -1545,8 +1541,8 @@
     function setSym(v) {
       st.sym = v; drawGuide(); symOpts(); mirrorLit();
     }
-    // (lit while symmetry, a drawing assist or the grid is on)
-    function mirrorLit() { var b = $('.paint-mirror'); if (b) b.setAttribute('aria-pressed', st.sym !== 'off' || gMode !== 'off' || gridOn ? 'true' : 'false'); }
+    // (lit while symmetry, a ruler or perspective, the grid or Drawing Assist is on)
+    function mirrorLit() { var b = $('.paint-mirror'); if (b) b.setAttribute('aria-pressed', st.sym !== 'off' || gMode !== 'off' || gridOn || assistOn ? 'true' : 'false'); }
     function setGrid(on) { gridOn = on; storeIt('paint-grid-on', on); gridDraw(); mirrorLit(); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
     mirrorLit();
     // SPRAY: an airbrush's cloud of droplets. Where each lands is scattered
@@ -1940,13 +1936,13 @@
         if (grad.kind === 'free') {
           // (a tap adds a colour point, in the colour in hand; it's picked
           // by tapping it, so the next colour chosen is for the next point)
-          var q = gsnap(p); grad.pts.push({ x: q.x, y: q.y, c: gradCol(st.color), o: 1 }); grad.pick = null;
+          var q = p; grad.pts.push({ x: q.x, y: q.y, c: gradCol(st.color), o: 1 }); grad.pick = null;
           down = { id: e.pointerId, start: p, last: p, grad: { k: 'p', i: grad.pts.length - 1 }, gradSnap: sn, gradNew: true, g0: gradCopy(grad) }; gradShow(); return;
         }
         gradDone(); // (somewhere else: this one is laid down, and another begun)
         if (active && active.text && !paintAbove()) return;
       }
-      grad = gradNew(gsnap(p)); gradGone = null;
+      grad = gradNew(p); gradGone = null;
       if (grad.kind === 'free') grad.pts = [{ x: grad.a.x, y: grad.a.y, c: gradCol(st.color), o: 1 }, { x: grad.a.x, y: grad.a.y, c: gradCol(st.color2), o: 1 }];
       down = { id: e.pointerId, start: p, last: p, grad: { k: 'new' } };
       gradShow();
@@ -1963,14 +1959,13 @@
       dn.moved = true; dn.last = p;
       // (a handle moves as far as the pointer does, from where it was taken
       // hold of, so it doesn't jump to a finger that's a little off it)
-      var shift = e.shiftKey, by = function (o) { return gsnap({ x: o.x + p.x - dn.start.x, y: o.y + p.y - dn.start.y }); };
-      if (h.k === 'new') { g.b = gradTurn(gsnap(p), g.a, shift); if (g.kind === 'free') { g.pts[1].x = g.b.x; g.pts[1].y = g.b.y; } }
+      var shift = e.shiftKey, by = function (o) { return { x: o.x + p.x - dn.start.x, y: o.y + p.y - dn.start.y }; };
+      if (h.k === 'new') { g.b = gradTurn({ x: p.x, y: p.y }, g.a, shift); if (g.kind === 'free') { g.pts[1].x = g.b.x; g.pts[1].y = g.b.y; } }
       else if (h.k === 'b') g.b = gradTurn(by(g0.b), g.a, shift);
       else if (h.k === 'a' && g.kind === 'linear') g.a = gradTurn(by(g0.a), g.b, shift);
       else if (h.k === 'a' || h.k === 'line') {
         // (a radial, angular or diamond one's centre, or the line: it all moves)
-        var dx = p.x - dn.start.x, dy = p.y - dn.start.y, na = gsnap({ x: g0.a.x + dx, y: g0.a.y + dy });
-        dx = na.x - g0.a.x; dy = na.y - g0.a.y;
+        var dx = p.x - dn.start.x, dy = p.y - dn.start.y;
         g.a = { x: g0.a.x + dx, y: g0.a.y + dy }; g.b = { x: g0.b.x + dx, y: g0.b.y + dy };
       } else if (h.k === 's') {
         // (along the line; pulled well off it, it goes when it's let go)
@@ -5248,7 +5243,6 @@
       }
       if (t === 'fill') { if (fillDrop(p)) plopAt(e.clientX, e.clientY, st.color); useColor(); return; }
       if (t === 'gradient') { gradDown(e, p); return; }
-      if (snapping() && /^(brush|eraser|line|shape)$/.test(t)) p = gridPt(p);
       if (t === 'eraser' && active.alphaLock) { toast('Alpha lock is on for this layer: paint over it instead'); return; }
       remember();
       down = { id: e.pointerId, start: p, last: p, pen: e.pointerType === 'pen', snap: true };
@@ -5372,7 +5366,7 @@
       }
       // line and shapes
       octx.clearRect(0, 0, W, H); strokeStyle(octx);
-      if (snapping() && gMode === 'off') p = gridPt(p); else if (t === 'line') p = assist(p, true);
+      if (t === 'line') p = assist(p, true);
       both(octx, function () { shapePath(octx, down.start, p, e.shiftKey); });
       maskOv();
     }
@@ -5412,7 +5406,7 @@
       down.settled = k;
     }
     function holdStill(q) {
-      if (!snapShapes || gMode !== 'off') return; // (with a guide on, strokes keep to it instead)
+      if (!snapShapes || (down && down.gdir)) return; // (a stroke Drawing Assist keeps straight stays as it is)
       var a = down.holdAt;
       if (a && Math.hypot(q.x - a.x, q.y - a.y) <= 4 / view.k) return;
       down.holdAt = { x: q.x, y: q.y };
@@ -6892,23 +6886,23 @@
         var box = '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/>', dash = ' stroke-dasharray="2 1.8"';
         var SI = { x: box + '<path d="M12 4.5v15"' + dash + '/>', y: box + '<path d="M4.5 12h15"' + dash + '/>', xy: box + '<path d="M12 4.5v15M4.5 12h15"' + dash + '/>',
           radial: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5v15M5.5 8.25l13 7.5M5.5 15.75l13-7.5"' + dash + '/>' };
-        var AI = { off: 'Off', ruler: 'Ruler', p1: '1-Pt', p2: '2-Pt', p3: '3-Pt' }, ATIP = { off: 'No drawing assist', ruler: 'Ruler: strokes keep straight along it, or square to it', p1: 'One-point perspective: strokes run toward the point, or level, or upright', p2: 'Two-point perspective: strokes run toward either point, or upright', p3: 'Three-point perspective: strokes run toward any of the three points' };
+        var AI = { off: 'Off', ruler: 'Ruler', p1: '1-Pt', p2: '2-Pt', p3: '3-Pt' }, ATIP = { off: 'No ruler or perspective guide', ruler: 'Ruler: a straight edge to draw by (with Drawing Assist on, strokes keep along it, or square to it)', p1: 'One-point perspective (with Drawing Assist on, strokes run toward the point, or level, or upright)', p2: 'Two-point perspective (with Drawing Assist on, strokes run toward either point, or upright)', p3: 'Three-point perspective (with Drawing Assist on, strokes run toward any of the three points)' };
         return '<div class="ctx-title">Guides</div><div class="ctx-sub">Symmetry</div>' +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Symmetry">' + SYMS.map(function (y) { return '<button type="button" role="tab" data-ctx-sym="' + y[0] + '" aria-label="' + y[1] + '" data-tip="' + y[1] + '">' + (SI[y[0]] ? CI(SI[y[0]]) : 'Off') + '</button>'; }).join('') + '</div>' +
           '<div class="ctx-field" data-ctx="symn" data-sym-when="radial"><span>Segments</span><span class="p-step"><button type="button" data-symd="-1" aria-label="Fewer segments">&#8722;</button><output>6</output><button type="button" data-symd="1" aria-label="More segments">+</button></span></div>' +
           '<div data-sym-when="radial">' + chip('symmirror', 'Mirror', '<path d="M12 4v16"' + dash + '/><path d="M9 8l-4 8h4zM15 8l4 8h-4z"/>', 'Mirror each segment too') + '</div>' +
           '<div data-sym-when="on">' + hint('Drag the guide&#39;s centre to move it, and its handle to turn it') + '</div>' +
           '<button type="button" class="ctx-btn" data-ctx="symreset" data-sym-when="on" data-tip="Put the guide back in the middle, upright">' + CI('<circle cx="12" cy="12" r="7.5"' + dash + '/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>') + '<span>Centre the Guide</span></button>' +
-          '<div class="ctx-sub">Drawing Assist</div>' +
-          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Drawing assist">' + ['off', 'ruler', 'p1', 'p2', 'p3'].map(function (m) { return '<button type="button" role="tab" data-ctx-assist="' + m + '" data-tip="' + ATIP[m] + '">' + AI[m] + '</button>'; }).join('') + '</div>' +
-          '<div data-assist-on>' + hint('Brush, eraser, spray and line strokes keep to it. Drag its points to move them') + '</div>' +
+          '<div class="ctx-sub">Ruler &amp; Perspective</div>' +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Ruler and perspective">' + ['off', 'ruler', 'p1', 'p2', 'p3'].map(function (m) { return '<button type="button" role="tab" data-ctx-assist="' + m + '" data-tip="' + ATIP[m] + '">' + AI[m] + '</button>'; }).join('') + '</div>' +
+          '<div data-assist-on>' + hint('Drag its points to move it. With Drawing Assist on, strokes keep to it') + '</div>' +
           '<button type="button" class="ctx-btn" data-ctx="assistreset" data-assist-on data-tip="Put the ruler, or the vanishing points, back where they started">' + CI('<path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/>') + '<span>Reset Guide</span></button>' +
           '<div class="ctx-sub">Grid</div>' +
           chip('grid', 'Show Grid', '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><path d="M9.5 4.5v15M14.5 4.5v15M4.5 9.5h15M4.5 14.5h15"/>', 'Show a grid over the picture, to draw to (it isn&#39;t part of the picture, and isn&#39;t saved)') +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Grid" data-grid-on><button type="button" role="tab" data-ctx-gridk="square" data-tip="Square: lines across and up and down">Square</button><button type="button" role="tab" data-ctx-gridk="iso" data-tip="Isometric: lines upright and at 30° either way, for drawing in isometric">Isometric</button></div>' +
           '<label class="ctx-slider" data-grid-on data-tip="How far apart the grid&#39;s lines are, in the picture&#39;s pixels (isometric: the side of each triangle)"><span>Spacing</span><input type="range" min="0" max="100" data-ctx="gridsize" aria-label="Grid spacing"><output>40</output></label>' +
           '<label class="ctx-slider" data-grid-on data-tip="How strongly the grid shows"><span>Opacity</span><input type="range" min="10" max="100" data-ctx="gridalpha" aria-label="Grid opacity"><output>100%</output></label>' +
-          '<div data-grid-on>' + chip('gridsnap', 'Snap to Grid', '<path d="M6 4.5v7a6 6 0 0 0 12 0v-7h-3.5v7a2.5 2.5 0 0 1-5 0v-7z"/><path d="M6 8h3.5M14.5 8H18"/>', 'Snap to the grid: lines, shapes and gradients go from crossing to crossing, and strokes keep straight along its lines') + '</div>' +
+          chip('assist', 'Drawing Assist', '<path d="M6 4.5v7a6 6 0 0 0 12 0v-7h-3.5v7a2.5 2.5 0 0 1-5 0v-7z"/><path d="M6 8h3.5M14.5 8H18"/>', 'Drawing Assist: strokes keep straight along the ruler, toward the vanishing points, or (with neither) along the grid&#39;s lines, from wherever they start. Off: everything is freehand') +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="symdone" data-tip="Back to the tool&#39;s settings">Done</button>';
       },
       hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
@@ -7010,7 +7004,7 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
-      set('[data-ctx="grid"]', 'aria-pressed', gridOn); set('[data-ctx="gridsnap"]', 'aria-pressed', gridSnap);
+      set('[data-ctx="grid"]', 'aria-pressed', gridOn); set('[data-ctx="assist"]', 'aria-pressed', assistOn);
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-gridk]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxGridk === gridKind ? 'true' : 'false'); });
       var ga = q('[data-ctx="gridalpha"]'); if (ga) { if (document.activeElement !== ga) ga.value = Math.round(gridAlpha * 100); ga.nextElementSibling.textContent = Math.round(gridAlpha * 100) + '%'; }
       gradSync(q);
@@ -7105,7 +7099,7 @@
       if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
       if (k === 'grid') { setGrid(!gridOn); return; }
       if (b.dataset.ctxGridk) { gridKind = b.dataset.ctxGridk; storeIt('paint-grid-kind', gridKind); gridDraw(); ctxSync(); return; }
-      if (k === 'gridsnap') { gridSnap = !gridSnap; storeIt('paint-grid-snap', gridSnap); ctxSync(); return; }
+      if (k === 'assist') { setAssistOn(!assistOn); return; }
       if (b.dataset.ctxGk) { gradSetKind(b.dataset.ctxGk); return; }
       if (k === 'graddone') { gradDone(); return; }
       if (k === 'gradcancel') { gradCancel(); return; }
