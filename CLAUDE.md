@@ -55,7 +55,10 @@ When building or changing anything visual:
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. A button in the folded bar
   can't be seen, so what it opens drops from the arrow (`hdrBtn`). The left
-  bar (`.paint-left`) holds the tools in groups. The right bar
+  bar (`.paint-left`) holds the tools in groups (there's no Hand button:
+  the picture moves with Space, two fingers, the middle button, scrolling,
+  H, or a drag with the tool put down). The Shapes button keeps its own icon
+  whichever kind is picked; Select sits beside Pen. The right bar
   (`.paint-right`) holds colour, then size and opacity for the tool in hand
   (in sections that fold), then undo/redo with Layers under them, then
   zoom. Panels that open from a bar open towards the picture (`besideBar`
@@ -75,12 +78,18 @@ When building or changing anything visual:
   world, in the picture's units, its lines a screen pixel wide (`--gw`) and
   every 2nd/4th... line only when zoomed far out (`gridDraw`, from
   `applyView`); never part of the picture. Isometric is upright lines and
-  the two diagonals of a tile `--gx` (s√3) wide and `--gs` high. **Snap to
-  Grid** (`gridSnap`, while the grid shows; `snapping()`): points go to the
-  nearest crossing (`gridPt`: a stroke's start, a line's or shape's ends, a
-  gradient's handles and points, via `gsnap`) and strokes keep along the
-  nearest of its lines' ways (`gridDirs`, through `assist`). The
-  mirror button is lit while symmetry, an assist or the grid is on (`mirrorLit`). Pop-out panels can be dragged with
+  the two diagonals of a tile `--gx` (s√3) wide and `--gs` high. The ruler
+  and perspective guides (`gMode`, the panel's Ruler & Perspective) only
+  show; **Drawing Assist** (`assistOn`, the switch at the panel's foot,
+  `setAssistOn`) is what makes strokes keep to them: through `assist`, a
+  brush, eraser, spray or line stroke takes the way nearest how it starts
+  (decided once, after `ASSIST_PX` on the screen), from exactly where it
+  started: never moved onto a line or crossing. The ways come from the ruler
+  or perspective if one is picked, otherwise the grid's (`gridDirs`: square,
+  or isometric's upright and 30° either way), shown or not; a grid's way is
+  only taken within `ASSIST_TOL`, so other strokes stay freehand
+  (`down.gfree`). The
+  mirror button is lit while symmetry, a guide, the grid or Drawing Assist is on (`mirrorLit`). Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
   them doesn't paint.
