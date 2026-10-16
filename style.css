@@ -915,6 +915,9 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-dock { position: relative; z-index: 4; flex: none; width: 0; margin-left: calc(-1 * var(--pgap)); transition: width var(--dur-slow) var(--ease), margin var(--dur-slow) var(--ease); }
 .paint.dock-on .paint-dock { width: var(--ctx-w); margin-left: 0; }
 .dock-instant .paint-dock { transition: none; }
+/* (wider screens: what floats from the dock, the tool settings moved about
+   or what opens from them, goes over the bars, never under) */
+@media (min-width: 561px) { .paint-dock { z-index: 6; } }
 /* wider screens: the bar stands up in the dock, one setting per row (on
    phones it stays a strip along the top of the picture, which wraps) */
 @media (min-width: 561px) {

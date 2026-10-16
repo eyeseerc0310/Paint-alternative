@@ -67,9 +67,12 @@ When building or changing anything visual:
   like the top bar's capsules) holds, in this order, Size, Undo, the two
   colours (`.paint-pair`, the swap tucked at their top), Redo and Opacity;
   a slider the tool doesn't use is greyed out (`data-uses`). On wider
-  screens the colour picker and Effects open in the dock's place, as wide
-  as it, over the tool settings, which step aside (`dockPanels`, `in-dock`,
-  `ctxAside`; the picker's wheel is sized to fit, `discSize`); on phones the
+  screens the colour picker and Effects open from the tool settings, as wide
+  as them, over them, and they step aside (`dockPanels`, `in-dock`,
+  `ctxAside`; the picker's wheel is sized to fit, `discSize`): locked, in
+  the dock's place; unlocked, where the settings were moved to, kept within
+  the workspace (`dockPlace`, worked out from the layout as they pop in).
+  On those screens the dock is above the bars (z-index 6). On phones the
   picker opens above the bottom bar, its middle over the two colours
   (`placePicker`), and Effects beside the left bar. There's no right bar,
   and no quick swatches: the picker has the palettes and recent colours, as
