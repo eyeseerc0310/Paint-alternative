@@ -227,11 +227,9 @@ body > * { flex-shrink: 0; }
   height: var(--hdr); padding: 0 var(--edge);
   background: none;
 }
-/* FOLDED (the usual): a slim strip with the saved dot and an arrow; the
-   arrow opens it downward to the full bar, the workspace easing smaller to
-   make room (never covered), and folds it again */
-.doc-status { transition: height var(--dur-slow) var(--ease), color var(--dur) ease, background-color var(--dur) ease; }
-:root:not(.hdr-open) .doc-status { height: 24px; }
+/* FOLDED (the usual): a slim strip with an arrow in the middle; the arrow
+   opens it downward to the full bar, the workspace easing smaller to make
+   room (never covered), and folds it again */
 .header-tools { margin-left: auto; transition: opacity var(--dur) ease calc(var(--dur) * .4), transform var(--dur-slow) var(--spring) calc(var(--dur) * .2), visibility 0s; }
 :root:not(.hdr-open) .header-tools { opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-12px) scale(.96); transition: opacity calc(var(--dur) * .7) ease, transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur); }
 .hdr-fold {
@@ -249,8 +247,6 @@ body > * { flex-shrink: 0; }
 @media (hover: hover) { .hdr-fold:hover { color: var(--text); background: var(--panel-solid); } }
 .hdr-fold:active { transform: scale(var(--press)); }
 .brand { display: flex; align-items: center; gap: .7rem; min-width: 0; }
-/* (the saved pill sits centred over the left toolbar, the same width as it) */
-.site-header .brand { flex: none; width: var(--bar); justify-content: center; }
 /* (there for screen readers only) */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .brand-icon {
@@ -260,12 +256,15 @@ body > * { flex-shrink: 0; }
   box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 6px 14px -4px rgba(31, 111, 224, .55), inset 0 0 0 .5px rgba(255, 255, 255, .3);
 }
 .brand-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-/* saved-status: a quiet glass chip by the name */
+/* saved-status: a quiet glass chip in the bottom corner under the tools,
+   centred under the left bar, its foot level with the foot of the picture's
+   well (as the bar's top is with the well's top) */
 .doc-status {
+  position: absolute; left: calc(var(--bar) / 2); bottom: 0; z-index: 4; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: var(--r-pill);
   font-size: var(--fs-xs); font-weight: 500; color: var(--muted); background: var(--panel); white-space: nowrap; cursor: default;
   -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: 0 0 0 .5px var(--line);
-  transition: color var(--dur) ease, background-color var(--dur) ease;
+  transition: color var(--dur) ease, background-color var(--dur) ease, opacity var(--dur) ease, visibility 0s;
 }
 .doc-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); transition: background-color var(--dur) ease; }
 .doc-status[data-state="saving"] i { background: var(--muted); animation: st-pulse 1s ease-in-out infinite; }
@@ -293,7 +292,7 @@ body > * { flex-shrink: 0; }
 .paint {
   /* tools on the left, colour and actions on the right, the picture's
      space taking all the rest: everything in view at once, no scrolling */
-  display: flex; justify-content: center; align-items: stretch; gap: 1rem;
+  position: relative; display: flex; justify-content: center; align-items: stretch; gap: 1rem;
   height: calc(100vh - var(--hdr, 52px) - 2 * var(--edge)); height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); min-height: 520px;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
@@ -1072,7 +1071,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .focus-mode .site-main { padding-top: var(--edge); }
 .focus-mode .paint { gap: 0; height: calc(100vh - 2 * var(--edge)); height: calc(100svh - 2 * var(--edge)); }
 .focus-mode .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; }
-.focus-mode .paint-bar { opacity: 0; visibility: hidden; pointer-events: none; }
+.focus-mode .paint-bar, .focus-mode .doc-status { opacity: 0; visibility: hidden; pointer-events: none; }
 .focus-mode .paint-left { margin-right: calc(-1 * var(--bar)); transform: translateX(calc(-100% - 2 * var(--edge))); }
 .focus-mode .paint-right { margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
 .focus-mode .paint-ctx { opacity: 0 !important; visibility: hidden; pointer-events: none; }
