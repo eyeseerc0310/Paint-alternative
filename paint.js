@@ -99,15 +99,38 @@
     // picture, in its own units, so they stay put as it's zoomed, moved and
     // turned; a background on one element, not part of the picture (never
     // saved). Its lines are a screen pixel wide at any zoom, and zoomed far
-    // out, only every second (fourth...) one shows, so it never turns solid
+    // out, only every second (fourth...) one shows, so it never turns solid.
+    // Square, or ISOMETRIC: lines upright and at 30° either way, making
+    // triangles whose sides are the spacing (a tile s√3 wide and s high,
+    // its diagonals the slanted lines). Its opacity can be turned down, and
+    // what's drawn can snap to it (gridPt, gridDirs)
     var gridOn = stored('paint-grid-on', false) === true, gridSize = stored('paint-grid-size', 40), gridSeen = '';
+    var gridKind = stored('paint-grid-kind', 'square') === 'iso' ? 'iso' : 'square', gridAlpha = Math.max(0.1, Math.min(1, +stored('paint-grid-alpha', 1) || 1)), gridSnap = stored('paint-grid-snap', false) === true;
     var gridEl = document.createElement('div'); gridEl.className = 'paint-grid'; gridEl.hidden = true; gridEl.setAttribute('aria-hidden', 'true'); guide.parentNode.insertBefore(gridEl, guide);
     function gridDraw() {
       gridEl.hidden = !gridOn; if (!gridOn) { gridSeen = ''; return; }
       var s = gridSize; while (s * view.k < 6) s *= 2;
-      var key = s + ':' + view.k; if (key === gridSeen) return; gridSeen = key;
-      gridEl.style.setProperty('--gs', s + 'px'); gridEl.style.setProperty('--gw', (1 / view.k) + 'px');
+      var key = gridKind + s + ':' + view.k + ':' + gridAlpha; if (key === gridSeen) return; gridSeen = key;
+      gridEl.classList.toggle('iso', gridKind === 'iso');
+      gridEl.style.setProperty('--gs', s + 'px'); gridEl.style.setProperty('--gx', (s * Math.sqrt(3)) + 'px'); gridEl.style.setProperty('--gw', (1 / view.k) + 'px');
+      gridEl.style.opacity = gridAlpha;
     }
+    // SNAP TO GRID (while it shows): points go to the nearest crossing, and
+    // a stroke keeps straight along the nearest of its lines' ways
+    function snapping() { return gridOn && gridSnap; }
+    function gridPt(p) {
+      var s = gridSize;
+      if (gridKind !== 'iso') return { x: Math.round(p.x / s) * s, y: Math.round(p.y / s) * s, pr: p.pr };
+      // (the crossings: i columns s√3/2 apart, each with one every s, half a step down per column)
+      var cx = s * Math.sqrt(3) / 2, i0 = Math.floor(p.x / cx), best = null, bd = Infinity;
+      for (var i = i0; i <= i0 + 1; i++) {
+        var y0 = i * s / 2, y = y0 + Math.round((p.y - y0) / s) * s, d = (p.x - i * cx) * (p.x - i * cx) + (p.y - y) * (p.y - y);
+        if (d < bd) { bd = d; best = { x: i * cx, y: y, pr: p.pr }; }
+      }
+      return best;
+    }
+    function gridDirs() { return gridKind === 'iso' ? [{ x: 0, y: 1 }, { x: Math.sqrt(3) / 2, y: 0.5 }, { x: Math.sqrt(3) / 2, y: -0.5 }] : [{ x: 1, y: 0 }, { x: 0, y: 1 }]; }
+    function gsnap(p) { return snapping() ? gridPt(p) : { x: p.x, y: p.y }; }
     // (the slider: 4 to 256 of the picture's pixels, finely at the small end)
     function gridFromSlider(v) { return Math.round(4 * Math.pow(64, v / 100)); }
     function gridToSlider(g) { return Math.round(Math.log(g / 4) / Math.log(64) * 100); }
@@ -322,7 +345,7 @@
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       if (textBox) placeTextBox();
-      placeSelX(); placeSymHandles(); gridDraw();
+      placeSelX(); placeSymHandles(); gridDraw(); if (grad) { gradMarks(); gradZoomed(); }
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
     // in the picture's corner instead
@@ -465,7 +488,7 @@
     });
     var recentBox = $('.paint-recent');
     function setColor(c) {
-      st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples();
+      st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples(); if (grad) gradTint(c);
       if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); // (the gradient map made from the colours follows them)
       Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
@@ -813,6 +836,7 @@
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
       var tp = null;
       if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
+      if (grad && t !== 'gradient') gradDone();
       if (selKindOf(t) && t !== selKind) { selKind = t; storeIt('paint-sel-kind', t); selBtnSync(); }
       if ((t === 'line' || t === 'shape') && t !== shapeKind) { shapeKind = t; storeIt('paint-shape-kind', t); comboSync(); }
       if (isBlend(t) && t !== blendTool) { blendTool = t; storeIt('paint-blend-tool', t); comboSync(); }
@@ -828,6 +852,7 @@
       stage.dataset.tool = t; stage.classList.remove('can-move');
       octx.clearRect(0, 0, W, H);
       ctxView = 'tool'; ctxRender();
+      if (grad) gradDraw();
       if (t === 'move') movePick();
       if (tp) startText(tp.at, 0, null, tp.path);
     }
@@ -850,7 +875,7 @@
     function limit() { return Math.max(4, Math.min(LIMIT, Math.floor(160e6 / (ov.width * ov.height * 4)))); }
     // (what could be redone is kept with the step, so a stroke that's called
     // off at once, like the first finger of a two-finger tap, gives it back)
-    function push(e) { boxStale(e); endFillAnim(); if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
+    function push(e) { boxStale(e); endFillAnim(); gradGone = null; if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
     // (a text layer's words are kept with its pixels; any other change to
     // its pixels makes it plain paint: undo brings the words back)
     function remember(label, quiet) {
@@ -860,11 +885,11 @@
     function props() { return layers.map(function (L) { var G = L.group; return { v: L.visible, o: L.opacity, b: L.blend, a: L.alphaLock, c: L.clip, t: L.text, m: L.mask, g: G, gp: G && [G.name, G.open, G.visible, G.opacity, G.blend] }; }); }
     function rememberLayers(label) { push({ list: layers.slice(), active: active, props: props(), label: label || 'Layers' }); }
     function docState() { return { doc: true, pw: ov.width, ph: ov.height, list: layers.slice(), active: active, props: props() }; }
-    function rememberDoc(label) { var e = docState(); e.label = label; push(e); }
+    function rememberDoc(label) { if (grad) gradDone(); var e = docState(); e.label = label; push(e); }
     function capture(e) {
       if (e.parts) return { parts: e.parts.map(capture), label: e.label }; // (a step that changed a layer and the list, like Merge Down)
       var c = e.doc ? docState() : e.L ? { L: e.L, data: snapOf(e.L), bg: e.L.bg, text: e.L.text, name: e.L.name } : { list: layers.slice(), active: active, props: props() };
-      c.label = e.label; if (e.pen) c.pen = e.pen; return c;
+      c.label = e.label; if (e.pen) c.pen = e.pen; if (e.grad) c.grad = e.grad; return c;
     }
     function apply(e) {
       boxStale(e);
@@ -887,8 +912,13 @@
       if (pen && !whole && penUndo()) return;
       if (!whole && selUndo()) return;
       if (pen) cancelPen(); // (an emptied path gives way)
+      // (a gradient being made: its changes first; then a new one goes (redo
+      // brings it back), and one brought back by undo gives way)
+      if (grad && !whole) { if (gradUndo()) return; var fu = grad.fromUndo; if (!fu) gradGone = gradKeep(); gradCancel(); if (!fu) { buttons(); return; } }
+      else if (grad) gradDone();
       var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return;
-      var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); fxAfter(fx); buttons(); autosave();
+      gradGone = null;
+      var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); if (e.grad && !whole) gradRestore(e.grad, true); fxAfter(fx); buttons(); autosave();
     }
     function doRedo(whole) {
       endFillAnim(); if (down) return;
@@ -896,6 +926,9 @@
       if (!whole && selRedo()) return;
       if (pen && pen.pts.length && !pen.fromUndo && !whole) return; // (a new path in the making: nothing ahead of it)
       if (pen) cancelPen(); // (a path brought back by undo gives way to it being laid down again)
+      if (grad && !whole) { if (gradRedo()) return; if (!grad.fromUndo) return; gradCancel(); }
+      else if (grad) gradDone();
+      if (gradGone && !whole) { var gg = gradGone; gradGone = null; gradRestore(gg, false); return; }
       var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return;
       var e = redo.pop(); undo.push(capture(e)); apply(e); fxAfter(fx); buttons(); autosave();
     }
@@ -906,9 +939,9 @@
     function buttons() { histButtons(); renderHistory(); }
     function histButtons() {
       var P = pen && pen.hist ? pen : null;
-      var S = sel && selSteps() ? sel : null;
-      $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length) && !(S && S.hist && S.hist.length);
-      $('[data-act="redo"]').disabled = !(P && P.fut.length) && !(redo.length && !(P && P.pts.length && !P.fromUndo)) && !(S && S.fut && S.fut.length);
+      var S = sel && selSteps() ? sel : null, G = grad && grad.hist ? grad : null;
+      $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length) && !(S && S.hist && S.hist.length) && !G;
+      $('[data-act="redo"]').disabled = !(P && P.fut.length) && !(redo.length && !(P && P.pts.length && !P.fromUndo) && !(G && !G.fromUndo)) && !(S && S.fut && S.fut.length) && !(G && G.fut.length) && !(gradGone && !G);
     }
 
     // ---- brushes ----
@@ -1418,6 +1451,7 @@
     function vpIdx() { return gMode === 'p1' ? [0] : gMode === 'p2' ? [1, 2] : gMode === 'p3' ? [1, 2, 3] : []; }
     function vpts() { return vpIdx().map(function (i) { return { x: VP[i].x * W, y: VP[i].y * H }; }); }
     function assistDirs(s0) {
+      if (gMode === 'off') return gridDirs();
       var out = [], unit = function (x, y) { var l = Math.hypot(x, y); if (l > 1e-6) out.push({ x: x / l, y: y / l }); };
       if (gMode === 'ruler') { unit(Math.cos(rulA), Math.sin(rulA)); unit(-Math.sin(rulA), Math.cos(rulA)); return out; }
       vpts().forEach(function (v) { unit(v.x - s0.x, v.y - s0.y); });
@@ -1427,7 +1461,7 @@
     // (a point of the stroke, put on the line it's keeping to; the line
     // tool, dyn, picks the nearest way again as it moves)
     function assist(q, dyn) {
-      if (gMode === 'off' || !down || !down.start) return q;
+      if ((gMode === 'off' && !snapping()) || !down || !down.start) return q;
       var s0 = down.start, dx = q.x - s0.x, dy = q.y - s0.y, len = Math.hypot(dx, dy);
       if (!down.gdir || dyn) {
         if (len * view.k < 8) return dyn ? q : { x: s0.x, y: s0.y, pr: q.pr };
@@ -1661,20 +1695,342 @@
       if (st.solid) c.fill(); else c.stroke();
     }
 
-    // ---- gradient: from the colour to the second colour, across the drag ----
-    function gradient(a, b) {
-      octx.clearRect(0, 0, W, H);
-      var g = octx.createLinearGradient(a.x, a.y, b.x, b.y);
-      // eased (smoothstep), so it fades in and out of each colour gently
-      var c1 = parseInt(st.color.slice(1), 16), c2 = parseInt(st.color2.slice(1), 16);
-      for (var i = 0; i <= 24; i++) {
-        var t = i / 24, e = t * t * (3 - 2 * t), mix = function (sh) { var u = c1 >> sh & 255, v = c2 >> sh & 255; return Math.round(u + (v - u) * e); };
-        g.addColorStop(t, 'rgb(' + mix(16) + ',' + mix(8) + ',' + mix(0) + ')');
+    // ---- GRADIENTS: linear, radial (out from a centre), angular (round a
+    // centre, like a clock's hand), diamond, or freeform (colour points
+    // anywhere, blended smoothly). A drag makes one, from the colour to the
+    // second colour, and it then stays to be worked on before it's laid down:
+    // its ends (a radial, angular or diamond one's centre, which moves it all,
+    // and its edge, which sizes and turns it) and its colour stops are
+    // dragged on the picture (gradUi); a drag along its line moves it, a tap
+    // on the line adds a stop, and a stop pulled well off the line goes. A
+    // picked stop (or point) takes the colour in hand, and picking a colour
+    // changes it; each has an opacity of its own. Done, Return, another tool
+    // or a drag somewhere else lays it down, as one step that undo brings back
+    // to work on (e.grad); its changes before then are steps of their own,
+    // like the pen's (grad.hist / grad.fut). Linear, radial and angular are
+    // drawn by the browser at full size; diamond and freeform are worked out a
+    // pixel at a time, smaller while they're being changed (gradPixels) ----
+    var GRAD_KINDS = [
+      ['linear', 'Linear', 'Linear: from one end of the line to the other', '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><path d="M9 4.5v15" stroke-opacity=".3"/><path d="M12 4.5v15" stroke-opacity=".55"/><path d="M15 4.5v15" stroke-opacity=".8"/>'],
+      ['radial', 'Radial', 'Radial: out from a centre, in rings', '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="4" stroke-opacity=".55"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'],
+      ['angular', 'Angular', 'Angular: round a centre, like a clock’s hand', '<circle cx="12" cy="12" r="7.5" stroke-opacity=".4"/><path d="M12 12V4.5"/><path d="M12 4.5a7.5 7.5 0 1 1-7.5 7.5"/>'],
+      ['diamond', 'Diamond', 'Diamond: out from a centre, in diamonds', '<path d="M12 3.5l8.5 8.5-8.5 8.5-8.5-8.5z"/><path d="M12 8.5l3.5 3.5-3.5 3.5-3.5-3.5z" stroke-opacity=".55"/>'],
+      ['free', 'Freeform', 'Freeform: colour points anywhere, blended smoothly', '<circle cx="7.5" cy="8" r="2.2"/><circle cx="16.5" cy="9.5" r="2.2"/><circle cx="11" cy="16.5" r="2.2"/><path d="M9.7 8.3l4.6.9M15.2 11.4l-2.8 3.3M8.3 10.1l1.6 4.3" stroke-opacity=".45"/>']
+    ];
+    var gradKind = stored('paint-grad-kind', 'linear'); if (!GRAD_KINDS.some(function (k) { return k[0] === gradKind; })) gradKind = 'linear';
+    // (gradGone: a gradient just let go by undo, for redo to bring back;
+    // gradRun: a colour or opacity being changed, kept as one step)
+    var grad = null, gradGone = null, gradRun = false, gradQuiet = false, gradFrame = 0, gradFull = 0;
+    function gradCopy(g) {
+      var P = function (q) { return { x: q.x, y: q.y }; };
+      return { kind: g.kind, a: P(g.a), b: P(g.b), stops: g.stops.map(function (s) { return { t: s.t, c: s.c, o: s.o }; }),
+        pts: g.pts.map(function (q) { return { x: q.x, y: q.y, c: q.c, o: q.o }; }), pick: g.pick ? { k: g.pick.k, i: g.pick.i } : null };
+    }
+    function gradKeep() { var k = gradCopy(grad); k.hist = grad.hist.slice(); return k; }
+    function gradSnap() { return gradCopy(grad); }
+    function gradPut(sn) { var g = gradCopy(sn); g.hist = grad.hist; g.fut = grad.fut; g.fromUndo = grad.fromUndo; grad = g; }
+    function gradRecord(sn) {
+      grad.hist.push(sn); grad.fut = []; gradGone = null;
+      if (grad.fromUndo) { grad.fromUndo = false; redo = []; } // (changed: the one laid down before is no longer ahead)
+      buttons();
+    }
+    function gradUndo() { if (!grad.hist.length) return false; grad.fut.push(gradSnap()); gradPut(grad.hist.pop()); gradShow(); return true; }
+    function gradRedo() { if (!grad.fut.length) return false; grad.hist.push(gradSnap()); gradPut(grad.fut.pop()); gradShow(); return true; }
+    function gradRestore(k, fromUndo) {
+      grad = gradCopy(k); grad.hist = (k.hist || []).slice(); grad.fut = []; grad.fromUndo = !!fromUndo;
+      if (st.tool !== 'gradient') setTool('gradient');
+      gradShow();
+    }
+    function gradShow() { gradDraw(); buttons(); ctxSync(); ctxShow(); }
+    // (colours go into the handles' drawing: only #rrggbb ones are taken)
+    function gradCol(c) { return /^#[0-9a-f]{6}$/i.test(c) ? c : '#000000'; }
+    function gradNew(a) { return { kind: gradKind, a: { x: a.x, y: a.y }, b: { x: a.x, y: a.y }, stops: [{ t: 0, c: gradCol(st.color), o: 1 }, { t: 1, c: gradCol(st.color2), o: 1 }], pts: [], pick: null, hist: [], fut: [] }; }
+    function gradSort() { var pk = grad.pick && grad.pick.k === 's' ? grad.stops[grad.pick.i] : null; grad.stops.sort(function (a, b) { return a.t - b.t; }); if (pk) grad.pick.i = grad.stops.indexOf(pk); }
+    function gradEmpty(g) { return g.kind === 'free' ? !g.pts.length : g.a.x === g.b.x && g.a.y === g.b.y; }
+    // (the stop or point picked: the colour in hand becomes its colour, and
+    // picking another colour changes it)
+    function gradPicked() { var p = grad && grad.pick; return p ? (p.k === 's' ? grad.stops[p.i] : grad.pts[p.i]) || null : null; }
+    function gradPick(k, i) { grad.pick = k ? { k: k, i: i } : null; var s = gradPicked(); if (s && !maskSwap && s.c.toLowerCase() !== st.color.toLowerCase()) { gradQuiet = true; setColor(s.c); gradQuiet = false; } }
+    function gradTint(c) {
+      var s = gradPicked(); if (!s || gradQuiet || !/^#[0-9a-f]{6}$/i.test(c) || s.c.toLowerCase() === c.toLowerCase()) return;
+      if (!gradRun) { gradRecord(gradSnap()); gradRun = true; s = gradPicked(); }
+      s.c = c; gradDraw(); gradBarSync();
+    }
+    function gradOpacity(o) {
+      var s = gradPicked(); if (!s) return;
+      if (!gradRun) { gradRecord(gradSnap()); gradRun = true; s = gradPicked(); }
+      s.o = o; gradDraw(); ctxSync();
+    }
+    ['pointerup', 'pointercancel'].forEach(function (t) { document.addEventListener(t, function () { gradRun = false; }, true); });
+    function hexRgb(c) { var n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+    // the colour at t along the stops: eased between each two (smoothstep, as
+    // the gradient always was), weighted by how solid each is, so a colour
+    // fading out doesn't go grey on the way
+    function gradAt(S, t) {
+      var i = 0; while (i < S.length - 2 && t > S[i + 1].t) i++;
+      var s0 = S[i], s1 = S[Math.min(i + 1, S.length - 1)];
+      var u = s1.t > s0.t ? Math.max(0, Math.min(1, (t - s0.t) / (s1.t - s0.t))) : t >= s1.t ? 1 : 0, e = u * u * (3 - 2 * u);
+      var c0 = hexRgb(s0.c), c1 = hexRgb(s1.c), a0 = s0.o * (1 - e), a1 = s1.o * e, a = a0 + a1;
+      if (a <= 0) return [c0[0] + (c1[0] - c0[0]) * e, c0[1] + (c1[1] - c0[1]) * e, c0[2] + (c1[2] - c0[2]) * e, 0];
+      return [(c0[0] * a0 + c1[0] * a1) / a, (c0[1] * a0 + c1[1] * a1) / a, (c0[2] * a0 + c1[2] * a1) / a, a];
+    }
+    // (1024 colours along it, made again only when the stops change)
+    var gradLutKey = '', gradLutC = null;
+    function gradLut(S) {
+      var key = JSON.stringify(S); if (key === gradLutKey) return gradLutC;
+      var L = new Uint8ClampedArray(4096);
+      for (var i = 0; i < 1024; i++) { var c = gradAt(S, i / 1023); L[i * 4] = c[0]; L[i * 4 + 1] = c[1]; L[i * 4 + 2] = c[2]; L[i * 4 + 3] = c[3] * 255; }
+      gradLutKey = key; gradLutC = L; return L;
+    }
+    function gradCss(L, k) { return 'rgba(' + L[k] + ',' + L[k + 1] + ',' + L[k + 2] + ',' + (L[k + 3] / 255).toFixed(3) + ')'; }
+    function gradNative(g) { return g.kind === 'linear' || g.kind === 'radial' || (g.kind === 'angular' && !!octx.createConicGradient); }
+    function gradStyle(c, g, L) {
+      var a = g.a, b = g.b, G;
+      if (g.kind === 'linear') G = c.createLinearGradient(a.x, a.y, b.x, b.y);
+      else if (g.kind === 'radial') G = c.createRadialGradient(a.x, a.y, 0, a.x, a.y, Math.hypot(b.x - a.x, b.y - a.y));
+      else G = c.createConicGradient(Math.atan2(b.y - a.y, b.x - a.x), a.x, a.y);
+      for (var i = 0; i <= 128; i++) G.addColorStop(i / 128, gradCss(L, Math.round(i / 128 * 1023) * 4));
+      return G;
+    }
+    // DIAMOND AND FREEFORM (and angular where the browser can't): a pixel at
+    // a time, over the picture, in as many pixels as the budget allows
+    // (stretched over it smoothly). Freeform mixes the points' colours, each
+    // weighted by how near it is (1 / (distance² + a little)^1.5), so each
+    // point holds its own colour round it and they blend smoothly between
+    var gradCv = document.createElement('canvas'), gradCx = gradCv.getContext('2d');
+    function gradPixels(g, L, budget) {
+      var fw = ov.width, fh = ov.height, q = Math.min(1, Math.sqrt(budget / (fw * fh)));
+      var w = Math.max(1, Math.round(fw * q)), h = Math.max(1, Math.round(fh * q));
+      if (gradCv.width !== w || gradCv.height !== h) { gradCv.width = w; gradCv.height = h; }
+      var img = gradCx.createImageData(w, h), d = img.data, sx = W / w, sy = H / h, x, y, k = 0, j, t;
+      var a = g.a, b = g.b, r2 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y) || 1;
+      if (g.kind === 'diamond') {
+        // (how far along the line to the corner, and across it, as fractions of it)
+        var ux = (b.x - a.x) / r2, uy = (b.y - a.y) / r2, du = sx * ux, dv = -sx * uy;
+        for (y = 0; y < h; y++) {
+          var px0 = 0.5 * sx - a.x, py = (y + 0.5) * sy - a.y, u = px0 * ux + py * uy, v = -px0 * uy + py * ux;
+          for (x = 0; x < w; x++, k += 4, u += du, v += dv) {
+            t = (u < 0 ? -u : u) + (v < 0 ? -v : v); j = (t >= 1 ? 1023 : (t * 1023 + 0.5) | 0) * 4;
+            d[k] = L[j]; d[k + 1] = L[j + 1]; d[k + 2] = L[j + 2]; d[k + 3] = L[j + 3];
+          }
+        }
+      } else if (g.kind === 'angular') {
+        var a0 = Math.atan2(b.y - a.y, b.x - a.x), TAU = Math.PI * 2;
+        for (y = 0; y < h; y++) {
+          var yy = (y + 0.5) * sy - a.y;
+          for (x = 0; x < w; x++, k += 4) {
+            t = (Math.atan2(yy, (x + 0.5) * sx - a.x) - a0) / TAU; t -= Math.floor(t); j = ((t * 1023 + 0.5) | 0) * 4;
+            d[k] = L[j]; d[k + 1] = L[j + 1]; d[k + 2] = L[j + 2]; d[k + 3] = L[j + 3];
+          }
+        }
+      } else {
+        var P = g.pts, n = P.length, h2 = Math.pow(Math.hypot(W, H) * 0.01, 2), X = new Float64Array(n), Y = new Float64Array(n), CR = new Float64Array(n), CG = new Float64Array(n), CB = new Float64Array(n), CA = new Float64Array(n);
+        P.forEach(function (q, i) { var c = hexRgb(q.c); X[i] = q.x; Y[i] = q.y; CA[i] = q.o; CR[i] = c[0] * q.o; CG[i] = c[1] * q.o; CB[i] = c[2] * q.o; });
+        for (y = 0; y < h; y++) {
+          var yc = (y + 0.5) * sy;
+          for (x = 0; x < w; x++, k += 4) {
+            var xc = (x + 0.5) * sx, sw = 0, sr = 0, sg = 0, sb = 0, sa = 0;
+            for (var i = 0; i < n; i++) {
+              var ex = xc - X[i], ey = yc - Y[i], q2 = ex * ex + ey * ey + h2, wt = 1 / (q2 * Math.sqrt(q2));
+              sw += wt; sr += wt * CR[i]; sg += wt * CG[i]; sb += wt * CB[i]; sa += wt * CA[i];
+            }
+            if (sa > 0) { d[k] = sr / sa; d[k + 1] = sg / sa; d[k + 2] = sb / sa; }
+            d[k + 3] = sa / sw * 255;
+          }
+        }
       }
-      octx.fillStyle = g;
-      if (sel && sel.poly) { outline(octx, sel.x, sel.y, 1); octx.fill(); }
-      else if (sel && sel.mask) { octx.fillRect(sel.x, sel.y, sel.w, sel.h); octx.save(); octx.globalCompositeOperation = 'destination-in'; octx.drawImage(sel.mask, sel.x, sel.y, sel.w, sel.h); octx.restore(); }
-      else if (sel) octx.fillRect(sel.x, sel.y, sel.w, sel.h); else octx.fillRect(0, 0, W, H);
+      gradCx.putImageData(img, 0, 0);
+      return gradCv;
+    }
+    // the gradient, filling a canvas whose units are the picture's
+    // (budget: pixels to work out, for the pixel-at-a-time kinds)
+    function gradFill(c, budget) {
+      var g = grad, L = gradLut(g.stops);
+      c.save();
+      if (g.kind !== 'free' && gradNative(g)) { c.fillStyle = gradStyle(c, g, L); c.fillRect(0, 0, W, H); }
+      else { var cv = gradPixels(g, L, budget); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(cv, 0, 0, W, H); }
+      c.restore();
+    }
+    // WHILE IT'S BEING WORKED ON it's shown on a stand-in canvas over the
+    // picture with about the screen's own detail (gradPv), not the
+    // full-size sheet, so it keeps up on a big picture: only inside a
+    // selection, and (as maskOv does for strokes) on the paint already there
+    // with alpha lock, inside the layer's mask, or what it's clipped to.
+    // quick: while it's changing (the pixel-at-a-time kinds coarser), then
+    // properly once it rests. It's worked out at full size when laid down
+    var gradPv = document.createElement('canvas'), gpx = gradPv.getContext('2d');
+    gradPv.className = 'paint-gradpv'; gradPv.setAttribute('aria-hidden', 'true'); gradPv.hidden = true; ov.parentNode.insertBefore(gradPv, ov.nextSibling);
+    function gradPaint(quick) {
+      var g = grad;
+      // (none: the stand-ins let go of their memory)
+      if (!g) { gradPv.hidden = true; gradPv.width = gradPv.height = gradCv.width = gradCv.height = 1; return; }
+      var fw = ov.width, fh = ov.height, q = Math.min(1, view.k * (window.devicePixelRatio || 1) / R, Math.sqrt(4e6 / (fw * fh)));
+      var w = Math.max(1, Math.round(fw * q)), h = Math.max(1, Math.round(fh * q));
+      if (gradPv.width !== w || gradPv.height !== h) { gradPv.width = w; gradPv.height = h; }
+      gradPv.style.width = W + 'px'; gradPv.style.height = H + 'px';
+      gpx.setTransform(1, 0, 0, 1, 0, 0); gpx.clearRect(0, 0, w, h);
+      gradPv.style.opacity = st.alpha * (active ? active.opacity : 1); gradPv.hidden = false;
+      if (gradEmpty(g)) return;
+      gpx.setTransform(w / W, 0, 0, h / H, 0, 0);
+      gradFill(gpx, quick ? Math.min(w * h, g.kind === 'free' ? 3e5 : 1.2e6) : Math.min(w * h, 4e6));
+      gpx.save(); gpx.globalCompositeOperation = 'destination-in'; gpx.fillStyle = '#000';
+      if (sel) { if (sel.mask) gpx.drawImage(sel.mask, sel.x, sel.y, sel.w, sel.h); else { selPath(gpx); gpx.fill(); } }
+      var cb = active && !active.isMask && clipBase(active);
+      if (active && !active.isMask) { if (active.alphaLock) gpx.drawImage(active.cv, 0, 0, W, H); if (active.mask) gpx.drawImage(active.mask.a, 0, 0, W, H); if (cb) gpx.drawImage(cb.mask ? cb.view || viewOf(cb) : cb.cv, 0, 0, W, H); }
+      gpx.restore();
+    }
+    // (redrawn once a frame at most: the pixel-at-a-time kinds quickly while
+    // they're being changed, then properly once they rest)
+    function gradDraw() {
+      gradMarks();
+      if (!grad || gradFrame) return;
+      gradFrame = requestAnimationFrame(function () {
+        gradFrame = 0; if (!grad) return;
+        var slow = grad.kind === 'free' || !gradNative(grad);
+        gradPaint(slow); gradMarks();
+        clearTimeout(gradFull); if (slow) gradFull = setTimeout(function () { if (grad && !down) gradPaint(false); }, 260);
+      });
+    }
+    // (zoomed: shown again with the detail the screen now has, once it rests)
+    function gradZoomed() { clearTimeout(gradFull); gradFull = setTimeout(function () { if (grad && !down) gradPaint(false); }, 200); }
+    // ITS HANDLES, on the screen over the picture (so they're never cut off
+    // at its edge, and stay the same size at any zoom): the line, with a dot
+    // for each stop in its colour, and a dashed edge for radial, angular and
+    // diamond; or a dot for each freeform point. The picked one is ringed
+    var gradUi = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); gradUi.setAttribute('class', 'paint-gradui'); gradUi.setAttribute('aria-hidden', 'true'); gradUi.hidden = true;
+    world.parentNode.insertBefore(gradUi, world.nextSibling);
+    function gradMarks() {
+      if (!grad) { if (!gradUi.hidden) { gradUi.hidden = true; gradUi.innerHTML = ''; } return; }
+      var g = grad, h = '', f = function (v) { return Math.round(v * 10) / 10; }, pk = g.pick, drop = down && down.grad && down.off;
+      var dot = function (q, c, o, on, r) { return '<g class="gu-dot' + (on ? ' on' : '') + (on && drop ? ' off' : '') + '"><circle class="gu-base" cx="' + f(q.x) + '" cy="' + f(q.y) + '" r="' + r + '"/><circle cx="' + f(q.x) + '" cy="' + f(q.y) + '" r="' + (r - 2.5) + '" fill="' + gradCol(c) + '" fill-opacity="' + (+o) + '"/></g>'; };
+      if (g.kind === 'free') g.pts.forEach(function (q, i) { h += dot(toScreen(q), q.c, q.o, pk && pk.k === 'p' && pk.i === i, 8); });
+      else {
+        var A = toScreen(g.a), B = toScreen(g.b), dx = B.x - A.x, dy = B.y - A.y, r = Math.hypot(dx, dy);
+        if (g.kind === 'radial' || g.kind === 'angular') h += '<circle class="gu-edge" cx="' + f(A.x) + '" cy="' + f(A.y) + '" r="' + f(r) + '"/>';
+        if (g.kind === 'diamond') h += '<path class="gu-edge" d="M' + f(A.x + dx) + ' ' + f(A.y + dy) + 'L' + f(A.x - dy) + ' ' + f(A.y + dx) + 'L' + f(A.x - dx) + ' ' + f(A.y - dy) + 'L' + f(A.x + dy) + ' ' + f(A.y - dx) + 'Z"/>';
+        var ln = 'x1="' + f(A.x) + '" y1="' + f(A.y) + '" x2="' + f(B.x) + '" y2="' + f(B.y) + '"';
+        h += '<line class="gu-under" ' + ln + '/><line class="gu-line" ' + ln + '/>';
+        var n = g.stops.length;
+        g.stops.forEach(function (s, i) { h += dot({ x: A.x + dx * s.t, y: A.y + dy * s.t }, s.c, s.o, pk && pk.k === 's' && pk.i === i, i === 0 || i === n - 1 ? 8 : 6.5); });
+      }
+      gradUi.innerHTML = h; gradUi.hidden = false;
+    }
+    // what's under a point of the picture: an end (with its stop), a stop, a
+    // freeform point, or the line (where, along it)
+    function gradHit(p, tol) {
+      var g = grad, best = null, bd = tol, d;
+      if (g.kind === 'free') { g.pts.forEach(function (q, i) { d = Math.hypot(p.x - q.x, p.y - q.y); if (d <= bd) { bd = d; best = { k: 'p', i: i }; } }); return best; }
+      var n = g.stops.length, at = function (s) { return { x: g.a.x + (g.b.x - g.a.x) * s.t, y: g.a.y + (g.b.y - g.a.y) * s.t }; };
+      [0, n - 1].forEach(function (i) { var q = at(g.stops[i]); d = Math.hypot(p.x - q.x, p.y - q.y); if (d <= bd) { bd = d; best = { k: i ? 'b' : 'a', s: i }; } });
+      for (var i = 1; i < n - 1; i++) { var q = at(g.stops[i]); d = Math.hypot(p.x - q.x, p.y - q.y); if (d <= bd) { bd = d; best = { k: 's', i: i }; } }
+      if (best) return best;
+      var vx = g.b.x - g.a.x, vy = g.b.y - g.a.y, l2 = vx * vx + vy * vy; if (!l2) return null;
+      var t = ((p.x - g.a.x) * vx + (p.y - g.a.y) * vy) / l2, off = Math.abs((p.x - g.a.x) * vy - (p.y - g.a.y) * vx) / Math.sqrt(l2);
+      return t > 0 && t < 1 && off <= tol ? { k: 'line', t: t } : null;
+    }
+    function gradDown(e, p) {
+      var tol = (e.pointerType !== 'mouse' ? 20 : 10) / view.k;
+      if (grad) {
+        var sn = gradSnap(), h = gradHit(p, tol);
+        if (h) {
+          if (h.k === 'a' || h.k === 'b') gradPick('s', h.s); else if (h.k !== 'line') gradPick(h.k, h.i);
+          if (h.k === 's') h.stop = grad.stops[h.i];
+          down = { id: e.pointerId, start: p, last: p, grad: h, gradSnap: sn, g0: gradCopy(grad) }; gradShow(); return;
+        }
+        if (grad.kind === 'free') {
+          // (a tap adds a colour point, in the colour in hand; it's picked
+          // by tapping it, so the next colour chosen is for the next point)
+          var q = gsnap(p); grad.pts.push({ x: q.x, y: q.y, c: gradCol(st.color), o: 1 }); grad.pick = null;
+          down = { id: e.pointerId, start: p, last: p, grad: { k: 'p', i: grad.pts.length - 1 }, gradSnap: sn, gradNew: true, g0: gradCopy(grad) }; gradShow(); return;
+        }
+        gradDone(); // (somewhere else: this one is laid down, and another begun)
+        if (active && active.text && !paintAbove()) return;
+      }
+      grad = gradNew(gsnap(p)); gradGone = null;
+      if (grad.kind === 'free') grad.pts = [{ x: grad.a.x, y: grad.a.y, c: gradCol(st.color), o: 1 }, { x: grad.a.x, y: grad.a.y, c: gradCol(st.color2), o: 1 }];
+      down = { id: e.pointerId, start: p, last: p, grad: { k: 'new' } };
+      gradShow();
+    }
+    // (Shift: the end turns in steps of 15° round the other end)
+    function gradTurn(q, o, shift) {
+      if (!shift) return q;
+      var an = Math.round(Math.atan2(q.y - o.y, q.x - o.x) / (Math.PI / 12)) * (Math.PI / 12), l = Math.hypot(q.x - o.x, q.y - o.y);
+      return { x: o.x + Math.cos(an) * l, y: o.y + Math.sin(an) * l };
+    }
+    function gradMove(p, e) {
+      var dn = down, h = dn.grad, g = grad, g0 = dn.g0;
+      if (!dn.moved && Math.hypot(p.x - dn.start.x, p.y - dn.start.y) * view.k < 3) return;
+      dn.moved = true; dn.last = p;
+      // (a handle moves as far as the pointer does, from where it was taken
+      // hold of, so it doesn't jump to a finger that's a little off it)
+      var shift = e.shiftKey, by = function (o) { return gsnap({ x: o.x + p.x - dn.start.x, y: o.y + p.y - dn.start.y }); };
+      if (h.k === 'new') { g.b = gradTurn(gsnap(p), g.a, shift); if (g.kind === 'free') { g.pts[1].x = g.b.x; g.pts[1].y = g.b.y; } }
+      else if (h.k === 'b') g.b = gradTurn(by(g0.b), g.a, shift);
+      else if (h.k === 'a' && g.kind === 'linear') g.a = gradTurn(by(g0.a), g.b, shift);
+      else if (h.k === 'a' || h.k === 'line') {
+        // (a radial, angular or diamond one's centre, or the line: it all moves)
+        var dx = p.x - dn.start.x, dy = p.y - dn.start.y, na = gsnap({ x: g0.a.x + dx, y: g0.a.y + dy });
+        dx = na.x - g0.a.x; dy = na.y - g0.a.y;
+        g.a = { x: g0.a.x + dx, y: g0.a.y + dy }; g.b = { x: g0.b.x + dx, y: g0.b.y + dy };
+      } else if (h.k === 's') {
+        // (along the line; pulled well off it, it goes when it's let go)
+        var vx = g.b.x - g.a.x, vy = g.b.y - g.a.y, l2 = vx * vx + vy * vy || 1;
+        h.stop.t = Math.max(0.001, Math.min(0.999, ((p.x - g.a.x) * vx + (p.y - g.a.y) * vy) / l2));
+        dn.off = g.stops.length > 2 && Math.abs((p.x - g.a.x) * vy - (p.y - g.a.y) * vx) / Math.sqrt(l2) * view.k > 48;
+        g.pick = { k: 's', i: 0 }; g.stops.sort(function (a, b) { return a.t - b.t; }); g.pick.i = g.stops.indexOf(h.stop);
+      } else if (h.k === 'p') { var q = by(g0.pts[h.i]); g.pts[h.i].x = q.x; g.pts[h.i].y = q.y; }
+      gradDraw(); if (h.k === 's') gradBarSync();
+    }
+    function gradUp() {
+      var dn = down, h = dn.grad, g = grad; down = null;
+      if (h.k === 'new') {
+        // (a tap, not a drag: one a quarter of the picture across, to start from)
+        if (!dn.moved) { g.b = { x: g.a.x + Math.max(W, H) / 4, y: g.a.y }; if (g.kind === 'free') g.pts.length = 1; }
+      } else if (h.k === 'line' && !dn.moved) {
+        // (a tap on the line: a stop there, in the colour the gradient has there)
+        var c = gradAt(g.stops, h.t), s = { t: h.t, c: rgb2hex(c[0], c[1], c[2]), o: Math.round(c[3] * 100) / 100 };
+        g.stops.push(s); g.stops.sort(function (a, b) { return a.t - b.t; }); gradPick('s', g.stops.indexOf(s)); gradRecord(dn.gradSnap);
+      } else if (dn.off) { g.stops.splice(g.stops.indexOf(h.stop), 1); g.pick = null; gradRecord(dn.gradSnap); }
+      else if (dn.moved || dn.gradNew) gradRecord(dn.gradSnap);
+      gradShow();
+    }
+    function gradRemove() {
+      var pk = grad && grad.pick; if (!pk) return;
+      if (pk.k === 's' ? pk.i === 0 || pk.i === grad.stops.length - 1 : grad.pts.length < 2) return;
+      var sn = gradSnap(); (pk.k === 's' ? grad.stops : grad.pts).splice(pk.i, 1); grad.pick = null; gradRecord(sn); gradShow();
+    }
+    // (end to end: the stops turned round; freeform: the points' colours)
+    function gradReverse() {
+      var sn = gradSnap(), g = grad, pk = g.pick;
+      if (g.kind === 'free') { var cs = g.pts.map(function (q) { return [q.c, q.o]; }).reverse(); g.pts.forEach(function (q, i) { q.c = cs[i][0]; q.o = cs[i][1]; }); }
+      else { g.stops = g.stops.map(function (s) { return { t: 1 - s.t, c: s.c, o: s.o }; }).reverse(); if (pk && pk.k === 's') pk.i = g.stops.length - 1 - pk.i; }
+      gradRecord(sn); if (g.pick) gradPick(g.pick.k, g.pick.i); gradShow();
+    }
+    function gradSetKind(k) {
+      gradKind = k; storeIt('paint-grad-kind', k);
+      if (grad && grad.kind !== k) {
+        var sn = gradSnap(), g = grad;
+        // (freeform from the others: a point where each stop is)
+        if (k === 'free' && !g.pts.length) g.pts = g.stops.map(function (s) { return { x: g.a.x + (g.b.x - g.a.x) * s.t, y: g.a.y + (g.b.y - g.a.y) * s.t, c: s.c, o: s.o }; });
+        if (g.pick && (g.pick.k === 'p') !== (k === 'free')) g.pick = null;
+        g.kind = k; gradRecord(sn);
+      }
+      if (grad) gradShow(); else ctxSync();
+    }
+    function gradCancel() {
+      if (down && down.grad) down = null;
+      grad = null; clearTimeout(gradFull); gradPaint(); gradMarks(); stage.classList.remove('can-move'); buttons(); ctxSync(); ctxShow();
+    }
+    function gradDone() { var sw = maskIn(); gradDone0(); if (sw) maskOut(); }
+    function gradDone0() {
+      if (!grad) return;
+      if (gradEmpty(grad) || (active && active.text && !paintAbove())) { gradCancel(); return; }
+      need();
+      var keep = gradKeep();
+      cancelAnimationFrame(gradFrame); gradFrame = 0; clearTimeout(gradFull);
+      octx.clearRect(0, 0, W, H); gradFill(octx, grad.kind === 'free' ? 4e6 : Infinity); grainOver(); maskOv();
+      remember('Gradient'); commit(null, st.alpha); undo[undo.length - 1].grad = keep;
+      grad = null; gradGone = null; gradPaint(); gradMarks(); stage.classList.remove('can-move'); buttons(); ctxSync(); ctxShow(); useColor();
     }
 
     // a fine, invisible grain over the gradient as it's laid down: it breaks up
@@ -4818,6 +5174,7 @@
       if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
       if (selMode === 'move') { selTrim(); snapEnd(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
+      if (down.grad) { var dg = down; down = null; if (dg.grad.k === 'new') gradCancel(); else { gradPut(dg.gradSnap); gradShow(); } return; }
       if (down.penSnap && pen) { penPut(down.penSnap); down = null; if (pen.pts.length || pen.hist.length || pen.fut.length) { drawPen(); ctxSync(); } else cancelPen(); return; }
       clearInterval(sprayTimer);
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
@@ -4890,6 +5247,8 @@
         return;
       }
       if (t === 'fill') { if (fillDrop(p)) plopAt(e.clientX, e.clientY, st.color); useColor(); return; }
+      if (t === 'gradient') { gradDown(e, p); return; }
+      if (snapping() && /^(brush|eraser|line|shape)$/.test(t)) p = gridPt(p);
       if (t === 'eraser' && active.alphaLock) { toast('Alpha lock is on for this layer: paint over it instead'); return; }
       remember();
       down = { id: e.pointerId, start: p, last: p, pen: e.pointerType === 'pen', snap: true };
@@ -4898,7 +5257,6 @@
       pts = [p];
       octx.clearRect(0, 0, W, H);
       if (t === 'smudge' || t === 'blur' || t === 'tone') { dabs(p, p, true); return; }
-      if (t === 'gradient') return;
       if (t === 'eraser') { p.pr = smoothPr(e.pressure); eraseStart(); renderStroke(); return; }
       if (t === 'brush') {
         p.pr = smoothPr(e.pressure);
@@ -4921,6 +5279,7 @@
       var evs = e.getCoalescedEvents && e.getCoalescedEvents().length ? e.getCoalescedEvents() : [e];
       var p = pos(e), t = st.tool;
       if (down.pick) { loupeAt(e, p); return; }
+      if (down.grad) { gradMove(p, e); return; }
       if (down.textDrag) {
         // (the box the words will go in)
         down.last = p; var a0 = down.start;
@@ -4986,7 +5345,6 @@
         if (active.isMask || usesView(active)) { var rr = (st.size * 2 + 4) * R, b1 = down.last, rc = [[Math.min(a0.x, b1.x) * R - rr, Math.min(a0.y, b1.y) * R - rr, Math.max(a0.x, b1.x) * R + rr, Math.max(a0.y, b1.y) * R + rr]]; if (active.isMask) { maskAlpha(active.owner, rc); viewOf(active.owner, rc); } else viewOf(active, rc); }
         return;
       }
-      if (t === 'gradient') { gradient(down.start, p); return; }
       if (t === 'eraser' || (t === 'brush' && baseOf(kind()) !== 'spray')) {
         evs.forEach(function (ev) {
           var q = assist(pos(ev)); q.pr = smoothPr(ev.pressure);
@@ -5014,7 +5372,7 @@
       }
       // line and shapes
       octx.clearRect(0, 0, W, H); strokeStyle(octx);
-      if (t === 'line') p = assist(p, true);
+      if (snapping() && gMode === 'off') p = gridPt(p); else if (t === 'line') p = assist(p, true);
       both(octx, function () { shapePath(octx, down.start, p, e.shiftKey); });
       maskOv();
     }
@@ -5149,6 +5507,7 @@
       var t = st.tool;
       clearTimeout(holdTimerS);
       if (down.pick) { pickEnd(false); return; }
+      if (down.grad) { gradUp(); return; }
       if (down.penNew || down.penEdit || down.penClose) {
         var dn = down; down = null;
         if (dn.penNew || dn.penClose || dn.moved) penRecord(dn.penSnap);
@@ -5187,7 +5546,6 @@
       down = null; autosave();
       if (t === 'smudge' || t === 'blur' || t === 'tone') { carry = []; return; }
       if (t === 'eraser') { octx.clearRect(0, 0, W, H); plainOv(); return; }
-      if (t === 'gradient') { grainOver(); maskOv(); }
       var lk = strokeLook(); commit(lk.mode, lk.alpha);
       useColor();
     }
@@ -5244,13 +5602,15 @@
       }
       // (a finger's tap with fill, the colour picker, the wand or text acts
       // when it lifts: a second finger may be about to land, for undo)
-      if (e.pointerType === 'touch' && fingerDraw === 'pencil' && penSeen) return;
+      // (once the Pencil is in use a finger doesn't paint, but it can still
+      // take hold of a gradient's handles)
+      if (e.pointerType === 'touch' && fingerDraw === 'pencil' && penSeen && !(st.tool === 'gradient' && grad && gradHit(pos(e), 20 / view.k))) return;
       // A CLICK ON THE EMPTY SPACE AROUND THE PICTURE puts the tool down
       // (when it lifts without moving: a stroke may start off the edge).
       // Something open goes first: a selection, the words being typed, a
       // path or a cutout being drawn, a selection's corners off the edge.
       var p0 = pos(e);
-      if (offPic(p0) && !penBtn && !e.altKey && !sel && !textBox && !lassoOn && !(pen && pen.pts.length) && !cornerAt(p0, e.pointerType !== 'mouse')) {
+      if (offPic(p0) && !penBtn && !e.altKey && !sel && !textBox && !lassoOn && !(pen && pen.pts.length) && !grad && !cornerAt(p0, e.pointerType !== 'mouse')) {
         offTap = { id: e.pointerId, s: screen(e), ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
         return;
       }
@@ -5330,6 +5690,8 @@
       if (down && e.pointerId === down.id) { move(e); if (down && down.pen) showRing(pos(e)); return; }
       if (lassoOn && !down) { lassoHover = pos(e); drawLasso(lassoHover); stage.classList.toggle('closing', nearStart(lassoHover, e.pointerType !== 'mouse')); return; }
       if (st.tool === 'pen' && pen && pen.pts.length && !down && !e.target.closest(STAGE_UI)) { penHover = pos(e); drawPen(); hideRing(); return; }
+      // (over a gradient's handles, or its line: they can be dragged)
+      if (st.tool === 'gradient' && grad && !down && !spaceDown && !spaceGrab) { lastMouse = { s: screen(e), p: pos(e) }; stage.classList.toggle('can-move', !e.target.closest(STAGE_UI) && !!gradHit(lastMouse.p, (e.pointerType === 'mouse' ? 10 : 20) / view.k)); return; }
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
       if (e.pointerType !== 'mouse' || down) return;
@@ -5652,7 +6014,7 @@
     function save(type) {
       if (type === 'share') { share(); return; }
       if (type === 'project') { saveProject(); return; }
-      if (adj) adjustDone();
+      if (grad) gradDone(); if (adj) adjustDone();
       if (textBox) commitText();
       if (sel) commitSelection();
       flatBlob(type, function (blob) { if (blob) download(blob, type === 'jpeg' ? 'jpg' : 'png'); });
@@ -5957,7 +6319,7 @@
     // (at: where on the screen it happened; ev: the finger, for the picker
     // to follow while it's held)
     function gestureDo(a, at, ev) {
-      if (a === 'undo') { if (undo.length || (pen && pen.pts.length)) { doUndo(); toast('Undo'); } }
+      if (a === 'undo') { if (undo.length || (pen && pen.pts.length) || grad) { doUndo(); toast('Undo'); } }
       else if (a === 'redo') { if (redo.length) { doRedo(); toast('Redo'); } }
       else if (a === 'eraser') { if (st.tool === 'eraser') setTool(lastPaint); else { lastPaint = st.tool; setTool('eraser'); } toast(st.tool === 'eraser' ? 'Eraser' : TOOL_NAMES[st.tool] || 'Brush'); }
       else if (a === 'pick') {
@@ -5987,7 +6349,7 @@
     }
 
     document.addEventListener('pageswap:start', function away() { document.removeEventListener('pageswap:start', away); if (saveTimer) storeNow(); });
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && saveTimer && document.contains(root)) storeNow(); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && grad && !down && document.contains(root)) gradDone(); if (document.visibilityState === 'hidden' && saveTimer && document.contains(root)) storeNow(); });
     window.addEventListener('pagehide', function () { if (saveTimer && document.contains(root)) storeNow(); });
 
     // ---- a short message that slides up from the bottom, then goes ----
@@ -6000,7 +6362,7 @@
     }
     // (anything half-done is finished before the picture as a whole changes)
     function finishWork() {
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       openMenu(null); layerPanel(false); savePanel(false);
     }
 
@@ -6355,7 +6717,7 @@
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
       var n = +b.dataset.hist, total = undo.length + redo.length;
-      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection(); if (pen) cancelPen();
+      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection(); if (pen) cancelPen(); if (grad) gradDone();
       n = Math.min(n, undo.length + redo.length); if (undo.length + redo.length !== total) n = undo.length; // (finishing something made a new step)
       while (undo.length > n) doUndo(true);
       while (undo.length < n && redo.length) doRedo(true);
@@ -6374,7 +6736,7 @@
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
         group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Shapes: line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Blend: smudge', 'S'], ['Blend: blur', 'U'], ['Blend: lighten or darken', 'O'], ['Select: box', 'M'], ['Select: cutout', 'Q'], ['Select: circle', 'C'], ['Select: magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
-        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Close / cancel', 'Esc']]) +
+        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Gradient: lay it down', MAC ? '↩' : 'Enter'], ['Gradient: remove the picked stop', MAC ? '⌫' : 'Del'], ['Close / cancel', 'Esc']]) +
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
@@ -6394,7 +6756,7 @@
       out.toBlob(done, jpg ? 'image/jpeg' : 'image/png', 0.93);
     }
     function share() {
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       flatBlob('png', function (blob) {
         if (!blob) return;
         var f = window.File ? new File([blob], 'drawing.png', { type: 'image/png' }) : null;
@@ -6501,7 +6863,16 @@
           '<div data-tpath-off>' + hint('For words along a line, draw it with the Pen, then pick <b>Text on Path</b>') + '</div>';
       },
       fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
-      gradient: function () { return hint('Drag to blend from the main colour to the second') + '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap the two colours (X)">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>'; },
+      gradient: function () {
+        return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Gradient">' + GRAD_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-gk="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[2] + '">' + CI(q[3]) + '</button>'; }).join('') + '</div>' +
+          '<span class="ctx-hint" data-gradhint></span>' +
+          '<div class="ctx-gbar" data-gbar data-grad-on data-tip="The colour stops: tap to add one, drag one along to move it, or off the bar to take it away"><i></i></div>' +
+          '<label class="ctx-slider" data-grad-pick data-tip="How solid the picked colour is"><span>Stop Opacity</span><input type="range" min="0" max="100" data-ctx="gstopo" aria-label="Opacity of the picked colour"><output>100%</output></label>' +
+          '<button type="button" class="ctx-btn" data-ctx="gstopdel" data-grad-pick data-tip="Take the picked colour away (Delete)">' + CI('<circle cx="12" cy="12" r="7.5"/><path d="M8.5 12h7"/>') + '<span>Remove Stop</span></button>' + sep +
+          '<button type="button" class="ctx-btn" data-ctx="swap" data-tip="Swap Colours (X): the two colours; while a gradient is being made, it turns it end to end">' + CI('<path d="M7 7h11l-3-3M17 17H6l3 3"/>') + '<span>Swap Colours</span></button>' +
+          '<button type="button" class="ctx-btn" data-ctx="gradcancel" data-grad-on data-tip="Let the gradient go (Esc)">Cancel</button>' +
+          '<button type="button" class="ctx-btn ctx-done" data-ctx="graddone" data-grad-on data-tip="Lay the gradient down (Return)">Done</button>';
+      },
       picker: function () { return hint('Press on the picture: a loupe shows the colour under it, and letting go picks it \u00b7 or hold <b>Alt</b> with any tool'); },
       select: function () { return selWays('Drag a box round what to select'); },
       lasso: function () { return selWays('Draw round it, or click to place points'); },
@@ -6534,7 +6905,10 @@
           '<button type="button" class="ctx-btn" data-ctx="assistreset" data-assist-on data-tip="Put the ruler, or the vanishing points, back where they started">' + CI('<path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/>') + '<span>Reset Guide</span></button>' +
           '<div class="ctx-sub">Grid</div>' +
           chip('grid', 'Show Grid', '<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><path d="M9.5 4.5v15M14.5 4.5v15M4.5 9.5h15M4.5 14.5h15"/>', 'Show a grid over the picture, to draw to (it isn&#39;t part of the picture, and isn&#39;t saved)') +
-          '<label class="ctx-slider" data-grid-on data-tip="How far apart the grid&#39;s lines are, in the picture&#39;s pixels"><span>Spacing</span><input type="range" min="0" max="100" data-ctx="gridsize" aria-label="Grid spacing"><output>40</output></label>' +
+          '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Grid" data-grid-on><button type="button" role="tab" data-ctx-gridk="square" data-tip="Square: lines across and up and down">Square</button><button type="button" role="tab" data-ctx-gridk="iso" data-tip="Isometric: lines upright and at 30° either way, for drawing in isometric">Isometric</button></div>' +
+          '<label class="ctx-slider" data-grid-on data-tip="How far apart the grid&#39;s lines are, in the picture&#39;s pixels (isometric: the side of each triangle)"><span>Spacing</span><input type="range" min="0" max="100" data-ctx="gridsize" aria-label="Grid spacing"><output>40</output></label>' +
+          '<label class="ctx-slider" data-grid-on data-tip="How strongly the grid shows"><span>Opacity</span><input type="range" min="10" max="100" data-ctx="gridalpha" aria-label="Grid opacity"><output>100%</output></label>' +
+          '<div data-grid-on>' + chip('gridsnap', 'Snap to Grid', '<path d="M6 4.5v7a6 6 0 0 0 12 0v-7h-3.5v7a2.5 2.5 0 0 1-5 0v-7z"/><path d="M6 8h3.5M14.5 8H18"/>', 'Snap to the grid: lines, shapes and gradients go from crossing to crossing, and strokes keep straight along its lines') + '</div>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="symdone" data-tip="Back to the tool&#39;s settings">Done</button>';
       },
       hand: function () { return hint('Drag to move · pinch to zoom · twist to turn') + '<button type="button" class="ctx-btn" data-zoom="fit" data-tip="The whole picture, upright (0)">Fit</button>'; }
@@ -6607,7 +6981,7 @@
       if (!on) keepOnScreen(ctxEl, stage); // (opened out where it was dragged to: still all in view)
     }
     function ctxShow() {
-      var has = !selbar.hidden;
+      var has = !selbar.hidden && !grad; // (a gradient being made shows its own settings, inside a selection too)
       ctxEl.classList.toggle('has-sel', has);
       ctxEl.classList.toggle('away', selbar.classList.contains('away'));
       ctxEl.hidden = !has && !ctxTool.innerHTML;
@@ -6636,7 +7010,10 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-sym-when]'), function (e) { var w = e.dataset.symWhen; e.hidden = w === 'radial' ? st.sym !== 'radial' : st.sym === 'off'; });
       var sn = q('[data-ctx="symn"] output'); if (sn) { sn.textContent = symN; q('[data-symd="-1"]').disabled = symN <= 2; q('[data-symd="1"]').disabled = symN >= 16; }
       set('[data-ctx="symmirror"]', 'aria-pressed', symMirror);
-      set('[data-ctx="grid"]', 'aria-pressed', gridOn);
+      set('[data-ctx="grid"]', 'aria-pressed', gridOn); set('[data-ctx="gridsnap"]', 'aria-pressed', gridSnap);
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-gridk]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxGridk === gridKind ? 'true' : 'false'); });
+      var ga = q('[data-ctx="gridalpha"]'); if (ga) { if (document.activeElement !== ga) ga.value = Math.round(gridAlpha * 100); ga.nextElementSibling.textContent = Math.round(gridAlpha * 100) + '%'; }
+      gradSync(q);
       var gz = q('[data-ctx="gridsize"]'); if (gz) { if (document.activeElement !== gz) gz.value = gridToSlider(gridSize); gz.nextElementSibling.textContent = gridSize + ' px'; }
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-grid-on]'), function (e) { e.hidden = !gridOn; });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-assist]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxAssist === gMode ? 'true' : 'false'); });
@@ -6646,12 +7023,72 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="penstroke"], [data-ctx="penfill"]'), function (b) { b.disabled = penText; });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx="pendone"], [data-ctx="pencancel"]'), function (b) { b.disabled = !pen || pen.pts.length < (b.dataset.ctx === 'pencancel' ? 1 : 2); });
     }
+    // (the gradient's part of it: its kind, what to do next, the stops bar,
+    // and the picked stop's or point's opacity)
+    function gradHint() {
+      var k = grad ? grad.kind : gradKind;
+      if (!grad) return { linear: 'Drag across the picture: from the colour to the second colour', radial: 'Drag out from where the middle goes', angular: 'Drag out from the middle: the colours go round it', diamond: 'Drag out from the middle to a corner', free: 'Tap to place colour points (or drag for two)' }[k];
+      if (k === 'free') return 'Choose a colour, then tap to add a point in it \u00b7 drag one to move it \u00b7 tap one to pick it, then a colour to change it';
+      return (k === 'linear' ? 'Drag the ends' : 'Drag the middle to move it, the end to size and turn it') + ' \u00b7 tap the line to add a colour stop \u00b7 pick a stop, then a colour';
+    }
+    function gradSync(q) {
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-gk]'), function (b) { b.setAttribute('aria-selected', b.dataset.ctxGk === (grad ? grad.kind : gradKind) ? 'true' : 'false'); });
+      var gh = q('[data-gradhint]'); if (!gh) return;
+      gh.textContent = gradHint();
+      var gp = gradPicked(), pk = grad && grad.pick;
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-grad-on]'), function (e) { e.hidden = !grad || (e.hasAttribute('data-gbar') && grad.kind === 'free'); });
+      Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-grad-pick]'), function (e) { e.hidden = !gp; });
+      var go = q('[data-ctx="gstopo"]'); if (go && gp) { if (document.activeElement !== go) go.value = Math.round(gp.o * 100); go.nextElementSibling.textContent = Math.round(gp.o * 100) + '%'; go.previousElementSibling.textContent = pk.k === 's' ? 'Stop Opacity' : 'Point Opacity'; }
+      var gd = q('[data-ctx="gstopdel"]'); if (gd && gp) { gd.disabled = pk.k === 's' ? pk.i === 0 || pk.i === grad.stops.length - 1 : grad.pts.length < 2; gd.querySelector('span').textContent = pk.k === 's' ? 'Remove Stop' : 'Remove Point'; }
+      gradBarSync();
+    }
+    // THE STOPS BAR: the gradient's colours, a marker for each stop. A tap
+    // adds a stop (in the colour there); a marker is picked, and dragged
+    // along to move it, or off the bar to take it away. The ends stay put
+    var GB_PAD = 9;
+    function gradBarSync() {
+      var bar = ctxTool.querySelector('[data-gbar]'); if (!bar || !grad || grad.kind === 'free') return;
+      var S = grad.stops, L = gradLut(S), cs = [], pk = grad.pick;
+      for (var i = 0; i <= 16; i++) cs.push(gradCss(L, Math.round(i / 16 * 1023) * 4) + ' ' + (i / 16 * 100) + '%');
+      bar.firstChild.style.setProperty('--gb', 'linear-gradient(to right,' + cs.join(',') + ')');
+      var ms = bar.querySelectorAll('b');
+      if (ms.length !== S.length) { Array.prototype.forEach.call(ms, function (m) { m.remove(); }); S.forEach(function () { bar.appendChild(document.createElement('b')); }); ms = bar.querySelectorAll('b'); }
+      S.forEach(function (s, i) { var m = ms[i]; m.style.left = 'calc(' + GB_PAD + 'px + (100% - ' + 2 * GB_PAD + 'px) * ' + s.t + ')'; m.style.setProperty('--c', s.c); m.style.setProperty('--o', s.o); m.classList.toggle('on', !!pk && pk.k === 's' && pk.i === i); });
+    }
+    ctxEl.addEventListener('pointerdown', function (e) {
+      var bar = e.target.closest('[data-gbar]'); if (!bar || !grad || e.button) return;
+      e.preventDefault();
+      var r = bar.getBoundingClientRect(), span = r.width - 2 * GB_PAD, tAt = function (x) { return Math.max(0, Math.min(1, (x - r.left - GB_PAD) / span)); };
+      var S = grad.stops, t = tAt(e.clientX), best = -1, bd = (e.pointerType === 'mouse' ? 9 : 14) / span, sn = gradSnap(), made = false;
+      S.forEach(function (s, i) { var d = Math.abs(s.t - t); if (d <= bd) { bd = d; best = i; } });
+      if (best < 0) { var c = gradAt(S, t), ns = { t: Math.max(0.001, Math.min(0.999, t)), c: rgb2hex(c[0], c[1], c[2]), o: Math.round(c[3] * 100) / 100 }; S.push(ns); gradSort(); best = S.indexOf(ns); made = true; }
+      var stop = S[best], inner = best > 0 && best < S.length - 1, moved = made, off = false;
+      gradPick('s', best); gradShow();
+      try { bar.setPointerCapture(e.pointerId); } catch (x) {}
+      function mv(ev) {
+        if (!inner) return;
+        off = grad.stops.length > 2 && Math.abs(ev.clientY - (r.top + r.height / 2)) > 36;
+        stop.t = Math.max(0.001, Math.min(0.999, tAt(ev.clientX))); gradSort(); moved = true;
+        bar.classList.toggle('gb-off', off); gradDraw(); gradBarSync();
+      }
+      function up() {
+        bar.removeEventListener('pointermove', mv); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up); bar.classList.remove('gb-off');
+        if (!grad) return;
+        if (off) { grad.stops.splice(grad.stops.indexOf(stop), 1); grad.pick = null; }
+        if (moved || off) gradRecord(sn);
+        gradShow();
+      }
+      bar.addEventListener('pointermove', mv); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    ctxEl.addEventListener('change', function () { gradRun = false; });
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
       else if (k === 'gridsize') { gridSize = gridFromSlider(+e.target.value); storeIt('paint-grid-size', gridSize); gridDraw(); ctxSync(); }
+      else if (k === 'gridalpha') { gridAlpha = Math.max(0.1, Math.min(1, +e.target.value / 100)); storeIt('paint-grid-alpha', gridAlpha); gridDraw(); ctxSync(); }
+      else if (k === 'gstopo') gradOpacity(+e.target.value / 100);
       else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(true); } }
       else if (k === 'tarc') { tx.arc = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
     });
@@ -6667,6 +7104,12 @@
       if (b.dataset.symd) { symN = Math.max(2, Math.min(16, symN + +b.dataset.symd)); drawGuide(); ctxSync(); return; }
       if (k === 'symmirror') { symMirror = !symMirror; drawGuide(); ctxSync(); return; }
       if (k === 'grid') { setGrid(!gridOn); return; }
+      if (b.dataset.ctxGridk) { gridKind = b.dataset.ctxGridk; storeIt('paint-grid-kind', gridKind); gridDraw(); ctxSync(); return; }
+      if (k === 'gridsnap') { gridSnap = !gridSnap; storeIt('paint-grid-snap', gridSnap); ctxSync(); return; }
+      if (b.dataset.ctxGk) { gradSetKind(b.dataset.ctxGk); return; }
+      if (k === 'graddone') { gradDone(); return; }
+      if (k === 'gradcancel') { gradCancel(); return; }
+      if (k === 'gstopdel') { gradRemove(); return; }
       if (k === 'symreset') { symC = { x: 0.5, y: 0.5 }; symA = 0; drawGuide(); return; }
       if (k === 'symdone') { ctxSymView(false); return; }
       if (b.dataset.ctxAssist) { setAssist(b.dataset.ctxAssist); return; }
@@ -6688,6 +7131,7 @@
       if (b.dataset.ctxTf) { tx.fill = b.dataset.ctxTf; if (textBox) afterTextChange(); ctxSync(); return; }
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
       if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
+      if (k === 'swap' && grad && st.tool === 'gradient') { gradReverse(); return; }
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
       if (k === 'all') { selectAll(); return; }
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
@@ -6741,6 +7185,11 @@
           if (k === 'enter') { e.preventDefault(); finishPen(); return; }
           if (k === 'escape') { cancelPen(); return; }
           if (k === 'backspace' || k === 'delete') { e.preventDefault(); penBack(); return; }
+        }
+        if (grad && st.tool === 'gradient') {
+          if (k === 'enter') { e.preventDefault(); gradDone(); return; }
+          if (k === 'escape') { gradCancel(); return; }
+          if (k === 'backspace' || k === 'delete') { e.preventDefault(); gradRemove(); return; }
         }
         if (k === 'escape' && !lmenu.hidden) { lmenu.hidden = true; return; }
         if (k === 'escape' && !panel.hidden && multi()) { multiOption('m-deselect'); return; }

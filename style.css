@@ -105,6 +105,13 @@
   --snap: #ff2d78;
   /* the grid's lines over the picture: a mid grey that shows on light and dark paint alike */
   --grid-line: rgba(128, 128, 140, .42);
+  /* something being worked on over the picture (a gradient's line and
+     handles): a blue with a white edge and a faint dark one, so the same in
+     both themes */
+  --edit: #2f7fd6;
+  --edit-edge: rgba(0, 0, 0, .3);
+  /* the light squares of a see-through checkerboard (with --paper) */
+  --check: #e4e4e4;
   /* the picture's own paper (it stays white in dark mode, like the picture) */
   --paper: #ffffff;
   /* a small handle you drag on the picture */
@@ -444,6 +451,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   background: repeating-conic-gradient(#ececec 0 25%, #fff 0 50%) 0 0 / 16px 16px; pointer-events: none;
   box-shadow: var(--shadow-paper); }
 .paint-world canvas { position: absolute; left: 0; top: 0; display: block; }
+.paint-world .paint-gradpv[hidden] { display: none; } /* (a gradient being made, shown with the screen's detail) */
 .paint-layers { position: absolute; inset: 0; isolation: isolate; } /* (blend modes mix the layers with each other only) */
 .paint-guide { position: absolute; inset: 0; pointer-events: none; }
 .paint-guide svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -455,7 +463,26 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   background-image: linear-gradient(to right, var(--grid-line) var(--gw, 1px), transparent var(--gw, 1px)), linear-gradient(to bottom, var(--grid-line) var(--gw, 1px), transparent var(--gw, 1px));
   background-size: var(--gs, 40px) var(--gs, 40px);
 }
+/* (isometric: upright lines --gx/2 apart, and the two diagonals of a tile
+   --gx wide and --gs high, soft-edged so they don't stair-step) */
+.paint-grid.iso {
+  background-image: linear-gradient(to right, var(--grid-line) var(--gw, 1px), transparent var(--gw, 1px)),
+    linear-gradient(to top right, transparent calc(50% - var(--gw, 1px)), var(--grid-line) 50%, transparent calc(50% + var(--gw, 1px))),
+    linear-gradient(to bottom right, transparent calc(50% - var(--gw, 1px)), var(--grid-line) 50%, transparent calc(50% + var(--gw, 1px)));
+  background-size: calc(var(--gx, 69.28px) / 2) var(--gs, 40px), var(--gx, 69.28px) var(--gs, 40px), var(--gx, 69.28px) var(--gs, 40px);
+}
 .paint-grid[hidden] { display: none; }
+/* A GRADIENT'S HANDLES, on the screen over the picture: its line, a dot for
+   each colour stop (or freeform point) in its colour, the picked one ringed */
+.paint-gradui { position: absolute; left: 0; top: 0; z-index: 2; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.paint-gradui[hidden] { display: none; }
+.paint-gradui .gu-under { stroke: var(--paper); stroke-width: 3.5; stroke-linecap: round; opacity: .85; }
+.paint-gradui .gu-line { stroke: var(--edit); stroke-width: 1.5; stroke-linecap: round; }
+.paint-gradui .gu-edge { fill: none; stroke: var(--edit); stroke-width: 1; stroke-dasharray: 5 4; opacity: .8; }
+.paint-gradui .gu-base { fill: var(--paper); stroke: var(--edit-edge); stroke-width: 1; }
+.paint-gradui .gu-dot { transition: opacity var(--dur) var(--ease); }
+.paint-gradui .gu-dot.on .gu-base { stroke: var(--edit); stroke-width: 2.5; }
+.paint-gradui .gu-dot.off { opacity: .35; }
 /* (the drawing assist: the ruler's edge solid, the vanishing points' rays faint) */
 .paint-guide line.ruler { stroke-dasharray: none; stroke-width: 2; }
 .paint-guide line.faint { opacity: .35; }
@@ -846,6 +873,15 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint .ctx-btn.ctx-done { justify-content: center; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 @media (hover: hover) { .paint .ctx-btn.ctx-done:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); } }
 .ctx-num { flex: none; width: 54px !important; height: 26px !important; }
+/* the gradient's stops bar: its colours (over a checkerboard, for the
+   see-through), and a marker for each stop */
+.ctx-gbar { position: relative; flex: none; width: 150px; height: 30px; touch-action: none; cursor: pointer; }
+.ctx-gbar > i { position: absolute; left: 9px; right: 9px; top: 9px; height: 12px; border-radius: var(--r-pill);
+  background: var(--gb, none), repeating-conic-gradient(var(--check) 0 25%, var(--paper) 0 50%) 0 0 / 8px 8px; box-shadow: inset 0 0 0 .5px var(--line); }
+.ctx-gbar > b { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--paper); box-shadow: var(--knob); pointer-events: none; transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease); }
+.ctx-gbar > b::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--c); opacity: var(--o); }
+.ctx-gbar > b.on { transform: scale(1.2); box-shadow: 0 0 0 2px var(--text), var(--knob); }
+.ctx-gbar.gb-off > b.on { opacity: .35; }
 /* a small labelled field: Size [48] */
 .ctx-field { flex: none; display: flex; align-items: center; gap: var(--s-2); height: 34px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 /* a small list that drops down from the bar (the brushes, the shapes) */
@@ -886,6 +922,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .paint-ctx.min .ctx-grip { height: 14px; margin: 0; }
   .paint-ctx.min .ctx-grip::before { top: 5px; width: 18px; margin-left: -9px; }
   .ctx-tool { flex-direction: column; align-items: stretch; gap: var(--s-1); overflow: visible; }
+  .ctx-gbar { width: auto; }
   .ctx-sep { width: auto; height: .5px; margin: var(--s-1) var(--s-1); }
   .ctx-hint { padding: var(--s-1) var(--s-2); white-space: normal; line-height: 1.4; }
   .paint .ctx-btn, .paint .ctx-chip { width: 100%; height: max(var(--row), 32px); justify-content: flex-start; padding: 0 var(--s-2); }

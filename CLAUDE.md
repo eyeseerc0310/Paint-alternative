@@ -24,8 +24,10 @@ When building or changing anything visual:
   `--stage-dot` (the dots in the picture's well), `--brand` (the
   app icon's blue gradient, also in `icons/icon.svg`), `--hdr-thin` and `--hdr-open`
   (the top bar folded and open; `--hdr` is the one in use, registered so it
-  eases), `--snap` (Smart Guides' lines) and `--grid-line` (the grid's; both
-  drawn on the picture, so the same in both themes), `--panel`, `--panel-solid`,
+  eases), `--snap` (Smart Guides' lines), `--grid-line` (the grid's) and `--edit`
+  with `--edit-edge` (a gradient's line and handles; all drawn on the picture,
+  so the same in both themes), `--check` (with `--paper`, a see-through
+  checkerboard), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
   Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
@@ -68,10 +70,16 @@ When building or changing anything visual:
   caps and joins; keep new ones in the same style. Put new tool
   settings there, never in a list beside the left toolbar. Symmetry's
   settings open in the panel too (its `sym` view), from the mirror button,
-  and so does the **grid** (`gridOn`, `gridSize`): a background on
-  `.paint-grid` inside the picture's world, in the picture's units, its lines
-  a screen pixel wide (`--gw`) and every 2nd/4th... line only when zoomed
-  far out (`gridDraw`, from `applyView`); never part of the picture. The
+  and so does the **grid** (`gridOn`, `gridSize`, `gridKind` square or
+  `iso`, `gridAlpha`): a background on `.paint-grid` inside the picture's
+  world, in the picture's units, its lines a screen pixel wide (`--gw`) and
+  every 2nd/4th... line only when zoomed far out (`gridDraw`, from
+  `applyView`); never part of the picture. Isometric is upright lines and
+  the two diagonals of a tile `--gx` (s√3) wide and `--gs` high. **Snap to
+  Grid** (`gridSnap`, while the grid shows; `snapping()`): points go to the
+  nearest crossing (`gridPt`: a stroke's start, a line's or shape's ends, a
+  gradient's handles and points, via `gsnap`) and strokes keep along the
+  nearest of its lines' ways (`gridDirs`, through `assist`). The
   mirror button is lit while symmetry, an assist or the grid is on (`mirrorLit`). Pop-out panels can be dragged with
   `draggable(el, handle, key)`. Give buttons a `data-tip` for their tooltip.
   Controls that sit on the picture must be listed in `STAGE_UI` so pressing
@@ -143,6 +151,23 @@ When building or changing anything visual:
   `blendTool`). `comboSync` keeps both buttons on the tool in use. Each Blend
   mode keeps its own size and opacity (`blendSet`, saved and loaded in
   `setTool`), and the other tools get theirs back (`blendOut`).
+- **Gradients** (`grad`, like the pen's path): a drag makes one (`gradKind`:
+  `linear`, `radial`, `angular`, `diamond` or `free`), which stays to be
+  worked on until Done, Return, another tool or a drag elsewhere lays it down
+  (`gradDone`, as one 'Gradient' step that keeps it in `e.grad`, so undoing
+  it brings it back, `gradRestore`). While it's open: its handles are an SVG
+  on the screen (`gradUi`, `gradMarks`; `gradHit`), each change is a step of
+  its own (`grad.hist`/`grad.fut`, `gradRecord`, taken by undo and redo
+  first), stops are `{t, c, o}` with the ends at 0 and 1, freeform points
+  `{x, y, c, o}`; a picked stop or point takes the colour in hand and picking
+  a colour changes it (`gradPick`, `gradTint` from `setColor`). Colours along
+  it come from `gradAt` (smoothstep between stops, weighted by opacity) via a
+  1024-step table (`gradLut`). It's shown on a stand-in canvas with the
+  screen's detail (`gradPv`, `gradPaint`; clipped like `maskOv`), and worked
+  out at full size only when laid down (`gradFill`): linear, radial and
+  angular by the browser, diamond and freeform a pixel at a time
+  (`gradPixels`, coarser while it moves). The stops bar (`[data-gbar]`) and
+  the kinds are in the context bar, which shows them inside a selection too.
 - **Selecting:** one button in the left bar (`.paint-selbtn`) is the
   selection tool; its ways are tool ids of their own, `lasso` (Cutout, the
   first time), `select` (box), `circle` and `wand`, picked in its panel
