@@ -56,7 +56,9 @@ When building or changing anything visual:
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. A button in the folded bar
   can't be seen, so what it opens drops from the arrow (`hdrBtn`). The left
-  bar (`.paint-left`) holds the tools in groups (there's no Hand button:
+  bar (`.paint-left`), its middle level with the picture's space's
+  (`safe center` above the bottom bar, `--bbar-gap`; at the top if it's too
+  tall for that), holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). The Shapes button keeps its own icon
   whichever kind is picked; Select sits beside Pen; at its foot are Layers
