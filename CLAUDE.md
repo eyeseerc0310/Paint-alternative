@@ -81,7 +81,8 @@ When building or changing anything visual:
   can't be dragged). Folded (its `.ctx-min` button, remembered) the dock
   eases shut and the picture's space grows into it (`dockSync`,
   `refitWhile`); unlocked, it floats where it's dragged and the dock stays
-  shut; locking puts it back in its place. It's kept within the workspace
+  shut; locking puts it back in its place, opened out if it
+  was folded. It's kept within the workspace
   (`ctxBox`). On phones it's a wrapping strip along the
   top of the picture (the dock takes no room there). Its lists open on the
   side towards the picture's middle.

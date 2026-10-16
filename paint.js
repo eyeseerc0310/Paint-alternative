@@ -7130,7 +7130,7 @@
     ctxEl.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }
-      if (b.classList.contains('ctx-lock')) { ctxLock(!ctxLocked); return; }
+      if (b.classList.contains('ctx-lock')) { var lk = !ctxLocked; ctxLock(lk); if (lk && ctxEl.classList.contains('min')) ctxMin(false); return; } // (locking opens it out in its place, and the picture makes room)
       var k = b.dataset.ctx;
       if (k === 'brushes' || k === 'fonts') { ctxDrop(k, b); return; }
       if (k === 'bstudio') { studio(bsBox.hidden || bsId !== st.brush); return; }
