@@ -228,6 +228,26 @@ When building or changing anything visual:
   (`scaleTo`). A picture opened, pasted or dropped comes in selected with the
   Move tool, and what's picked up is the picture at its own size
   (`sel.src`), so sizing it back up loses nothing.
+- **Distort** (`.paint-seldist`, a pill over the top of a selection, out
+  past the round handle, or under the bottom if that's off the top or under
+  Scale; `placeSelDist`): tapped, the corners come apart (`distortOn`):
+  `sel.quad` holds the four corners (top left, top right, bottom right,
+  bottom left) from `sel.x`/`sel.y`, so moving moves them all, while the box
+  stays the frame the pixels, outline and wand shape are in. A projective map
+  takes the frame to the quad (`quadMap`, `mapInv`); `selWorld`/`selLocal`
+  go through it, so hit tests, Smart Guides and the X follow. Each corner is
+  pulled on its own (`selMode` `distort`; never across the others,
+  `quadOk`), the round handle turns all four (`qrot`), Turn 90° turns them.
+  The pixels are drawn through the map by `warpOf`: on the graphics chip
+  (`warpOnGL`, a shader with the texture's smaller copies, not on software
+  WebGL; `paint-warp-gpu` `on`/`off` for testing), or a pixel at a time on
+  the processor (bilinear, weighted by how solid, coarser while dragged);
+  previews by `warpShow` (`putFloat(c, f, true)`). Tapped again
+  (`distortOff`), the corners are locked together again: what's picked up is
+  worked into the box round the quad (a plain box's outline becomes a
+  four-point `sel.poly`), as one step that keeps the old float in `selGeo`,
+  so undo brings the distortion back. Not for words (`distortable`). Laid
+  down like a turned one: the selection closes.
 - **Smart Guides** (`smartOn`, the top bar's toggle): while a selection,
   picture or words are dragged (`snapMove`, from the move handlers; ended by
   `snapEnd`), the real box of what's moving (`movingBox`: the float's
