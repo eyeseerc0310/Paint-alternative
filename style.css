@@ -99,6 +99,11 @@
   /* space between groups in a toolbar */
   --group-gap: 10px;
   --ctx-w: 196px;
+  /* the space between the workspace's columns (bars, picture, dock) */
+  --pgap: 1rem;
+  /* the bottom bar: its height, and how long its two sliders are */
+  --bbar-h: 52px;
+  --bbar-slider: 132px;
   /* the symmetry guide's lines and handles */
   --guide: color-mix(in srgb, var(--accent) 75%, transparent);
   /* Smart Guides' lines (drawn on the picture, with a light edge, so the same in both themes) */
@@ -257,10 +262,9 @@ body > * { flex-shrink: 0; }
 }
 .brand-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 /* saved-status: a quiet glass chip in the bottom corner under the tools,
-   centred under the left bar, its foot level with the foot of the picture's
-   well (as the bar's top is with the well's top) */
+   centred under the left bar, level with the bottom bar's middle */
 .doc-status {
-  position: absolute; left: calc(var(--bar) / 2); bottom: 0; z-index: 4; transform: translateX(-50%);
+  position: absolute; left: calc(var(--bar) / 2); bottom: calc((var(--bbar-h) - 24px) / 2); z-index: 4; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border-radius: var(--r-pill);
   font-size: var(--fs-xs); font-weight: 500; color: var(--muted); background: var(--panel); white-space: nowrap; cursor: default;
   -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: 0 0 0 .5px var(--line);
@@ -292,7 +296,7 @@ body > * { flex-shrink: 0; }
 .paint {
   /* tools on the left, colour and actions on the right, the picture's
      space taking all the rest: everything in view at once, no scrolling */
-  position: relative; display: flex; justify-content: center; align-items: stretch; gap: 1rem;
+  position: relative; display: flex; justify-content: center; align-items: stretch; gap: var(--pgap);
   height: calc(100vh - var(--hdr, 52px) - 2 * var(--edge)); height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); min-height: 520px;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
@@ -309,11 +313,9 @@ body > * { flex-shrink: 0; }
   transition: opacity var(--dur) ease, transform var(--dur) var(--ease);
   animation: bar-in var(--dur-slow) var(--ease) backwards;
 }
-.paint-right { animation-name: bar-in-r; }
 @keyframes bar-in { from { opacity: 0; transform: translateX(-10px); } }
-@keyframes bar-in-r { from { opacity: 0; transform: translateX(10px); } }
 /* (above the picture, so their menus and panels open over it) */
-.paint-left, .paint-right { z-index: 5; }
+.paint-left { z-index: 5; }
 .paint-group { display: grid; grid-template-columns: repeat(2, 40px); gap: 3px 4px; justify-content: space-between; }
 /* related tools sit together; a short, soft divider between groups (both panels) */
 .paint-bar > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
@@ -354,50 +356,40 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 
 .paint .paint-mirror[aria-expanded="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
 
-/* ---- the right-hand panel: Colour, and the tool's Size and Opacity, in
-   sections that fold away (their titles) ---- */
-.paint-right { gap: var(--s-2); }
-.paint .pr-history button { border-radius: 50%; }
-/* (Layers, under undo and redo: the width of the bar, with its name) */
-.paint .pr-history .pr-layers { grid-column: 1 / -1; width: 100%; height: 34px; gap: 6px; border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600; }
-.paint .pr-layers svg { width: var(--icon-sm); height: var(--icon-sm); }
-.paint .pr-history .pr-layers[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
-@media (hover: hover) { .paint .pr-history .pr-layers[aria-pressed="true"]:hover { background: var(--chip); } }
-.pr-sec + .pr-sec, .pr-sec + .pr-history { position: relative; padding-top: var(--s-2); }
-.pr-sec + .pr-sec::before, .pr-sec + .pr-history::before { content: ""; position: absolute; left: 6px; right: 6px; top: calc(var(--s-2) / -2); height: 1px; border-radius: 1px; background: var(--line); }
+/* ---- the left bar's foot: Layers (the bar's width, with its name), then
+   the zoom (− 100% +) ---- */
+.paint-left .pl-view { grid-template-columns: 1fr; gap: var(--s-1); }
+.paint .pl-layersbtn { width: 100%; height: 34px; gap: 6px; border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600; }
+.paint .pl-layersbtn svg { width: var(--icon-sm); height: var(--icon-sm); }
+.paint .pl-layersbtn[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+@media (hover: hover) { .paint .pl-layersbtn[aria-pressed="true"]:hover { background: var(--chip); } }
+/* (the sections that fold by their titles: Effects, Brush Studio) */
 .paint .pr-head {
   display: flex; align-items: center; justify-content: space-between; width: 100%; height: 26px; padding: 0 2px 0 6px; border-radius: var(--r-xs);
   font-size: var(--fs-sm); font-weight: 700; letter-spacing: -.01em; color: var(--text); white-space: nowrap;
 }
 .paint .pr-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.paint .pr-head .pr-tool { font-size: var(--fs-xs); } /* (the tool's name: Light & Dark fits) */
 .paint .pr-head svg { color: var(--muted); }
 @media (hover: hover) { .paint .pr-head:hover { color: var(--text); } }
 .paint .pr-head svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
 .pr-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
-/* (only what the tool uses: size and opacity, or just opacity, or neither) */
-.paint-right:not([data-uses*="s"]) .paint-sliders > label:first-child { display: none; }
-.paint-right:not([data-uses*="o"]) .paint-sliders > label:last-child { display: none; }
-.paint-right[data-uses=""] .pr-sec[data-sec="brush"] { display: none; }
 /* (folding: the body's height runs smoothly to nothing) */
 .pr-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) ease; }
 .pr-in { min-height: 0; overflow: hidden; padding: var(--s-2) 7px 4px; margin: 0 -7px; } /* (room at the sides for a picked swatch's ring, grown on hover) */
-.pr-in:has(> .paint-colors) { padding-bottom: 7px; }
 .pr-sec.closed .pr-body { grid-template-rows: 0fr; opacity: 0; }
 .pr-sec.closed .pr-in { padding-top: 0; padding-bottom: 0; }
-.pr-sec .pr-in > .paint-colors { overflow: visible; }
 
-/* ---- colour: the two colours, swatches and recent colours ---- */
-.paint-colors { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.paint-pair { position: relative; width: 62px; height: 54px; flex: none; }
+/* ---- the two colours, side by side in the bottom bar (the colour in hand
+   first and bigger), the swap tucked at their corner ---- */
+.paint-pair { position: relative; display: flex; align-items: center; gap: var(--s-2); flex: none; padding: 0 var(--s-1); }
 .paint .paint-current, .paint .paint-second { touch-action: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; padding: 0;
-  position: absolute; border-radius: 50%; overflow: hidden; cursor: pointer;
+  position: relative; flex: none; border-radius: 50%; overflow: hidden; cursor: pointer;
   background: var(--panel-solid);
   box-shadow: 0 0 0 .5px var(--line), 0 2px 8px rgba(0, 0, 0, .16);
 }
 /* (the colour in hand sits in a rainbow ring, like Apple's colour well) */
-.paint .paint-current { left: 0; top: 0; z-index: 1; width: 46px; height: 46px; background: var(--well-ring); }
-.paint .paint-second { right: 0; bottom: 0; width: 26px; height: 26px; }
+.paint .paint-current { z-index: 1; width: 36px; height: 36px; background: var(--well-ring); }
+.paint .paint-second { width: 28px; height: 28px; }
 @media (hover: hover) { .paint .paint-current:hover, .paint .paint-second:hover { background: var(--panel-solid); transform: scale(1.06); } }
 .paint .paint-current:active, .paint .paint-second:active { transform: scale(var(--press)); }
 .paint .paint-current[aria-expanded="true"], .paint .paint-second[aria-expanded="true"] { box-shadow: 0 0 0 2.5px var(--panel-solid), 0 0 0 4px color-mix(in srgb, var(--text) 42%, transparent); }
@@ -405,36 +397,38 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-current span { position: absolute; inset: 4px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 2px var(--panel-solid), inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 .paint-second span { position: absolute; inset: 2px; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 :root[data-theme="dark"] .paint-current span, :root[data-theme="dark"] .paint-second span { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.paint .paint-swap { position: absolute; right: -6px; top: -6px; width: 24px; height: 24px; border-radius: 50%; color: var(--muted); }
+.paint .paint-swap { position: absolute; left: 50%; top: -9px; z-index: 2; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; color: var(--muted); background: var(--panel-solid); box-shadow: 0 0 0 .5px var(--line), var(--knob); }
 @media (hover: hover) { .paint .paint-swap:hover { color: var(--text); background: var(--hover); } }
 .paint .paint-swap:active { transform: scale(.9) rotate(-20deg); }
-.paint .paint-swap svg { width: 15px; height: 15px; stroke-width: 1.7; transition: transform var(--dur) var(--ease); }
+.paint .paint-swap svg { width: 12px; height: 12px; stroke-width: 1.9; transition: transform var(--dur) var(--ease); }
 @media (hover: hover) { .paint .paint-swap:hover svg { transform: rotate(12deg); } }
 
-.paint-swatches, .paint-recent { display: grid; grid-template-columns: repeat(4, 16px); gap: 5px; } /* (79px: inside the bar's 80) */
-.paint-recent:empty { display: none; } /* (it appears once a colour has been used) */
-.paint-recent:not(:empty) { padding-top: 10px; border-top: 1px solid var(--line); }
-.paint-recent:not(:empty)::before { content: "Recent"; grid-column: 1 / -1; margin-bottom: -1px; font-size: var(--fs-xs); font-weight: 600; line-height: 1; color: var(--muted); }
-.paint .paint-right .paint-recent button { border-radius: 5px; }
-.paint .paint-swatches button, .paint .paint-recent button {
-  width: 16px; height: 16px; border-radius: 50%;
-  box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .18), inset 0 -2px 3px rgba(0, 0, 0, .1); touch-action: none;
+/* ---- THE BOTTOM BAR: a long glass pill under the picture, like the top
+   bar's capsules: Size, Undo, the two colours, Redo, Opacity ---- */
+.paint-bottom {
+  position: relative; z-index: 5; flex: none; display: flex; align-items: center; gap: var(--s-1);
+  height: var(--bbar-h); max-width: 100%; padding: 0 var(--s-3);
+  border-radius: var(--r-pill); background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
+  transition: opacity var(--dur) ease, transform var(--dur) var(--ease);
+  animation: bar-in-b var(--dur-slow) var(--ease) backwards;
 }
-@media (hover: hover) { .paint .paint-swatches button:hover, .paint .paint-recent button:hover { transform: scale(1.18); } }
-:root[data-theme="dark"] .paint .paint-swatches button:not(.on), :root[data-theme="dark"] .paint .paint-recent button:not(.on) { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.paint .paint-swatches button.on, .paint .paint-recent button.on { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3.5px var(--accent); }
+@keyframes bar-in-b { from { opacity: 0; transform: translateY(10px); } }
+.paint .paint-bottom > button { flex: none; width: 36px; height: 36px; border-radius: 50%; }
+.pb-sep { flex: none; width: 1px; height: 22px; margin: 0 var(--s-1); border-radius: 1px; background: var(--line); }
+/* (a slider: its name, the slider, its value; greyed out when the tool doesn't use it) */
+.pb-slider { display: flex; align-items: center; gap: var(--s-2); min-width: 0; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.pb-slider input[type="range"] { flex: 1 1 auto; width: var(--bbar-slider); min-width: 40px; margin: 0; accent-color: var(--control); }
+.pb-slider output { min-width: 2.2em; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); font-weight: 600; color: var(--text); text-align: right; }
+.pb-slider:has(input:disabled) { opacity: .4; }
+.pb-alpha { flex-direction: row-reverse; } /* (the value and name on the outer side, like Size's) */
 
-/* ---- size and opacity ---- */
-.paint-sliders { display: flex; flex-direction: column; gap: 12px; }
-.paint-sliders label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 2px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
-.paint-sliders input[type="range"] { grid-column: 1 / -1; grid-row: 2; width: 100%; margin: 0; accent-color: var(--control); }
-.paint-sliders output { font-variant-numeric: tabular-nums; color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
-.paint .paint-sliders .paint-solid { align-self: flex-start; }
 
 /* ---- the picture ---- */
+/* THE MIDDLE: the picture's space, and the bottom bar under it, centred */
+.paint-centre { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--s-3); }
 .paint-stage {
   /* all the room the toolbars leave (the picture is fitted inside it) */
-  position: relative; flex: 1 1 auto; height: 100%; min-width: 0;
+  position: relative; flex: 1 1 auto; align-self: stretch; min-width: 0; min-height: 0;
   /* (a quiet well with a fine grid of dots, like a sheet of dotted paper) */
   background: radial-gradient(circle, var(--stage-dot) 1px, transparent 1.3px) 0 0 / 22px 22px, var(--stage);
   border-radius: var(--r-stage); overflow: hidden;
@@ -508,14 +502,14 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 }
 .paint .paint-zoom button { width: 28px; height: 26px; border-radius: var(--r-sm); font-size: 1rem; font-weight: 400; color: var(--text); }
 .paint .paint-zoom button.paint-zoom-val { width: auto; min-width: 3.2rem; padding: 0 .4rem; font-size: .75rem; font-weight: 500; font-variant-numeric: tabular-nums; }
-/* (in the right-hand panel, under undo and redo) */
-.paint-right .paint-zoom {
+/* (at the foot of the left bar, under Layers) */
+.paint-left .paint-zoom {
   position: static; justify-content: space-between; padding: 3px; border: 0; border-radius: var(--r-pill);
   background: var(--hover); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-.paint .paint-right .paint-zoom button { width: 26px; height: 28px; border-radius: var(--r-pill); }
-@media (hover: hover) { .paint .paint-right .paint-zoom button:hover { background: var(--panel-solid); box-shadow: var(--seg-shadow); } }
-.paint .paint-right .paint-zoom button.paint-zoom-val { flex: 1; min-width: 0; padding: 0; font-size: var(--fs-xs); }
+.paint .paint-left .paint-zoom button { width: 26px; height: 28px; border-radius: var(--r-pill); }
+@media (hover: hover) { .paint .paint-left .paint-zoom button:hover { background: var(--panel-solid); box-shadow: var(--seg-shadow); } }
+.paint .paint-left .paint-zoom button.paint-zoom-val { flex: 1; min-width: 0; padding: 0; font-size: var(--fs-xs); }
 /* the colour picker's loupe */
 .paint-loupe { position: absolute; z-index: 7; pointer-events: none; border-radius: 50%; box-shadow: var(--shadow-pop); }
 .paint-loupe[hidden] { display: none; }
@@ -696,7 +690,6 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint .paint-savemenu button small { font-size: .6875rem; font-weight: 400; opacity: .6; }
 
 /* LAYERS */
-.paint-right { position: relative; }
 .paint-layerpanel {
   position: fixed; z-index: 150; width: 312px; padding: 10px;
   animation: pl-in var(--dur-pop) var(--spring);
@@ -899,13 +892,20 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint .paint-selbar button[data-sel="done"] { margin-left: 4px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 @media (hover: hover) { .paint .paint-selbar button[data-sel="done"]:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); } }
 
-/* wider screens: the bar stands up at the picture's left edge, one setting
-   per row (on phones it stays a strip along the top, which wraps) */
+/* THE DOCK: a column at the right of the workspace, as wide as the tool
+   options, so they never cover the picture; it eases away when they're
+   folded to their button or dragged off (the picture's space growing into
+   it), and back */
+.paint-dock { position: relative; z-index: 4; flex: none; width: 0; margin-left: calc(-1 * var(--pgap)); transition: width var(--dur-slow) var(--ease), margin var(--dur-slow) var(--ease); }
+.paint.dock-on .paint-dock { width: var(--ctx-w); margin-left: 0; }
+.dock-instant .paint-dock { transition: none; }
+/* wider screens: the bar stands up in the dock, one setting per row (on
+   phones it stays a strip along the top of the picture, which wraps) */
 @media (min-width: 561px) {
   .paint-ctx {
-    left: var(--s-2); top: var(--s-2); transform: none;
+    left: auto; right: 0; top: 0; transform: none;
     flex-direction: column; align-items: stretch; gap: var(--s-1);
-    width: var(--ctx-w); max-width: none; max-height: calc(100% - 2 * var(--s-2)); padding: var(--s-1) 6px var(--s-2); border-radius: 22px;
+    width: var(--ctx-w); max-width: none; max-height: 100%; padding: var(--s-1) 6px var(--s-2); border-radius: 22px;
     overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
   }
   .paint-ctx::-webkit-scrollbar { display: none; }
@@ -1073,16 +1073,17 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .focus-mode .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; }
 .focus-mode .paint-bar, .focus-mode .doc-status { opacity: 0; visibility: hidden; pointer-events: none; }
 .focus-mode .paint-left { margin-right: calc(-1 * var(--bar)); transform: translateX(calc(-100% - 2 * var(--edge))); }
-.focus-mode .paint-right { margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
+.focus-mode .paint-bottom { margin-top: calc(-1 * var(--bbar-h) - var(--s-3)); transform: translateY(calc(100% + 2 * var(--edge))); opacity: 0; visibility: hidden; pointer-events: none; }
+.focus-mode .paint .paint-dock { width: 0; margin-left: calc(-1 * var(--pgap)); }
 .focus-mode .paint-ctx { opacity: 0 !important; visibility: hidden; pointer-events: none; }
 .focusing .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
 .focusing .site-main { transition: padding-top var(--dur-slow) var(--ease); }
 .focusing .paint { transition: height var(--dur-slow) var(--ease), gap var(--dur-slow) var(--ease); }
-.focusing .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
+.focusing .paint-bar, .focusing .paint-bottom { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
 .focusing .paint-ctx { transition: opacity var(--dur) ease, visibility 0s; }
 /* (going: hidden from the pointer and the keyboard once they've faded) */
 .focusing.focus-mode .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
-.focusing.focus-mode .paint-bar { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
+.focusing.focus-mode .paint-bar, .focusing.focus-mode .paint-bottom { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
 .focusing.focus-mode .paint-ctx { transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
 .focusing .site-header { overflow: hidden; } /* (its capsules don't spill out while it folds and unfolds) */
 /* (measuring where things will end up: no movement at all) */
@@ -1105,28 +1106,25 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   :root { --bar: 46px; --edge: .5rem; --group-gap: 6px; --hdr-open: 54px; }
   .hb-group, .hb-more { padding: 2px; }
   .header-tools { gap: 6px; }
-  .paint { gap: .4rem; }
   .paint-bar { padding: 5px; border-radius: 14px; }
   .paint-group { grid-template-columns: 36px; gap: 3px; justify-content: center; }
   .paint button, .paint-open { width: 36px; height: 36px; border-radius: 9px; }
   .paint-left button { height: 28px !important; }
   .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; border-radius: 16px; }
-  .paint-pair { width: 36px; height: 40px; }
+  /* (the bottom bar: the full width, the sliders sharing what's left, without their names) */
+  :root { --bbar-h: 46px; --bbar-slider: 64px; --pgap: .4rem; }
+  .paint-centre { gap: var(--s-2); }
+  .paint-bottom { align-self: stretch; padding: 0 var(--s-2); gap: 2px; }
+  .pb-slider { flex: 1 1 0; gap: var(--s-1); }
+  .pb-slider > span { display: none; }
+  .pb-slider input[type="range"] { min-width: 40px; }
+  .pb-slider output { min-width: 1.7em; font-size: var(--fs-xs); }
+  .pb-sep { margin: 0 2px; }
   .paint .paint-current { width: 32px; height: 32px; }
-  .paint .paint-second { width: 18px; height: 18px; right: 0; }
-  .paint .paint-swap, .paint-recent { display: none; }
-  .paint-swatches { grid-template-columns: repeat(2, 14px); gap: 5px; }
-  .paint .paint-swatches button { width: 14px; height: 14px; }
-  .paint .paint-swatches button:nth-child(n+7) { display: none; } /* (the colour circle has every other colour) */
-  /* size and opacity: standing up */
-  .paint-sliders { gap: .3rem; }
-  .paint-sliders label { display: flex; flex-direction: column; align-items: center; gap: .2rem; font-size: .5625rem; }
-  .paint-sliders label span { order: 3; }
-  .paint-sliders label output { order: 1; font-size: .625rem; }
-  .paint-sliders input[type="range"] { order: 2; width: 54px; height: 20px; margin: 17px 0; transform: rotate(-90deg); }
-  .paint-right .pr-history > * { height: 33px; }
-  .paint .pr-history .pr-layers { width: 36px; border-radius: 50%; }
-  .paint .pr-layers span { display: none; }
+  .paint .paint-second { width: 24px; height: 24px; }
+  .paint-pair { gap: var(--s-1); }
+  .paint .pl-layersbtn { border-radius: 9px; }
+  .paint .pl-layersbtn span { display: none; }
   .paint button.paint-layers-btn, .paint button.paint-save { width: 36px; padding: 0; border-radius: 9px; }
   .paint button.paint-layers-btn span, .paint .paint-save span { display: none; }
   .paint .paint-save svg { display: block; }
@@ -1139,12 +1137,15 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .pa-list { gap: 2px; }
   .paint-savemenu { right: calc(100% + 6px); width: 170px; }
   .paint-layerpanel { right: calc(100% + 6px); width: 220px; }
-  .paint-colorpanel { right: calc(100% + 6px); }
-  .paint-right .paint-zoom { flex-direction: column; padding: 2px 0; }
-  .paint .paint-right .paint-zoom button { width: 32px; height: 24px; }
+  .paint-colorpanel { left: calc(50% - 122px); }
+  .paint-left .paint-zoom { flex-direction: column; padding: 2px 0; }
+  .paint .paint-left .paint-zoom button { width: 32px; height: 24px; }
   .doc-status { padding: 0; width: 22px; justify-content: center; }
   .doc-status span { display: none; }
-  .paint-ctx { top: 4px; left: 4px; transform: none; max-width: calc(100% - 8px); }
+  /* (the dock: a strip's anchor over the top of the picture, taking no room) */
+  .paint-dock { position: absolute; left: calc(var(--bar) + var(--pgap)); right: 0; top: 0; width: auto; height: 0; margin: 0; }
+  .paint.dock-on .paint-dock { width: auto; }
+  .paint-ctx { top: 6px; left: 6px; right: auto; transform: none; max-width: calc(100% - 12px); }
   /* (narrow: the bar's settings wrap onto a second row rather than hide off the edge) */
   .ctx-tool, .paint-ctx .paint-selbar { flex-wrap: wrap; row-gap: 2px; overflow: visible; }
   .ctx-sep { display: none; }
@@ -1156,9 +1157,6 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .ctx-field > span:first-child { display: none; }
   [data-sym-when] > .ctx-hint, [data-tpath-on] > .ctx-hint, [data-tpath-off] > .ctx-hint { display: none; }
   .paint-layerpanel { width: min(296px, calc(100vw - 16px)); }
-  .paint-right { gap: 4px; }
-  .paint-right .pr-head { justify-content: center; padding: 0 !important; }
-  .paint-right .pr-head span { display: none; }
   /* (Effects sits in the left bar: its own buttons keep their sizes) */
   .paint-left .paint-adjust .gm-chip { height: auto !important; }
   .bs-tips { grid-template-columns: repeat(3, 1fr); }
@@ -1167,7 +1165,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .paint-left .paint-adjust .pa-acts button { height: var(--ctl) !important; }
   .paint-left .paint-adjust .gm-rev { height: 28px !important; }
   .paint-left .paint-adjust .fx-head .pr-head { height: 28px !important; }
-  .paint .paint-right .paint-zoom button.paint-zoom-val { width: 32px; font-size: .5625rem; }
+  .paint .paint-left .paint-zoom button.paint-zoom-val { width: 32px; font-size: .5625rem; }
 }
 
 /* ---------- The header's picture tools ---------- */
@@ -1404,10 +1402,10 @@ select.p-field {
   background: var(--hover) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right .4rem center / 14px;
 }
 
-/* THE COLOUR PICKER, beside the two colours */
+/* THE COLOUR PICKER, above the bottom bar, its middle over the two colours */
 .paint-colorpanel {
-  position: absolute; right: calc(100% + 10px); top: 0; z-index: 6; width: 244px; padding: 12px;
-  max-height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge)); overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 6; width: 244px; padding: 12px;
+  max-height: calc(100svh - var(--hdr, 52px) - var(--bbar-h) - 3 * var(--edge) - 10px); overflow-y: auto; overscroll-behavior: contain;
   font-size: .75rem; animation: pl-in var(--dur-pop) var(--spring);
 }
 .paint-colorpanel[hidden] { display: none; }

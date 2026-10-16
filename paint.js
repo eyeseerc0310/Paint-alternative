@@ -124,7 +124,9 @@
     var ov = $('.paint-over'), octx = ov.getContext('2d');
     var colorDot = $('.paint-current span'), color2Dot = $('.paint-second span');
     var sizeIn = $('.paint-size'), alphaIn = $('.paint-alpha'), zoomVal = $('.paint-zoom-val'), selbar = $('.paint-selbar');
-    var left = $('.paint-left'), right = $('.paint-right');
+    // (the left bar: the tools, then Layers and the zoom; the bottom bar: size,
+    // undo, the two colours, redo and opacity; the dock: the tool options)
+    var left = $('.paint-left'), bbar = $('.paint-bottom'), dock = $('.paint-dock'), paintEl = root.querySelector('.paint') || root;
 
     // ---- a little label beside the mouse saying what each tool does ----
     var tip = document.createElement('div'), tipOn = null;
@@ -367,6 +369,15 @@
       fitTo(sw, sh);
       view.x += (sw - was.w) / 2; view.y += (sh - was.h) / 2; lastStage = { w: sw, h: sh }; applyView();
     }
+    // (the workspace easing to a new size: the picture is fitted to it a
+    // frame at a time, until el's transition is over)
+    var easeAnim = 0, easeEnd = 0;
+    function refitWhile(el) {
+      cancelAnimationFrame(easeAnim); clearTimeout(easeEnd);
+      var dur = (parseFloat(getComputedStyle(el).transitionDuration) || 0) * 1000, t0 = performance.now();
+      (function frame(t) { refit(); if (t - t0 < dur + 34) easeAnim = requestAnimationFrame(frame); })(t0);
+      easeEnd = setTimeout(function () { cancelAnimationFrame(easeAnim); refit(); relayout(); }, dur + 60);
+    }
     function zoomAt(k, cx, cy) {
       k = Math.max(fitK * 0.25, Math.min(fitK * 10, k));
       view.x = cx - (cx - view.x) * k / view.k; view.y = cy - (cy - view.y) * k / view.k; view.k = k;
@@ -384,12 +395,12 @@
     // (a button in the folded top bar can't be seen: what it opens drops
     // down from the bar's arrow instead)
     function hdrBtn(btn) { return btn && !document.documentElement.classList.contains('hdr-open') && btn.closest('.site-header') ? document.querySelector('.hdr-fold') || btn : btn; }
-    // a panel that opens beside a button in the toolbars, at its height
-    // (towards the picture: right of the left bar, left of the right one)
+    // a panel that opens beside a button in the left bar, at its height
+    // (towards the picture)
     function besideBar(el, btn) {
       if (!btn) return;
       var r = btn.getBoundingClientRect(), bar = btn.closest('.paint-bar') || btn, b = bar.getBoundingClientRect(), vw = document.documentElement.clientWidth, g = narrow() ? 6 : 10;
-      var x = bar === right ? b.left - g - el.offsetWidth : b.right + g;
+      var x = b.right + g;
       el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, x))) + 'px';
       el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
       keepOnScreen(el);
@@ -417,14 +428,15 @@
     function keepOnScreen(el, within) {
       if (el.hidden) return;
       var r = el.getBoundingClientRect(), o = panelOffset(el), dx = 0, dy = 0;
+      if (typeof within === 'function') within = within();
       var B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
       if (r.right > B.right - 6) dx = B.right - 6 - r.right; if (r.left + dx < B.left + 6) dx = B.left + 6 - r.left;
       if (r.bottom > B.bottom - 6) dy = B.bottom - 6 - r.bottom; if (r.top + dy < B.top + 6) dy = B.top + 6 - r.top;
       if (dx || dy) el.style.translate = (o.x + dx) + 'px ' + (o.y + dy) + 'px';
     }
     // (btnHandle: a button that can be dragged too; a press that doesn't move
-    // is still a click)
-    function draggable(el, handle, key, btnHandle, within) {
+    // is still a click. moved: told when it's been dragged, or put back)
+    function draggable(el, handle, key, btnHandle, within, moved0) {
       try { var saved = JSON.parse(localStorage.getItem('paint-pos-' + key)); if (saved) { el.style.translate = saved[0] + 'px ' + saved[1] + 'px'; requestAnimationFrame(function () { keepOnScreen(el, within); }); } } catch (x) {}
       el.addEventListener('pointerdown', function (e) {
         var bh = btnHandle && e.target.closest(btnHandle);
@@ -434,7 +446,8 @@
         e.stopPropagation();
         var o = panelOffset(el), sx = e.clientX, sy = e.clientY, moved = !bh;
         // (it stops at the edge: it can't be dragged out of sight)
-        var r0 = el.getBoundingClientRect(), B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
+        var W0 = typeof within === 'function' ? within() : within;
+        var r0 = el.getBoundingClientRect(), B = W0 ? W0.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
         var lim = { x0: B.left + 6 - r0.left, x1: Math.max(B.left + 6 - r0.left, B.right - 6 - r0.right), y0: B.top + 6 - r0.top, y1: Math.max(B.top + 6 - r0.top, B.bottom - 6 - r0.bottom) };
         var clampTo = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
         if (moved) { el.classList.add('dragging'); hideTip(); }
@@ -450,46 +463,27 @@
           if (bh) { var stop = function (ce) { ce.stopPropagation(); ce.preventDefault(); }; bh.addEventListener('click', stop, true); setTimeout(function () { bh.removeEventListener('click', stop, true); }, 0); }
           el.classList.remove('dragging'); keepOnScreen(el, within);
           var q = panelOffset(el); try { localStorage.setItem('paint-pos-' + key, JSON.stringify([q.x, q.y])); } catch (x) {}
+          if (moved0) moved0();
         }
         h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
       });
       el.addEventListener('dblclick', function (e) {
         if (!e.target.closest(handle) || e.target.closest('button, input, select')) return;
         el.style.translate = ''; try { localStorage.removeItem('paint-pos-' + key); } catch (x) {}
+        if (moved0) moved0();
       });
     }
-    // the right-hand panel's sections fold away by their titles (and stay so)
-    Array.prototype.forEach.call(right.querySelectorAll('.pr-sec'), function (sec) {
-      var hd = sec.querySelector('.pr-head'), k = 'paint-sec-' + sec.dataset.sec;
-      var shut = function (on) { sec.classList.toggle('closed', on); hd.setAttribute('aria-expanded', on ? 'false' : 'true'); };
-      try { shut(localStorage.getItem(k) === 'closed'); } catch (x) {}
-      hd.addEventListener('click', function () { var on = !sec.classList.contains('closed'); shut(on); try { localStorage.setItem(k, on ? 'closed' : 'open'); } catch (x) {} });
-    });
-
     // ---- colours ----
-    var sw = $('.paint-swatches');
-    SWATCHES.forEach(function (c) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.style.background = c; b.dataset.color = c; b.setAttribute('aria-label', 'Colour ' + c);
-      sw.appendChild(b);
-    });
-    var recentBox = $('.paint-recent');
     function setColor(c) {
       st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples(); if (grad) gradTint(c);
       if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); // (the gradient map made from the colours follows them)
-      Array.prototype.forEach.call(root.querySelectorAll('.paint-swatches button, .paint-recent button'), function (b) { b.classList.toggle('on', b.dataset.color.toLowerCase() === c.toLowerCase()); });
     }
     function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); }
-    // the colours used lately: the last four as quick swatches here, and
-    // more in the colour picker (kept for next time)
+    // the colours used lately, in the colour picker (kept for next time)
     function pushRecent(c) {
       c = c.toLowerCase();
       recent = [c].concat(recent.filter(function (x) { return x !== c; })).slice(0, 12);
-      storeIt('paint-recent-colours', recent); showRecent();
-    }
-    function showRecent() {
-      recentBox.innerHTML = recent.slice(0, 4).map(function (x) { return '<button type="button" data-color="' + x + '" style="background:' + x + '" aria-label="Recent colour ' + x + '"></button>'; }).join('');
-      setColor(st.color);
+      storeIt('paint-recent-colours', recent);
     }
     function useColor() { pushRecent(st.color); }
     // ---- THE COLOUR PICKER. A tap on either of the two colours opens it
@@ -548,7 +542,7 @@
         '<button type="button" class="pc-icon" data-pc-act="delete" title="Delete this palette" aria-label="Delete this palette"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button></div>' +
       '<div class="pc-grid pc-swatches"></div>' +
       '<p class="pc-note"></p>';
-    right.appendChild(pc);
+    bbar.appendChild(pc);
     draggable(pc, '.pc-grab', 'colour');
     var pcDisc = pc.querySelector('.pc-disc canvas'), pcHK = pc.querySelector('.pc-hk'), pcSK = pc.querySelector('.pc-sk');
     var DISC = 212, RING = 20, SQ = Math.floor((DISC / 2 - RING - 7) * Math.SQRT2), SQ0 = (DISC - SQ) / 2;
@@ -645,9 +639,14 @@
       var c = hex2rgb(pcTarget()), x = rgb2hsv(c[0], c[1], c[2]);
       hsv = [x[1] && x[2] ? x[0] : hsv[0], x[1], x[2]]; pcWas = pcTarget(); pcShow();
     }
+    // (it opens above the bottom bar, its middle over the two colours, as
+    // far as the window allows; on a phone, along the bottom of the screen)
     function placePicker() {
-      if (phoneLayout()) { pc.style.top = ''; return; }
-      var b = $('.paint-pair'); pc.style.top = Math.max(0, Math.min(b.offsetTop, right.clientHeight - pc.offsetHeight)) + 'px';
+      if (phoneLayout()) { pc.style.left = ''; return; }
+      var b = $('.paint-pair'), br = bbar.getBoundingClientRect(), pr = b.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+      var x = pr.left + pr.width / 2 - pc.offsetWidth / 2;
+      x = Math.max(8, Math.min(vw - pc.offsetWidth - 8, x));
+      pc.style.left = Math.round(x - br.left) + 'px';
     }
     function picker(which) {
       if (which && (pc.hidden || which !== pcWhich)) {
@@ -2323,7 +2322,7 @@
           var a = document.activeElement;
           // (still typing if the focus went to the text options, the font
           // list, the colours or the opacity: those change the words)
-          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-colors, .paint-sliders, .paint-ctx'))) commitText();
+          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-bottom, .paint-ctx'))) commitText();
         }, 0);
       });
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
@@ -2647,7 +2646,7 @@
       tpEl.querySelector('[data-tp="outline"]').value = tx.outline; tpEl.querySelector('[data-tpo="outline"]').textContent = tx.outline;
     }
     document.addEventListener('pointerdown', function (e) {
-      if (tpEl && !tpEl.hidden && !e.target.closest('.paint-textpanel, .paint-textbtn, .paint-text, .paint-colors, .paint-sliders, .paint-fontmenu')) textPanel(false);
+      if (tpEl && !tpEl.hidden && !e.target.closest('.paint-textpanel, .paint-textbtn, .paint-text, .paint-bottom, .paint-fontmenu')) textPanel(false);
     }, true);
 
     // ---- select and move: a box round part of the layer; drag it to move it ----
@@ -3473,7 +3472,9 @@
     lmenu.className = 'paint-lmenu'; lmenu.hidden = true; lmenu.setAttribute('role', 'menu');
     document.body.appendChild(lmenu);
     document.addEventListener('pageswap:start', function gone() { document.removeEventListener('pageswap:start', gone); lmenu.remove(); });
-    function layerMenu(i, x, y, fromRight) {
+    // (above: from a button, where the menu goes if there's no room under it,
+    // so it never covers the button that opened it)
+    function layerMenu(i, x, y, fromRight, above) {
       var L = layers[i]; if (!L) return;
       var n = layers.length, item = function (k, label, opt) {
         opt = opt || {};
@@ -3488,6 +3489,7 @@
           '<hr>' + item('m-deselect', 'Pick Just This One') + item('m-delete', 'Delete ' + P.length + ' Layers', { danger: true });
         lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
         var left0 = fromRight ? x - lmenu.offsetWidth : x;
+        if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
         lmenu.style.left = Math.max(8, Math.min(left0, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
         lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
         return;
@@ -3502,6 +3504,7 @@
         '<hr>' + item('delete', 'Delete', { danger: true });
       lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
       var left = fromRight ? x - lmenu.offsetWidth : x;
+      if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
       lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
       lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
     }
@@ -3525,7 +3528,7 @@
       e.stopPropagation();
       var i = +m.dataset.layerMore;
       if (!lmenu.hidden && +lmenu.dataset.i === i) { lmenu.hidden = true; return; }
-      var r = m.getBoundingClientRect(); layerMenu(i, r.right, r.bottom + 4, true);
+      var r = m.getBoundingClientRect(); layerMenu(i, r.right, r.bottom + 4, true, r.top - 4);
     });
     lmenu.addEventListener('click', function (e) {
       var b = e.target.closest('[data-lm]'); if (!b || b.disabled) return;
@@ -3546,7 +3549,7 @@
         else if (M.group && !(below && below.group === M.group) && !(above && above.group === M.group)) M.group = membersOf(M.group).length > 1 ? null : M.group;
       });
     }
-    function groupMenu(G, x, y, fromRight) {
+    function groupMenu(G, x, y, fromRight, above) {
       var item = function (k, label, opt) { opt = opt || {}; return '<button type="button" role="menuitem" data-lm="' + k + '"' + (opt.off ? ' disabled' : '') + (opt.danger ? ' class="lm-danger"' : '') + '>' + label + '</button>'; };
       var M = membersOf(G), lo = layers.indexOf(M[0]), hi = layers.indexOf(M[M.length - 1]), bottom = layers[0] && layers[0].bg ? 1 : 0;
       lmenu.innerHTML = item('g-rename', 'Rename') + item('g-merge', 'Merge Group') + item('g-ungroup', 'Ungroup') +
@@ -3555,6 +3558,7 @@
       lmenu.dataset.i = ''; lmenu.dataset.g = G.id; lmenu.hidden = false;
       var left = fromRight ? x - lmenu.offsetWidth : x;
       lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
+      if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
       lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
     }
     function groupOption(a, G) {
@@ -5814,7 +5818,7 @@
       var ge = e.target.closest('[data-geye]'); if (ge) { var G1 = groupOf(ge.dataset.geye); if (G1) { G1.visible = !G1.visible; mount(); layerPanel(true); autosave(); } return; }
       var gf = e.target.closest('[data-gfold]'); if (gf) { var G2 = groupOf(gf.dataset.gfold); if (G2) { G2.open = !G2.open; renderLayers(); layerPanel(true); autosave(); } return; }
       var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if ((e.shiftKey || e.metaKey || e.ctrlKey) && membersOf(G3).length) { pickToggle(membersOf(G3)); return; } if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
-      var gm = e.target.closest('[data-gmore]'); if (gm) { e.stopPropagation(); var G4 = groupOf(gm.dataset.gmore); if (!G4) return; if (!lmenu.hidden && lmenu.dataset.g === gm.dataset.gmore) { lmenu.hidden = true; return; } var rg = gm.getBoundingClientRect(); groupMenu(G4, rg.right, rg.bottom + 4, true); return; }
+      var gm = e.target.closest('[data-gmore]'); if (gm) { e.stopPropagation(); var G4 = groupOf(gm.dataset.gmore); if (!G4) return; if (!lmenu.hidden && lmenu.dataset.g === gm.dataset.gmore) { lmenu.hidden = true; return; } var rg = gm.getBoundingClientRect(); groupMenu(G4, rg.right, rg.bottom + 4, true, rg.top - 4); return; }
       var mt = e.target.closest('[data-mthumb]'); if (mt) { if (sel) commitSelection(); editMaskOf(layers[+mt.dataset.mthumb], true); layerPanel(true); return; }
       var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (pickKeys(e, L5)) return; if (also.length || L5 !== active) { if (sel) commitSelection(); also = []; } editMaskOf(L5, false); if (st.tool === 'move') movePick(); layerPanel(true); } return; }
       var le = e.target.closest('[data-layer-eye]'); if (le) { var L = layers[+le.dataset.layerEye]; L.visible = !L.visible; mount(); layerPanel(true); autosave(); return; }
@@ -5861,8 +5865,8 @@
     // does. (A tap is told apart here, not by the click after it: a touch
     // that moved can still end in a click.) ----
     var blob = null, pairPressed = -1e9;
-    right.addEventListener('pointerdown', function (e) {
-      var sw = e.target.closest('.paint-swatches button, .paint-recent button, .paint-current, .paint-second');
+    bbar.addEventListener('pointerdown', function (e) {
+      var sw = e.target.closest('.paint-current, .paint-second');
       if (!sw || (e.pointerType === 'mouse' && e.button !== 0)) return;
       var main = sw.classList.contains('paint-current'), pair = main || sw.classList.contains('paint-second');
       var start = { x: e.clientX, y: e.clientY, c: sw.dataset.color || (main ? st.color : st.color2), el: sw, id: e.pointerId, on: false };
@@ -6542,7 +6546,7 @@
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       if (tpEl && !tpEl.hidden && textBtn) placeTextPanel();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
-      if (ctxEl) keepOnScreen(ctxEl, stage);
+      if (ctxEl) { keepOnScreen(ctxEl, ctxBox()); dockSync(false); }
     }
     // THE TOP BAR FOLDS to a thin strip, and opens again, by the arrow at its
     // end. Its height eases, and the picture's space with it (the bar never
@@ -6801,7 +6805,30 @@
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxView = ctxView || 'tool';
     ctxEl.appendChild(selbar);
-    draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', stage);
+    // THE DOCK: the tool options stand in a space of their own at the right
+    // of the workspace, so they never cover the picture. Dragged away (or
+    // folded to its button) the space goes and the picture's grows into it,
+    // easing; dropped back near its place, it docks again (so does a
+    // double-click on its grip). On a phone it's a strip over the picture
+    // (the box it's kept in: the stage on a phone; otherwise the workspace,
+    // a little larger, so in its own place, flush with the workspace's
+    // edge, it isn't nudged in)
+    function ctxBox() {
+      if (phoneLayout()) return stage;
+      return { getBoundingClientRect: function () { var r = paintEl.getBoundingClientRect(); return { left: r.left - 6, top: r.top - 6, right: r.right + 6, bottom: r.bottom + 6 }; } };
+    }
+    function ctxDocked() { var o = panelOffset(ctxEl); return !o.x && !o.y; }
+    function dockSync(ease) {
+      var on = !phoneLayout() && !ctxEl.classList.contains('min') && ctxDocked();
+      if (paintEl.classList.contains('dock-on') === on) return;
+      if (!ease) { paintEl.classList.add('dock-instant'); paintEl.classList.toggle('dock-on', on); void dock.offsetWidth; paintEl.classList.remove('dock-instant'); refit(); return; }
+      paintEl.classList.toggle('dock-on', on); refitWhile(dock);
+    }
+    draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', ctxBox, function () {
+      var o = panelOffset(ctxEl);
+      if (o.x || o.y) { if (Math.hypot(o.x, o.y) < 48) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} } }
+      dockSync(true);
+    });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
@@ -6926,7 +6953,9 @@
       var top = side ? r.top - sr.top - 5 : r.bottom - sr.top + 6;
       if (kind === 'fonts') ctxList.style.maxHeight = Math.max(160, stage.clientHeight - (side ? 12 : top) - 20) + 'px';
       if (side) top = Math.max(6, Math.min(stage.clientHeight - ctxList.offsetHeight - 6, top));
-      ctxList.style.left = Math.round(Math.max(6, Math.min(stage.clientWidth - ctxList.offsetWidth - 6, side ? cr.right - sr.left + 6 : r.left - sr.left))) + 'px';
+      // (beside it on the side towards the picture's middle: left of it when it's docked at the right)
+      var toLeft = cr.left + cr.width / 2 > sr.left + sr.width / 2;
+      ctxList.style.left = Math.round(Math.max(6, Math.min(stage.clientWidth - ctxList.offsetWidth - 6, side ? (toLeft ? cr.left - sr.left - ctxList.offsetWidth - 6 : cr.right - sr.left + 6) : r.left - sr.left))) + 'px';
       ctxList.style.top = Math.round(top) + 'px';
       if (kind === 'fonts') { var on = ctxList.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'nearest' }); }
       btn.setAttribute('aria-expanded', 'true');
@@ -6954,10 +6983,10 @@
       if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = CTX[key] ? CTX[key]() : ''; }
       var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
-      // (and the right-hand panel: which of size and opacity this tool uses)
+      // (and the bottom bar: which of size and opacity this tool uses; the
+      // other is greyed out, so nothing moves)
       var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
-      right.dataset.uses = uses;
-      var lab = right.querySelector('.pr-tool'); if (lab) lab.textContent = { line: 'Line', shape: 'Shape', eraser: 'Eraser', smudge: 'Smudge', blur: 'Blur', tone: st.tone === 'burn' ? 'Darken' : 'Lighten', fill: 'Fill', gradient: 'Gradient', text: 'Text', pen: 'Pen' }[st.tool] || 'Brush';
+      bbar.dataset.uses = uses; sizeIn.disabled = uses.indexOf('s') < 0; alphaIn.disabled = uses.indexOf('o') < 0;
     }
     // (symmetry's settings take the panel's place while they're open)
     function ctxSymView(on) {
@@ -6972,7 +7001,8 @@
       var m = ctxEl.querySelector('.ctx-min'), t = on ? 'Show the tool settings' : 'Hide the tool settings';
       m.setAttribute('aria-expanded', on ? 'false' : 'true'); m.setAttribute('aria-label', t); m.dataset.tip = t;
       storeIt('paint-ctx-min', on);
-      if (!on) keepOnScreen(ctxEl, stage); // (opened out where it was dragged to: still all in view)
+      if (!on) keepOnScreen(ctxEl, ctxBox()); // (opened out where it was dragged to: still all in view)
+      dockSync(ctxReady);
     }
     function ctxShow() {
       var has = !selbar.hidden && !grad; // (a gradient being made shows its own settings, inside a selection too)
@@ -7076,7 +7106,9 @@
     });
     ctxEl.addEventListener('change', function () { gradRun = false; });
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    var ctxReady = false;
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
+    dockSync(false); ctxReady = true;
     ctxEl.addEventListener('input', function (e) {
       var k = e.target.dataset.ctx;
       if (k === 'smoothing') { smoothing = +e.target.value; storeIt('paint-smoothing', smoothing); ctxSync(); }
@@ -7139,7 +7171,7 @@
     });
     document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
-    setColor(st.color); setColor2(st.color2); showRecent(); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
+    setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first
     // pencil stroke doesn't stutter while it's made)
     (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(function () { texture('pencil'); });

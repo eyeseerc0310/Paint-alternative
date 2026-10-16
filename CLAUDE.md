@@ -59,19 +59,30 @@ When building or changing anything visual:
   bar (`.paint-left`) holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). The Shapes button keeps its own icon
-  whichever kind is picked; Select sits beside Pen. The saved-status pill
-  (`.doc-status`) sits in the corner under it, centred on the bar, its foot
-  level with the foot of the picture's well (hidden in focus mode). The right bar
-  (`.paint-right`) holds colour, then size and opacity for the tool in hand
-  (in sections that fold), then undo/redo with Layers under them, then
-  zoom. Panels that open from a bar open towards the picture (`besideBar`
-  for fixed ones). The picture's space (`.paint-stage`) takes all the rest, and `fitTo` fits the
-  picture with the same margin of the dotted well all round. A tool's own
-  settings go in the **context bar** (`.paint-ctx`, built per tool by `CTX`
-  in `paint.js`), and so do a selection's actions. It stands up at the
-  picture's left edge, one setting per row (on/off settings as switches),
-  and is a wrapping strip along the top on phones. Its `.ctx-min` button
-  folds it down to one button (remembered), which can still be dragged.
+  whichever kind is picked; Select sits beside Pen; at its foot are Layers
+  (`.pl-layersbtn`) and the zoom (`.paint-zoom`). The saved-status pill
+  (`.doc-status`) sits in the corner under it, centred on the bar, level
+  with the bottom bar's middle (hidden in focus mode). The **bottom bar**
+  (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
+  like the top bar's capsules) holds, in this order, Size, Undo, the two
+  colours (`.paint-pair`, the swap tucked at their top), Redo and Opacity;
+  a slider the tool doesn't use is greyed out (`data-uses`), and the colour
+  picker opens above it, its middle over the two colours (`placePicker`).
+  There's no right bar, and no quick swatches: the picker has the palettes
+  and recent colours. Panels that open from the left bar open towards the
+  picture (`besideBar`). The picture's space (`.paint-stage`) takes all the
+  rest, and `fitTo` fits the picture with the same margin of the dotted well
+  all round. A tool's own settings go in the **context bar** (`.paint-ctx`,
+  built per tool by `CTX` in `paint.js`), and so do a selection's actions.
+  It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
+  as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
+  settings as switches), so it never covers the picture; folded (its
+  `.ctx-min` button, remembered) or dragged away, the dock eases shut and the
+  picture's space grows into it (`dockSync`, `refitWhile`), and dropped back
+  near its place (or its grip double-clicked) it docks again. It's kept
+  within the workspace (`ctxBox`). On phones it's a wrapping strip along the
+  top of the picture (the dock takes no room there). Its lists open on the
+  side towards the picture's middle.
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round
   caps and joins; keep new ones in the same style. Put new tool
   settings there, never in a list beside the left toolbar. Symmetry's
