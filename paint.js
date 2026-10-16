@@ -334,7 +334,7 @@
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       if (textBox) placeTextBox();
-      placeSelX(); placeSymHandles(); gridDraw(); if (grad) { gradMarks(); gradZoomed(); }
+      placeSelX(); placeSelDist(); placeSymHandles(); gridDraw(); if (grad) { gradMarks(); gradZoomed(); }
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
     // in the picture's corner instead
@@ -2786,11 +2786,165 @@
     // its middle. These take a point between the picture and the box's own
     // (unturned) frame, and lay what's picked up down, turned.
     function selMid() { return { x: sel.x + sel.w / 2, y: sel.y + sel.h / 2 }; }
-    function selLocal(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx + s * dy, y: m.y - s * dx + c * dy }; }
-    function selWorld(p) { var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx - s * dy, y: m.y + s * dx + c * dy }; }
-    function putFloat(c, f) {
+    function selLocal(p) { if (sel.quad) return quadLocal(p); var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx + s * dy, y: m.y - s * dx + c * dy }; }
+    function selWorld(p) { if (sel.quad) return quadWorld(p); var r = sel.rot || 0; if (!r) return p; var m = selMid(), dx = p.x - m.x, dy = p.y - m.y, c = Math.cos(r), s = Math.sin(r); return { x: m.x + c * dx - s * dy, y: m.y + s * dx + c * dy }; }
+    // DISTORT: with it on, each corner of what's picked up moves on its own
+    // and the pixels follow in perspective. sel.quad holds the four corners
+    // (top left, top right, bottom right, bottom left) from the selection's
+    // own corner (sel.x, sel.y), so moving it moves them all; the box
+    // (sel.x, y, w, h) stays the frame the pixels, the outline and the
+    // wand's shape are in, and a projective map takes that frame to the quad
+    function quadMap(q) {
+      // (the unit square to the four corners)
+      var x0 = q[0].x, y0 = q[0].y, x1 = q[1].x, y1 = q[1].y, x2 = q[2].x, y2 = q[2].y, x3 = q[3].x, y3 = q[3].y;
+      var dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3, g = 0, h = 0;
+      if (Math.abs(dx3) > 1e-9 || Math.abs(dy3) > 1e-9) { var den = dx1 * dy2 - dx2 * dy1; g = (dx3 * dy2 - dx2 * dy3) / den; h = (dx1 * dy3 - dx3 * dy1) / den; }
+      return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h, 1];
+    }
+    function mapInv(M) {
+      var a = M[0], b = M[1], c = M[2], d = M[3], e = M[4], f = M[5], g = M[6], h = M[7], i = M[8];
+      var A = e * i - f * h, B = c * h - b * i, C = b * f - c * e, D = f * g - d * i, E = a * i - c * g, F = c * d - a * f, G = d * h - e * g, Hh = b * g - a * h, I = a * e - b * d;
+      var det = a * A + b * D + c * G; if (!det) return null;
+      return [A / det, B / det, C / det, D / det, E / det, F / det, G / det, Hh / det, I / det];
+    }
+    function mapAt(M, u, v) { var w = M[6] * u + M[7] * v + M[8]; return { x: (M[0] * u + M[1] * v + M[2]) / w, y: (M[3] * u + M[4] * v + M[5]) / w }; }
+    function quadAbs() { return sel.quad.map(function (q) { return { x: sel.x + q.x, y: sel.y + q.y }; }); }
+    function quadWorld(p) { var o = mapAt(quadMap(sel.quad), (p.x - sel.x) / sel.w, (p.y - sel.y) / sel.h); return { x: sel.x + o.x, y: sel.y + o.y }; }
+    function quadLocal(p) { var Mi = mapInv(quadMap(sel.quad)); if (!Mi) return { x: -1e9, y: -1e9 }; var o = mapAt(Mi, p.x - sel.x, p.y - sel.y); return { x: sel.x + o.x * sel.w, y: sel.y + o.y * sel.h }; }
+    function quadMid() { var Q = quadAbs(); return { x: (Q[0].x + Q[1].x + Q[2].x + Q[3].x) / 4, y: (Q[0].y + Q[1].y + Q[2].y + Q[3].y) / 4 }; }
+    // (a corner can't be pulled across the others: the four stay a shape
+    // that turns the same way all round, and not a sliver)
+    function quadOk(q) {
+      var sg = 0;
+      for (var i = 0; i < 4; i++) {
+        var a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4], cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+        if (Math.abs(cr) < 1e-6) return false;
+        if (!sg) sg = cr > 0 ? 1 : -1; else if ((cr > 0 ? 1 : -1) !== sg) return false;
+      }
+      return true;
+    }
+    function quadTurn(q0, m, a) { var c = Math.cos(a), s = Math.sin(a); return q0.map(function (q) { var x = sel.x + q.x - m.x, y = sel.y + q.y - m.y; return { x: m.x + c * x - s * y - sel.x, y: m.y + s * x + c * y - sel.y }; }); }
+    // (the pixels a canvas is warped from, kept for each canvas: at most a
+    // few times as many as are drawn, so a big picture shrunk doesn't
+    // shimmer; forgotten when its pixels change)
+    // (paint-warp-gpu: off, the processor always; on, the chip even when it's
+    // software; otherwise the chip unless it's software, for testing)
+    var warpSrcs = new WeakMap(), warpPref = (function () { try { return localStorage.getItem('paint-warp-gpu') || 'auto'; } catch (x) { return 'auto'; } })(), warpUseGL = warpPref !== 'off';
+    function warpForget(f) { if (f) { warpSrcs.delete(f); warpPvs.delete(f); if (warpGL && warpGL.tex.has(f)) { warpGL.gl.deleteTexture(warpGL.tex.get(f)); warpGL.tex.delete(f); } } }
+    // (on the graphics chip when it can: the same map, worked a pixel at a
+    // time by a shader, from a texture of the canvas with its smaller copies
+    // for when it's drawn small, with a soft edge a screen pixel wide; drawn
+    // straight away by whoever asked, as the chip's canvas is used again)
+    var warpGL = null;
+    function warpGLGet() {
+      if (warpGL !== null) return warpGL;
+      warpGL = false;
+      try {
+        var cv = document.createElement('canvas'), gl = cv.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: true });
+        if (!gl) return false;
+        var dbg = gl.getExtension('WEBGL_debug_renderer_info'), rn = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '';
+        if (warpPref !== 'on' && /swiftshader|llvmpipe|softpipe|software|basic render/i.test(rn)) return false;
+        var sh = function (t, src) { var o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+        var pr = gl.createProgram();
+        gl.attachShader(pr, sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}'));
+        gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, '#version 300 es\nprecision highp float;uniform sampler2D u_t;uniform mat3 u_inv;uniform vec3 u_o;uniform vec2 u_src;out vec4 o;' +
+          'void main(){vec2 w=vec2(u_o.x+gl_FragCoord.x,u_o.y-gl_FragCoord.y)/u_o.z;vec3 h=u_inv*vec3(w,1.0);vec2 uv=h.xy/h.z;' +
+          'vec2 f=max(fwidth(uv*u_src),vec2(1e-4));vec2 e=min(uv,1.0-uv)*u_src/f;float a=clamp(min(e.x,e.y)+0.5,0.0,1.0);' +
+          'o=a>0.0?texture(u_t,clamp(uv,0.0,1.0))*a:vec4(0.0);}'));
+        gl.linkProgram(pr); if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+        gl.useProgram(pr); gl.uniform1i(gl.getUniformLocation(pr, 'u_t'), 0);
+        warpGL = { cv: cv, gl: gl, max: Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0], gl.getParameter(gl.MAX_VIEWPORT_DIMS)[1]), tex: new Map(),
+          u: { inv: gl.getUniformLocation(pr, 'u_inv'), o: gl.getUniformLocation(pr, 'u_o'), src: gl.getUniformLocation(pr, 'u_src') } };
+        cv.addEventListener('webglcontextlost', function (e) { e.preventDefault(); warpGL = false; });
+      } catch (x) { warpGL = false; }
+      return warpGL;
+    }
+    function warpTex(G, f) {
+      var gl = G.gl, t = G.tex.get(f);
+      if (t) { G.tex.delete(f); G.tex.set(f, t); return t; } // (the latest at the end)
+      if (G.tex.size >= 8) { var k0 = G.tex.keys().next().value; gl.deleteTexture(G.tex.get(k0)); G.tex.delete(k0); }
+      t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, f);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      G.tex.set(f, t); return t;
+    }
+    function warpOnGL(f, Mi, px0, py0, ow, oh, k) {
+      var G = warpGLGet(); if (!G || f.width > G.max || f.height > G.max || ow > G.max || oh > G.max) return null;
+      try {
+        var gl = G.gl, t = warpTex(G, f);
+        if (G.cv.width !== ow || G.cv.height !== oh) { G.cv.width = ow; G.cv.height = oh; }
+        gl.viewport(0, 0, ow, oh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t);
+        // (the map, in the picture's units, as a column-major matrix)
+        gl.uniformMatrix3fv(G.u.inv, false, [Mi[0], Mi[3], Mi[6], Mi[1], Mi[4], Mi[7], Mi[2], Mi[5], Mi[8]]);
+        gl.uniform3f(G.u.o, px0, py0 + oh, k); gl.uniform2f(G.u.src, f.width, f.height);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        return gl.isContextLost() ? null : G.cv;
+      } catch (x) { return null; }
+    }
+    function warpSrc(f, want) {
+      var k = Math.min(1, Math.sqrt(Math.max(1, want * 3) / (f.width * f.height))), w = Math.max(1, Math.round(f.width * k)), h = Math.max(1, Math.round(f.height * k));
+      var c = warpSrcs.get(f); if (c && c.w === w && c.h === h) return c;
+      var cv = f; if (w !== f.width || h !== f.height) { cv = document.createElement('canvas'); cv.width = w; cv.height = h; var cx = cv.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(f, 0, 0, w, h); }
+      c = { w: w, h: h, d: cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data }; warpSrcs.set(f, c); return c;
+    }
+    // (f drawn into the quad, at k pixels a picture unit: a canvas and where
+    // it goes, in the picture's units; clip: only what's on the picture;
+    // max: at most that many pixels, by making k smaller)
+    function warpOf(f, k, clip, max) {
+      var Q = quadAbs(), xs = Q.map(function (q) { return q.x; }), ys = Q.map(function (q) { return q.y; });
+      var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys), x1 = Math.max.apply(null, xs), y1 = Math.max.apply(null, ys);
+      if (clip) { x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(W, x1); y1 = Math.min(H, y1); }
+      if (x1 <= x0 || y1 <= y0) return null;
+      if (max && (x1 - x0) * (y1 - y0) * k * k > max) k = Math.sqrt(max / ((x1 - x0) * (y1 - y0)));
+      var px0 = Math.floor(x0 * k), py0 = Math.floor(y0 * k), ow = Math.max(1, Math.ceil(x1 * k) - px0), oh = Math.max(1, Math.ceil(y1 * k) - py0);
+      var Mi = mapInv(quadMap(Q)); if (!Mi) return null;
+      if (warpUseGL) { var gc = warpOnGL(f, Mi, px0, py0, ow, oh, k); if (gc) return { cv: gc, x: px0 / k, y: py0 / k, w: ow / k, h: oh / k, gl: true }; }
+      var S = warpSrc(f, ow * oh), sw = S.w, sh = S.h, d = S.d, out = new ImageData(ow, oh), o = out.data;
+      for (var j = 0; j < oh; j++) {
+        var wy = (py0 + j + 0.5) / k, wx0 = (px0 + 0.5) / k, dx = 1 / k;
+        var U = Mi[0] * wx0 + Mi[1] * wy + Mi[2], V = Mi[3] * wx0 + Mi[4] * wy + Mi[5], Z = Mi[6] * wx0 + Mi[7] * wy + Mi[8];
+        var dU = Mi[0] * dx, dV = Mi[3] * dx, dZ = Mi[6] * dx;
+        for (var i = 0, n = j * ow * 4; i < ow; i++, n += 4, U += dU, V += dV, Z += dZ) {
+          var sx = U / Z * sw - 0.5, sy = V / Z * sh - 0.5;
+          if (!(sx > -1 && sy > -1 && sx < sw && sy < sh)) continue;
+          // (between the four nearest pixels, weighted by how solid they are;
+          // past the edge counts as clear, so the edge is soft)
+          var ix = Math.floor(sx), iy = Math.floor(sy), fx = sx - ix, fy = sy - iy, A = 0, Rr = 0, G = 0, B = 0;
+          for (var t = 0; t < 4; t++) {
+            var tx = ix + (t & 1), ty = iy + (t >> 1);
+            if (tx < 0 || ty < 0 || tx >= sw || ty >= sh) continue;
+            var q = (ty * sw + tx) * 4, a = d[q + 3]; if (!a) continue;
+            var wgt = ((t & 1) ? fx : 1 - fx) * ((t >> 1) ? fy : 1 - fy) * a;
+            A += wgt; Rr += wgt * d[q]; G += wgt * d[q + 1]; B += wgt * d[q + 2];
+          }
+          if (A > 0) { o[n] = Rr / A; o[n + 1] = G / A; o[n + 2] = B / A; o[n + 3] = A; }
+        }
+      }
+      var cv = document.createElement('canvas'); cv.width = ow; cv.height = oh; cv.getContext('2d').putImageData(out, 0, 0);
+      return { cv: cv, x: px0 / k, y: py0 / k, w: ow / k, h: oh / k };
+    }
+    // (on the screen, at the picture's detail, so zooming in doesn't blur it:
+    // on the processor, coarser while a corner is dragged, and kept until it
+    // or the corners change)
+    var warpPvs = new WeakMap();
+    function warpShow(c, f) {
+      var busy = selMode === 'distort' || selMode === 'qrot' || selMode === 'move', k = R;
+      var key = [sel.x, sel.y, sel.w, sel.h, JSON.stringify(sel.quad), k, busy].join('|'), c0 = warpPvs.get(f);
+      if (!c0 || c0.key !== key) {
+        var r = warpOf(f, k, true, warpUseGL && warpGLGet() ? 0 : busy ? 4e5 : 2.5e6);
+        if (r && r.gl) { c.drawImage(r.cv, r.x, r.y, r.w, r.h); return; } // (the chip's canvas is used again: drawn now, not kept)
+        c0 = { key: key, r: r }; warpPvs.set(f, c0);
+      }
+      if (c0.r) c.drawImage(c0.r.cv, c0.r.x, c0.r.y, c0.r.w, c0.r.h);
+    }
+    function putFloat(c, f, pv) {
       var r = sel.rot || 0; f = f || sel.float;
-      if (c !== sctx && c.canvas) c.canvas.boxV = (c.canvas.boxV || 0) + 1; // (a layer's paint changed: its box is measured again)
+      if (c !== sctx && c.canvas && !pv) c.canvas.boxV = (c.canvas.boxV || 0) + 1; // (a layer's paint changed: its box is measured again)
+      if (sel.quad) { if (pv) { warpShow(c, f); return; } var wr = warpOf(f, R, true); if (wr) c.drawImage(wr.cv, wr.x, wr.y, wr.w, wr.h); return; }
       c.imageSmoothingQuality = f.width > sel.w * R * 1.5 ? 'high' : 'low'; // (a picture kept at its own size, drawn smaller)
       if (!r) { c.drawImage(f, sel.x, sel.y, sel.w, sel.h); return; }
       var m = selMid(); c.save(); c.translate(m.x, m.y); c.rotate(r); c.drawImage(f, -sel.w / 2, -sel.h / 2, sel.w, sel.h); c.restore();
@@ -2894,18 +3048,27 @@
     function anchor(keep) {
       if (!lifted()) return;
       if (sel.more) putMore(); else putFloat(active.ctx); sel.float = null; sel.hist = sel.fut = null; sel.src = null;
-      if (sel.rot && !keep) { clearSel(); autosave(); return; }
+      if ((sel.rot || sel.quad) && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selx.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
+    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
     // A SELECTION'S OWN STEPS: while something is picked up, each move, size,
     // turn (or size typed in Scale) is a step of its own, which undo and redo
     // take first; undone past the first, it goes back down where it was
-    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null }; }
+    // (and, for Distort, its corners, and what's picked up as it was: locking
+    // the corners again works the pixels into a box of their own)
+    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null, quad: sel.quad ? sel.quad.slice() : null, float: sel.float, fl: sel.more ? sel.more.map(function (it) { return it.f; }) : null, mask: sel.mask, maskData: sel.maskData }; }
+    function sameQuad(a, b) { if (!a || !b) return a === b; for (var i = 0; i < 4; i++) if (a[i].x !== b[i].x || a[i].y !== b[i].y) return false; return true; }
     function selRecord() { if (!sel) return; if (!sel.hist) sel.hist = []; sel.hist.push(selGeo()); sel.fut = []; histButtons(); }
     // (a press that changed nothing isn't a step)
-    function selTrim() { var g = sel && sel.hist && sel.hist[sel.hist.length - 1]; if (g && g.x === sel.x && g.y === sel.y && g.w === sel.w && g.h === sel.h && g.rot === (sel.rot || 0)) { sel.hist.pop(); histButtons(); } }
-    function selPut(g) { sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; refitMask(); drawSel(); autosave(); }
+    function selTrim() { var g = sel && sel.hist && sel.hist[sel.hist.length - 1]; if (g && g.x === sel.x && g.y === sel.y && g.w === sel.w && g.h === sel.h && g.rot === (sel.rot || 0) && sameQuad(g.quad, sel.quad || null) && g.float === sel.float) { sel.hist.pop(); histButtons(); } }
+    function selPut(g) {
+      sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; sel.quad = g.quad;
+      if (g.float !== sel.float) { sel.float = g.float; sel.fboxOf = null; }
+      if (g.fl && sel.more) sel.more.forEach(function (it, i) { if (g.fl[i] !== undefined) it.f = g.fl[i]; });
+      if (g.mask !== sel.mask) { sel.mask = g.mask; sel.maskData = g.maskData; sel.tint = null; }
+      refitMask(); drawSel(); autosave();
+    }
     function selSteps() { return !!(sel && (lifted() || (sel.text && sel.lifted))); }
     function selUndo() { if (!selSteps() || !sel.hist || !sel.hist.length) return false; sel.fut.push(selGeo()); selPut(sel.hist.pop()); histButtons(); return true; }
     function selRedo() { if (!selSteps() || !sel.fut || !sel.fut.length) return false; sel.hist.push(selGeo()); selPut(sel.fut.pop()); histButtons(); return true; }
@@ -2919,14 +3082,14 @@
     function scaleShow(v) { return String(Math.round(v * 10) / 10 >= 10 ? Math.round(v) : Math.round(v * 10) / 10); }
     function scaleSync() {
       if (!scaleEl) return;
-      var on = !!(sel && !sel.thing && selMode !== 'new' && selMode !== 'lasso' && !lassoOn && sel.w > 0 && sel.h > 0);
+      var on = !!(sel && !sel.thing && !sel.quad && selMode !== 'new' && selMode !== 'lasso' && !lassoOn && sel.w > 0 && sel.h > 0);
       if (on && !sel.base) sel.base = { w: sel.text ? sel.w0 : sel.w, h: sel.text ? sel.h * sel.w0 / sel.w : sel.h };
       if (scaleEl.hidden === on) scaleEl.hidden = !on;
       scaleLock.setAttribute('aria-pressed', keepRatio ? 'true' : 'false');
       if (on && document.activeElement !== scaleIn) scaleIn.value = scaleShow(scalePct());
     }
     function scaleTo(pct) {
-      if (!sel || selMode || !(pct > 0)) return;
+      if (!sel || selMode || sel.quad || !(pct > 0)) return;
       var nw = Math.max(1 / R, Math.min(W * 20, sel.base.w * pct / 100)), k = nw / sel.w;
       if (Math.abs(k - 1) < 1e-9) return;
       lift(); selRecord();
@@ -2951,9 +3114,72 @@
       if (!sel || (selMode && selMode !== 'scale' && selMode !== 'rotate') || sel.thing) { selx.hidden = true; return; }
       selx.hidden = false;
       var sc = toScreen(selWorld({ x: sel.x, y: sel.y })), x = sc.x, y = sc.y;
+      // (distorting, every corner is pulled: the X sits just outside its one)
+      if (sel.quad) { var qm = toScreen(quadMid()), dx = x - qm.x, dy = y - qm.y, dl = Math.hypot(dx, dy) || 1; x += dx / dl * 22; y += dy / dl * 22; }
       selx.style.left = Math.round(Math.max(3, Math.min(stage.clientWidth - 25, x - 11))) + 'px';
       selx.style.top = Math.round(Math.max(3, Math.min(stage.clientHeight - 25, y - 11))) + 'px';
     }
+    // THE DISTORT BUTTON, over the top of a selection: tapped, its corners
+    // come apart (each one moves on its own, the pixels following in
+    // perspective); tapped again, they're locked together again, and what's
+    // picked up is worked into a box of its own, to move, size and turn as
+    // before. Not for words: they'd stop being words
+    var seldist = $('.paint-seldist');
+    function distortable() {
+      if (!sel || sel.thing || sel.text || !(sel.w > 0 && sel.h > 0) || selMode === 'new' || selMode === 'lasso' || lassoOn) return false;
+      var its = sel.more || sel.items || (!lifted() && multi() ? picks().map(function (L) { return { L: L }; }) : []);
+      return !its.some(function (it) { return it.L.text; });
+    }
+    function placeSelDist() {
+      if (!seldist) return;
+      var show = distortable() && (!selMode || /^(scale|rotate|distort|qrot)$/.test(selMode));
+      seldist.hidden = !show; if (!show) return;
+      var on = !!sel.quad, t = on ? 'Lock the corners together again' : 'Distort: drag each corner on its own';
+      if (seldist.getAttribute('aria-pressed') !== String(on)) { seldist.setAttribute('aria-pressed', on ? 'true' : 'false'); seldist.dataset.tip = t; }
+      // (out past the round handle, from the middle of the top edge; or, if
+      // that's off the top or under Scale, out from the middle of the bottom)
+      var tp, n, bp;
+      if (on) { var qt = quadTop(), Q = quadAbs(); tp = { x: qt.x, y: qt.y }; n = qt.n; bp = { x: (Q[2].x + Q[3].x) / 2, y: (Q[2].y + Q[3].y) / 2 }; }
+      else { var r = sel.rot || 0; tp = selWorld({ x: sel.x + sel.w / 2, y: sel.y }); bp = selWorld({ x: sel.x + sel.w / 2, y: sel.y + sel.h }); n = { x: Math.sin(r), y: -Math.cos(r) }; }
+      var vr = view.r || 0, nx = Math.cos(vr) * n.x - Math.sin(vr) * n.y, ny = Math.sin(vr) * n.x + Math.cos(vr) * n.y;
+      var bw = seldist.offsetWidth || 90, bh = seldist.offsetHeight || 28, sc = toScreen(tp), x = sc.x + nx * 54 - bw / 2, y = sc.y + ny * 54 - bh / 2;
+      var sr = scaleEl && !scaleEl.hidden ? scaleEl.getBoundingClientRect() : null, gr = stage.getBoundingClientRect();
+      var under = sr && x < sr.right - gr.left + 4 && x + bw > sr.left - gr.left - 4 && y < sr.bottom - gr.top + 6;
+      if (y < 4 || under) { var sb = toScreen(bp); x = sb.x - nx * 32 - bw / 2; y = sb.y - ny * 32 - bh / 2; }
+      seldist.style.left = Math.round(Math.max(4, Math.min(stage.clientWidth - bw - 4, x))) + 'px';
+      seldist.style.top = Math.round(Math.max(4, Math.min(stage.clientHeight - bh - 4, y))) + 'px';
+    }
+    function distortOn() {
+      if (!distortable()) return;
+      lift(); selRecord();
+      var cs = [{ x: sel.x, y: sel.y }, { x: sel.x + sel.w, y: sel.y }, { x: sel.x + sel.w, y: sel.y + sel.h }, { x: sel.x, y: sel.y + sel.h }].map(selWorld);
+      sel.quad = cs.map(function (q) { return { x: q.x - sel.x, y: q.y - sel.y }; }); sel.rot = 0;
+      drawSel(); autosave();
+    }
+    function distortOff() {
+      if (!sel || !sel.quad) return;
+      selRecord();
+      // (each picked-up canvas worked into the box round the four corners, at
+      // the picture's detail, and the outline with it: a plain box's becomes
+      // a cutout's four corners, a wand's shape is worked the same way)
+      var Q = quadAbs(), xs = Q.map(function (q) { return q.x; }), ys = Q.map(function (q) { return q.y; });
+      var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys), x1 = Math.max.apply(null, xs), y1 = Math.max.apply(null, ys);
+      var k = Math.min(R, 8192 / Math.max(1e-6, x1 - x0, y1 - y0));
+      var bake = function (f) { if (!f) return f; var r = warpOf(f, k, false), c = document.createElement('canvas'); c.width = Math.max(1, Math.round((x1 - x0) * k)); c.height = Math.max(1, Math.round((y1 - y0) * k)); if (r) c.getContext('2d').drawImage(r.cv, (r.x - x0) * k, (r.y - y0) * k, r.w * k, r.h * k); return c; };
+      var poly = sel.poly ? sel.poly.map(function (q) { var w = selWorld({ x: sel.x + q.x, y: sel.y + q.y }); return { x: w.x - x0, y: w.y - y0 }; }) : sel.mask ? null : Q.map(function (q) { return { x: q.x - x0, y: q.y - y0 }; });
+      var mask = null, md = null;
+      if (sel.mask) {
+        var mb = bake(sel.mask), mx = mb.getContext('2d'), id = mx.getImageData(0, 0, mb.width, mb.height);
+        for (var i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0;
+        mx.putImageData(id, 0, 0); mask = mb; md = id.data;
+      }
+      if (sel.more) sel.more.forEach(function (it) { if (it.f) { var b = bake(it.f); if (sel.float === it.f) sel.float = b; it.f = b; } });
+      else sel.float = bake(sel.float);
+      sel.x = x0; sel.y = y0; sel.w = x1 - x0; sel.h = y1 - y0; sel.rot = 0; sel.quad = null; sel.poly = poly; sel.fboxOf = null; sel.src = null; sel.base = null; // (Scale starts again from this size)
+      if (sel.mask) { sel.mask = mask; sel.maskData = md; sel.tint = null; }
+      drawSel(); autosave();
+    }
+    if (seldist) seldist.addEventListener('click', function () { if (!sel) return; if (sel.quad) distortOff(); else distortOn(); });
     function lift(keep) {
       // (a text layer's words aren't lifted: they're drawn again where they go)
       if (sel.text) { if (!sel.lifted) { push({ L: sel.text, data: snapOf(sel.text), bg: sel.text.bg, text: sel.text.text, label: 'Move Text' }); sel.lifted = true; } return; }
@@ -3026,16 +3252,17 @@
         it.cv.style.width = it.L.cv.style.width; it.cv.style.height = it.L.cv.style.height;
         if (it.cv.previousSibling !== el && el.parentNode) el.parentNode.insertBefore(it.cv, el.nextSibling);
         it.cv.style.opacity = el.style.opacity; it.cv.style.mixBlendMode = el.style.mixBlendMode; it.cv.style.visibility = el.style.visibility;
-        var x = it.cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, it.cv.width, it.cv.height); base(x); putFloat(x, it.f);
+        var x = it.cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, it.cv.width, it.cv.height); base(x); putFloat(x, it.f, true);
       });
     }
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
-      placeSelX(); selButtons(); scaleSync();
+      placeSelX(); selButtons(); scaleSync(); placeSelDist();
       if (!sel) return;
       if (sel.text && sel.lifted) placeTextSel();
-      if (sel.more) drawMore(); else if (sel.float) putFloat(sctx);
+      if (sel.more) drawMore(); else if (sel.float) putFloat(sctx, null, true);
       if (sel.thing) { if (snap && snap.lines.length) drawSnapLines(); return; }
+      if (sel.quad) { drawQuadSel(); if (snap && snap.lines.length) drawSnapLines(); return; }
       // (the outline and handles are drawn in the box's own frame, turned with it)
       var turned = !!sel.rot;
       if (turned) { var m0 = selMid(); sctx.save(); sctx.translate(m0.x, m0.y); sctx.rotate(sel.rot); sctx.translate(-m0.x, -m0.y); }
@@ -3057,6 +3284,29 @@
       sctx.restore();
       if (turned) sctx.restore();
       if (snap && snap.lines.length) drawSnapLines();
+    }
+    // (distorting: the outline and the wand's wash as the pixels go, a
+    // square on each corner to pull it on its own, and the round handle)
+    function drawQuadSel() {
+      if (sel.mask) { sctx.save(); sctx.globalAlpha = 0.35; warpShow(sctx, sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6'))); sctx.restore(); }
+      sctx.save(); sctx.lineWidth = 1 / view.k;
+      var pts = sel.poly ? sel.poly.map(function (q) { return selWorld({ x: sel.x + q.x, y: sel.y + q.y }); }) : quadAbs();
+      var edge = function () { sctx.beginPath(); pts.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); sctx.closePath(); sctx.stroke(); };
+      sctx.setLineDash([5 / view.k, 4 / view.k]); sctx.strokeStyle = '#000'; edge();
+      sctx.lineDashOffset = 4.5 / view.k; sctx.strokeStyle = '#fff'; edge();
+      if (sel.poly) { sctx.setLineDash([2 / view.k, 3 / view.k]); sctx.lineDashOffset = 0; sctx.strokeStyle = 'rgba(255, 255, 255, .7)'; var Q = quadAbs(); sctx.beginPath(); Q.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); sctx.closePath(); sctx.stroke(); }
+      var hs = 8 / view.k, cs = corners(); sctx.setLineDash([]); sctx.fillStyle = '#fff'; sctx.strokeStyle = '#141414';
+      cs.forEach(function (q) { if (q.c !== 'rot') { sctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); sctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); } });
+      var rh = cs[4], tm = quadTop();
+      sctx.beginPath(); sctx.moveTo(tm.x, tm.y); sctx.lineTo(rh.x - tm.n.x * 5 / view.k, rh.y - tm.n.y * 5 / view.k); sctx.stroke();
+      sctx.beginPath(); sctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); sctx.fill(); sctx.stroke();
+      sctx.restore();
+    }
+    // (the middle of the top edge, and the way out from it)
+    function quadTop() {
+      var Q = quadAbs(), m = quadMid(), x = (Q[0].x + Q[1].x) / 2, y = (Q[0].y + Q[1].y) / 2, ex = Q[1].x - Q[0].x, ey = Q[1].y - Q[0].y, l = Math.hypot(ex, ey) || 1, nx = ey / l, ny = -ex / l;
+      if (nx * (x - m.x) + ny * (y - m.y) < 0) { nx = -nx; ny = -ny; }
+      return { x: x, y: y, n: { x: nx, y: ny } };
     }
     // SMART GUIDES: while something is dragged, its box (what's really in it,
     // as it's turned and sized) snaps to the picture's middle, and to the
@@ -3250,6 +3500,7 @@
     function rotHandleLocal() { return { x: sel.x + sel.w / 2, y: sel.y - 26 / view.k }; }
     function localCorners() { return [{ x: sel.x, y: sel.y, c: 'nw' }, { x: sel.x + sel.w, y: sel.y, c: 'ne' }, { x: sel.x, y: sel.y + sel.h, c: 'sw' }, { x: sel.x + sel.w, y: sel.y + sel.h, c: 'se' }]; }
     function corners() {
+      if (sel.quad) { var Q = quadAbs(), t = quadTop(), g = 26 / view.k; return [{ x: Q[0].x, y: Q[0].y, c: 'nw', i: 0 }, { x: Q[1].x, y: Q[1].y, c: 'ne', i: 1 }, { x: Q[3].x, y: Q[3].y, c: 'sw', i: 3 }, { x: Q[2].x, y: Q[2].y, c: 'se', i: 2 }, { x: t.x + t.n.x * g, y: t.y + t.n.y * g, c: 'rot' }]; }
       var out = localCorners().map(function (q) { var w = selWorld(q); return { x: w.x, y: w.y, c: q.c }; });
       var rh = selWorld(rotHandleLocal()); out.push({ x: rh.x, y: rh.y, c: 'rot' });
       return out;
@@ -3292,7 +3543,7 @@
       var inv = function (d) { for (var i = 0; i < d.length; i += 4) if (d[i + 3]) { d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2]; } };
       if (sel.float) {
         // (something lifted and being moved: its own pixels)
-        var fx = sel.float.getContext('2d'), fd = fx.getImageData(0, 0, sel.float.width, sel.float.height); inv(fd.data); fx.putImageData(fd, 0, 0);
+        var fx = sel.float.getContext('2d'), fd = fx.getImageData(0, 0, sel.float.width, sel.float.height); inv(fd.data); fx.putImageData(fd, 0, 0); warpForget(sel.float);
       } else {
         remember('Invert');
         var c = active.ctx, img = c.getImageData(0, 0, active.cv.width, active.cv.height), d = img.data, m = selPixels();
@@ -3308,6 +3559,7 @@
       if (sel.text && a !== 'rot90' && a !== 'done') return;
       if (a === 'done') { commitSelection(); return; }
       if (a === 'invert') { invertSel(); return; }
+      if (a === 'rot90' && sel.quad) { lift(); selRecord(); sel.quad = quadTurn(sel.quad.slice(), quadMid(), Math.PI / 2); drawSel(); autosave(); return; }
       if (a === 'rot90') { lift(); selRecord(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
       if (a === 'layer') {
         // CUT TO LAYER: the selection comes out onto a layer of its own
@@ -3325,8 +3577,8 @@
         // up and ready to move (the original stays where it is)
         if (!roomFor()) return;
         var f;
-        if (sel.rot && sel.float) {
-          // (a turned one: what's picked up is put down, and a copy of it carries on)
+        if ((sel.rot || sel.quad) && sel.float) {
+          // (a turned or distorted one: what's picked up is put down, and a copy of it carries on)
           f = document.createElement('canvas'); f.width = sel.float.width; f.height = sel.float.height; f.getContext('2d').drawImage(sel.float, 0, 0);
           anchor(true);
         } else { anchor(); lift(true); f = sel.float; sel.float = null; undo.pop(); }
@@ -5186,7 +5438,7 @@
       if (!down) return;
       stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
-      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
+      if (selMode === 'scale' || selMode === 'rotate' || selMode === 'distort' || selMode === 'qrot') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
       if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
       if (selMode === 'move') { selTrim(); snapEnd(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
@@ -5200,6 +5452,14 @@
     function begin0(e) {
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
       if (!/^(picker|move|text|pen)$/.test(t)) need();
+      if (cq && sel.quad) {
+        // (distorting: a corner goes where it's pulled, on its own; the round
+        // handle turns all four round their middle)
+        lift(); selRecord();
+        if (cq.c === 'rot') { var qm = quadMid(); down = { id: e.pointerId, start: p, last: p, qturn: { a0: Math.atan2(p.y - qm.y, p.x - qm.x), q0: sel.quad.slice(), m: qm } }; selMode = 'qrot'; }
+        else { var qc = sel.quad[cq.i]; down = { id: e.pointerId, start: p, last: p, qi: cq.i, qoff: { x: sel.x + qc.x - p.x, y: sel.y + qc.y - p.y } }; selMode = 'distort'; }
+        selbar.classList.add('away'); return;
+      }
       if (cq && cq.c === 'rot') {
         lift(); selRecord(); var m = selMid();
         down = { id: e.pointerId, start: p, last: p, turn: { a0: Math.atan2(p.y - m.y, p.x - m.x), r0: sel.rot || 0 } };
@@ -5316,6 +5576,16 @@
           if (q[oh] && !e.altKey) { var ln = Math.hypot(q[oh].x - q.x, q[oh].y - q.y), an = Math.atan2(q.y - p.y, q.x - p.x); q[oh] = { x: q.x + Math.cos(an) * ln, y: q.y + Math.sin(an) * ln }; }
         }
         down.last = p; drawPen(); return;
+      }
+      if (selMode === 'distort') {
+        var nq = sel.quad.slice(); nq[down.qi] = { x: p.x + down.qoff.x - sel.x, y: p.y + down.qoff.y - sel.y };
+        if (quadOk(nq)) sel.quad = nq;
+        drawSel(); return;
+      }
+      if (selMode === 'qrot') {
+        var qt = down.qturn, qa = Math.atan2(p.y - qt.m.y, p.x - qt.m.x) - qt.a0;
+        if (e.shiftKey) qa = Math.round(qa / (Math.PI / 12)) * (Math.PI / 12);
+        sel.quad = quadTurn(qt.q0, qt.m, qa); drawSel(); return;
       }
       if (selMode === 'rotate') {
         // free to turn; it settles on upright and sideways when close (and
@@ -5539,7 +5809,7 @@
 
       if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
-      if (selMode === 'scale' || selMode === 'rotate') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
+      if (selMode === 'scale' || selMode === 'rotate' || selMode === 'distort' || selMode === 'qrot') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
       if (selMode === 'lasso') {
         // already placing points: carry on (a click made a corner, a drag a
         // freehand piece)
@@ -5566,7 +5836,7 @@
     }
 
     // (the controls that sit on the picture: pressing them doesn't paint)
-    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-scale';
+    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-seldist, .paint-scale';
     stage.addEventListener('pointerdown', function (e) {
       if (e.target.closest(STAGE_UI)) return;
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
