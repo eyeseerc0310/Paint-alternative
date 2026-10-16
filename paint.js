@@ -662,7 +662,7 @@
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
         if (narrow() && typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
-        pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); keepOnScreen(pc);
+        pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
       pairOpen(); ctxAside();
     }
@@ -4682,6 +4682,7 @@
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
       adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
+      dockPlace(adjBox);
       if (adjBox.parentNode === left) { adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox); }
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
     }
@@ -6847,11 +6848,21 @@
         var el = x[0], home = d ? dock : x[1];
         el.classList.toggle('in-dock', d); el.classList.toggle('locked', d); // (in its place: not dragged about)
         if (el.parentNode !== home) { home.appendChild(el); el.style.translate = el.style.top = el.style.left = ''; }
-        if (d) el.style.translate = '';
+        if (d) dockPlace(el);
       });
       discSize(d ? Math.max(150, (parseFloat(getComputedStyle(paintEl).getPropertyValue('--ctx-w')) || 196) - 20) : 212);
       if (!pc.hidden) placePicker();
       ctxAside();
+    }
+    // (in the dock they open from the tool settings: locked, in the dock's
+    // place; unlocked, where the settings were moved to, kept in the workspace)
+    // (worked out from the layout, not measured: it may be popping in)
+    function dockPlace(el) {
+      if (el.parentNode !== dock) return;
+      if (ctxLocked || el.hidden) { el.style.translate = ''; return; }
+      var o = panelOffset(ctxEl), d = dock.getBoundingClientRect(), W = paintEl.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+      var x = Math.max(W.left, Math.min(W.right - w, d.right - w + o.x)), y = Math.max(W.top, Math.min(W.bottom - h, d.top + o.y));
+      el.style.translate = Math.round(x - (d.right - w)) + 'px ' + Math.round(y - d.top) + 'px';
     }
     function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
