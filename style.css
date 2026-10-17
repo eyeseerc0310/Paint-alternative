@@ -941,8 +941,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .paint .ctx-lock { position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; }
   .paint .paint-ctx.min .ctx-lock { position: static; width: 34px; height: 26px; }
   .paint-ctx.min { width: auto; overflow: visible; }
-  /* Keep the parked, folded settings clear of the workspace corner. */
-  .paint-ctx.locked.min { top: var(--s-2); right: var(--s-2); }
+  /* Share the folded origin so unlocking never shifts the menu. */
+  .paint-ctx.min { top: var(--s-2); right: var(--s-2); }
   .paint .paint-ctx.min .ctx-min { position: static; }
   .paint-ctx.min .ctx-grip { height: 14px; margin: 0; }
   .paint-ctx.min .ctx-grip::before { top: 5px; width: 18px; margin-left: -9px; }

@@ -7175,10 +7175,9 @@
       var x = Math.max(W.left, Math.min(W.right - w, d.right - w + o.x)), y = Math.max(W.top, Math.min(W.bottom - h, d.top + o.y));
       el.style.translate = Math.round(x - (d.right - w)) + 'px ' + Math.round(y - d.top) + 'px';
     }
-    // (the lock, from the tool settings or the colour picker: locking opens
-    // them out in their place, and the picture makes room)
+    // Locking returns the settings to their place without changing their folded state.
     function lockToggle() {
-      var lk = !ctxLocked; ctxLock(lk); if (lk && ctxEl.classList.contains('min')) ctxMin(false);
+      ctxLock(!ctxLocked);
       if (!pc.hidden) dockPlace(pc);
     }
     function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
