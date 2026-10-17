@@ -517,6 +517,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 /* the colour picker's loupe */
 .paint-loupe { position: absolute; z-index: 7; pointer-events: none; border-radius: 50%; box-shadow: var(--shadow-pop); }
 .paint-loupe[hidden] { display: none; }
+/* (its middle is the pointer: the system's cursor hides while it shows) */
+.paint-stage.loupe-on, .paint-stage.loupe-on * { cursor: none !important; }
 /* typing on the picture */
 .paint-text {
   position: absolute; z-index: 2; min-width: 1ch; padding: 0; margin: 0; outline: 1px dashed var(--outline); outline-offset: 2px;

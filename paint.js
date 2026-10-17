@@ -334,7 +334,7 @@
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       if (textBox) placeTextBox();
-      placeSelX(); placeSelDist(); placeSymHandles(); gridDraw(); if (grad) { gradMarks(); gradZoomed(); }
+      placeSelX(); placeSelDist(); placeSymHandles(); gridDraw(); if (hoverPick && hoverPick.ev && !down) loupeShow(hoverPick, hoverPick.ev, pos(hoverPick.ev)); if (grad) { gradMarks(); gradZoomed(); }
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
     // in the picture's corner instead
@@ -852,7 +852,7 @@
       st.tool = t;
       if (isBlend(t)) blendLoad(); else if (wasBlend && blendOut) { setSize(blendOut.size); setAlpha(blendOut.alpha); blendOut = null; }
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
-      stage.dataset.tool = t; stage.classList.remove('can-move');
+      stage.dataset.tool = t; stage.classList.remove('can-move'); if (t !== 'picker' && typeof pickHoverEnd === 'function') pickHoverEnd();
       octx.clearRect(0, 0, W, H);
       ctxView = 'tool'; ctxRender();
       if (grad) gradDraw();
@@ -2057,47 +2057,76 @@
 
     // ---- fill and colour picker ----
     function hexOf(d) { return '#' + [d[0], d[1], d[2]].map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
-    // PICKING A COLOUR: while it's held, a loupe above the pointer shows the
-    // pixels under it, close up, in a ring that's the new colour on top and
-    // the colour in hand underneath; the colour's picked where it's let go
+    // PICKING A COLOUR: a loupe shows the pixels round the point, close up,
+    // with the one that's picked in a square at its middle, and a ring all
+    // round in that pixel's colour. With a mouse or the Pencil the loupe's
+    // middle is the pointer itself (the system cursor hides while it shows),
+    // and with the picker in hand it follows the pointer before a press, so
+    // the colour can be seen before it's picked; a finger would hide it, so
+    // there it sits just above (the square still the pixel under the finger).
+    // The colour's picked where it's let go. One pixel is read for both the
+    // square and the ring, from a flat copy of the picture, so what's shown is
+    // what's picked, however the picture is zoomed, moved or turned
     var loupe = document.createElement('canvas'); loupe.className = 'paint-loupe'; loupe.hidden = true; loupe.setAttribute('aria-hidden', 'true');
     stage.appendChild(loupe);
-    function pickStart(e, p, alt) {
+    var LOUPE = 116, LOUPE_RING = 11, LOUPE_N = 13, loupeCells = document.createElement('canvas'), loupeOff = null, hoverPick = null;
+    loupeCells.width = loupeCells.height = LOUPE_N + 2; // (two more than shown, so a turned view's corners are covered)
+    document.addEventListener('paint:theme', function () { loupeOff = null; });
+    function pickFlat() {
       var f = document.createElement('canvas'); f.width = ov.width; f.height = ov.height;
       var x = f.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, f.width, f.height); flattenInto(x);
-      down = { id: e.pointerId, start: p, last: p, pick: { fx: x, flat: f, was: st.color, alt: alt, touch: e.pointerType !== 'mouse' } };
+      return { fx: x, flat: f };
+    }
+    function pickStart(e, p, alt) {
+      var f = pickFlat(); hoverPick = null;
+      down = { id: e.pointerId, start: p, last: p, pick: { fx: f.fx, flat: f.flat, was: st.color, alt: alt, finger: e.pointerType === 'touch' } };
       loupeAt(e, p);
     }
-    function pickedAt(p) {
-      var k = down.pick, px = Math.floor(p.x * R), py = Math.floor(p.y * R);
-      if (px < 0 || py < 0 || px >= k.flat.width || py >= k.flat.height) return null;
-      return hexOf(k.fx.getImageData(px, py, 1, 1).data);
+    function loupeAt(e, p) { down.last = p; loupeShow(down.pick, e, p); }
+    // (the picker in hand, a mouse or the Pencil over the picture, nothing pressed)
+    function pickHover(e) {
+      if (!hoverPick) { var f = pickFlat(); hoverPick = { fx: f.fx, flat: f.flat, was: st.color, finger: false }; }
+      hoverPick.ev = { clientX: e.clientX, clientY: e.clientY };
+      loupeShow(hoverPick, e, pos(e));
     }
-    function loupeAt(e, p) {
-      var k = down.pick, c = pickedAt(p) || k.was, S = 116, d = Math.min(window.devicePixelRatio || 1, 2), sc = screen(e);
-      down.last = p; k.now = c;
+    function pickHoverEnd() { if (!hoverPick) return; hoverPick = null; if (!down || !down.pick) { loupe.hidden = true; stage.classList.remove('loupe-on'); } }
+    // (anything that might change the picture: the copy is made again next time)
+    document.addEventListener('keydown', function () { if (hoverPick) hoverPick.stale = true; }, true);
+    document.addEventListener('pointerdown', function (e) { if (hoverPick && !stage.contains(e.target)) pickHoverEnd(); }, true);
+    function loupeShow(k, e, p) {
+      if (k === hoverPick && k.stale) { var f = pickFlat(); k.fx = f.fx; k.flat = f.flat; k.stale = false; }
+      var S = LOUPE, d = Math.min(window.devicePixelRatio || 1, 2), sc = screen(e), r = S / 2, ring = LOUPE_RING, n = LOUPE_N, m = n + 2, h = (m - 1) / 2;
+      var px = Math.floor(p.x * R), py = Math.floor(p.y * R), inside = px >= 0 && py >= 0 && px < k.flat.width && py < k.flat.height;
+      // the pixels round it (clear past the picture's edge), and the one at the middle
+      var data = k.fx.getImageData(px - h, py - h, m, m), mid = (h * m + h) * 4;
+      var c = inside ? hexOf([data.data[mid], data.data[mid + 1], data.data[mid + 2]]) : null;
+      k.now = c;
       if (loupe.width !== S * d) { loupe.width = loupe.height = S * d; loupe.style.width = loupe.style.height = S + 'px'; }
-      // (above the pointer, clear of a finger; below it at the top of the picture)
-      var y = sc.y - S / 2 - (k.touch ? 64 : 44); if (y < 4) y = sc.y + (k.touch ? 64 : 44) - S / 2;
-      loupe.style.left = Math.round(sc.x - S / 2) + 'px'; loupe.style.top = Math.round(y) + 'px'; loupe.hidden = false;
-      var x = loupe.getContext('2d'), r = S / 2, ring = 11, n = 13, px = Math.floor(p.x * R), py = Math.floor(p.y * R);
+      var lx = sc.x - r, ly = sc.y - r;
+      if (k.finger) { ly = sc.y - r - 64; if (ly < 4) ly = sc.y + 64 - r; }
+      loupe.style.left = lx + 'px'; loupe.style.top = ly + 'px'; loupe.hidden = false;
+      stage.classList.toggle('loupe-on', !k.finger);
+      if (!loupeOff) loupeOff = getComputedStyle(stage).getPropertyValue('--stage').trim() || '#e5e5ea';
+      loupeCells.getContext('2d').putImageData(data, 0, 0);
+      var x = loupe.getContext('2d'), cell = (S - 2 * ring) / n;
       x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, S, S);
-      // the pixels round the point, big, with the one that's picked marked
+      // (big and square, turned as the picture is on the screen, the picked
+      // pixel's square right in the middle)
       x.save(); x.beginPath(); x.arc(r, r, r - ring, 0, Math.PI * 2); x.clip();
-      x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
-      x.imageSmoothingEnabled = false; var cell = (S - 2 * ring) / n;
-      x.drawImage(k.flat, px - (n - 1) / 2, py - (n - 1) / 2, n, n, ring, ring, S - 2 * ring, S - 2 * ring);
-      x.lineWidth = 1.5; x.strokeStyle = 'rgba(0,0,0,.55)'; x.strokeRect(r - cell / 2, r - cell / 2, cell, cell);
-      x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeRect(r - cell / 2 - 1.5, r - cell / 2 - 1.5, cell + 3, cell + 3);
+      x.fillStyle = loupeOff; x.fillRect(0, 0, S, S);
+      x.translate(r, r); if (view.r) x.rotate(view.r);
+      x.imageSmoothingEnabled = false;
+      x.drawImage(loupeCells, -m * cell / 2, -m * cell / 2, m * cell, m * cell);
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(0,0,0,.55)'; x.strokeRect(-cell / 2, -cell / 2, cell, cell);
+      x.strokeStyle = 'rgba(255,255,255,.8)'; x.strokeRect(-cell / 2 - 1.5, -cell / 2 - 1.5, cell + 3, cell + 3);
       x.restore();
-      // the ring: new on top, the colour in hand below
-      var half = function (a0, a1, col) { x.beginPath(); x.arc(r, r, r - ring / 2 - 0.5, a0, a1); x.lineWidth = ring; x.strokeStyle = col; x.stroke(); };
-      half(Math.PI, Math.PI * 2, c); half(0, Math.PI, k.was);
+      // (the ring: that one pixel's colour, all the way round)
+      x.beginPath(); x.arc(r, r, r - ring / 2 - 0.5, 0, Math.PI * 2); x.lineWidth = ring; x.strokeStyle = c || loupeOff; x.stroke();
       x.beginPath(); x.arc(r, r, r - 1, 0, Math.PI * 2); x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.25)'; x.stroke();
       x.beginPath(); x.arc(r, r, r - ring - 0.5, 0, Math.PI * 2); x.strokeStyle = 'rgba(0,0,0,.18)'; x.stroke();
     }
     function pickEnd(cancel) {
-      var k = down.pick; loupe.hidden = true; down = null;
+      var k = down.pick; loupe.hidden = true; stage.classList.remove('loupe-on'); down = null;
       if (cancel || !k.now) return;
       setColor(k.now); useColor();
       if (!k.alt && st.tool === 'picker') setTool('brush');
@@ -5977,6 +6006,10 @@
       if (st.tool === 'pen' && pen && pen.pts.length && !down && !e.target.closest(STAGE_UI)) { penHover = pos(e); drawPen(); hideRing(); return; }
       // (over a gradient's handles, or its line: they can be dragged)
       if (st.tool === 'gradient' && grad && !down && !spaceDown && !spaceGrab) { lastMouse = { s: screen(e), p: pos(e) }; stage.classList.toggle('can-move', !e.target.closest(STAGE_UI) && !!gradHit(lastMouse.p, (e.pointerType === 'mouse' ? 10 : 20) / view.k)); return; }
+      // (the picker in hand: the loupe follows a mouse or a hovering Pencil)
+      if (st.tool === 'picker' && !down && (e.pointerType === 'mouse' || e.pointerType === 'pen')) {
+        if (e.target.closest(STAGE_UI) || spaceDown || spaceGrab) pickHoverEnd(); else { hideRing(); pickHover(e); return; }
+      } else if (hoverPick) pickHoverEnd();
       // an Apple Pencil hovering over the picture shows the brush size too
       if (e.pointerType === 'pen' && !down) { showRing(pos(e)); return; }
       if (e.pointerType !== 'mouse' || down) return;
@@ -6063,7 +6096,7 @@
     // off, as it may have been the start of a gesture; a Pencil's or a
     // mouse's is kept as far as it got)
     stage.addEventListener('pointercancel', function (e) { if (down && e.pointerId === down.id) { if (e.pointerType === 'touch') cancelStroke(); else end(); } up(e); });
-    stage.addEventListener('pointerleave', function (e) { if (lassoOn && !down) { lassoHover = null; drawLasso(null); stage.classList.remove('closing'); } if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
+    stage.addEventListener('pointerleave', function (e) { if (!down) pickHoverEnd(); if (lassoOn && !down) { lassoHover = null; drawLasso(null); stage.classList.remove('closing'); } if (!down) hideRing(); if (!down && e.pointerType === 'mouse') { octx.clearRect(0, 0, W, H); if (!spaceGrab) lastMouse = null; } });
     // ctrl / cmd + scroll (and a trackpad pinch) zooms; scrolling moves a zoomed-in picture
     var wheelT = 0;
     stage.addEventListener('wheel', function (e) {

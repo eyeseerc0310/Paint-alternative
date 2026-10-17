@@ -158,6 +158,16 @@ When building or changing anything visual:
 - **Gestures:** touch gestures run the action set for them (`gest`, changed
   in the Touch Gestures sheet) through `gestureDo`; add new actions to
   `GACTS`.
+- **Picking a colour** (the picker, Alt, the Pencil's barrel button): one
+  pixel decides everything, `floor(pos(e) * R)` on a flat copy of the
+  picture (`pickFlat`). The loupe (`loupeShow`) shows it in the square at
+  its middle, the cells round it turned as the view is, the picture's edge
+  in `--stage`; its ring is that one colour all round (`k.now`), and
+  letting go picks it (`pickEnd`). With a mouse or the Pencil the loupe's
+  middle is the pointer (`loupe-on` hides the cursor), and with the picker
+  in hand it follows a hovering pointer before any press (`pickHover`, its
+  copy made again after a key or a press elsewhere); for a finger it sits
+  64px above.
 - **Filling:** the fill tool and a colour dropped on the picture both go
   through `fillDrop` (symmetry, masks, undo), which lays the fill down at
   once and shows it spreading on a stand-in canvas (`spread`); anything
