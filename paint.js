@@ -835,7 +835,12 @@
     }
     function anyMenu() { return Object.keys(menus).some(function (t) { return !menus[t].el.hidden; }); }
 
-    function setTool(t) {
+    // (the tool's own settings in the dock, asked for: its button or its key)
+    function toolMenu() { fxBack = false; if (!pc.hidden) picker(null); if (adj) adjustDone(); ctxAside(); }
+    // (show: the toolbar or a key asked for this tool, so its settings are
+    // what the tool settings show; otherwise, a tool taken up along the way,
+    // from the picture or a menu, leaves the menu showing as it is)
+    function setTool(t, show) {
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
       var tp = null;
       if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
@@ -854,7 +859,8 @@
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move'); if (t !== 'picker' && typeof pickHoverEnd === 'function') pickHoverEnd();
       octx.clearRect(0, 0, W, H);
-      ctxView = 'tool'; ctxRender();
+      if (show) ctxView = 'tool';
+      ctxRender();
       if (grad) gradDraw();
       if (t === 'move') movePick();
       if (tp) startText(tp.at, 0, null, tp.path);
@@ -4988,7 +4994,7 @@
         if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
         if (adj.mode === 'worker' && fxW) { clearTimeout(adj.settle); fxPrevShow(false); fxW.postMessage({ t: 'end' }); } // (the worker lets its copies go)
       }
-      adj = null; adjBox.hidden = true; delete adjBox.dataset.finishing; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
+      adj = null; adjBox.hidden = true; delete adjBox.dataset.finishing; ctxAside(); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
     }
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); if (usesView(adj.L)) viewOf(adj.L); }
     // KEPT: the full-size result, worked out once (by the graphics chip, or
@@ -5019,7 +5025,7 @@
           // (the panel goes now, and the full size goes down as soon as it's
           // ready; anything done before then finishes it first, here)
           adj.finishing = true; adj.applying = false; adjBox.dataset.finishing = '1';
-          adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
+          adjBox.hidden = true; ctxAside(); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
           adjustWait(); return;
         }
         adjustKeep();
@@ -5144,7 +5150,7 @@
     left.appendChild(bsBox);
     draggable(bsBox, '.pa-title', 'studio');
     function studio(open) {
-      if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); return; }
+      if (!open) { bsBox.hidden = true; bsId = null; ctxAside(); return; }
       if (adj) adjustDone();
       bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside'); studioPreview(); // (again, now it can be measured)
       bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px'; keepOnScreen(bsBox);
@@ -6123,7 +6129,7 @@
         // (the tool in hand, again: brings back its panel if it was folded away)
         var tl = t.dataset.tool;
         if (st.tool === tl && ctxEl.classList.contains('min')) ctxMin(false);
-        setTool(tl); openMenu(null); return;
+        toolMenu(); setTool(tl, true); openMenu(null); return;
       }
       var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|circle|wand|none/.test(st.tool)) setTool('brush'); return; }
       var pr = e.target.closest('.paint-current, .paint-second');
@@ -6170,8 +6176,14 @@
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap')) picker(null);
-      if (adj && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) adjustDone();
+      // (THE MENU IN THE DOCK is changed only by the toolbar and the menus'
+      // own buttons: working on the picture, or with the bottom bar's
+      // controls, leaves it as it is. A press on the picture with Effects
+      // open lays down what's set, and Effects is open again, afresh, once
+      // the picture's let go; on a phone they're pop-overs, closed as before)
+      var onPic = stage.contains(e.target), docked = !phoneLayout();
+      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap') && !(docked && pc.parentNode === dock && (onPic || e.target.closest('.paint-bottom, .paint-zoom')))) picker(null);
+      if (adj && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) { if (docked && adjBox.parentNode === dock && onPic) fxBack = true; adjustDone(); }
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
@@ -7181,7 +7193,10 @@
       var lk = !ctxLocked; ctxLock(lk); if (lk && ctxEl.classList.contains('min')) ctxMin(false);
       if (!pc.hidden) dockPlace(pc);
     }
-    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
+    // (the tool settings step aside for a menu over them: Effects, the Brush
+    // Studio, the colour picker in the dock; and while Effects is laid down
+    // by work on the picture, to come back, so they don't show in between)
+    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', (typeof adjBox !== 'undefined' && !adjBox.hidden) || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock) || fxBack); }
     function dockSync(ease) {
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
       var on = !phoneLayout() && ctxLocked && !ctxEl.classList.contains('min');
@@ -7334,11 +7349,27 @@
     var busyTimer = 0, busyOn = false, busyAt = null;
     function busy(on, e) {
       if (!ctxEl) return;
-      if (!on) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = false; ctxEl.classList.remove('busy'); return; }
+      if (!on) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = false; busyMenus(false); if (fxBack) setTimeout(fxReturn, 0); return; }
       if (busyOn) return;
-      if (!e) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = true; ctxEl.classList.add('busy'); return; }
+      if (!e) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = true; busyMenus(true); return; }
       if (busyTimer) return;
       busyAt = { x: e.clientX, y: e.clientY }; busyTimer = setTimeout(function () { busy(true); }, 300);
+    }
+    // (the menu in the dock fades with the tool settings: the same one fades
+    // back in; locked in the dock beside the picture, none of them fade)
+    function busyMenus(on) {
+      ctxEl.classList.toggle('busy', on);
+      [pc, adjBox].forEach(function (el) { el.classList.toggle('busy', on && el.parentNode === dock && !ctxLocked); });
+    }
+    // (Effects, laid down by a press on the picture, open again afresh when
+    // it's let go; not over words being typed, a path, a gradient or
+    // something picked up, which opening it would lay down)
+    var fxBack = false;
+    function fxReturn() {
+      if (!fxBack || down || Object.keys(pointers).length) return;
+      fxBack = false;
+      if (adj || phoneLayout() || textBox || pen || grad || lassoOn || (sel && lifted())) { ctxAside(); return; }
+      adjustOpen(); ctxAside();
     }
     function busyMove(e) { if (busyAt && Math.hypot(e.clientX - busyAt.x, e.clientY - busyAt.y) > 6) busy(true); }
     function ctxClose() { ctxList.hidden = true; Array.prototype.forEach.call(ctxTool.querySelectorAll('[aria-expanded="true"]'), function (b) { b.setAttribute('aria-expanded', 'false'); }); }
@@ -7538,7 +7569,7 @@
     });
     document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
-    setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
+    setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush', true); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first
     // pencil stroke doesn't stutter while it's made)
     (window.requestIdleCallback || function (f) { setTimeout(f, 600); })(function () { texture('pencil'); });
@@ -7594,7 +7625,7 @@
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) { e.preventDefault(); selAction('done'); return; }
         var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', c: 'circle', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
-        if (map[k]) setTool(map[k]);
+        if (map[k]) { toolMenu(); setTool(map[k], true); }
         else if (k === 'a') adjustOpen();
         else if (k === 'x') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
         else if (k === '[') setSize(Math.min(st.size - 1, st.size / 1.15));
