@@ -78,19 +78,6 @@ When building or changing anything visual:
   (`lockToggle`, either one), a grip to move it by while unlocked (the tool
   settings move with it, `paint-pos-ctx2`), and a fold button that closes it
   and folds the tool settings.
-  **The menu shown in the dock is its own state, apart from the tool in
-  hand**: only the toolbar and the menus' own buttons change it. A tool's
-  button or key (`toolMenu`, then `setTool(t, true)`) shows that tool's
-  settings (the tool in hand, again, too; folded, it opens them out);
-  `setTool(t)` from anywhere else (a colour picked on the picture, the tool
-  put down, a gesture) leaves the menu showing as it is. Work on the picture
-  and the bottom bar's controls never close the colour picker or switch the
-  menu; they fade with the tool settings (`busyMenus`; not when locked) and
-  come back as they were. A press on the picture with Effects open lays
-  down what's set and Effects opens again, afresh, when it's let go
-  (`fxBack`, `fxReturn`), the tool settings kept aside in between
-  (`ctxAside`). On phones the picker and Effects are pop-overs, closed by a
-  press elsewhere as before.
   On those screens the dock is above the bars (z-index 6). On phones the
   picker opens above the bottom bar, its middle over the two colours
   (`placePicker`), and Effects beside the left bar. There's no right bar,
