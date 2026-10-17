@@ -5,12 +5,10 @@
   --color-pair-padding: var(--s-2);
   --color-pair-hairline: .5px;
   --color-pair-tint: 58%;
-  --color-swap-icon-width: 26px;
-  --color-swap-icon-height: 10px;
-  --color-swap-icon-offset: 10px;
-  --color-swap-icon-inset: 2px;
+  --color-swap-icon-size: 18px;
+  --color-swap-icon-center: 4px;
+  --color-swap-icon-turn: 15deg;
   --color-swap-hover-tint: 5%;
-  --color-swap-nudge: 1px;
   --color-swap-press: .98;
   --color-swap-duration: .32s;
   --color-swap-arc: 5px;
@@ -42,22 +40,20 @@
 }
 .paint .paint-pair .paint-swap svg {
   position: absolute;
-  left: calc(50% - var(--color-swap-icon-offset));
-  width: var(--color-swap-icon-width);
-  height: var(--color-swap-icon-height);
+  left: calc(50% + var(--color-swap-icon-center) - var(--color-swap-icon-size) / 2);
+  top: calc(50% - var(--color-swap-icon-size) / 2);
+  width: var(--color-swap-icon-size);
+  height: var(--color-swap-icon-size);
   stroke-width: var(--stroke);
   transform: none;
-  transition: translate var(--dur) var(--ease);
+  transition: rotate var(--dur) var(--ease);
 }
-.paint-swap .swap-top { top: var(--color-swap-icon-inset); }
-.paint-swap .swap-bottom { bottom: var(--color-swap-icon-inset); }
 @media (hover: hover) {
   .paint .paint-pair .paint-swap:hover {
     color: var(--text);
     background: color-mix(in srgb, var(--text) var(--color-swap-hover-tint), var(--panel-solid));
   }
-  .paint .paint-pair .paint-swap:hover .swap-top { translate: var(--color-swap-nudge) 0; }
-  .paint .paint-pair .paint-swap:hover .swap-bottom { translate: calc(-1 * var(--color-swap-nudge)) 0; }
+  .paint .paint-pair .paint-swap:hover .swap-cycle { rotate: var(--color-swap-icon-turn); }
 }
 .paint .paint-pair .paint-swap:active { transform: scale(var(--color-swap-press)); }
 .color-swap-motion { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -65,8 +61,8 @@
 .color-swap-motion .swap-well { background: var(--panel-solid); }
 .color-swap-motion .swap-disc { transform-origin: center; will-change: transform; }
 @media (max-width: 560px) {
-  :root { --color-pair-height: 42px; --color-pair-gap: 14px; --color-pair-padding: 6px; }
+  :root { --color-pair-height: 42px; --color-pair-gap: 14px; --color-pair-padding: 6px; --color-swap-icon-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .paint .paint-pair .paint-swap:hover svg { translate: none; }
+  .paint .paint-pair .paint-swap:hover svg { rotate: none; }
 }
