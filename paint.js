@@ -1,37 +1,3 @@
-    // Swap the values immediately; the discs glide between the fixed wells.
-    var colorPair = $('.paint-pair'), swapMotion = [], swapGeneration = 0;
-    function settleColorSwap() {
-      swapGeneration++;
-      swapMotion.forEach(function (a) { a.cancel(); }); swapMotion = [];
-      colorPair.classList.remove('is-swapping');
-    }
-    function swapColors() {
-      settleColorSwap();
-      var from = [colorDot.getBoundingClientRect(), color2Dot.getBoundingClientRect()];
-      var c = st.color; setColor(st.color2); setColor2(c);
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches || !colorDot.animate || c === st.color) return;
-      var generation = swapGeneration;
-      colorPair.classList.add('is-swapping');
-      [colorDot, color2Dot].forEach(function (dot, i) {
-        var to = from[i], origin = from[1 - i];
-        var dx = origin.x + origin.width / 2 - to.x - to.width / 2;
-        var dy = origin.y + origin.height / 2 - to.y - to.height / 2;
-        var scale = origin.width / to.width;
-        swapMotion.push(dot.animate([
-          { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + scale + ')' },
-          { transform: 'translate(' + dx / 2 + 'px,' + (dy / 2 + (i ? -6 : 6)) + 'px) scale(' + (1 + scale) / 2 + ')', offset: .5 },
-          { transform: 'translate(0,0) scale(1)' }
-        ], { duration: 340, easing: 'cubic-bezier(.32,.72,0,1)' }));
-      });
-      Promise.all(swapMotion.map(function (a) { return a.finished.catch(function () {}); })).then(function () {
-        if (generation === swapGeneration) settleColorSwap();
-      });
-    }
-    // A new interaction always uses the current colour, even mid-animation.
-    colorPair.addEventListener('pointerdown', function (e) {
-      if (e.target.closest('.paint-current, .paint-second')) settleColorSwap();
-    }, true);
-    window.addEventListener('resize', settleColorSwap);
 // Light / dark mode switch (moon / sun button beside the menu icon)
 (function () {
   var btn = document.querySelector('.theme-toggle');
@@ -6170,7 +6136,7 @@
       // (Enter or Space on it; a tap or a drag was dealt with already, and the
       // click after a touch can look just like a key's)
       if (pr) { if (e.detail === 0 && performance.now() - pairPressed > 800) picker(pr.classList.contains('paint-current') ? 'main' : 'second'); return; }
-      if (e.target.closest('.paint-swap')) { swapColors(); return; }
+      if (e.target.closest('.paint-swap')) { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
       if (e.target.closest('.paint-mirror')) { ctxSymView(ctxView !== 'sym'); return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
@@ -7590,7 +7556,7 @@
       if (k === 'taper') { taperOn = !taperOn; storeIt('paint-taper', taperOn); ctxSync(); brushSamples(); return; }
       if (k === 'snap') { snapShapes = !snapShapes; storeIt('paint-snap-shapes', snapShapes); ctxSync(); return; }
       if (k === 'swap' && grad && st.tool === 'gradient') { gradReverse(); return; }
-      if (k === 'swap') { swapColors(); return; }
+      if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
       if (k === 'all') { selectAll(); return; }
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
@@ -7661,7 +7627,7 @@
         var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', c: 'circle', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
         if (map[k]) { toolMenu(); setTool(map[k], true); }
         else if (k === 'a') adjustOpen();
-        else if (k === 'x') { swapColors(); }
+        else if (k === 'x') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
         else if (k === '[') setSize(Math.min(st.size - 1, st.size / 1.15));
         else if (k === ']') setSize(Math.max(st.size + 1, st.size * 1.15));
         else if (k === '+' || k === '=') zoomStep(1);

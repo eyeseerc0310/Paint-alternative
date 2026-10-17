@@ -384,10 +384,10 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .pr-sec.closed .pr-in { padding-top: 0; padding-bottom: 0; }
 
 /* ---- the two colours, side by side in the bottom bar (the colour in hand
-   first and bigger), inside a shared swap capsule ---- */
-.paint-pair { position: relative; isolation: isolate; display: flex; align-items: center; gap: 20px; flex: none; height: 48px; padding: 0 var(--s-2); border-radius: var(--r-pill); }
+   first and bigger), the swap tucked at their corner ---- */
+.paint-pair { position: relative; display: flex; align-items: center; gap: var(--s-2); flex: none; padding: 0 var(--s-1); }
 .paint .paint-current, .paint .paint-second { touch-action: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; padding: 0;
-  position: relative; z-index: 1; flex: none; border-radius: 50%; overflow: hidden; cursor: pointer;
+  position: relative; flex: none; border-radius: 50%; overflow: hidden; cursor: pointer;
   background: var(--panel-solid);
   box-shadow: 0 0 0 .5px var(--line), 0 2px 8px rgba(0, 0, 0, .16);
 }
@@ -401,18 +401,11 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-current span { position: absolute; inset: 4px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 2px var(--panel-solid), inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 .paint-second span { position: absolute; inset: 2px; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 :root[data-theme="dark"] .paint-current span, :root[data-theme="dark"] .paint-second span { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.paint .paint-swap { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: .5px solid var(--line); border-radius: var(--r-pill); color: var(--muted); background: color-mix(in srgb, var(--panel-solid) 50%, transparent); box-shadow: inset 0 .5px 0 var(--panel-solid); }
-@media (hover: hover) { .paint .paint-swap:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, var(--panel-solid)); } }
-.paint .paint-swap:active { transform: scale(.98); }
-.paint .paint-swap svg { position: absolute; left: calc(50% - 10px); width: 26px; height: 10px; stroke-width: var(--stroke); transition: translate var(--dur) var(--ease); }
-.paint-swap .swap-top { top: 0; }
-.paint-swap .swap-bottom { bottom: 0; }
-@media (hover: hover) { .paint .paint-swap:hover .swap-top { translate: 1px 0; } .paint .paint-swap:hover .swap-bottom { translate: -1px 0; } }
-/* The wells stay fixed; only their colour discs travel, over neutral wells. */
-.paint-pair.is-swapping .paint-current, .paint-pair.is-swapping .paint-second { overflow: visible; }
-.paint-pair.is-swapping .paint-current::before, .paint-pair.is-swapping .paint-second::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--panel-solid); }
-.paint-pair.is-swapping .paint-second::before { inset: 2px; }
-.paint-pair.is-swapping span { z-index: 2; }
+.paint .paint-swap { position: absolute; left: 50%; top: -9px; z-index: 2; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; color: var(--muted); background: var(--panel-solid); box-shadow: 0 0 0 .5px var(--line), var(--knob); }
+@media (hover: hover) { .paint .paint-swap:hover { color: var(--text); background: var(--hover); } }
+.paint .paint-swap:active { transform: scale(.9) rotate(-20deg); }
+.paint .paint-swap svg { width: 12px; height: 12px; stroke-width: 1.9; transition: transform var(--dur) var(--ease); }
+@media (hover: hover) { .paint .paint-swap:hover svg { transform: rotate(12deg); } }
 
 /* ---- THE BOTTOM BAR: a long glass pill under the picture, like the top
    bar's capsules: Size, Undo, the two colours, Redo, Opacity ---- */
@@ -1169,7 +1162,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
   .pb-sep { margin: 0 2px; }
   .paint .paint-current { width: 32px; height: 32px; }
   .paint .paint-second { width: 24px; height: 24px; }
-  .paint-pair { height: 42px; gap: 16px; padding: 0 6px; }
+  .paint-pair { gap: var(--s-1); }
   .paint .pl-layersbtn { border-radius: 9px; }
   .paint .pl-layersbtn span { display: none; }
   .paint button.paint-layers-btn, .paint button.paint-save { width: 36px; padding: 0; border-radius: 9px; }
