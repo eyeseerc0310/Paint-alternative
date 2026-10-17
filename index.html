@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="style.css?v=recovery-20261017-1">
+  <link rel="stylesheet" href="color-controls.css?v=2">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
@@ -124,7 +125,7 @@
           <div class="paint-pair">
             <button type="button" class="paint-current" data-tip="Colour: tap to choose, or drag onto the picture to fill" aria-label="Colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
             <button type="button" class="paint-second" data-tip="Second colour (for gradients): tap to choose, or drag onto the picture to fill" aria-label="Second colour" aria-haspopup="dialog" aria-expanded="false"><span></span></button>
-            <button type="button" class="paint-swap" aria-label="Swap colours (X)" data-tip="Swap colours (X)"><svg viewBox="0 0 24 24"><path d="M6.5 6.5A11 11 0 0 1 17.5 17.5"/><path d="M9.5 3.8L6.5 6.5l3 2.9"/><path d="M14.6 14.5l2.9 3 2.7-3"/></svg></button>
+            <button type="button" class="paint-swap" aria-label="Swap colours (X)" aria-keyshortcuts="X" data-tip="Swap colours (X)"><svg class="swap-top" viewBox="0 0 28 10" aria-hidden="true"><path d="M3 7Q14 0 25 7M21 3.5L25 7l-5 .5"/></svg><svg class="swap-bottom" viewBox="0 0 28 10" aria-hidden="true"><path d="M25 3Q14 10 3 3M7 6.5L3 3l5-.5"/></svg></button>
           </div>
           <button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y · three-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
           <span class="pb-sep" aria-hidden="true"></span>
@@ -139,9 +140,11 @@
     </section>
   </main>
   <script src="paint.js?v=recovery-20261017-1"></script>
+  <script src="color-controls.js?v=2" defer></script>
+
   <script>
-    // works offline, and can be installed as an app
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) addEventListener('load', function () { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(function () {}); });
   </script>
 </body>
 </html>
+
