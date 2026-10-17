@@ -1,9 +1,25 @@
+/* Shared design tokens for the paired colour control. */
+:root {
+  --color-pair-height: 48px;
+  --color-pair-gap: 18px;
+  --color-pair-padding: var(--s-2);
+  --color-pair-hairline: .5px;
+  --color-pair-tint: 58%;
+  --color-swap-icon-width: 26px;
+  --color-swap-icon-height: 10px;
+  --color-swap-icon-offset: 10px;
+  --color-swap-hover-tint: 5%;
+  --color-swap-nudge: 1px;
+  --color-swap-press: .98;
+  --color-swap-duration: .32s;
+  --color-swap-arc: 5px;
+}
 /* A shared swap target behind two independent, draggable colour wells. */
 .paint .paint-pair {
   isolation: isolate;
-  height: 48px;
-  gap: 18px;
-  padding: 0 8px;
+  height: var(--color-pair-height);
+  gap: var(--color-pair-gap);
+  padding: 0 var(--color-pair-padding);
   border-radius: var(--r-pill);
 }
 .paint .paint-pair .paint-current,
@@ -16,18 +32,18 @@
   margin: 0;
   padding: 0;
   z-index: 0;
-  border: .5px solid var(--line);
+  border: var(--color-pair-hairline) solid var(--line);
   border-radius: var(--r-pill);
   color: var(--muted);
-  background: color-mix(in srgb, var(--panel-solid) 58%, transparent);
-  box-shadow: inset 0 .5px 0 var(--panel-solid);
+  background: color-mix(in srgb, var(--panel-solid) var(--color-pair-tint), transparent);
+  box-shadow: inset 0 var(--color-pair-hairline) 0 var(--panel-solid);
   transform: none;
 }
 .paint .paint-pair .paint-swap svg {
   position: absolute;
-  left: calc(50% - 10px);
-  width: 26px;
-  height: 10px;
+  left: calc(50% - var(--color-swap-icon-offset));
+  width: var(--color-swap-icon-width);
+  height: var(--color-swap-icon-height);
   stroke-width: var(--stroke);
   transform: none;
   transition: translate var(--dur) var(--ease);
@@ -37,18 +53,18 @@
 @media (hover: hover) {
   .paint .paint-pair .paint-swap:hover {
     color: var(--text);
-    background: color-mix(in srgb, var(--text) 5%, var(--panel-solid));
+    background: color-mix(in srgb, var(--text) var(--color-swap-hover-tint), var(--panel-solid));
   }
-  .paint .paint-pair .paint-swap:hover .swap-top { translate: 1px 0; }
-  .paint .paint-pair .paint-swap:hover .swap-bottom { translate: -1px 0; }
+  .paint .paint-pair .paint-swap:hover .swap-top { translate: var(--color-swap-nudge) 0; }
+  .paint .paint-pair .paint-swap:hover .swap-bottom { translate: calc(-1 * var(--color-swap-nudge)) 0; }
 }
-.paint .paint-pair .paint-swap:active { transform: scale(.98); }
+.paint .paint-pair .paint-swap:active { transform: scale(var(--color-swap-press)); }
 .color-swap-motion { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .color-swap-motion i { position: absolute; display: block; border-radius: 50%; pointer-events: none; }
 .color-swap-motion .swap-well { background: var(--panel-solid); }
 .color-swap-motion .swap-disc { transform-origin: center; will-change: transform; }
 @media (max-width: 560px) {
-  .paint .paint-pair { height: 42px; gap: 14px; padding: 0 6px; }
+  :root { --color-pair-height: 42px; --color-pair-gap: 14px; --color-pair-padding: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .paint .paint-pair .paint-swap:hover svg { translate: none; }

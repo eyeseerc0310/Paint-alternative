@@ -40,6 +40,10 @@
     // Animate only a swap actually performed by the drawing app.
     if (before[0].color === before[1].color ||
         after[0].color !== before[1].color || after[1].color !== before[0].color) return;
+    var tokens = getComputedStyle(pair);
+    var duration = parseFloat(tokens.getPropertyValue('--color-swap-duration')) * 1000 || 320;
+    var easing = tokens.getPropertyValue('--ease').trim() || 'ease-out';
+    var arc = parseFloat(tokens.getPropertyValue('--color-swap-arc')) || 5;
     var bounds = pair.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     overlay = document.createElement('div');
@@ -57,9 +61,9 @@
       var scale = dest.width / origin.width;
       motion.push(disc.animate([
         { transform: 'translate(0, 0) scale(1)' },
-        { transform: 'translate(' + dx / 2 + 'px, ' + (dy / 2 + (i ? 5 : -5)) + 'px) scale(' + (1 + scale) / 2 + ')', offset: .5 },
+        { transform: 'translate(' + dx / 2 + 'px, ' + (dy / 2 + (i ? arc : -arc)) + 'px) scale(' + (1 + scale) / 2 + ')', offset: .5 },
         { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')' }
-      ], { duration: 320, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'forwards' }));
+      ], { duration: duration, easing: easing, fill: 'forwards' }));
     });
     Promise.all(motion.map(function (animation) { return animation.finished; })).then(function () {
       if (overlay === currentOverlay) clearMotion();
