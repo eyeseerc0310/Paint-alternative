@@ -669,7 +669,7 @@
         if (narrow() && typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
         pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
-      pairOpen(); ctxAside();
+      pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady);
     }
     function pairOpen() {
       $('.paint-current').setAttribute('aria-expanded', !pc.hidden && pcWhich === 'main' ? 'true' : 'false');
@@ -7183,7 +7183,7 @@
     function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
-      var on = !phoneLayout() && ctxLocked && !ctxEl.classList.contains('min');
+      var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock));
       if (paintEl.classList.contains('dock-on') === on) return;
       if (!ease) { paintEl.classList.add('dock-instant'); paintEl.classList.toggle('dock-on', on); void dock.offsetWidth; paintEl.classList.remove('dock-instant'); refit(); return; }
       paintEl.classList.toggle('dock-on', on); refitWhile(dock);
