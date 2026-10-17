@@ -8,6 +8,7 @@
   --color-swap-icon-width: 26px;
   --color-swap-icon-height: 10px;
   --color-swap-icon-offset: 10px;
+  --color-swap-icon-inset: 2px;
   --color-swap-hover-tint: 5%;
   --color-swap-nudge: 1px;
   --color-swap-press: .98;
@@ -48,8 +49,8 @@
   transform: none;
   transition: translate var(--dur) var(--ease);
 }
-.paint-swap .swap-top { top: 0; }
-.paint-swap .swap-bottom { bottom: 0; }
+.paint-swap .swap-top { top: var(--color-swap-icon-inset); }
+.paint-swap .swap-bottom { bottom: var(--color-swap-icon-inset); }
 @media (hover: hover) {
   .paint .paint-pair .paint-swap:hover {
     color: var(--text);
