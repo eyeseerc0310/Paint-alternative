@@ -1,16 +1,16 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-v2';
-var SHELL = ['./', 'index.html', 'style.css', 'paint.js', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-recovery-20261017-1';
+var SHELL = ['./', 'index.html', 'style.css?v=recovery-20261017-1', 'paint.js?v=recovery-20261017-1', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL.map(function (path) { return new Request(path, { cache: 'reload' }); })); }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k.indexOf('paint-alternative-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 self.addEventListener('fetch', function (e) {
@@ -29,7 +29,7 @@ self.addEventListener('fetch', function (e) {
     return;
   }
   // the app itself: the network first, the cache when offline
-  e.respondWith(fetch(req).then(function (res) {
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then(function (res) {
     if (res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
     return res;
   }).catch(function () {
