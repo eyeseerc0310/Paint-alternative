@@ -384,7 +384,7 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .pr-sec.closed .pr-in { padding-top: 0; padding-bottom: 0; }
 
 /* ---- the two colours, side by side in the bottom bar (the colour in hand
-   first and bigger), the swap tucked at their corner ---- */
+   first and bigger), the swap over the first circle's right edge ---- */
 .paint-pair { position: relative; display: flex; align-items: center; gap: var(--s-2); flex: none; padding: 0 var(--s-1); }
 .paint .paint-current, .paint .paint-second { touch-action: none; -webkit-user-drag: none; -webkit-user-select: none; user-select: none; padding: 0;
   position: relative; flex: none; border-radius: 50%; overflow: hidden; cursor: pointer;
@@ -401,10 +401,10 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .paint-current span { position: absolute; inset: 4px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 0 2px var(--panel-solid), inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 .paint-second span { position: absolute; inset: 2px; border-radius: 50%; pointer-events: none; box-shadow: inset 0 0 0 .5px rgba(0, 0, 0, .15); }
 :root[data-theme="dark"] .paint-current span, :root[data-theme="dark"] .paint-second span { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
-.paint .paint-swap { position: absolute; left: 50%; top: -9px; z-index: 2; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; color: var(--muted); background: var(--panel-solid); box-shadow: 0 0 0 .5px var(--line), var(--knob); }
-@media (hover: hover) { .paint .paint-swap:hover { color: var(--text); background: var(--hover); } }
-.paint .paint-swap:active { transform: scale(.9) rotate(-20deg); }
-.paint .paint-swap svg { width: 12px; height: 12px; stroke-width: 1.9; transition: transform var(--dur) var(--ease); }
+.paint .paint-swap { position: absolute; left: calc(var(--s-1) + 22px); top: 50%; z-index: 2; width: 20px; height: 16px; padding: 0; margin: 0; border: .5px solid var(--line); border-radius: var(--r-pill); color: var(--muted); background: var(--panel-solid); box-shadow: 0 1px 2px var(--line); transform: translateY(-50%); }
+@media (hover: hover) { .paint .paint-swap:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, var(--panel-solid)); } }
+.paint .paint-swap:active { transform: translateY(-50%) scale(var(--press)); }
+.paint .paint-swap svg { width: 12px; height: 12px; stroke-width: var(--stroke); transition: transform var(--dur) var(--ease); }
 @media (hover: hover) { .paint .paint-swap:hover svg { transform: rotate(12deg); } }
 
 /* ---- THE BOTTOM BAR: a long glass pill under the picture, like the top
