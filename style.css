@@ -1684,3 +1684,8 @@ select.p-field {
   .site-header .hb, .site-header .theme-toggle { height: 32px; }
   .paint-left .paint-group > button { height: 32px; }
 }
+
+:root { --ctx-folded-gap: 12px; }
+@media (min-width: 561px) {
+  .paint-ctx.min { right: var(--ctx-folded-gap); }
+}

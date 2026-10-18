@@ -345,17 +345,22 @@
     // ("100%": as big as the space allows, with the same margin of the dotted
     // well all round, narrower on a phone; fillK just fills the space, and
     // is the first step in)
+    function foldedMenuInset() {
+      if (phoneLayout() || !ctxEl || !ctxEl.classList.contains('min') || paintEl.classList.contains('dock-on') || document.documentElement.classList.contains('focus-mode')) return 0;
+      var gap = parseFloat(getComputedStyle(paintEl).getPropertyValue('--ctx-folded-gap')) || 12;
+      return Math.max(0, ctxEl.offsetWidth + gap * 2 - 34);
+    }
     function fitTo(sw, sh) {
       var m = phoneLayout() ? 10 : 34;
       fillK = Math.min(sw / W, sh / H) * 0.99;
-      fitK = Math.max(fillK * 0.5, Math.min(fillK, (sw - 2 * m) / W, (sh - 2 * m) / H));
+      fitK = Math.max(fillK * 0.5, Math.min(fillK, (sw - 2 * m - foldedMenuInset()) / W, (sh - 2 * m) / H));
     }
     function fit() {
       placeZoom();
       var sw = stage.clientWidth, sh = stage.clientHeight;
       if (!sw || !sh) return;
       fitTo(sw, sh);
-      view.k = fitK; view.r = 0; view.x = (sw - W * fitK) / 2; view.y = (sh - H * fitK) / 2; lastStage = { w: sw, h: sh };
+      view.k = fitK; view.r = 0; view.x = (sw - foldedMenuInset() - W * fitK) / 2; view.y = (sh - H * fitK) / 2; lastStage = { w: sw, h: sh };
       applyView();
     }
     // (the window changed size: the whole picture stays the whole picture;
