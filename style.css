@@ -1574,17 +1574,15 @@ select.p-field {
 /* The contextual selection bar uses the bottom bar's glass, height and controls. */
 :root {
   --selection-button: 36px;
+  --selection-inset: 12px;
   --selection-pop-width: 240px;
   --selection-pop-pad: var(--s-3);
   --selection-pop-gap: var(--s-2);
 }
 .selection-slot {
-  position: relative; z-index: 7; flex: none; align-self: stretch;
-  display: flex; justify-content: center; height: 0; min-height: 0; min-width: 0; width: 100%;
-  margin-bottom: calc(-1 * var(--bbar-gap));
-  transition: height var(--dur-slow) var(--ease), margin-bottom var(--dur-slow) var(--ease);
+  position: absolute; z-index: 7; display: flex; justify-content: center;
+  height: var(--bbar-h); min-width: 0; pointer-events: none;
 }
-.selection-slot.on { height: var(--bbar-h); margin-bottom: 0; }
 .paint .selection-toolbar {
   align-self: flex-start; flex: none; width: max-content; max-width: 100%;
   height: var(--bbar-h); margin: 0; gap: var(--s-1); padding: 0 var(--s-3);
@@ -1593,6 +1591,7 @@ select.p-field {
   transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease), visibility var(--dur);
 }
 .paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; }
+.paint .selection-slot.manipulating .selection-toolbar { opacity: 0; visibility: hidden; transform: none; pointer-events: none; }
 .paint .selection-toolbar[hidden] { display: flex; }
 .paint .selection-toolbar > button {
   width: var(--selection-button); height: var(--selection-button); padding: 0;
@@ -1607,7 +1606,7 @@ select.p-field {
   width: var(--selection-pop-width); max-width: 100%; max-height: min(60svh, 440px);
   padding: var(--selection-pop-pad); border-radius: var(--r-menu); color: var(--menu-link);
   background: var(--menu-bg); box-shadow: var(--shadow-pop); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
-  overflow: auto; animation: pd-in var(--dur-pop) var(--spring);
+  pointer-events: auto; overflow: auto; animation: pd-in var(--dur-pop) var(--spring);
 }
 .selection-pop[hidden], .selection-transform[hidden] { display: none; }
 .selection-pop-content { display: flex; flex-direction: column; gap: var(--s-2); }
@@ -1629,3 +1628,4 @@ select.p-field {
 @media (max-width: 560px) {
   .paint.selection-active .paint-dock:has(.paint-ctx.locked) { top: calc(var(--bbar-h) + var(--bbar-gap)); }
 }
+

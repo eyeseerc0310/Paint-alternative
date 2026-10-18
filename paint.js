@@ -333,6 +333,7 @@
     function applyView() {
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
+      placeSelectionToolbar();
       if (textBox) placeTextBox();
       placeSelX(); placeSelDist(); placeSymHandles(); gridDraw(); if (hoverPick && hoverPick.ev && !down) loupeShow(hoverPick, hoverPick.ev, pos(hoverPick.ev)); if (grad) { gradMarks(); gradZoomed(); }
     }
@@ -3315,9 +3316,9 @@
       if (selMode !== 'new') {
         var hs = 7 / view.k; sctx.setLineDash([]); sctx.fillStyle = '#fff'; sctx.strokeStyle = '#141414';
         localCorners().forEach(function (q) { sctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); sctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); });
-        // (and a round handle above the top: drag it to turn the selection)
-        var tp = { x: sel.x + sel.w / 2, y: sel.y }, rh = rotHandleLocal();
-        sctx.beginPath(); sctx.moveTo(tp.x, tp.y); sctx.lineTo(rh.x, rh.y + 5 / view.k); sctx.stroke();
+        // (a round handle below the bottom: drag it to turn the selection)
+        var tp = { x: sel.x + sel.w / 2, y: sel.y + sel.h }, rh = rotHandleLocal();
+        sctx.beginPath(); sctx.moveTo(tp.x, tp.y); sctx.lineTo(rh.x, rh.y - 5 / view.k); sctx.stroke();
         sctx.beginPath(); sctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); sctx.fill(); sctx.stroke();
       }
       sctx.restore();
@@ -3336,7 +3337,7 @@
       if (sel.poly) { sctx.setLineDash([2 / view.k, 3 / view.k]); sctx.lineDashOffset = 0; sctx.strokeStyle = 'rgba(255, 255, 255, .7)'; var Q = quadAbs(); sctx.beginPath(); Q.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); sctx.closePath(); sctx.stroke(); }
       var hs = 8 / view.k, cs = corners(); sctx.setLineDash([]); sctx.fillStyle = '#fff'; sctx.strokeStyle = '#141414';
       cs.forEach(function (q) { if (q.c !== 'rot') { sctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); sctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); } });
-      var rh = cs[4], tm = quadTop();
+      var rh = cs[4], tm = quadBottom();
       sctx.beginPath(); sctx.moveTo(tm.x, tm.y); sctx.lineTo(rh.x - tm.n.x * 5 / view.k, rh.y - tm.n.y * 5 / view.k); sctx.stroke();
       sctx.beginPath(); sctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); sctx.fill(); sctx.stroke();
       sctx.restore();
@@ -3344,6 +3345,12 @@
     // (the middle of the top edge, and the way out from it)
     function quadTop() {
       var Q = quadAbs(), m = quadMid(), x = (Q[0].x + Q[1].x) / 2, y = (Q[0].y + Q[1].y) / 2, ex = Q[1].x - Q[0].x, ey = Q[1].y - Q[0].y, l = Math.hypot(ex, ey) || 1, nx = ey / l, ny = -ex / l;
+      if (nx * (x - m.x) + ny * (y - m.y) < 0) { nx = -nx; ny = -ny; }
+      return { x: x, y: y, n: { x: nx, y: ny } };
+    }
+    // The bottom edge shares the same outward-normal geometry.
+    function quadBottom() {
+      var Q = quadAbs(), m = quadMid(), x = (Q[3].x + Q[2].x) / 2, y = (Q[3].y + Q[2].y) / 2, ex = Q[2].x - Q[3].x, ey = Q[2].y - Q[3].y, l = Math.hypot(ex, ey) || 1, nx = ey / l, ny = -ex / l;
       if (nx * (x - m.x) + ny * (y - m.y) < 0) { nx = -nx; ny = -ny; }
       return { x: x, y: y, n: { x: nx, y: ny } };
     }
@@ -3538,10 +3545,10 @@
       sel = { x: U.x0 / R, y: U.y0 / R, w: mw / R, h: mh / R, float: null, whole: true, auto: true, items: items };
       selbar.hidden = false; drawSel();
     }
-    function rotHandleLocal() { return { x: sel.x + sel.w / 2, y: sel.y - 26 / view.k }; }
+    function rotHandleLocal() { return { x: sel.x + sel.w / 2, y: sel.y + sel.h + 26 / view.k }; }
     function localCorners() { return [{ x: sel.x, y: sel.y, c: 'nw' }, { x: sel.x + sel.w, y: sel.y, c: 'ne' }, { x: sel.x, y: sel.y + sel.h, c: 'sw' }, { x: sel.x + sel.w, y: sel.y + sel.h, c: 'se' }]; }
     function corners() {
-      if (sel.quad) { var Q = quadAbs(), t = quadTop(), g = 26 / view.k; return [{ x: Q[0].x, y: Q[0].y, c: 'nw', i: 0 }, { x: Q[1].x, y: Q[1].y, c: 'ne', i: 1 }, { x: Q[3].x, y: Q[3].y, c: 'sw', i: 3 }, { x: Q[2].x, y: Q[2].y, c: 'se', i: 2 }, { x: t.x + t.n.x * g, y: t.y + t.n.y * g, c: 'rot' }]; }
+      if (sel.quad) { var Q = quadAbs(), t = quadBottom(), g = 26 / view.k; return [{ x: Q[0].x, y: Q[0].y, c: 'nw', i: 0 }, { x: Q[1].x, y: Q[1].y, c: 'ne', i: 1 }, { x: Q[3].x, y: Q[3].y, c: 'sw', i: 3 }, { x: Q[2].x, y: Q[2].y, c: 'se', i: 2 }, { x: t.x + t.n.x * g, y: t.y + t.n.y * g, c: 'rot' }]; }
       var out = localCorners().map(function (q) { var w = selWorld(q); return { x: w.x, y: w.y, c: q.c }; });
       var rh = selWorld(rotHandleLocal()); out.push({ x: rh.x, y: rh.y, c: 'rot' });
       return out;
@@ -5488,7 +5495,7 @@
     var fingerTap = null, firstDown = 0, tapLater = null;
     var pointers = {}, ptype = {}, gesture = null, pan = null, spaceDown = false, spaceGrab = null, lastMouse = null;
     function screen(e) { var r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-    function cancelStroke() { cancelStroke0(); maskOut(); penBack0(); }
+    function cancelStroke() { cancelStroke0(); maskOut(); penBack0(); selectionToolbarSync(); }
     function cancelStroke0() {
       clearTimeout(holdTimerS);
       if (!down) return;
@@ -5504,7 +5511,7 @@
       if (down.snap) { var e = undo.pop(); if (e) { apply(e); if (e.redoWas) redo = e.redoWas; } buttons(); }
       down = null; octx.clearRect(0, 0, W, H); plainOv();
     }
-    function begin(e) { var sw = maskIn(); begin0(e); if (sw && !down) maskOut(); }
+    function begin(e) { var sw = maskIn(); begin0(e); if (sw && !down) maskOut(); selectionToolbarSync(); }
     function begin0(e) {
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
       if (!/^(picker|move|text|pen)$/.test(t)) need();
@@ -5843,7 +5850,7 @@
       if (!force && Math.abs(k - sh.k) * Math.max(sh.rx, sh.ry) * view.k < 0.5) return;
       sh.k = k; redrawShape(k);
     }
-    function end() { end0(); maskOut(); penBack0(); }
+    function end() { end0(); maskOut(); penBack0(); selectionToolbarSync(); }
     function end0() {
       var t = st.tool;
       clearTimeout(holdTimerS);
@@ -7155,7 +7162,7 @@
     var selectionSlot, selectionPop, selectionOpen = '', selectionAnchor = null;
     function buildSelectionToolbar() {
       selectionSlot = document.createElement('div'); selectionSlot.className = 'selection-slot';
-      var centre = stage.parentNode; centre.insertBefore(selectionSlot, stage); selectionSlot.appendChild(selbar);
+      stage.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
       selbar.className = 'paint-selbar paint-bottom selection-toolbar';
       selbar.setAttribute('role', 'toolbar'); selbar.setAttribute('aria-label', 'Selection actions');
       var svg = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
@@ -7210,6 +7217,8 @@
       });
       document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot')) closeSelectionPopover(); }, true);
       selectionSlot.inert = true;
+      new ResizeObserver(placeSelectionToolbar).observe(stage);
+      placeSelectionToolbar();
     }
     function closeSelectionPopover(focus) {
       if (!selectionPop) return;
@@ -7224,10 +7233,14 @@
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
         selbar.hidden = !on; if (!on) closeSelectionPopover();
-        refitWhile(selectionSlot);
+        placeSelectionToolbar();
       }
       if (selbar.hidden === on) selbar.hidden = !on;
       if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
+      var manipulating = !!(down && /^(move|scale|rotate|distort|qrot)$/.test(selMode));
+      selectionSlot.classList.toggle('manipulating', manipulating);
+      selectionSlot.inert = !on || manipulating;
+      if (manipulating) closeSelectionPopover();
       var masking = selectionCanMask();
       selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
@@ -7258,6 +7271,19 @@
       selectionPop.appendChild(content); selectionPop.hidden = false;
       selButtons(); if (anchor) anchor.setAttribute('aria-expanded', 'true'); placeSelectionPopover();
       var input = content.querySelector('input'); if (input) { input.focus({ preventScroll: true }); input.select(); }
+    }
+    // Screen-space overlay: follow the visible canvas viewport, never the selection.
+    function placeSelectionToolbar() {
+      if (!selectionSlot) return;
+      var r = stage.getBoundingClientRect(), a = world.getBoundingClientRect();
+      var pad = parseFloat(getComputedStyle(selectionSlot).getPropertyValue('--selection-inset')) || 12;
+      var left = Math.max(r.left, a.left), right = Math.min(r.right, a.right);
+      var middle = right > left ? (left + right) / 2 : r.left + r.width / 2;
+      var width = Math.min(Math.max(0, r.width - pad * 2), Math.max(selbar.scrollWidth, right - left - pad * 2));
+      selectionSlot.style.width = width + 'px';
+      selectionSlot.style.left = Math.max(pad, Math.min(r.width - width - pad, middle - r.left - width / 2)) + 'px';
+      selectionSlot.style.top = Math.max(pad, Math.min(r.height - selbar.offsetHeight - pad, Math.max(r.top, a.top) - r.top + pad)) + 'px';
+      placeSelectionPopover();
     }
     function placeSelectionPopover() {
       if (!selectionPop || selectionPop.hidden || !selectionAnchor) return;
@@ -7829,4 +7855,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+
 
