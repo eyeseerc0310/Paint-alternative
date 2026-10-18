@@ -1711,3 +1711,16 @@ select.p-field {
 @media (hover: hover) {
   .paint .paint-settings-toggle[aria-expanded="true"]:hover { background: var(--chip); }
 }
+
+
+/* Keep the live save status inside the left menu's persistent fold control. */
+.site-header .hdr-fold { width: 100%; gap: var(--s-1); }
+.site-header .hdr-fold > svg { flex: none; width: 12px; height: 12px; }
+.site-header .doc-status {
+  position: static; transform: none; flex: 1; min-width: 0; width: auto;
+  height: auto; padding: 0; gap: var(--s-1); justify-content: center;
+  background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  cursor: inherit;
+}
+.site-header .doc-status i { flex: none; }
+.site-header .doc-status span { display: inline; }

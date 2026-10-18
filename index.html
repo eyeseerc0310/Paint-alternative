@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="style.css?v=settings-active-20261018">
+  <link rel="stylesheet" href="style.css?v=saved-header-20261018">
   <link rel="stylesheet" href="color-controls.css?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -72,7 +72,7 @@
       </div>
       <button type="button" class="hb hb-more" data-hb="more" aria-label="More" aria-expanded="false" data-tip="More"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg></button>
     </div>
-    <button type="button" class="hdr-fold" aria-controls="hdr-tools" aria-expanded="false" aria-label="Show the toolbar" data-tip="Show the toolbar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
+    <button type="button" class="hdr-fold" aria-describedby="save-status" aria-controls="hdr-tools" aria-expanded="false" aria-label="Show the toolbar" data-tip="Show the toolbar"><span id="save-status" class="doc-status" data-state="saved" role="status" data-tip="Your drawing is kept in this browser as you go. Use Save to download a copy"><i aria-hidden="true"></i><span>Saved</span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button>
   </header>
   <main class="site-main">
     <section class="paint" aria-label="Drawing">
@@ -107,7 +107,7 @@
       </div>
       </div>
       <!-- (saved or not: in the corner under the tools) -->
-      <span class="doc-status" data-state="saved" role="status" data-tip="Your drawing is kept in this browser as you go. Use Save to download a copy"><i aria-hidden="true"></i><span>Saved</span></span>
+
       <div class="paint-centre">
         <div class="paint-stage">
           <div class="paint-world">
@@ -144,7 +144,7 @@
       </div>
     </section>
   </main>
-  <script src="paint.js?v=settings-active-20261018"></script>
+  <script src="paint.js?v=saved-header-20261018"></script>
   <script src="color-controls.js?v=2" defer></script>
 
   <script>
@@ -152,6 +152,7 @@
   </script>
 </body>
 </html>
+
 
 
 
