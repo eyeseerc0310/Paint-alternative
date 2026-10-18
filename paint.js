@@ -372,11 +372,11 @@
     // (the workspace easing to a new size: the picture is fitted to it a
     // frame at a time, until el's transition is over)
     var easeAnim = 0, easeEnd = 0;
-    function refitWhile(el) {
+    function refitWhile(el, keep) {
       cancelAnimationFrame(easeAnim); clearTimeout(easeEnd);
       var dur = (parseFloat(getComputedStyle(el).transitionDuration) || 0) * 1000, t0 = performance.now();
-      (function frame(t) { refit(); if (t - t0 < dur + 34) easeAnim = requestAnimationFrame(frame); })(t0);
-      easeEnd = setTimeout(function () { cancelAnimationFrame(easeAnim); refit(); relayout(); }, dur + 60);
+      (function frame(t) { refit(keep); if (t - t0 < dur + 34) easeAnim = requestAnimationFrame(frame); })(t0);
+      easeEnd = setTimeout(function () { cancelAnimationFrame(easeAnim); refit(keep); relayout(); }, dur + 60);
     }
     function zoomAt(k, cx, cy) {
       k = Math.max(fitK * 0.25, Math.min(fitK * 10, k));
@@ -637,7 +637,7 @@
     function pcSet(h, s, v, skip) {
       hsv = [h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v))];
       var hex = pcColor(); pcBusy = true;
-      if (pcWhich === 'main') { setColor(hex); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|circle|wand|none/.test(st.tool)) setTool('brush'); }
+      if (pcWhich === 'main') setColor(hex);
       else setColor2(hex);
       pcBusy = false; pcShow(skip);
     }
@@ -663,10 +663,10 @@
       pc.style.left = Math.round(x - br.left) + 'px';
     }
     function picker(which) {
-      if (which && (pc.hidden || which !== pcWhich)) {
+      if (which) {
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
-        if (narrow() && typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+        if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
         pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
       pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady);
@@ -835,7 +835,22 @@
     }
     function anyMenu() { return Object.keys(menus).some(function (t) { return !menus[t].el.hidden; }); }
 
-    function setTool(t) {
+    // Tool activation and the panel being displayed are independent.
+    function toolMenuOpen() {
+      return !!(ctxEl && ((!ctxEl.classList.contains('min') && !ctxEl.hidden) || !pc.hidden || !adjBox.hidden || !bsBox.hidden));
+    }
+    function chooseTool(t, repeatOpens) {
+      var show = toolMenuOpen() || (repeatOpens !== false && st.tool === t);
+      if (show) {
+        if (!pc.hidden) picker(null);
+        if (!adjBox.hidden || adj) adjustDone();
+        if (!bsBox.hidden) studio(false);
+      }
+      setTool(t, show);
+      if (show && ctxEl.classList.contains('min')) ctxMin(false);
+      ctxAside();
+    }
+    function setTool(t, showSettings) {
       if (lassoOn || selMode === 'lasso') { cancelLasso(); stage.classList.remove('closing'); }
       var tp = null;
       if (pen && t !== 'pen') { if (penText) { tp = t === 'text' && pathForText(); cancelPen(); } else finishPen(); }
@@ -846,7 +861,7 @@
       var wasBlend = isBlend(st.tool);
       if (wasBlend) blendSave(); else if (isBlend(t)) blendOut = { size: st.size, alpha: st.alpha };
       if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
-      if (adj) adjustDone();
+      if (adj) adjustDone(!showSettings);
       if (textBox) commitText();
       if (sel && !selTool(t)) anchor();
       st.tool = t;
@@ -854,7 +869,7 @@
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move'); if (t !== 'picker' && typeof pickHoverEnd === 'function') pickHoverEnd();
       octx.clearRect(0, 0, W, H);
-      ctxView = 'tool'; ctxRender();
+      if (showSettings) { ctxView = 'tool'; ctxToolId = t; } ctxRender();
       if (grad) gradDraw();
       if (t === 'move') movePick();
       if (tp) startText(tp.at, 0, null, tp.path);
@@ -3080,25 +3095,25 @@
       if ((sel.rot || sel.quad) && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
+    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selectionToolbarSync(); selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
     // A SELECTION'S OWN STEPS: while something is picked up, each move, size,
     // turn (or size typed in Scale) is a step of its own, which undo and redo
     // take first; undone past the first, it goes back down where it was
     // (and, for Distort, its corners, and what's picked up as it was: locking
     // the corners again works the pixels into a box of their own)
-    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null, quad: sel.quad ? sel.quad.slice() : null, float: sel.float, fl: sel.more ? sel.more.map(function (it) { return it.f; }) : null, mask: sel.mask, maskData: sel.maskData }; }
+    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null, quad: sel.quad ? sel.quad.slice() : null, float: sel.float, fl: sel.more ? sel.more.map(function (it) { return it.f; }) : null, mask: sel.mask, maskData: sel.maskData, softMask: sel.softMask }; }
     function sameQuad(a, b) { if (!a || !b) return a === b; for (var i = 0; i < 4; i++) if (a[i].x !== b[i].x || a[i].y !== b[i].y) return false; return true; }
     function selRecord() { if (!sel) return; if (!sel.hist) sel.hist = []; sel.hist.push(selGeo()); sel.fut = []; histButtons(); }
     // (a press that changed nothing isn't a step)
     function selTrim() { var g = sel && sel.hist && sel.hist[sel.hist.length - 1]; if (g && g.x === sel.x && g.y === sel.y && g.w === sel.w && g.h === sel.h && g.rot === (sel.rot || 0) && sameQuad(g.quad, sel.quad || null) && g.float === sel.float) { sel.hist.pop(); histButtons(); } }
     function selPut(g) {
-      sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; sel.quad = g.quad;
+      sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; sel.quad = g.quad; sel.softMask = g.softMask;
       if (g.float !== sel.float) { sel.float = g.float; sel.fboxOf = null; }
       if (g.fl && sel.more) sel.more.forEach(function (it, i) { if (g.fl[i] !== undefined) it.f = g.fl[i]; });
       if (g.mask !== sel.mask) { sel.mask = g.mask; sel.maskData = g.maskData; sel.tint = null; }
       refitMask(); drawSel(); autosave();
     }
-    function selSteps() { return !!(sel && (lifted() || (sel.text && sel.lifted))); }
+    function selSteps() { return !!(sel && (lifted() || (sel.hist && sel.hist.length) || (sel.fut && sel.fut.length) || (sel.text && sel.lifted))); }
     function selUndo() { if (!selSteps() || !sel.hist || !sel.hist.length) return false; sel.fut.push(selGeo()); selPut(sel.hist.pop()); histButtons(); return true; }
     function selRedo() { if (!selSteps() || !sel.fut || !sel.fut.length) return false; sel.hist.push(selGeo()); selPut(sel.fut.pop()); histButtons(); return true; }
     // SCALE: the size of what's selected, as a percentage of its own size (a
@@ -3119,6 +3134,7 @@
     }
     function scaleTo(pct) {
       if (!sel || selMode || sel.quad || !(pct > 0)) return;
+      if (adj) adjustDone(true);
       var nw = Math.max(1 / R, Math.min(W * 20, sel.base.w * pct / 100)), k = nw / sel.w;
       if (Math.abs(k - 1) < 1e-9) return;
       lift(); selRecord();
@@ -3139,15 +3155,7 @@
     });
     scaleLock.addEventListener('click', function () { keepRatio = !keepRatio; storeIt('paint-keep-ratio', keepRatio); scaleSync(); toast(keepRatio ? 'Keeping proportions (hold Shift to stretch)' : 'Free to stretch (hold Shift to keep proportions)'); });
     // the little X on the selection's top left corner closes it
-    function placeSelX() {
-      if (!sel || (selMode && selMode !== 'scale' && selMode !== 'rotate') || sel.thing) { selx.hidden = true; return; }
-      selx.hidden = false;
-      var sc = toScreen(selWorld({ x: sel.x, y: sel.y })), x = sc.x, y = sc.y;
-      // (distorting, every corner is pulled: the X sits just outside its one)
-      if (sel.quad) { var qm = toScreen(quadMid()), dx = x - qm.x, dy = y - qm.y, dl = Math.hypot(dx, dy) || 1; x += dx / dl * 22; y += dy / dl * 22; }
-      selx.style.left = Math.round(Math.max(3, Math.min(stage.clientWidth - 25, x - 11))) + 'px';
-      selx.style.top = Math.round(Math.max(3, Math.min(stage.clientHeight - 25, y - 11))) + 'px';
-    }
+    function placeSelX() { selx.hidden = true; }
     // THE DISTORT BUTTON, over the top of a selection: tapped, its corners
     // come apart (each one moves on its own, the pixels following in
     // perspective); tapped again, they're locked together again, and what's
@@ -3180,6 +3188,7 @@
     }
     function distortOn() {
       if (!distortable()) return;
+      if (adj) adjustDone(true);
       lift(); selRecord();
       var cs = [{ x: sel.x, y: sel.y }, { x: sel.x + sel.w, y: sel.y }, { x: sel.x + sel.w, y: sel.y + sel.h }, { x: sel.x, y: sel.y + sel.h }].map(selWorld);
       sel.quad = cs.map(function (q) { return { x: q.x - sel.x, y: q.y - sel.y }; }); sel.rot = 0;
@@ -3187,6 +3196,7 @@
     }
     function distortOff() {
       if (!sel || !sel.quad) return;
+      if (adj) adjustDone(true);
       selRecord();
       // (each picked-up canvas worked into the box round the four corners, at
       // the picture's detail, and the outline with it: a plain box's becomes
@@ -3199,7 +3209,7 @@
       var mask = null, md = null;
       if (sel.mask) {
         var mb = bake(sel.mask), mx = mb.getContext('2d'), id = mx.getImageData(0, 0, mb.width, mb.height);
-        for (var i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0;
+        if (!sel.softMask) for (var i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0;
         mx.putImageData(id, 0, 0); mask = mb; md = id.data;
       }
       if (sel.more) sel.more.forEach(function (it) { if (it.f) { var b = bake(it.f); if (sel.float === it.f) sel.float = b; it.f = b; } });
@@ -3286,7 +3296,7 @@
     }
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
-      placeSelX(); selButtons(); scaleSync(); placeSelDist();
+      placeSelX(); selButtons(); scaleSync(); placeSelDist(); selectionToolbarSync();
       if (!sel) return;
       if (sel.text && sel.lifted) placeTextSel();
       if (sel.more) drawMore(); else if (sel.float) putFloat(sctx, null, true);
@@ -3484,9 +3494,11 @@
     function selButtons() {
       var t = !!(sel && sel.text), many = !!(sel && (sel.more || sel.items || (multi() && !sel.thing && !sel.text)));
       var words = many && (sel.more || sel.items || []).some(function (it) { return it.L.text; });
-      Array.prototype.forEach.call(selbar.querySelectorAll('[data-sel]'), function (b) {
+      Array.prototype.forEach.call((selectionSlot || selbar).querySelectorAll('[data-sel]'), function (b) {
         var k = b.dataset.sel;
         b.disabled = (t && !/^(rot90|done|delete)$/.test(k)) || (many && (/^(copy|invert|layer)$/.test(k) || (words && /^(fliph|flipv|delete)$/.test(k))));
+        if (/^(all|deselect|done)$/.test(k)) b.disabled = false;
+        if (k === 'region-invert') b.disabled = t || many || !!(sel && sel.thing);
         b.title = many && b.disabled ? 'Not with more than one layer picked' : '';
       });
     }
@@ -3556,7 +3568,7 @@
       var m = document.createElement('canvas'); m.width = w; m.height = h;
       var x = m.getContext('2d'); x.drawImage(sel.mask, 0, 0, w, h);
       var d = x.getImageData(0, 0, w, h);
-      for (var i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 100 ? 255 : 0;
+      if (!sel.softMask) for (var i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 100 ? 255 : 0;
       x.putImageData(d, 0, 0);
       sel.mask = m; sel.maskData = d.data; sel.tint = null;
     }
@@ -3583,7 +3595,10 @@
     }
     function selectAll() { if (textBox) commitText(); commitSelection(); need(); sel = { x: 0, y: 0, w: W, h: H, float: null }; selbar.hidden = false; drawSel(); }
     function selAction(a) {
+      if (a === 'all') { selectAll(); return; }
       if (!sel) return;
+      if (a === 'deselect') { commitSelection(); return; }
+      if (a === 'region-invert') { changeSelectionMask('invert', 0); return; }
       if (sel.text && a === 'delete') { var TL = sel.text; clearSel(); active = TL; layerAct('delete'); return; }
       if (sel.text && a !== 'rot90' && a !== 'done') return;
       if (a === 'done') { commitSelection(); return; }
@@ -5877,7 +5892,7 @@
     }
 
     // (the controls that sit on the picture: pressing them doesn't paint)
-    var STAGE_UI = '.paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-seldist, .paint-scale';
+    var STAGE_UI = '.selection-slot, .paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-seldist, .paint-scale';
     stage.addEventListener('pointerdown', function (e) {
       if (e.target.closest(STAGE_UI)) return;
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -6134,8 +6149,7 @@
       if (t) {
         // (the tool in hand, again: brings back its panel if it was folded away)
         var tl = t.dataset.tool;
-        if (st.tool === tl && ctxEl.classList.contains('min')) ctxMin(false);
-        setTool(tl); openMenu(null); return;
+        chooseTool(tl, true); openMenu(null); return;
       }
       var s = e.target.closest('[data-color]'); if (s) { setColor(s.dataset.color); if (/eraser|picker|smudge|blur|tone|hand|select|lasso|circle|wand|none/.test(st.tool)) setTool('brush'); return; }
       var pr = e.target.closest('.paint-current, .paint-second');
@@ -6146,7 +6160,7 @@
       if (e.target.closest('.paint-mirror')) { ctxSymView(ctxView !== 'sym'); return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
-      var sa = e.target.closest('[data-sel]'); if (sa) { selAction(sa.dataset.sel); return; }
+      var sa = e.target.closest('[data-sel]'); if (sa) { if (adj) adjustDone(true); selAction(sa.dataset.sel); return; }
       var ge = e.target.closest('[data-geye]'); if (ge) { var G1 = groupOf(ge.dataset.geye); if (G1) { G1.visible = !G1.visible; mount(); layerPanel(true); autosave(); } return; }
       var gf = e.target.closest('[data-gfold]'); if (gf) { var G2 = groupOf(gf.dataset.gfold); if (G2) { G2.open = !G2.open; renderLayers(); layerPanel(true); autosave(); } return; }
       var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if ((e.shiftKey || e.metaKey || e.ctrlKey) && membersOf(G3).length) { pickToggle(membersOf(G3)); return; } if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
@@ -6182,8 +6196,8 @@
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap') && !stage.contains(e.target)) picker(null);
-      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) adjustDone(stage.contains(e.target));
+      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx') && !stage.contains(e.target)) picker(null);
+      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
@@ -6877,6 +6891,7 @@
       if (!panel.hidden) besideBar(panel, $('[data-act="layers"]'));
       if (!saveMenu.hidden) dropUnder(saveMenu, $('[data-act="save"]'));
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
+      placeSelectionPopover();
       if (tpEl && !tpEl.hidden && textBtn) placeTextPanel();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
       if (ctxEl) { dockPanels(); keepOnScreen(ctxEl, ctxBox()); dockSync(false); }
@@ -7136,8 +7151,190 @@
     // bold / italic / underline, alignment and more; light & dark: which;
     // the others say how they're used. With a selection it shows what can be
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
-    var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxView = ctxView || 'tool';
-    ctxEl.appendChild(selbar);
+    // Contextual selection actions live above the canvas, independently of tool settings.
+    var selectionSlot, selectionPop, selectionOpen = '', selectionAnchor = null;
+    function buildSelectionToolbar() {
+      selectionSlot = document.createElement('div'); selectionSlot.className = 'selection-slot';
+      var centre = stage.parentNode; centre.insertBefore(selectionSlot, stage); selectionSlot.appendChild(selbar);
+      selbar.className = 'paint-selbar paint-bottom selection-toolbar';
+      selbar.setAttribute('role', 'toolbar'); selbar.setAttribute('aria-label', 'Selection actions');
+      var svg = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
+      var icons = {
+        all: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/>',
+        deselect: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5M8 8l8 8M16 8l-8 8"/>',
+        invert: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 4v16M4 12h8"/><path d="M12 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6z" fill="currentColor" stroke="none" opacity=".25"/>',
+        feather: '<path d="M5 19l10-10M8 16l-1-5 8-7a4 4 0 0 1 5 5l-7 8-5-1M12 12h5"/>',
+        grow: '<rect x="8" y="8" width="8" height="8" rx="1"/><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+        fliph: '<path d="M12 3v18M8 6l-5 6 5 6zM16 6l5 6-5 6z"/>',
+        flipv: '<path d="M3 12h18M6 8l6-5 6 5zM6 16l6 5 6-5z"/>',
+        rotate: '<path d="M5 9a8 8 0 1 1-1 6M5 4v5h5"/>',
+        copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
+        delete: '<path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/>',
+        transform: '<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z" fill="var(--panel-solid)"/>',
+        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+      };
+      var button = function (attr, key, label, icon, extra) { return '<button type="button" ' + attr + '="' + key + '" aria-label="' + label + '" data-tip="' + label + '"' + (extra || '') + '>' + svg(icons[icon]) + '</button>'; };
+      var sep = '<span class="pb-sep selection-secondary" aria-hidden="true"></span>';
+      selbar.innerHTML = button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') +
+        button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') + sep +
+        button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
+        button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"') + sep +
+        button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"') +
+        button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
+        button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') + sep +
+        button('data-sel', 'copy', 'Duplicate Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
+        button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"');
+      selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
+      selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
+      // Reuse the existing scale and perspective controls, including all their listeners.
+      var transform = document.createElement('div'); transform.className = 'selection-transform'; transform.hidden = true;
+      transform.appendChild(scaleEl); if (seldist) transform.appendChild(seldist); selectionPop.appendChild(transform);
+      selbar.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-selection-pop]'); if (!b || b.disabled) return;
+        openSelectionPopover(b.dataset.selectionPop, b);
+      });
+      selectionPop.addEventListener('click', function (e) {
+        var more = e.target.closest('[data-selection-more]');
+        if (more) { var action = more.dataset.selectionMore; openSelectionPopover(action, selectionAnchor); return; }
+        var apply = e.target.closest('[data-selection-apply]'); if (!apply) return;
+        var input = selectionPop.querySelector('input[data-selection-value]'), n = Number(input && input.value);
+        if (!Number.isFinite(n) || !input.checkValidity()) { input && input.reportValidity(); return; }
+        var kind = apply.dataset.selectionApply;
+        if (kind === 'rotate') rotateSelection(n); else changeSelectionMask(kind, n);
+        closeSelectionPopover(true);
+      });
+      selectionPop.addEventListener('keydown', function (e) {
+        e.stopPropagation();
+        if (e.key === 'Escape') { e.preventDefault(); closeSelectionPopover(true); }
+        if (e.key === 'Enter' && e.target.matches('[data-selection-value]')) { e.preventDefault(); var b = selectionPop.querySelector('[data-selection-apply]'); if (b) b.click(); }
+      });
+      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot')) closeSelectionPopover(); }, true);
+      selectionSlot.inert = true;
+    }
+    function closeSelectionPopover(focus) {
+      if (!selectionPop) return;
+      selectionPop.hidden = true; selectionOpen = '';
+      selbar.querySelectorAll('[data-selection-pop]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+      if (focus && selectionAnchor && document.contains(selectionAnchor)) selectionAnchor.focus({ preventScroll: true });
+    }
+    function selectionCanMask() { return !!(sel && !sel.text && !sel.thing && !sel.more && !sel.items && !multi()); }
+    function selectionToolbarSync() {
+      if (!selectionSlot) return;
+      var on = !!(sel && !sel.thing && sel.w > 0 && sel.h > 0 && selMode !== 'new' && selMode !== 'lasso' && !lassoOn);
+      if (selectionSlot.classList.contains('on') !== on) {
+        selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
+        selbar.hidden = !on; if (!on) closeSelectionPopover();
+        refitWhile(selectionSlot);
+      }
+      if (selbar.hidden === on) selbar.hidden = !on;
+      if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
+      var masking = selectionCanMask();
+      selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
+      var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
+      var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !sel || !!sel.thing;
+      paintEl.classList.toggle('selection-active', on);
+    }
+    function openSelectionPopover(kind, anchor) {
+      if (!sel) return;
+      if (selectionOpen === kind && !selectionPop.hidden) { closeSelectionPopover(); return; }
+      closeSelectionPopover(); selectionOpen = kind; selectionAnchor = anchor;
+      selectionPop.querySelectorAll('.selection-pop-content').forEach(function (e) { e.remove(); });
+      var transform = selectionPop.querySelector('.selection-transform'); transform.hidden = kind !== 'transform';
+      var content = document.createElement('div'); content.className = 'selection-pop-content';
+      if (kind === 'more') {
+        var rows = [['all','Select All'], ['region-invert','Invert Selection'], ['fliph','Flip Horizontal'], ['flipv','Flip Vertical'], ['rot90','Rotate 90°'], ['invert','Invert Colours'], ['layer','Cut to Layer'], ['done','Commit Selection']];
+        content.innerHTML = rows.map(function (q) { return '<button type="button" data-sel="' + q[0] + '">' + q[1] + '</button>'; }).join('') +
+          '<button type="button" data-selection-more="feather"' + (!selectionCanMask() ? ' disabled' : '') + '>Feather Selection…</button><button type="button" data-selection-more="grow"' + (!selectionCanMask() ? ' disabled' : '') + '>Expand / Contract…</button><button type="button" data-selection-more="rotate">Rotate…</button>';
+      } else if (kind === 'transform') {
+        content.innerHTML = '<p>Drag the selection to move it. Drag a corner to resize or the round handle to rotate.</p>';
+        scaleSync(); placeSelDist();
+      } else {
+        if ((kind === 'grow' || kind === 'feather') && !selectionCanMask()) return;
+        var label = kind === 'rotate' ? 'Rotation (degrees)' : kind === 'feather' ? 'Feather radius (px)' : 'Expand / Contract (px)';
+        var min = kind === 'rotate' ? -360 : kind === 'grow' ? -100 : 0, max = kind === 'rotate' ? 360 : 100;
+        content.innerHTML = '<label>' + label + '<input type="number" data-selection-value aria-label="' + label + '" min="' + min + '" max="' + max + '" step="1" value="' + (kind === 'rotate' ? 90 : kind === 'feather' ? 5 : 8) + '"></label>' +
+          (kind === 'grow' ? '<p>Positive expands; negative contracts.</p>' : '') + '<button type="button" class="selection-apply" data-selection-apply="' + kind + '">Apply</button>';
+      }
+      selectionPop.appendChild(content); selectionPop.hidden = false;
+      selButtons(); if (anchor) anchor.setAttribute('aria-expanded', 'true'); placeSelectionPopover();
+      var input = content.querySelector('input'); if (input) { input.focus({ preventScroll: true }); input.select(); }
+    }
+    function placeSelectionPopover() {
+      if (!selectionPop || selectionPop.hidden || !selectionAnchor) return;
+      var a = selectionAnchor.getBoundingClientRect(), r = selectionSlot.getBoundingClientRect();
+      var x = Math.max(0, Math.min(r.width - selectionPop.offsetWidth, a.left - r.left + a.width / 2 - selectionPop.offsetWidth / 2));
+      selectionPop.style.left = Math.round(x) + 'px';
+    }
+    function rotateSelection(degrees) {
+      if (!sel || selMode || !Number.isFinite(degrees)) return;
+      if (adj) adjustDone(true);
+      lift(); selRecord(); var radians = degrees * Math.PI / 180;
+      if (sel.quad) sel.quad = quadTurn(sel.quad.slice(), quadMid(), radians);
+      else sel.rot = Math.atan2(Math.sin((sel.rot || 0) + radians), Math.cos((sel.rot || 0) + radians));
+      drawSel(); autosave();
+    }
+    // Convert the current selection shape (including rotation/perspective) to document pixels.
+    function selectionDocumentMask() {
+      var m = document.createElement('canvas'); m.width = ov.width; m.height = ov.height; var c = m.getContext('2d'); base(c);
+      if (sel.quad) {
+        var local = document.createElement('canvas'); local.width = Math.max(1, Math.round(sel.w * R)); local.height = Math.max(1, Math.round(sel.h * R));
+        var lc = local.getContext('2d');
+        if (sel.mask) lc.drawImage(sel.mask, 0, 0, local.width, local.height);
+        else { lc.scale(R, R); if (sel.poly) { outline(lc, 0, 0, 1); lc.fill(); } else lc.fillRect(0, 0, sel.w, sel.h); }
+        warpShow(c, local);
+      } else {
+        var mid = selMid(); c.translate(mid.x, mid.y); c.rotate(sel.rot || 0); c.translate(-mid.x, -mid.y);
+        if (sel.mask) c.drawImage(sel.mask, sel.x, sel.y, sel.w, sel.h); else { selPath(c); c.fill(); }
+      }
+      return m;
+    }
+    // Separable alpha filters: linear-time feathering and monotone-window grow/shrink.
+    function selectionAlphaFilter(src, w, h, radius, average, expand) {
+      var tmp = new Float32Array(w * h), out = new Float32Array(w * h), queue = new Int32Array(Math.max(w, h) + 2 * radius + 1);
+      function pass(input, output, length, count, stride, rowStride) {
+        for (var line = 0; line < count; line++) {
+          var offset = line * rowStride, sum = 0, head = 0, tail = 0;
+          for (var j = -radius; j < length + radius; j++) {
+            var value = j < 0 || j >= length ? 0 : input[offset + j * stride];
+            if (average) {
+              sum += value;
+              var old = j - 2 * radius - 1;
+              if (old >= 0 && old < length) sum -= input[offset + old * stride];
+            } else {
+              while (tail > head) { var q = queue[tail - 1], v = q < 0 || q >= length ? 0 : input[offset + q * stride]; if (expand ? v > value : v < value) break; tail--; }
+              queue[tail++] = j; while (tail > head && queue[head] < j - 2 * radius) head++;
+            }
+            var at = j - radius;
+            if (at >= 0 && at < length) { var q0 = queue[head]; output[offset + at * stride] = average ? sum / (2 * radius + 1) : (q0 < 0 || q0 >= length ? 0 : input[offset + q0 * stride]); }
+          }
+        }
+      }
+      pass(src, tmp, w, h, 1, w); pass(tmp, out, h, w, w, 1); return out;
+    }
+    function changeSelectionMask(kind, amount) {
+      if (!selectionCanMask() || selMode) return;
+      if (kind !== 'invert' && !amount) return;
+      if (adj) adjustDone(true);
+      var canvas = selectionDocumentMask(), c = canvas.getContext('2d'), image = c.getImageData(0, 0, canvas.width, canvas.height), w = canvas.width, h = canvas.height;
+      var alpha = new Float32Array(w * h), i;
+      for (i = 0; i < alpha.length; i++) alpha[i] = image.data[i * 4 + 3];
+      if (kind === 'invert') for (i = 0; i < alpha.length; i++) alpha[i] = 255 - alpha[i];
+      else if (kind === 'feather') { var r = Math.max(1, Math.round(amount * R / 2)); for (var n = 0; n < 3; n++) alpha = selectionAlphaFilter(alpha, w, h, r, true, false); }
+      else alpha = selectionAlphaFilter(alpha, w, h, Math.max(1, Math.round(Math.abs(amount) * R)), false, amount > 0);
+      var old = sel, history = old.hist ? old.hist.slice() : [], undoShape = selGeo();
+      // Put transformed content down before changing the area, so it is never lost.
+      if (lifted()) { commitSelection(); history = []; } else history.push(undoShape);
+      var x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { i = y * w + x; var a = Math.round(alpha[i]); image.data[i * 4 + 3] = a; if (a) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } }
+      if (x1 < 0) { clearSel(); return; }
+      c.putImageData(image, 0, 0); var crop = document.createElement('canvas'); crop.width = x1 - x0 + 1; crop.height = y1 - y0 + 1;
+      var cc = crop.getContext('2d'); cc.drawImage(canvas, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      sel = { x: x0 / R, y: y0 / R, w: crop.width / R, h: crop.height / R, float: null, mask: crop, maskData: cc.getImageData(0, 0, crop.width, crop.height).data, softMask: kind === 'feather' || old.softMask, hist: history, fut: [] };
+      selbar.hidden = false; drawSel(); histButtons(); autosave();
+    }
+
+    var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxToolId = 'brush', ctxView = ctxView || 'tool';
+    buildSelectionToolbar();
     // THE DOCK: locked (ctxLocked, its lock button), the tool options stand
     // in a space of their own at the right of the workspace, so they never
     // cover the picture, and can't be dragged; folded to their button, the
@@ -7359,7 +7556,7 @@
     function ctxRender() {
       if (!ctxEl) return;
       ctxClose();
-      var key = ctxView === 'sym' ? 'sym' : st.tool;
+      var key = ctxView === 'sym' ? 'sym' : (ctxToolId || 'brush');
       if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = CTX[key] ? CTX[key]() : ''; }
       var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
@@ -7385,10 +7582,9 @@
       dockSync(ctxReady);
     }
     function ctxShow() {
-      var has = !selbar.hidden && !grad; // (a gradient being made shows its own settings, inside a selection too)
-      ctxEl.classList.toggle('has-sel', has);
-      ctxEl.classList.toggle('away', selbar.classList.contains('away'));
-      ctxEl.hidden = !has && !ctxTool.innerHTML;
+      ctxEl.classList.remove('has-sel');
+      ctxEl.hidden = !ctxTool.innerHTML;
+      selectionToolbarSync();
     }
     function ctxSync() {
       var q = function (sel) { return ctxTool.querySelector(sel); }, set = function (sel, attr, on) { var e = q(sel); if (e) e.setAttribute(attr, on ? 'true' : 'false'); };
@@ -7543,7 +7739,7 @@
       if (k === 'all') { selectAll(); return; }
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
-      if (b.dataset.ctxSel) { setTool(b.dataset.ctxSel); return; }
+      if (b.dataset.ctxSel) { chooseTool(b.dataset.ctxSel, false); return; }
       if (b.dataset.ctxShape) { var sk = b.dataset.ctxShape; if (sk === 'line') { if (st.tool !== 'line') setTool('line'); return; } st.shape = sk; storeIt('paint-shape', sk); if (st.tool !== 'shape') setTool('shape'); else ctxSync(); return; }
       if (b.dataset.ctxBlend) { blendPick(b.dataset.ctxBlend); return; }
       if (b.dataset.ctxFill) { st.solid = b.dataset.ctxFill === '1'; ctxSync(); return; }
@@ -7608,7 +7804,7 @@
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) { e.preventDefault(); selAction('done'); return; }
         var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', c: 'circle', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
-        if (map[k]) setTool(map[k]);
+        if (map[k]) chooseTool(map[k], false);
         else if (k === 'a') adjustOpen();
         else if (k === 'x') { var c1 = st.color; setColor(st.color2); setColor2(c1); }
         else if (k === '[') setSize(Math.min(st.size - 1, st.size / 1.15));
@@ -7633,3 +7829,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+

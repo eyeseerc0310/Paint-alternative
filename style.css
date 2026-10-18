@@ -1569,3 +1569,63 @@ select.p-field {
 .paint-ctx.locked.busy, .paint-ctx.locked.away { opacity: 1; pointer-events: auto; }
 .paint .paint-adjust .pc-top .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
 .paint-dock > .paint-adjust .pa-title { position: static; margin: 0 0 var(--s-2); padding: 0; }
+
+
+/* The contextual selection bar uses the bottom bar's glass, height and controls. */
+:root {
+  --selection-button: 36px;
+  --selection-pop-width: 240px;
+  --selection-pop-pad: var(--s-3);
+  --selection-pop-gap: var(--s-2);
+}
+.selection-slot {
+  position: relative; z-index: 7; flex: none; align-self: stretch;
+  display: flex; justify-content: center; height: 0; min-height: 0; min-width: 0; width: 100%;
+  margin-bottom: calc(-1 * var(--bbar-gap));
+  transition: height var(--dur-slow) var(--ease), margin-bottom var(--dur-slow) var(--ease);
+}
+.selection-slot.on { height: var(--bbar-h); margin-bottom: 0; }
+.paint .selection-toolbar {
+  align-self: flex-start; flex: none; width: max-content; max-width: 100%;
+  height: var(--bbar-h); margin: 0; gap: var(--s-1); padding: 0 var(--s-3);
+  opacity: 0; visibility: hidden; transform: translateY(calc(-1 * var(--s-2)));
+  animation: none; pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease), visibility var(--dur);
+}
+.paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; }
+.paint .selection-toolbar[hidden] { display: flex; }
+.paint .selection-toolbar > button {
+  width: var(--selection-button); height: var(--selection-button); padding: 0;
+  border-radius: var(--r-pill); color: var(--menu-link);
+}
+.paint .selection-toolbar button svg { width: var(--icon); height: var(--icon); }
+.paint .selection-toolbar button[data-sel="done"] { margin: 0; background: none; }
+.paint .selection-toolbar .pb-sep { margin: 0 var(--s-1); }
+.paint.selection-active .ctx-tool [data-ctx="all"] { display: none; }
+.selection-pop {
+  position: absolute; top: calc(100% + var(--selection-pop-gap)); left: 0;
+  width: var(--selection-pop-width); max-width: 100%; max-height: min(60svh, 440px);
+  padding: var(--selection-pop-pad); border-radius: var(--r-menu); color: var(--menu-link);
+  background: var(--menu-bg); box-shadow: var(--shadow-pop); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+  overflow: auto; animation: pd-in var(--dur-pop) var(--spring);
+}
+.selection-pop[hidden], .selection-transform[hidden] { display: none; }
+.selection-pop-content { display: flex; flex-direction: column; gap: var(--s-2); }
+.selection-pop label { display: flex; flex-direction: column; gap: var(--s-2); font-size: var(--fs-sm); }
+.selection-pop input[type="number"] { width: 100%; min-height: var(--ctl); padding: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--text); background: var(--panel-solid); font: inherit; }
+.selection-pop p { font-size: var(--fs-sm); color: var(--muted); margin: var(--s-2) 0; line-height: 1.5; }
+.paint .selection-pop-content > button { width: 100%; min-height: var(--row); height: auto; padding: var(--s-2); border-radius: var(--r-xs); justify-content: flex-start; font-size: var(--fs-sm); }
+.paint .selection-pop-content > .selection-apply { color: var(--accent); background: var(--accent-soft); justify-content: center; }
+.selection-transform .paint-scale { position: static; display: flex; width: 100%; margin: 0 0 var(--s-2); transform: none; box-shadow: none; background: none; padding: 0; }
+.selection-transform .paint-scale[hidden] { display: none; }
+.selection-transform .paint-seldist { position: static !important; margin: var(--s-2) 0; transform: none; }
+@media (max-width: 900px) {
+  .paint .selection-toolbar .selection-secondary { display: none; }
+  .paint .selection-toolbar { padding: 0 var(--s-2); gap: var(--s-1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .selection-slot, .paint .selection-toolbar { transition: none; }
+}
+@media (max-width: 560px) {
+  .paint.selection-active .paint-dock:has(.paint-ctx.locked) { top: calc(var(--bbar-h) + var(--bbar-gap)); }
+}
