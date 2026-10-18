@@ -1626,3 +1626,6 @@ select.p-field {
 @media (prefers-reduced-motion: reduce) {
   .selection-slot, .paint .selection-toolbar { transition: none; }
 }
+@media (max-width: 560px) {
+  .paint.selection-active .paint-dock:has(.paint-ctx.locked) { top: calc(var(--bbar-h) + var(--bbar-gap)); }
+}
