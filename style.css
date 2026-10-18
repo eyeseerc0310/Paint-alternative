@@ -1685,7 +1685,10 @@ select.p-field {
   .paint-left .paint-group > button { height: 32px; }
 }
 
-:root { --ctx-folded-gap: 12px; }
+/* A solid outer dock holds the folded menu, separate from the dotted canvas. */
+:root { --ctx-mini-width: 64px; --ctx-mini-pad: 12px; }
 @media (min-width: 561px) {
-  .paint-ctx.min { right: var(--ctx-folded-gap); }
+  .paint.dock-mini .paint-dock { width: var(--ctx-mini-width); margin-left: 0; }
+  .paint-ctx.min { right: var(--ctx-mini-pad); }
+  .focus-mode .paint.dock-mini .paint-dock { width: 0; margin-left: calc(-1 * var(--pgap)); }
 }
