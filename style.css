@@ -1703,3 +1703,11 @@ select.p-field {
   .paint-bottom .pb-slider output { display: none; }
   .paint .paint-bottom > button { width: 28px; }
 }
+
+/* Match the selected-tool chip while the settings panel is open. */
+.paint .paint-settings-toggle[aria-expanded="true"] {
+  color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow);
+}
+@media (hover: hover) {
+  .paint .paint-settings-toggle[aria-expanded="true"]:hover { background: var(--chip); }
+}
