@@ -7648,10 +7648,11 @@
       dockSync(ctxReady);
       if (ctxReady && !matchMedia('(prefers-reduced-motion: reduce)').matches && before.width && before.height) {
         var after = ctxEl.getBoundingClientRect(), css = getComputedStyle(ctxEl);
+        var top = parseFloat(css.top) || 0;
         var duration = parseFloat(css.getPropertyValue('--dur-slow')) * 1000 || 420;
         ctxSizeMotion = ctxEl.animate([
-          { width: before.width + 'px', height: before.height + 'px', overflow: 'hidden' },
-          { width: after.width + 'px', height: after.height + 'px', overflow: 'hidden' }
+          { width: before.width + 'px', height: before.height + 'px', top: (top + before.top - after.top) + 'px', overflow: 'hidden' },
+          { width: after.width + 'px', height: after.height + 'px', top: top + 'px', overflow: 'hidden' }
         ], { duration: duration, easing: css.getPropertyValue('--ease').trim() || 'ease' });
         if (!on) ctxTool.animate([{opacity: 0}, {opacity: 1}], {duration: duration, easing: 'ease'});
       }
@@ -7904,6 +7905,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+
 
 
 
