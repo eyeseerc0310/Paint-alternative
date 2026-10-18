@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="style.css?v=selection-refine-20261018">
+  <link rel="stylesheet" href="style.css?v=toolbar-layout-20261018">
   <link rel="stylesheet" href="color-controls.css?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -76,6 +76,7 @@
   <main class="site-main">
     <section class="paint" aria-label="Drawing">
       <div class="paint-bar paint-left" role="toolbar" aria-label="Tools">
+        <div class="paint-toolgroups">
         <div class="paint-group" role="group" aria-label="Draw">
           <button type="button" data-tool="brush" aria-label="Brush (B)" data-tip="Brush (B): paint freehand. Choose the brush in the tool panel" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/></svg></button>
           <button type="button" data-tool="eraser" aria-label="Eraser (E)" data-tip="Eraser (E): rub out paint on the current layer"><svg viewBox="0 0 24 24"><path d="M8 20.5h12"/><path d="M5.3 15.3l8.9-8.9a2 2 0 0 1 2.8 0l2.6 2.6a2 2 0 0 1 0 2.8l-8.4 8.4a1 1 0 0 1-.7.3H8.4a1 1 0 0 1-.7-.3l-2.4-2.4a1.8 1.8 0 0 1 0-2.5z"/><path d="M9.4 11.2l5.4 5.4"/></svg></button>
@@ -102,6 +103,7 @@
           <button type="button" class="pl-layersbtn" data-act="layers" aria-label="Layers" aria-expanded="false" data-tip="Layers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 16.5L12 21l8.5-4.5" opacity=".6"/></svg><span>Layers</span></button>
           <div class="paint-zoom" role="group" aria-label="Zoom"><button type="button" data-zoom="out" aria-label="Zoom out" data-tip="Zoom out (−)">&#8722;</button><button type="button" data-zoom="fit" class="paint-zoom-val" data-tip="Fit (0)">100%</button><button type="button" data-zoom="in" aria-label="Zoom in" data-tip="Zoom in (+)">+</button></div>
         </div>
+      </div>
       </div>
       <!-- (saved or not: in the corner under the tools) -->
       <span class="doc-status" data-state="saved" role="status" data-tip="Your drawing is kept in this browser as you go. Use Save to download a copy"><i aria-hidden="true"></i><span>Saved</span></span>
@@ -139,7 +141,7 @@
       </div>
     </section>
   </main>
-  <script src="paint.js?v=selection-refine-20261018"></script>
+  <script src="paint.js?v=toolbar-layout-20261018"></script>
   <script src="color-controls.js?v=2" defer></script>
 
   <script>
