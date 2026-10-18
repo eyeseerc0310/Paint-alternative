@@ -666,7 +666,7 @@
       if (which) {
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
-        if (narrow() && typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+        if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
         pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
       pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady);
@@ -3154,16 +3154,7 @@
     });
     scaleLock.addEventListener('click', function () { keepRatio = !keepRatio; storeIt('paint-keep-ratio', keepRatio); scaleSync(); toast(keepRatio ? 'Keeping proportions (hold Shift to stretch)' : 'Free to stretch (hold Shift to keep proportions)'); });
     // the little X on the selection's top left corner closes it
-    function placeSelX() {
-      selx.hidden = true; return;
-      if (!sel || (selMode && selMode !== 'scale' && selMode !== 'rotate') || sel.thing) { selx.hidden = true; return; }
-      selx.hidden = false;
-      var sc = toScreen(selWorld({ x: sel.x, y: sel.y })), x = sc.x, y = sc.y;
-      // (distorting, every corner is pulled: the X sits just outside its one)
-      if (sel.quad) { var qm = toScreen(quadMid()), dx = x - qm.x, dy = y - qm.y, dl = Math.hypot(dx, dy) || 1; x += dx / dl * 22; y += dy / dl * 22; }
-      selx.style.left = Math.round(Math.max(3, Math.min(stage.clientWidth - 25, x - 11))) + 'px';
-      selx.style.top = Math.round(Math.max(3, Math.min(stage.clientHeight - 25, y - 11))) + 'px';
-    }
+    function placeSelX() { selx.hidden = true; }
     // THE DISTORT BUTTON, over the top of a selection: tapped, its corners
     // come apart (each one moves on its own, the pixels following in
     // perspective); tapped again, they're locked together again, and what's
@@ -3500,7 +3491,7 @@
     function selButtons() {
       var t = !!(sel && sel.text), many = !!(sel && (sel.more || sel.items || (multi() && !sel.thing && !sel.text)));
       var words = many && (sel.more || sel.items || []).some(function (it) { return it.L.text; });
-      Array.prototype.forEach.call(selbar.querySelectorAll('[data-sel]'), function (b) {
+      Array.prototype.forEach.call((selectionSlot || selbar).querySelectorAll('[data-sel]'), function (b) {
         var k = b.dataset.sel;
         b.disabled = (t && !/^(rot90|done|delete)$/.test(k)) || (many && (/^(copy|invert|layer)$/.test(k) || (words && /^(fliph|flipv|delete)$/.test(k))));
         if (/^(all|deselect|done)$/.test(k)) b.disabled = false;
@@ -7230,8 +7221,10 @@
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
         selbar.hidden = !on; if (!on) closeSelectionPopover();
-        refitWhile(selectionSlot, true);
+        refitWhile(selectionSlot);
       }
+      if (selbar.hidden === on) selbar.hidden = !on;
+      if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
       var masking = selectionCanMask();
       selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
