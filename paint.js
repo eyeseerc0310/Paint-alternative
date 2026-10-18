@@ -6867,6 +6867,14 @@
       if (r.left < 8) { settingsBox.style.right = 'auto'; settingsBox.style.left = '8px'; }
       settingsBox.querySelector('button').focus();
     }
+    settingsBox.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDrops(); hb('settings').focus(); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); e.stopPropagation();
+        var items = Array.from(settingsBox.querySelectorAll('button'));
+        items[(items.indexOf(document.activeElement) + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+      }
+    });
     settingsBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-setting]'); if (!b) return;
       closeDrops(); hb('settings').focus();

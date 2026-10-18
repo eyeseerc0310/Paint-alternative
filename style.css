@@ -1699,3 +1699,6 @@ select.p-field {
 .paint-settings { min-width: 200px; max-width: calc(100vw - 16px); }
 :root { --hdr-open: 262px; }
 @media (max-height: 850px) { :root { --hdr-open: 222px; } }
+.paint-settings .icon-sun { display: none; }
+:root[data-theme="dark"] .paint-settings .icon-sun { display: block; }
+:root[data-theme="dark"] .paint-settings .icon-moon { display: none; }
