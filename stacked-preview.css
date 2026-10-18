@@ -1676,3 +1676,11 @@ select.p-field {
   .paint-toolgroups > .pl-view { grid-template-columns: 1fr; }
   .paint-left .paint-zoom { flex-direction: row; }
 }
+/* Keep the complete stack visible on iPad landscape before scrolling is needed. */
+@media (max-height: 850px) {
+  :root { --hdr-open: 257px; --group-gap: 6px; }
+  :root:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
+  .site-header:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
+  .site-header .hb, .site-header .theme-toggle { height: 32px; }
+  .paint-left .paint-group > button { height: 32px; }
+}
