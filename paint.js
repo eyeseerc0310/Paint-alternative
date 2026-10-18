@@ -6203,8 +6203,8 @@
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx') && !stage.contains(e.target)) picker(null);
-      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx')) adjustDone(stage.contains(e.target));
+      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle') && !stage.contains(e.target)) picker(null);
+      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
@@ -7652,6 +7652,8 @@
     // (folded away to one button, and back; remembered)
     var ctxSizeMotion = null;
     function ctxMin(on) {
+      if (ctxEl.classList.contains('min') === on) { dockSync(ctxReady); return; }
+      if (on && ctxEl.contains(document.activeElement)) settingsToggle.focus();
       var before = ctxEl.getBoundingClientRect();
       if (ctxSizeMotion) { ctxSizeMotion.cancel(); ctxSizeMotion = null; }
       ctxClose(); hideTip();
