@@ -1695,12 +1695,12 @@ select.p-field {
 :root[data-theme="dark"] .paint-settings .icon-moon { display: none; }
 
 
-/* A small edge tab replaces the folded dock; the expanded panel keeps its header. */
-:root { --ctx-tab-w: 32px; --ctx-tab-h: 48px; }
+/* A compact floating pill shares the bottom toolbar’s materials and icon scale. */
+:root { --ctx-tab-w: 40px; --ctx-tab-h: 52px; }
 .paint .paint-ctx.min {
   width: var(--ctx-tab-w); height: var(--ctx-tab-h); min-height: 0;
-  padding: 0; gap: 0; border-radius: var(--r-btn);
-  box-shadow: var(--shadow-panel), inset 0 0 0 .5px var(--line);
+  padding: 0; gap: 0; border-radius: var(--r-pill);
+  background: var(--panel); box-shadow: var(--shadow-panel);
 }
 .paint .paint-ctx.min > .ctx-grip,
 .paint .paint-ctx.min > .ctx-lock { display: none; }
@@ -1708,13 +1708,13 @@ select.p-field {
   position: relative; top: auto; right: auto; flex: none;
   width: 100%; height: 100%; border-radius: inherit;
 }
-.paint .paint-ctx.min > .ctx-min svg { width: var(--icon-sm); height: var(--icon-sm); }
+.paint .paint-ctx.min > .ctx-min svg { width: var(--icon); height: var(--icon); }
 .paint .paint-ctx.min > .ctx-min::after {
   content: ''; position: absolute; inset: 0 calc(-1 * var(--s-2));
 }
 .paint .paint-ctx.locked.min {
-  left: auto; right: 0; transform: none;
-  border-radius: var(--r-btn) 0 0 var(--r-btn);
+  left: auto; right: var(--s-2); transform: none;
+  border-radius: var(--r-pill);
   top: calc((100% - var(--bbar-h) - var(--bbar-gap) - var(--ctx-tab-h)) / 2);
 }
 @media (max-width: 560px) {
@@ -1723,3 +1723,4 @@ select.p-field {
   }
   .paint.selection-active .paint-dock:has(.paint-ctx.locked.min) { top: 0; }
 }
+
