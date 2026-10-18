@@ -1571,7 +1571,7 @@ select.p-field {
 .paint-dock > .paint-adjust .pa-title { position: static; margin: 0 0 var(--s-2); padding: 0; }
 
 
-/* The contextual selection bar uses the bottom bar's glass, height and controls.
+/* The contextual selection bar uses the bottom bar's glass, height and controls. */
 :root {
   --selection-button: 36px;
   --selection-pop-width: 240px;
@@ -1580,7 +1580,7 @@ select.p-field {
 }
 .selection-slot {
   position: relative; z-index: 7; flex: none; align-self: stretch;
-  display: flex; justify-content: center; height: 0; min-height: 0;
+  display: flex; justify-content: center; height: 0; min-height: 0; min-width: 0; width: 100%;
   margin-bottom: calc(-1 * var(--bbar-gap));
   transition: height var(--dur-slow) var(--ease), margin-bottom var(--dur-slow) var(--ease);
 }
