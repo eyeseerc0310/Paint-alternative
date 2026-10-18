@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="style.css?v=rounded-pill-20261018">
+  <link rel="stylesheet" href="style.css?v=bottom-settings-20261018">
   <link rel="stylesheet" href="color-controls.css?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -133,6 +133,8 @@
           <button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y · three-finger tap)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/></svg></button>
           <span class="pb-sep" aria-hidden="true"></span>
           <label class="pb-slider pb-alpha" data-tip="Opacity"><span>Opacity</span><input type="range" class="paint-alpha" aria-label="Opacity" min="5" max="100" value="100"><output>100</output></label>
+          <span class="pb-sep" aria-hidden="true"></span>
+          <button type="button" class="paint-settings-toggle" aria-label="Show tool settings" aria-expanded="false" data-tip="Tool settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
         </div>
       </div>
       <!-- (the tool options, standing in a space of their own at the right) -->
@@ -142,7 +144,7 @@
       </div>
     </section>
   </main>
-  <script src="paint.js?v=rounded-pill-20261018"></script>
+  <script src="paint.js?v=bottom-settings-20261018"></script>
   <script src="color-controls.js?v=2" defer></script>
 
   <script>
@@ -150,6 +152,7 @@
   </script>
 </body>
 </html>
+
 
 
 

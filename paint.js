@@ -7394,6 +7394,20 @@
     }
 
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxToolId = 'brush', ctxView = ctxView || 'tool';
+    var settingsToggle = $('.paint-settings-toggle');
+    settingsToggle.addEventListener('click', function () {
+      var open = toolMenuOpen();
+      if (!pc.hidden) picker(null);
+      if (!adjBox.hidden || adj) adjustDone();
+      if (!bsBox.hidden) studio(false);
+      ctxMin(open); ctxAside();
+    });
+    function settingsToggleSync() {
+      if (!settingsToggle) return;
+      var open = toolMenuOpen();
+      settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      settingsToggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
+    }
     buildSelectionToolbar();
     // THE DOCK: locked (ctxLocked, its lock button), the tool options stand
     // in a space of their own at the right of the workspace, so they never
@@ -7452,6 +7466,7 @@
     }
     function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !adjBox.hidden || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
+      settingsToggleSync();
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
       var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock));
       var mini = !phoneLayout() && ctxLocked && !on;
@@ -7651,8 +7666,8 @@
         var top = parseFloat(css.top) || 0;
         var duration = parseFloat(css.getPropertyValue('--dur-slow')) * 1000 || 420;
         ctxSizeMotion = ctxEl.animate([
-          { width: before.width + 'px', height: before.height + 'px', top: (top + before.top - after.top) + 'px', overflow: 'hidden' },
-          { width: after.width + 'px', height: after.height + 'px', top: top + 'px', overflow: 'hidden' }
+          { width: before.width + 'px', height: before.height + 'px', top: (top + before.top - after.top) + 'px', overflow: 'hidden', visibility: 'visible', opacity: on ? 1 : 0 },
+          { width: after.width + 'px', height: after.height + 'px', top: top + 'px', overflow: 'hidden', visibility: 'visible', opacity: on ? 0 : 1 }
         ], { duration: duration, easing: css.getPropertyValue('--ease').trim() || 'ease' });
         if (!on) ctxTool.animate([{opacity: 0}, {opacity: 1}], {duration: duration, easing: 'ease'});
       }
@@ -7905,6 +7920,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+
 
 
 
