@@ -1686,7 +1686,7 @@ select.p-field {
 }
 
 /* A solid outer dock holds the folded menu, separate from the dotted canvas. */
-:root { --ctx-mini-width: 64px; --ctx-mini-pad: 12px; }
+:root { --ctx-mini-width: 52px; --ctx-mini-pad: 6px; }
 @media (min-width: 561px) {
   .paint.dock-mini .paint-dock { width: var(--ctx-mini-width); margin-left: 0; }
   .paint-ctx.min { right: var(--ctx-mini-pad); }
