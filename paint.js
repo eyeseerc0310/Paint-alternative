@@ -6611,6 +6611,7 @@
       var ent = list.filter(function (x) { return x.id === id; })[0];
       if (w === 'new') { closeSheet(); newSheet(); return; }
       if (w === 'open') { openDrawing(id); return; }
+      if (w === 'settings') { settingsMenu(); return; }
       if (w === 'more') { galMenus(card.querySelector('.gal-acts').hidden ? card : null); return; }
       if (w === 'rename') {
         galMenus(null);
@@ -6733,7 +6734,8 @@
     function dropdown(cls) { var d = document.createElement('div'); d.className = 'paint-drop ' + cls; d.hidden = true; document.body.appendChild(d); return d; }
     function closeDrops() {
       var any = false;
-      [imgMenu, histBox, moreBox].forEach(function (d) { if (!d.hidden) { d.hidden = true; any = true; } });
+      [imgMenu, histBox, moreBox, settingsBox].forEach(function (d) { if (d && !d.hidden) { d.hidden = true; any = true; } });
+      if (hb('settings')) hb('settings').setAttribute('aria-expanded', 'false');
       if (hb('more')) hb('more').setAttribute('aria-expanded', 'false');
       hb('image').setAttribute('aria-expanded', 'false'); hb('history').setAttribute('aria-expanded', 'false');
       return any;
@@ -6847,6 +6849,29 @@
       else if (k === 'gestures') gestureSheet();
       else if (k === 'theme') header.querySelector('.theme-toggle').click();
       else if (hb(k)) { var t = hb(k); setTimeout(function () { t.click(); }, 0); }
+    });
+    var settingsBox = dropdown('paint-settings');
+    settingsBox.setAttribute('role', 'menu');
+    settingsBox.setAttribute('aria-label', 'Settings');
+    function settingsMenu() {
+      var open = settingsBox.hidden;
+      closeDrops();
+      if (!open) return;
+      otherPopovers();
+      var theme = header.querySelector('.theme-toggle');
+      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button>';
+      settingsBox.hidden = false;
+      hb('settings').setAttribute('aria-expanded', 'true');
+      placeDrop(settingsBox, hb('settings'));
+      var r = settingsBox.getBoundingClientRect();
+      if (r.left < 8) { settingsBox.style.right = 'auto'; settingsBox.style.left = '8px'; }
+      settingsBox.querySelector('button').focus();
+    }
+    settingsBox.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-setting]'); if (!b) return;
+      closeDrops(); hb('settings').focus();
+      if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
+      else helpSheet();
     });
     // FOCUS MODE: just the picture. The bars fade away and the picture gets
     // the whole window; \ (or Esc, or the button in the corner) brings them back
@@ -7139,6 +7164,7 @@
       var w = b.dataset.hb;
       if (w === 'focus') { focusMode(!document.documentElement.classList.contains('focus-mode')); return; }
       if (w === 'guides') { smartGuides(!smartOn); toast(smartOn ? 'Smart Guides on: what you move snaps into line' : 'Smart Guides off'); return; }
+      if (w === 'settings') { settingsMenu(); return; }
       if (w === 'more') { moreMenu(moreBox.hidden); return; }
       if (w === 'new') newSheet();
       else if (w === 'gallery') { closeDrops(); gallery(); }
@@ -7149,7 +7175,7 @@
       else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; }); }
     });
     document.addEventListener('pointerdown', function (e) {
-      if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"], [data-hb="more"]')) closeDrops();
+      if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
     }, true);
 
     // ---- THE CONTEXT BAR: what the tool in hand can be set to, at the top of
@@ -7601,7 +7627,10 @@
       ctxRender();
     }
     // (folded away to one button, and back; remembered)
+    var ctxSizeMotion = null;
     function ctxMin(on) {
+      var before = ctxEl.getBoundingClientRect();
+      if (ctxSizeMotion) { ctxSizeMotion.cancel(); ctxSizeMotion = null; }
       ctxClose(); hideTip();
       ctxEl.classList.toggle('min', on);
       var m = ctxEl.querySelector('.ctx-min'), t = on ? 'Show the tool settings' : 'Hide the tool settings';
@@ -7609,6 +7638,15 @@
       storeIt('paint-ctx-min', on);
       if (!on) keepOnScreen(ctxEl, ctxBox()); // (opened out where it was dragged to: still all in view)
       dockSync(ctxReady);
+      if (ctxReady && !matchMedia('(prefers-reduced-motion: reduce)').matches && before.width && before.height) {
+        var after = ctxEl.getBoundingClientRect(), css = getComputedStyle(ctxEl);
+        var duration = parseFloat(css.getPropertyValue('--dur-slow')) * 1000 || 420;
+        ctxSizeMotion = ctxEl.animate([
+          { width: before.width + 'px', height: before.height + 'px', overflow: 'hidden' },
+          { width: after.width + 'px', height: after.height + 'px', overflow: 'hidden' }
+        ], { duration: duration, easing: css.getPropertyValue('--ease').trim() || 'ease' });
+        if (!on) ctxTool.animate([{opacity: 0}, {opacity: 1}], {duration: duration, easing: 'ease'});
+      }
     }
     function ctxShow() {
       ctxEl.classList.remove('has-sel');
@@ -7858,5 +7896,6 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+
 
 
