@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-picker-dock-20261017';
-var SHELL = ['./', 'index.html', 'style.css?v=lock-state-20261017', 'paint.js?v=picker-dock-20261017', 'color-controls.css?v=5', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-panels-20261018';
+var SHELL = ['./', 'index.html', 'style.css?v=panels-20261018', 'paint.js?v=panels-20261018', 'color-controls.css?v=5', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

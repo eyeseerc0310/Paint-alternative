@@ -4231,7 +4231,7 @@
         sliderRow(['gms', 'Strength', 0, 100]) +
         '<button type="button" class="gm-rev" data-gmrev aria-pressed="false" data-tip="Run the gradient the other way: light to dark">Reverse</button>'
     };
-    adjBox.innerHTML = '<div class="pa-title">Effects <span class="pa-sub">Current layer</span></div><div class="fx-secs">' +
+    adjBox.innerHTML = pcTop + '<div class="pa-title">Effects <span class="pa-sub">Current layer</span></div><div class="fx-secs">' +
       FX.map(function (f) {
         var body = f[2] ? '<div class="pa-list">' + f[2].map(sliderRow).join('') + '</div>' : fxBody[f[0]];
         return '<section class="pr-sec fx-sec" data-fx="' + f[0] + '"><div class="fx-head">' +
@@ -4241,7 +4241,17 @@
       }).join('') + '</div>' +
       '<div class="pa-acts"><button type="button" data-adj-act="reset">Reset All</button><button type="button" data-adj-act="done" data-tip="Apply it, and carry on with another effect (with nothing set: close)">Done</button></div>';
     left.appendChild(adjBox);
-    draggable(adjBox, '.pa-title', 'adjust');
+    // Start a fresh effect from the current drawing after a canvas gesture,
+    // whether its next control is reached by pointer or keyboard.
+    function resumeEffects(e) {
+      if (!adj && !adjBox.hidden && !e.target.closest('.pc-top')) adjustOpen(true);
+    }
+    adjBox.addEventListener('pointerdown', resumeEffects);
+    adjBox.addEventListener('focusin', resumeEffects);
+    adjBox.addEventListener('click', function (e) {
+      if (e.target.closest('.pc-top .ctx-lock')) { lockToggle(); return; }
+      if (e.target.closest('.pc-top .ctx-min')) { adjustDone(); ctxMin(true); }
+    });
     // (the sections fold by their titles, and stay as they were left; Light starts open)
     Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) {
       var hd = sec.querySelector('.pr-head'), k = 'paint-fx-' + sec.dataset.fx;
@@ -4952,7 +4962,9 @@
     // (the selection as a picture, for the graphics chip)
     function selCanvas() { var m = document.createElement('canvas'); m.width = ov.width; m.height = ov.height; var x = m.getContext('2d'); base(x); if (sel.mask) x.drawImage(sel.mask, sel.x, sel.y, sel.w, sel.h); else { selPath(x); x.fill(); } return m; }
 
-    function adjustOpen() {
+    function adjustOpen(resume) {
+      if (!resume && !adj && !adjBox.hidden) { adjustClose(); return; }
+      if (!pc.hidden) picker(null);
       if (adj) { var was = adj.finishing; adjustDone(); if (!was) return; }
       if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
       if (!active) return;
@@ -4970,7 +4982,7 @@
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
       adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
-      dockPlace(adjBox);
+      dockPlace(adjBox); dockSync(ctxReady);
       if (adjBox.parentNode === left) { adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox); }
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
     }
@@ -4982,13 +4994,13 @@
       }
       fxSource();
     }
-    function adjustClose() {
+    function adjustClose(keepOpen) {
       if (adj) {
         clearTimeout(adj.prepT);
         if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
         if (adj.mode === 'worker' && fxW) { clearTimeout(adj.settle); fxPrevShow(false); fxW.postMessage({ t: 'end' }); } // (the worker lets its copies go)
       }
-      adj = null; adjBox.hidden = true; delete adjBox.dataset.finishing; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
+      adj = null; adjBox.hidden = !keepOpen; delete adjBox.dataset.finishing; $('[data-act="adjust"]').setAttribute('aria-expanded', keepOpen ? 'true' : 'false'); ctxAside(); dockSync(ctxReady);
     }
     function adjustPut(img) { var c = adj.L.ctx; c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.putImageData(img, 0, 0); c.restore(); if (usesView(adj.L)) viewOf(adj.L); }
     // KEPT: the full-size result, worked out once (by the graphics chip, or
@@ -5011,20 +5023,20 @@
       if (!adj.queued) { var full = { P: fxParams(), ver: adj.ver }; if (adj.busy) adj.want = full; else fxPost(full); }
     }
     // CLOSING (another tool, undo, saving...): what's set is kept, and the panel goes
-    function adjustDone() {
-      if (!adj) return;
+    function adjustDone(keepOpen) {
+      if (!adj) { if (!keepOpen && !adjBox.hidden) adjustClose(); return; }
       if (adjChanged()) {
         fxPrepare();
-        if (adj.mode === 'worker' && !adj.finishing && adj.shown !== adj.ver) {
+        if (!keepOpen && adj.mode === 'worker' && !adj.finishing && adj.shown !== adj.ver) {
           // (the panel goes now, and the full size goes down as soon as it's
           // ready; anything done before then finishes it first, here)
           adj.finishing = true; adj.applying = false; adjBox.dataset.finishing = '1';
           adjBox.hidden = true; ctxEl.classList.remove('aside'); $('[data-act="adjust"]').setAttribute('aria-expanded', 'false');
-          adjustWait(); return;
+          ctxAside(); dockSync(ctxReady); adjustWait(); return;
         }
         adjustKeep();
       } else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src);
-      adjustClose();
+      adjustClose(keepOpen);
     }
     // DONE: what's set is kept (one step, to undo) and the sliders go back
     // to the start, the panel staying open for the next effect, which works
@@ -5872,7 +5884,7 @@
       if (spaceGrab) { e.preventDefault(); return; } // (space is already holding something)
       if (anyMenu()) openMenu(null);
       if (!panel.hidden) layerPanel(false);
-      if (adj) adjustDone();
+      if (adj) adjustDone(true);
       e.preventDefault();
       // (a tap on the picture takes the typing away from a field in a panel,
       // so the shortcuts work again)
@@ -6170,8 +6182,8 @@
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap')) picker(null);
-      if (adj && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) adjustDone();
+      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap') && !stage.contains(e.target)) picker(null);
+      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
@@ -7144,8 +7156,8 @@
     function ctxLock(on) {
       ctxLocked = on; storeIt('paint-ctx-lock', on); ctxEl.classList.toggle('locked', on);
       var t = on ? 'Unlock the tool settings, to move them' : 'Lock the tool settings in their place beside the picture (it makes room for them)';
-      [ctxEl, pc].forEach(function (el) { var b = el.querySelector('.ctx-lock'); if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', t); b.dataset.tip = t; } });
-      hideTip(); if (pc.parentNode === dock) pc.classList.toggle('locked', on);
+      [ctxEl, pc, adjBox].forEach(function (el) { var b = el.querySelector('.ctx-lock'); if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', t); b.dataset.tip = t; } });
+      hideTip(); [pc, adjBox].forEach(function (el) { el.classList.toggle('locked', on); });
       if (on) { ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); } catch (x) {} }
       dockSync(ctxReady);
     }
@@ -7157,7 +7169,7 @@
       var d = !phoneLayout();
       DOCKED_PANELS.forEach(function (x) {
         var el = x[0], home = d ? dock : x[1];
-        el.classList.toggle('in-dock', d); el.classList.toggle('locked', d && (el !== pc || ctxLocked)); // (in its place: not dragged about; the picker, while the settings are unlocked, by its grip)
+        el.classList.toggle('in-dock', d); el.classList.toggle('locked', ctxLocked); // (in its place: not dragged about; the picker, while the settings are unlocked, by its grip)
         if (el.parentNode !== home) { home.appendChild(el); el.style.translate = el.style.top = el.style.left = ''; }
         if (d) dockPlace(el);
       });
@@ -7179,20 +7191,23 @@
     function lockToggle() {
       ctxLock(!ctxLocked);
       if (!pc.hidden) dockPlace(pc);
+      if (!adjBox.hidden) dockPlace(adjBox);
     }
-    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !!adj || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
+    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !adjBox.hidden || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
     function dockSync(ease) {
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
-      var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock));
+      var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock));
       if (paintEl.classList.contains('dock-on') === on) return;
       if (!ease) { paintEl.classList.add('dock-instant'); paintEl.classList.toggle('dock-on', on); void dock.offsetWidth; paintEl.classList.remove('dock-instant'); refit(); return; }
       paintEl.classList.toggle('dock-on', on); refitWhile(dock);
     }
     draggable(ctxEl, '.ctx-grip', 'ctx2', '.paint-ctx.min .ctx-min', ctxBox, function () { dockSync(true); });
     // (the colour picker, unlocked, by its own grip: the tool settings move with it, so it opens there again)
-    draggable(pc, '.pc-top .ctx-grip', 'ctx2', null, ctxBox, function () {
-      ctxEl.style.translate = pc.style.translate; keepOnScreen(ctxEl, ctxBox());
-      var q = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [q.x, q.y]);
+    [pc, adjBox].forEach(function (el) {
+      draggable(el, '.pc-top .ctx-grip', 'ctx2', null, ctxBox, function () {
+        ctxEl.style.translate = el.style.translate; keepOnScreen(ctxEl, ctxBox());
+        var q = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [q.x, q.y]);
+      });
     });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
@@ -7333,9 +7348,9 @@
     var busyTimer = 0, busyOn = false, busyAt = null;
     function busy(on, e) {
       if (!ctxEl) return;
-      if (!on) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = false; ctxEl.classList.remove('busy'); return; }
+      if (!on) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = false; [ctxEl, pc, adjBox].forEach(function (el) { el.classList.remove('busy'); }); return; }
       if (busyOn) return;
-      if (!e) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = true; ctxEl.classList.add('busy'); return; }
+      if (!e) { clearTimeout(busyTimer); busyTimer = 0; busyAt = null; busyOn = true; [ctxEl, pc, adjBox].forEach(function (el) { el.classList.toggle('busy', !ctxLocked); }); return; }
       if (busyTimer) return;
       busyAt = { x: e.clientX, y: e.clientY }; busyTimer = setTimeout(function () { busy(true); }, 300);
     }
