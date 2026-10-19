@@ -111,7 +111,9 @@ When building or changing anything visual:
   top of the picture (the dock takes no room there). Its lists open on the
   side towards the picture's middle.
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round
-  caps and joins; keep new ones in the same style. Put new tool
+  caps and joins; keep new ones in the same style. An icon in a button that has its
+  own `aria-label` is `aria-hidden="true"`; an icon that says something
+  by itself (a layer's tags) has `role="img"` and a label. Put new tool
   settings there, never in a list beside the left toolbar. Symmetry's
   settings open in the panel too (its `sym` view), from the mirror button,
   and so does the **grid** (`gridOn`, `gridSize`, `gridKind` square or
@@ -325,7 +327,13 @@ When building or changing anything visual:
   shows what it does sets `--track` and keeps it). A Done inside the tool
   panel is tinted (`--accent-soft` with accent text); Done, Save and Create at
   the foot of a panel or sheet are solid accent.
-- **Test in light and dark mode and at phone width** (560px and narrower).
+- **Touch:** on a touch screen (`pointer: coarse`) rows and buttons are
+  taller (`--row`, `--ctl`), and a small control that can't grow gets a hit
+  area past what's drawn (a `::after` with a negative inset, near the top of
+  `style.css`); add new small controls to that rule. On phones a row of
+  options in the tool settings stays inside the strip: icon segments narrow,
+  word segments wrap.
+- **Test in light and dark mode and at phone width** (560px and narrower: check 360 and 375 too).
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
   touch them, and keep unrelated changes out of a task.
