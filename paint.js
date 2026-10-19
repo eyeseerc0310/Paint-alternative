@@ -544,9 +544,9 @@
       '<div class="pc-grid pc-harmony"></div>' +
       '<div class="pc-h">Recent</div><div class="pc-grid pc-recent"></div>' +
       '<div class="pc-palhead"><select class="p-field pc-pal" aria-label="Palette"></select>' +
-        '<button type="button" class="pc-icon" data-pc-act="new" title="New palette" aria-label="New palette"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg></button>' +
-        '<button type="button" class="pc-icon" data-pc-act="photo" title="New palette from a photo" aria-label="New palette from a photo"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="13" rx="2"/><circle cx="9.5" cy="11" r="1.6"/><path d="M5 17.5l4.5-4 3 2.5 3-3 3.5 3.5"/></svg></button>' +
-        '<button type="button" class="pc-icon" data-pc-act="delete" title="Delete this palette" aria-label="Delete this palette"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button></div>' +
+        '<button type="button" class="pc-icon" data-pc-act="new" title="New palette" aria-label="New palette"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>' +
+        '<button type="button" class="pc-icon" data-pc-act="photo" title="New palette from a photo" aria-label="New palette from a photo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="13" rx="2"/><circle cx="9.5" cy="11" r="1.6"/><path d="M5 17.5l4.5-4 3 2.5 3-3 3.5 3.5"/></svg></button>' +
+        '<button type="button" class="pc-icon" data-pc-act="delete" title="Delete this palette" aria-label="Delete this palette"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button></div>' +
       '<div class="pc-grid pc-swatches"></div>' +
       '<p class="pc-note"></p>';
     bbar.appendChild(pc);
@@ -627,7 +627,7 @@
       fill(sel2, P.map(function (q, i) { return '<option value="' + i + '">' + q.name.replace(/</g, '&lt;') + '</option>'; }).join(''));
       sel2.value = String(P.indexOf(p));
       fill(pc.querySelector('.pc-swatches'), p.colors.map(function (c, i) { return sw(c, p.ready ? null : i); }).join('') +
-        (p.ready ? '' : '<button type="button" class="pc-add" data-pc-act="add" title="Add this colour to the palette" aria-label="Add this colour to the palette"><svg viewBox="0 0 24 24"><path d="M12 7v10M7 12h10"/></svg></button>'));
+        (p.ready ? '' : '<button type="button" class="pc-add" data-pc-act="add" title="Add this colour to the palette" aria-label="Add this colour to the palette"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v10M7 12h10"/></svg></button>'));
       var cur = hex.toLowerCase();
       Array.prototype.forEach.call(pc.querySelectorAll('[data-pc-color]'), function (b) { b.classList.toggle('on', b.dataset.pcColor.toLowerCase() === cur); });
       pc.querySelector('[data-pc-act="delete"]').disabled = !!p.ready || myPalettes.length < 2;
@@ -1467,7 +1467,7 @@
         else line(0, false, V[0], 'horizon');
       }
       guide.hidden = !lines.length;
-      guide.innerHTML = lines.length ? '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + lines.map(function (l) { return '<line' + (l[4] ? ' class="' + l[4] + '"' : '') + ' x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>'; }).join('') + '</svg>' : '';
+      guide.innerHTML = lines.length ? '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + lines.map(function (l) { return '<line' + (l[4] ? ' class="' + l[4] + '"' : '') + ' x1="' + l[0] + '" y1="' + l[1] + '" x2="' + l[2] + '" y2="' + l[3] + '"/>'; }).join('') + '</svg>' : '';
       placeSymHandles();
     }
     // GUIDES: a ruler, or perspective with 1, 2 or 3 vanishing points, shown
@@ -2658,7 +2658,7 @@
       tpEl.style.left = Math.round(x) + 'px'; tpEl.style.top = Math.round(Math.max(8, Math.min(vh - h - 8, r.top - 20))) + 'px';
       keepOnScreen(tpEl);
     }
-    var ICON = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
+    var ICON = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
     function buildTextPanel() {
       tpEl = document.createElement('div'); tpEl.className = 'paint-textpanel'; tpEl.hidden = true; tpEl.setAttribute('role', 'dialog'); tpEl.setAttribute('aria-label', 'Text options');
       var range = function (key, label, min, max, step) { return '<label class="tp-row"><span>' + label + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-tp="' + key + '"><output data-tpo="' + key + '"></output></label>'; };
@@ -2778,7 +2778,7 @@
     var selKind = stored('paint-sel-kind', 'lasso'); if (!selKindOf(selKind)) selKind = 'lasso';
     function selBtnSync() {
       var b = root.querySelector('.paint-selbtn'), k = selKindOf(selKind); if (!b) return;
-      b.dataset.tool = selKind; b.innerHTML = '<svg viewBox="0 0 24 24">' + k[2] + '</svg>';
+      b.dataset.tool = selKind; b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + k[2] + '</svg>';
       b.setAttribute('aria-label', 'Select: ' + k[1] + ' (M)');
     }
     // (a circle: its outline as points round the box it's dragged in)
@@ -3676,7 +3676,7 @@
     function renderLayers() {
       if (!panel) return;
       var esc = function (t) { return t.replace(/[<&"]/g, function (ch) { return ch === '<' ? '&lt;' : ch === '&' ? '&amp;' : '&quot;'; }); };
-      var EYE = function (on) { return '<svg viewBox="0 0 24 24">' + (on ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg>'; };
+      var EYE = function (on) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (on ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg>'; };
       var shownG = []; tidyAlso();
       var rows = layers.slice().reverse().map(function (L) {
         var i = layers.indexOf(L), G = L.group, head = '';
@@ -3686,21 +3686,21 @@
           var gm0 = membersOf(G);
           head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (gm0.length && gm0.every(function (M) { return M === active || also.indexOf(M) >= 0; }) && also.length ? ' also' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
             '<button type="button" class="pl-eye" data-geye="' + G.id + '" aria-label="' + (G.visible ? 'Hide' : 'Show') + ' ' + esc(G.name) + '" aria-pressed="' + (!G.visible) + '">' + EYE(G.visible) + '</button>' +
-            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>' +
+            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>' +
             '<button type="button" class="pl-name" data-gname="' + G.id + '" title="Tap again to rename"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg><span>' + esc(G.name) + '</span></button>' +
-            '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
+            '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
         }
         if (G && !G.open) return head;
         return head + '<div class="pl-row' + (L === active && !focusG ? ' on' : '') + (also.indexOf(L) >= 0 && !focusG ? ' also' : '') + (clipBase(L) ? ' clipped' : '') + (G ? ' in-grp' : '') + '" data-i="' + i + '">' +
           '<button type="button" class="pl-eye" data-layer-eye="' + i + '" aria-label="' + (L.visible ? 'Hide' : 'Show') + ' ' + esc(L.name) + '" aria-pressed="' + (!L.visible) + '">' +
-            '<svg viewBox="0 0 24 24">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true">' + (L.visible ? '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/>' : '<path d="M3 3l18 18"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.6 3.3M6.4 7.6A15 15 0 0 0 2.5 12s3.5 6 9.5 6a9 9 0 0 0 4.1-1"/>') + '</svg></button>' +
           '<canvas class="pl-thumb' + (L.mask && !L.editMask ? ' picked' : '') + '" data-thumb="' + i + '" aria-hidden="true"></canvas>' +
           (L.mask ? '<canvas class="pl-thumb pl-mthumb' + (L.editMask ? ' picked' : '') + '" data-mthumb="' + i + '" role="button" aria-label="The mask: tap to paint on it" title="The mask: tap to paint on it (black hides, white shows)"></canvas>' : '') +
           '<button type="button" class="pl-name" data-layer="' + i + '" title="Tap again to rename"><span>' + L.name.replace(/[<&]/g, function (ch) { return ch === '<' ? '&lt;' : '&amp;'; }) + '</span>' +
-            (L.text ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Text layer"><path d="M6 7.5V5h12v2.5"/><path d="M12 5v14"/><path d="M9.5 19h5"/></svg>' : '') +
-            (L.alphaLock ? '<svg class="pl-tag" viewBox="0 0 24 24" aria-label="Alpha lock on"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>' : '') + '</button>' +
-          '<button type="button" class="pl-more" data-layer-more="' + i + '" aria-haspopup="menu" aria-label="Options for ' + esc(L.name) + '" title="Layer options"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button>' +
-          '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
+            (L.text ? '<svg class="pl-tag" viewBox="0 0 24 24" role="img" aria-label="Text layer"><path d="M6 7.5V5h12v2.5"/><path d="M12 5v14"/><path d="M9.5 19h5"/></svg>' : '') +
+            (L.alphaLock ? '<svg class="pl-tag" viewBox="0 0 24 24" role="img" aria-label="Alpha lock on"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>' : '') + '</button>' +
+          '<button type="button" class="pl-more" data-layer-more="' + i + '" aria-haspopup="menu" aria-label="Options for ' + esc(L.name) + '" title="Layer options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button>' +
+          '<span class="pl-grip" aria-label="Drag to reorder" title="Drag to reorder"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
       }).join('');
       if (!layers.length) rows = '<div class="pl-empty">No layers. Draw, or tap + to add one.</div>';
       var pr = focusG ? '<div class="pl-props"><label class="pl-op"><span>Group</span><input type="range" min="0" max="100" value="' + Math.round(focusG.opacity * 100) + '" data-group-op aria-label="Group opacity"><output>' + Math.round(focusG.opacity * 100) + '%</output></label>' +
@@ -3711,11 +3711,11 @@
       var nPick = also.length ? also.length + 1 : 0;
       panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div><div class="pl-list">' + rows + '</div>' + pr +
         '<div class="pl-acts">' +
-          '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>' +
-          '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
-          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
-          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
-          '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
+          '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
+          '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
+          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
+          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
+          '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
         '</div>';
     }
     // LAYER PREVIEWS: a little picture of what's on each layer (over a
@@ -6797,7 +6797,7 @@
           return '<button type="button" class="ns-pre" data-pre="' + q[0] + '"><i style="width:' + Math.max(8, Math.round(q[2] * k)) + 'px;height:' + Math.max(8, Math.round(q[3] * k)) + 'px"></i><b>' + q[1] + '</b><small>' + q[2] + ' × ' + q[3] + '</small></button>';
         }).join('') + '</div>' +
         '<div class="ns-row"><label>Width<input type="number" inputmode="numeric" min="16" max="' + MAXPX + '" data-ns="w"></label>' +
-        '<button type="button" class="ns-swap" aria-label="Swap width and height" title="Swap width and height"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></button>' +
+        '<button type="button" class="ns-swap" aria-label="Swap width and height" title="Swap width and height"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></button>' +
         '<label>Height<input type="number" inputmode="numeric" min="16" max="' + MAXPX + '" data-ns="h"></label><span class="ns-unit">pixels</span></div>' +
         '<div class="ns-row ns-row-bg"><span class="ns-lab">Background</span><div class="pa-tabs ns-bg" role="tablist"><button type="button" role="tab" data-bg="white" aria-selected="true">White</button><button type="button" role="tab" data-bg="clear" aria-selected="false">Transparent</button></div></div>' +
         '<div class="ns-note">The picture you\u2019re on stays in your Gallery.</div><div class="ns-err" hidden></div>' +
@@ -6957,7 +6957,7 @@
     // the whole window; \ (or Esc, or the button in the corner) brings them back
     var focusOut = document.createElement('button');
     focusOut.type = 'button'; focusOut.className = 'paint-focusout'; focusOut.setAttribute('aria-label', 'Show the tools again'); focusOut.dataset.tip = 'Show the tools again (\\ or Esc)';
-    focusOut.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4"/><path d="M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4"/><path d="M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20"/><path d="M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20"/></svg>';
+    focusOut.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4"/><path d="M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4"/><path d="M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20"/><path d="M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20"/></svg>';
     document.body.appendChild(focusOut);
     focusOut.addEventListener('click', function () { focusMode(false); });
     // FOCUS MODE: the tools go and the picture's space grows to fill the
@@ -7043,7 +7043,7 @@
     function imageMenu(open) {
       if (!open) { imgMenu.hidden = true; hb('image').setAttribute('aria-expanded', 'false'); return; }
       closeDrops(); otherPopovers();
-      var ico = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
+      var ico = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
       imgMenu.innerHTML =
         '<button type="button" role="menuitem" data-img="left">' + ico('<path d="M9 4.5L5.5 8 9 11.5"/><path d="M5.5 8H14a5 5 0 0 1 5 5v6"/>') + 'Rotate Left</button>' +
         '<button type="button" role="menuitem" data-img="right">' + ico('<path d="M15 4.5L18.5 8 15 11.5"/><path d="M18.5 8H10a5 5 0 0 0-5 5v6"/>') + 'Rotate Right</button>' +

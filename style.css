@@ -238,6 +238,15 @@ body > * { flex-shrink: 0; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 /* (a touch screen: rows and controls a finger can hit) */
 @media (pointer: coarse) { :root { --row: 42px; --ctl: 40px; } }
+/* (and a small control's hit area reaches past what's drawn, so a finger
+   finds it; nothing looks different) */
+@media (pointer: coarse) {
+  .paint .paint-zoom button, .paint .pc-icon, .paint .pc-add { position: relative; }
+  .paint .paint-zoom button::after, .paint .pc-icon::after, .paint .pc-add::after { content: ""; position: absolute; inset: -6px -2px; }
+}
+@media (pointer: coarse) and (min-width: 561px) {
+  .paint .paint-ctx:not(.min) .ctx-min, .paint .paint-ctx:not(.min) .ctx-lock, .paint .pc-top .ctx-min, .paint .pc-top .ctx-lock { width: 28px; height: 28px; }
+}
 
 /* ---------- Header: no bar, just the app's name and floating capsules ---------- */
 .site-header {
@@ -1202,6 +1211,11 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .paint-ctx { top: 6px; left: 6px; right: auto; transform: none; max-width: calc(100% - 12px); }
   /* (narrow: the bar's settings wrap onto a second row rather than hide off the edge) */
   .ctx-tool, .paint-ctx .paint-selbar { flex-wrap: wrap; row-gap: 2px; overflow: visible; }
+  /* (a row of options stays inside the strip: icons give up some of their
+     room, words wrap onto a second row) */
+  .ctx-tool .ctx-seg { flex: 0 1 auto; max-width: 100%; min-width: 0; }
+  .paint .ctx-tool .ctx-seg button:has(> svg) { flex: 0 1 33px; min-width: 22px; padding: 0; }
+  .ctx-tool .ctx-seg-fit { flex-wrap: wrap; row-gap: 2px; }
   .ctx-sep { display: none; }
   .ctx-hint { flex: 1 1 160px; min-width: 0; white-space: normal; line-height: 1.35; } /* (a long hint wraps rather than running off the edge) */
   .ctx-slider { padding: 0 var(--s-1); }
