@@ -143,7 +143,7 @@
     function showTip(e) {
       if (e.pointerType === 'touch') return;
       var b = e.target.closest && e.target.closest('[data-tip]');
-      if (!b || e.buttons || !b.closest('.paint, .site-header, .paint-focusout')) { hideTip(); return; }
+      if (!b || !b.matches('button') || b.matches('.paint-current, .paint-second') || !b.querySelector('svg') || b.innerText.trim() || e.buttons || !b.closest('.paint, .site-header, .paint-focusout')) { hideTip(); return; }
       if (b !== tipOn) { tipOn = b; tip.textContent = b.dataset.tip; }
       // (a top-bar button's label sits just under it; the others, by the pointer)
       if (b.closest('.site-header')) {
@@ -6909,16 +6909,10 @@
           return motion(el, [{ transform: 'translateX(0)', opacity: 1 }, { transform: 'translateX(' + outside(el) + 'px)', opacity: 0 }], duration / 2, 'forwards');
         }));
         var before = centre.getBoundingClientRect();
-        var controls = Array.from(bbar.children).filter(function (el) { return !el.hidden; }).map(function (el) { return { el: el, x: el.getBoundingClientRect().left }; });
         animations.forEach(function (a) { a.cancel(); }); animations = [];
         applyUIFlip();
         var dx = before.left - centre.getBoundingClientRect().left;
-        controls.forEach(function (q) { q.shift = q.x - q.el.getBoundingClientRect().left - dx; });
         var pending = [motion(centre, [{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(0)' }], duration)];
-        controls.forEach(function (q) {
-          var shift = q.shift;
-          pending.push(motion(q.el, [{ transform: 'translateX(' + shift + 'px)' }, { transform: 'translateX(0)' }], duration));
-        });
         panels.forEach(function (el) {
           pending.push(motion(el, [{ transform: 'translateX(' + outside(el) + 'px)', opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], duration));
         });

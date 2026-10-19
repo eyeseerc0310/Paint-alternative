@@ -1750,8 +1750,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .ui-flipped .paint { flex-direction: row-reverse; }
 .ui-flipped .paint-dock { margin-left: 0; margin-right: calc(-1 * var(--pgap)); }
 .ui-flipped .paint.dock-on .paint-dock { margin-right: 0; }
-.ui-flipped .paint-bottom { flex-direction: row-reverse; }
-.ui-flipped .paint-bottom .paint-settings-toggle { margin-left: 0; margin-right: var(--s-2); }
 .settings-check { margin-left: auto; color: var(--muted); }
 .ui-flipped.focus-mode .paint-left { margin-right: 0; margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
 .ui-flipped.focus-mode .paint .paint-dock { margin-left: 0; margin-right: calc(-1 * var(--pgap)); }
