@@ -1794,3 +1794,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 }
 .site-header .doc-status i { display: block; width: 6px; height: 6px; }
 .site-header .doc-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Position changes share the interface's gentle motion; direct dragging stays under the pointer. */
+.selection-slot { transition: left .28s ease-in-out, top .28s ease-in-out; }
+.selection-slot.dragging, .selection-slot.manipulating { transition: none; }
+.paint .selection-toolbar { touch-action: none; cursor: grab; }
+.selection-slot.dragging .selection-toolbar { cursor: grabbing; }
+.paint .selection-slot.manipulating .selection-pop { visibility: hidden; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .selection-slot { transition: none; } }
+/* Equal side slots keep the status word centered independently of its dot and chevron. */
+.site-header .hdr-fold, :root.hdr-open .site-header .hdr-fold { position: relative; left: auto; top: auto; }
+.site-header .doc-status { grid-template-columns: 12px minmax(0, 1fr) 12px; column-gap: 0; text-align: center; }
+.site-header .doc-status i { justify-self: center; }
+.site-header .hdr-fold > svg { position: absolute; right: 0; }
+
+.paint .selection-slot.repositioning .selection-toolbar, .paint .selection-slot.repositioning .selection-pop { pointer-events: none; }

@@ -7265,6 +7265,7 @@
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
     // Contextual selection actions live above the canvas, independently of tool settings.
     var selectionSlot, selectionPop, selectionOpen = '', selectionAnchor = null;
+    var selectionPosition = null, selectionManual = null, selectionDrag = null;
     function buildSelectionToolbar() {
       selectionSlot = document.createElement('div'); selectionSlot.className = 'selection-slot';
       stage.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
@@ -7323,6 +7324,27 @@
       document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot')) closeSelectionPopover(); }, true);
       selectionSlot.inert = true;
       new ResizeObserver(placeSelectionToolbar).observe(stage);
+      new ResizeObserver(placeSelectionToolbar).observe(selbar);
+      window.addEventListener('resize', placeSelectionToolbar);
+      selbar.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0 || e.target.closest('button, input, select, a')) return;
+        e.preventDefault(); e.stopPropagation(); closeSelectionPopover();
+        selectionDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: selectionPosition.x, top: selectionPosition.y };
+        selectionSlot.classList.add('dragging'); selbar.setPointerCapture(e.pointerId);
+      });
+      selbar.addEventListener('pointermove', function (e) {
+        if (!selectionDrag || selectionDrag.id !== e.pointerId) return;
+        e.preventDefault(); e.stopPropagation();
+        selectionManual = { x: selectionDrag.left + e.clientX - selectionDrag.x, y: selectionDrag.top + e.clientY - selectionDrag.y };
+        placeSelectionToolbar();
+      });
+      function finishToolbarDrag(e) {
+        if (!selectionDrag || selectionDrag.id !== e.pointerId) return;
+        e.stopPropagation(); selectionDrag = null; selectionSlot.classList.remove('dragging');
+      }
+      selbar.addEventListener('pointerup', finishToolbarDrag);
+      selbar.addEventListener('pointercancel', finishToolbarDrag);
+      selbar.addEventListener('lostpointercapture', finishToolbarDrag);
       placeSelectionToolbar();
     }
     function closeSelectionPopover(focus) {
@@ -7342,7 +7364,7 @@
       }
       if (selbar.hidden === on) selbar.hidden = !on;
       if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
-      var manipulating = !!(down && /^(move|scale|rotate|distort|qrot)$/.test(selMode));
+      var manipulating = !!down;
       selectionSlot.classList.toggle('manipulating', manipulating);
       selectionSlot.inert = !on || manipulating;
       if (manipulating) closeSelectionPopover();
@@ -7351,6 +7373,8 @@
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
       var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !sel || !!sel.thing;
       paintEl.classList.toggle('selection-active', on);
+      if (!on) { selectionManual = null; selectionPosition = null; }
+      placeSelectionToolbar();
     }
     function openSelectionPopover(kind, anchor) {
       if (!sel) return;
@@ -7377,24 +7401,99 @@
       selButtons(); if (anchor) anchor.setAttribute('aria-expanded', 'true'); placeSelectionPopover();
       var input = content.querySelector('input'); if (input) { input.focus({ preventScroll: true }); input.select(); }
     }
-    // Screen-space overlay: follow the visible canvas viewport, never the selection.
+    // All geometry is in stage CSS pixels, using the same transformed handles as hit testing.
+    function selectionSegmentHits(a, b, r) {
+      var lo = 0, hi = 1, dx = b.x - a.x, dy = b.y - a.y;
+      var p = [-dx, dx, -dy, dy], q = [a.x-r.x, r.x+r.w-a.x, a.y-r.y, r.y+r.h-a.y];
+      for (var i=0;i<4;i++) {
+        if (!p[i]) { if(q[i]<0)return false; }
+        else { var t=q[i]/p[i]; if(p[i]<0)lo=Math.max(lo,t);else hi=Math.min(hi,t); if(lo>hi)return false; }
+      }
+      return true;
+    }
     function placeSelectionToolbar() {
-      if (!selectionSlot) return;
-      var r = stage.getBoundingClientRect(), a = world.getBoundingClientRect();
-      var pad = parseFloat(getComputedStyle(selectionSlot).getPropertyValue('--selection-inset')) || 12;
-      var left = Math.max(r.left, a.left), right = Math.min(r.right, a.right);
-      var middle = right > left ? (left + right) / 2 : r.left + r.width / 2;
-      var width = Math.min(Math.max(0, r.width - pad * 2), Math.max(selbar.scrollWidth, right - left - pad * 2));
-      selectionSlot.style.width = width + 'px';
-      selectionSlot.style.left = Math.max(pad, Math.min(r.width - width - pad, middle - r.left - width / 2)) + 'px';
-      selectionSlot.style.top = Math.max(pad, Math.min(r.height - selbar.offsetHeight - pad, Math.max(r.top, a.top) - r.top + pad)) + 'px';
+      if (!selectionSlot || !sel || !selectionSlot.classList.contains('on')) return;
+      var r=stage.getBoundingClientRect(), pad=12, gap=16;
+      var v={x:Math.max(0,-r.left)+pad,y:Math.max(0,-r.top)+pad,
+        right:Math.min(r.width,window.innerWidth-r.left)-pad,bottom:Math.min(r.height,window.innerHeight-r.top)-pad};
+      var available=Math.max(0,v.right-v.x);
+      selectionSlot.style.width=available+'px';
+      var w=Math.min(selbar.offsetWidth,available), h=selbar.offsetHeight;
+      selectionSlot.style.width=w+'px';
+      var pts=corners().map(toScreen), box={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
+      pts.slice(0,4).forEach(function(p){box.left=Math.min(box.left,p.x);box.right=Math.max(box.right,p.x);box.top=Math.min(box.top,p.y);box.bottom=Math.max(box.bottom,p.y);});
+      var edges=[[pts[0],pts[1]],[pts[1],pts[3]],[pts[3],pts[2]],[pts[2],pts[0]],
+        [{x:(pts[2].x+pts[3].x)/2,y:(pts[2].y+pts[3].y)/2},pts[4]]];
+      function clamp(p){return {x:Math.max(v.x,Math.min(v.right-w,p.x)),y:Math.max(v.y,Math.min(v.bottom-h,p.y))};}
+      function hits(p){
+        var rect={x:p.x-8,y:p.y-8,w:w+16,h:h+16}, n=0;
+        edges.forEach(function(e){if(selectionSegmentHits(e[0],e[1],rect))n++;});
+        pts.forEach(function(q){if(q.x>=p.x-14&&q.x<=p.x+w+14&&q.y>=p.y-14&&q.y<=p.y+h+14)n+=10;});
+        return n;
+      }
+      var off=box.right<v.x||box.left>v.right||box.bottom<v.y||box.top>v.bottom;
+      var large=(box.right-box.left)>(v.right-v.x)*.8&&(box.bottom-box.top)>(v.bottom-v.y)*.7;
+      var center=(box.left+box.right-w)/2, above={x:center,y:box.top-h-gap}, below={x:center,y:Math.max(box.bottom,pts[4].y)+gap};
+      var wanted=selectionManual || (off&&selectionPosition) || (above.y>=v.y ? above : below);
+      var mode='floating', chosen=null;
+      if(selectionManual || off) {chosen=clamp(wanted);mode='docked';}
+      else if(!large && wanted.y>=v.y && wanted.y+h<=v.bottom && !hits(clamp(wanted))) {
+        chosen=clamp(wanted); if(chosen.x!==wanted.x)mode='docked';
+      }
+      if(!chosen || hits(chosen)) {
+        mode='docked';
+        var candidates=[], xs=[center,v.x,v.right-w], ys=[v.y,v.bottom-h,above.y,below.y];
+        if(selectionPosition){xs.push(selectionPosition.x);ys.push(selectionPosition.y);}
+        if(selectionManual){xs.unshift(selectionManual.x);ys.unshift(selectionManual.y);}
+        pts.forEach(function(p){xs.push(p.x-w-22,p.x+22);ys.push(p.y-h-22,p.y+22);});
+        xs.forEach(function(x){ys.forEach(function(y){var p=clamp({x:x,y:y});
+          var target=selectionManual||((large||off)?selectionPosition:null)||{x:center,y:v.y};
+          p.score=hits(p)*100000+Math.hypot(p.x-target.x,p.y-target.y);
+          if(large && !selectionManual && p.y!==v.y && p.y!==v.bottom-h)p.score+=10000;
+          candidates.push(p);
+        });});
+        candidates.sort(function(a,b){return a.score-b.score;});chosen=candidates[0];
+      }
+      if(selectionPosition && !selectionDrag && !down && (Math.abs(selectionPosition.x-chosen.x)>1 || Math.abs(selectionPosition.y-chosen.y)>1)) {
+        selectionSlot.classList.add('repositioning');
+        clearTimeout(selectionSlot.motionTimer);
+        selectionSlot.motionTimer=setTimeout(function(){selectionSlot.classList.remove('repositioning');},300);
+      }
+      selectionPosition={x:chosen.x,y:chosen.y}; selectionSlot.dataset.mode=mode;
+      selectionSlot.style.left=chosen.x+'px';selectionSlot.style.top=chosen.y+'px';
+      // In a viewport too small for a clear rectangle, cut out protected hit areas.
+      // Clip paths also exclude pointer hits, so handles remain reachable underneath.
+      var cuts=[];
+      if(hits(chosen)) {
+        pts.forEach(function(p){cuts.push({x:p.x-20,y:p.y-20,w:40,h:40});});
+        edges.forEach(function(e){var n=Math.ceil(Math.hypot(e[1].x-e[0].x,e[1].y-e[0].y)/8);n=Math.min(n,2000);
+          for(var i=0;i<=n;i++){var t=n?i/n:0;var x=e[0].x+(e[1].x-e[0].x)*t,y=e[0].y+(e[1].y-e[0].y)*t;
+            if(x>chosen.x-12&&x<chosen.x+w+12&&y>chosen.y-12&&y<chosen.y+h+12)cuts.push({x:x-10,y:y-10,w:20,h:20});}
+        });
+      }
+      var strips=[{x:0,y:0,w:w,h:h}];
+      cuts.forEach(function(c){var next=[];c={x:c.x-chosen.x,y:c.y-chosen.y,w:c.w,h:c.h};
+        strips.forEach(function(a){var l=Math.max(a.x,c.x),t=Math.max(a.y,c.y),rr=Math.min(a.x+a.w,c.x+c.w),bb=Math.min(a.y+a.h,c.y+c.h);
+          if(l>=rr||t>=bb){next.push(a);return;}
+          if(t>a.y)next.push({x:a.x,y:a.y,w:a.w,h:t-a.y});
+          if(bb<a.y+a.h)next.push({x:a.x,y:bb,w:a.w,h:a.y+a.h-bb});
+          if(l>a.x)next.push({x:a.x,y:t,w:l-a.x,h:bb-t});
+          if(rr<a.x+a.w)next.push({x:rr,y:t,w:a.x+a.w-rr,h:bb-t});
+        });strips=next;
+      });
+      selbar.style.clipPath=cuts.length?'path("'+strips.map(function(a){return 'M'+a.x+' '+a.y+'h'+a.w+'v'+a.h+'h-'+a.w+'Z';}).join(' ')+'")':'';
       placeSelectionPopover();
     }
     function placeSelectionPopover() {
       if (!selectionPop || selectionPop.hidden || !selectionAnchor) return;
-      var a = selectionAnchor.getBoundingClientRect(), r = selectionSlot.getBoundingClientRect();
-      var x = Math.max(0, Math.min(r.width - selectionPop.offsetWidth, a.left - r.left + a.width / 2 - selectionPop.offsetWidth / 2));
-      selectionPop.style.left = Math.round(x) + 'px';
+      var a=selectionAnchor.getBoundingClientRect(),r=selectionSlot.getBoundingClientRect(),v=stage.getBoundingClientRect();
+      var x=Math.max(0,Math.min(r.width-selectionPop.offsetWidth,a.left-r.left+a.width/2-selectionPop.offsetWidth/2));
+      selectionPop.style.left=Math.round(x)+'px';
+      var below=Math.min(v.bottom,window.innerHeight)-r.bottom-12,above=r.top-Math.max(v.top,0)-12;
+      var up=below<selectionPop.scrollHeight+8&&above>below;
+      selectionPop.style.top=up?'auto':'calc(100% + var(--selection-pop-gap))';
+      selectionPop.style.bottom=up?'calc(100% + var(--selection-pop-gap))':'auto';
+      selectionPop.style.maxHeight=Math.max(40,(up?above:below)-8)+'px';
     }
     function rotateSelection(degrees) {
       if (!sel || selMode || !Number.isFinite(degrees)) return;
