@@ -1724,3 +1724,22 @@ select.p-field {
 }
 .site-header .doc-status i { flex: none; }
 .site-header .doc-status span { display: inline; }
+
+/* App chrome is operated, not selected. Include body-mounted menus and tooltips. */
+body, body :where(*) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* Keep native text editing, copying and pasting in actual editable fields. */
+body input:not([type]),
+body input:is([type="text"], [type="number"], [type="search"], [type="email"], [type="url"], [type="tel"], [type="password"]),
+body textarea,
+body [contenteditable]:not([contenteditable="false"]),
+body [contenteditable]:not([contenteditable="false"]) * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+body svg, body img { -webkit-user-drag: none; }
+input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-select: none; }
