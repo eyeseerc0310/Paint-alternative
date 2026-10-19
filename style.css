@@ -22,9 +22,9 @@
   --hover-strong: rgba(0, 0, 0, .08);
   --selected: rgba(0, 0, 0, .06);
   --outline: rgba(0, 0, 0, .28);
-  --chip: #1d1d1f; /* (the tool in hand: a solid chip, its icon in --chip-text) */
-  --chip-text: #ffffff;
-  --chip-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 6px 14px -4px rgba(0, 0, 0, .35);
+  --chip: var(--hover-strong); /* shared neutral selected toolbar background */
+  --chip-text: var(--text);
+  --chip-shadow: none;
   --focus: rgba(0, 113, 227, .5); /* (the keyboard's focus ring: Apple's blue, never the red of an action) */
   --switch-on: #34c759; /* (an on/off switch that's on, as on iPhone and iPad) */
   --rail: rgba(0, 0, 0, .1); /* (a slider's track, and a switch that's off) */
@@ -139,9 +139,9 @@
   --hover-strong: rgba(255, 255, 255, .12);
   --selected: rgba(255, 255, 255, .08);
   --outline: rgba(255, 255, 255, .34);
-  --chip: #f2f2f7;
-  --chip-text: #111113;
-  --chip-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 16px -4px rgba(0, 0, 0, .6);
+  --chip: var(--hover-strong);
+  --chip-text: var(--text);
+  --chip-shadow: none;
   --control: #d9d9de;
   --focus: rgba(10, 132, 255, .6);
   --switch-on: #30d158;
@@ -1768,3 +1768,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 :root { --dur-flip: .6s; --ease-flip: cubic-bezier(.45, 0, .55, 1); }
 .ui-flipping body { overflow: hidden; }
 .ui-flipping .paint, .ui-flipping .site-header { pointer-events: none; }
+
+/* Toolbar highlights share the tool palette's rounded-square silhouette. */
+.site-header .hb,
+.paint .paint-toolgroups .paint-group > button,
+.paint .paint-bottom > button,
+.paint .selection-toolbar > button { border-radius: var(--r-btn); }
+.site-header .hb:is([aria-expanded="true"], [aria-pressed="true"]),
+.paint .paint-bottom > button:is([aria-expanded="true"], [aria-pressed="true"]),
+.paint .selection-toolbar > button:is([aria-expanded="true"], [aria-pressed="true"]) {
+  color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow);
+}
+@media (hover: hover) {
+  .site-header .hb:is([aria-expanded="true"], [aria-pressed="true"]):hover,
+  .paint .paint-bottom > button:is([aria-expanded="true"], [aria-pressed="true"]):hover,
+  .paint .selection-toolbar > button:is([aria-expanded="true"], [aria-pressed="true"]):hover { background: var(--chip); }
+}
