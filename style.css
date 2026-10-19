@@ -90,6 +90,7 @@
   --icon-sm: 17px;
   --icon-hdr: 19px;
   --stroke: 1.6;
+  --stroke-xs: 2.2; /* (a 12px glyph: a list's chevron, a close X, the fold arrow; so it isn't thinner than the rest) */
   /* motion: quick, easing out like a spring that's settling; --spring
      overshoots a little, for things that pop open */
   --dur-fast: .14s; /* (a knob or swatch answering a touch) */
@@ -749,11 +750,11 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .paint .pl-row button { height: 32px; color: var(--menu-link); }
 @media (hover: hover) { .paint .pl-row button:hover { background: transparent; } }
 .paint .pl-row .pl-eye { width: 32px; flex: none; color: var(--muted); }
-.paint .pl-row .pl-eye svg { width: 16px; height: 16px; }
+.paint .pl-row .pl-eye svg { width: var(--icon-sm); height: var(--icon-sm); }
 .paint .pl-row .pl-name { flex: 1; width: auto; justify-content: flex-start; padding: 0 .4rem; font-size: var(--fs-ui); font-weight: 400; }
 .paint .pl-row.on .pl-name { color: var(--text); font-weight: 600; }
 .pl-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl-tag { flex: none; width: 12px; height: 12px; margin-left: var(--s-1); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: .7; }
+.pl-tag { flex: none; width: 12px; height: 12px; margin-left: var(--s-1); fill: none; stroke: currentColor; stroke-width: var(--stroke-xs); stroke-linecap: round; opacity: .7; }
 /* the ••• button: the layer's options */
 .paint .pl-row .pl-more { width: 28px; flex: none; color: var(--muted); border-radius: var(--r-2xs); }
  .paint .pl-row .pl-more[aria-expanded="true"] { color: var(--text); background: var(--hover); }
@@ -875,7 +876,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .paint .ctx-btn.ctx-icon { padding: 0; width: 28px; }
 .paint .ctx-btn[aria-expanded="true"] { background: var(--hover-strong); }
 .ctx-btn canvas { display: block; width: 46px; height: 20px; }
-.ctx-btn .ctx-chev { width: 12px !important; height: 12px !important; opacity: .55; }
+.ctx-btn .ctx-chev { width: 12px !important; height: 12px !important; stroke-width: var(--stroke-xs); opacity: .55; }
 /* a labelled slider: Smoothing 40 ----o---- */
 .ctx-slider { flex: none; display: flex; align-items: center; gap: var(--s-2); height: 28px; padding: 0 var(--s-2); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 .ctx-slider input[type="range"] { width: 112px; margin: 0; accent-color: var(--control); }
@@ -1018,7 +1019,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   background: var(--panel-solid); color: var(--text); box-shadow: 0 0 0 .5px var(--line), var(--shadow-float);
 }
 @media (hover: hover) { .paint .paint-selx:hover { background: var(--panel-solid); transform: scale(1.1); } }
-.paint .paint-selx svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.paint .paint-selx svg { width: 12px; height: 12px; stroke-width: var(--stroke-xs); }
 .paint-selx[hidden] { display: none !important; }
 /* DISTORT, over the top of a selection: a small pill (a closed padlock while
    the corners move together; tapped, an open one, lit like a pressed button,
@@ -1317,7 +1318,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .ns-row input:focus { box-shadow: var(--ring-focus); }
 .ns-swap { width: 34px; height: 34px; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
 @media (hover: hover) { .ns-swap:hover { background: var(--hover); color: var(--text); } }
-.ns-swap svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ns-swap svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 .ns-unit { padding-bottom: var(--s-2); font-size: var(--fs-sm); color: var(--muted); }
 .ns-row-bg { align-items: center; }
 .ns-lab { font-size: var(--fs-ui); margin-right: 6px; }
@@ -1724,7 +1725,7 @@ select.p-field {
 
 /* Keep the live save status inside the left menu's persistent fold control. */
 .site-header .hdr-fold { width: 100%; gap: var(--s-1); }
-.site-header .hdr-fold > svg { flex: none; width: 12px; height: 12px; }
+.site-header .hdr-fold > svg { flex: none; width: 12px; height: 12px; stroke-width: var(--stroke-xs); }
 .site-header .doc-status {
   position: static; transform: none; flex: 1; min-width: 0; width: auto;
   height: auto; padding: 0; gap: var(--s-1); justify-content: center;

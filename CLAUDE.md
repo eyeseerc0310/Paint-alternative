@@ -39,7 +39,9 @@ When building or changing anything visual:
   the shared `:focus-visible` outline), `--seg-on` with `--seg-shadow` (the
   picked part of a segmented control, in both themes).
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs-ui` (buttons with words, rows, fields), `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
-  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur-fast` (a knob or swatch answering a touch), `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
+  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`, `--stroke-xs` (a 12px glyph: a
+  list's chevron, a close X, the fold arrow, so it isn't drawn thinner than the
+  rest; icons ≥14px keep `--stroke`). Motion: `--dur-fast` (a knob or swatch answering a touch), `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
   (spacing, radius, type size, motion and so on) so later features can reuse it.
 - **Reuse shared component styles** for the same kind of thing (buttons,
