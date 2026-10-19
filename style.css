@@ -1784,3 +1784,13 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   .paint .paint-bottom > button:is([aria-expanded="true"], [aria-pressed="true"]):hover,
   .paint .selection-toolbar > button:is([aria-expanded="true"], [aria-pressed="true"]):hover { background: var(--chip); }
 }
+
+/* Stable status slots prevent longer saving labels crowding the dot or chevron. */
+.site-header .hdr-fold { justify-content: space-between; }
+.site-header .doc-status {
+  display: grid; grid-template-columns: 6px minmax(0, 1fr);
+  align-items: center; justify-content: initial; column-gap: var(--s-1);
+  text-align: left;
+}
+.site-header .doc-status i { display: block; width: 6px; height: 6px; }
+.site-header .doc-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

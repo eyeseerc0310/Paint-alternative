@@ -6390,7 +6390,7 @@
     function docStatus(state) {
       if (!statusEl || statusEl.dataset.state === state) return;
       statusEl.dataset.state = state;
-      statusEl.lastChild.textContent = state === 'saved' ? 'Saved' : state === 'saving' ? 'Saving…' : 'Not saved';
+      statusEl.querySelector('span').textContent = state === 'saved' ? 'Saved' : state === 'saving' ? 'Saving' : 'Not saved';
     }
     var saveTimer = 0, restoring = true, saveGen = 0;
     function db(fn) {
