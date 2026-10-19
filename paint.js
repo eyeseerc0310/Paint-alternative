@@ -664,6 +664,7 @@
       pc.style.left = Math.round(x - br.left) + 'px';
     }
     function picker(which) {
+      if (which && !pc.hidden && pcWhich === which) { minimizeToolMenu(); return; }
       if (which) {
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
@@ -840,7 +841,16 @@
     function toolMenuOpen() {
       return !!(ctxEl && ((!ctxEl.classList.contains('min') && !ctxEl.hidden) || !pc.hidden || !adjBox.hidden || !bsBox.hidden));
     }
+    function minimizeToolMenu() {
+      if (!pc.hidden) picker(null);
+      if (!adjBox.hidden || adj) adjustDone();
+      if (!bsBox.hidden) studio(false);
+      ctxMin(true); ctxAside();
+    }
     function chooseTool(t, repeatOpens) {
+      if (repeatOpens === true && toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'tool' && ctxToolId === t) {
+        minimizeToolMenu(); return;
+      }
       var show = toolMenuOpen() || (repeatOpens !== false && st.tool === t);
       if (show) {
         if (!pc.hidden) picker(null);
@@ -6164,7 +6174,7 @@
       // click after a touch can look just like a key's)
       if (pr) { if (e.detail === 0 && performance.now() - pairPressed > 800) picker(pr.classList.contains('paint-current') ? 'main' : 'second'); return; }
       if (e.target.closest('.paint-swap')) { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
-      if (e.target.closest('.paint-mirror')) { ctxSymView(ctxView !== 'sym'); return; }
+      if (e.target.closest('.paint-mirror')) { if (toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'sym') minimizeToolMenu(); else { if (!pc.hidden) picker(null); if (!adjBox.hidden || adj) adjustDone(); if (!bsBox.hidden) studio(false); ctxSymView(true); } return; }
       var z = e.target.closest('[data-zoom]');
       if (z) { var cx = stage.clientWidth / 2, cy = stage.clientHeight / 2; if (z.dataset.zoom === 'fit') fit(); else zoomStep(z.dataset.zoom === 'in' ? 1 : -1); return; }
       var sa = e.target.closest('[data-sel]'); if (sa) { if (adj) adjustDone(true); selAction(sa.dataset.sel); return; }
@@ -6187,7 +6197,7 @@
     // the actions behind the buttons (some in the top bar, some here)
     function runAct(w) {
       if (w === 'layers') { openMenu(null); closeDrops(); savePanel(false); layerPanel(panel.hidden); }
-      else if (w === 'adjust') adjustOpen();
+      else if (w === 'adjust') { if (!adjBox.hidden) minimizeToolMenu(); else adjustOpen(); }
       else if (w === 'undo') doUndo();
       else if (w === 'redo') doRedo();
       else if (w === 'clear') {
@@ -6855,7 +6865,7 @@
     settingsBox.setAttribute('role', 'menu');
     settingsBox.setAttribute('aria-label', 'Settings');
     function uiFlipped() { return document.documentElement.classList.contains('ui-flipped'); }
-    function flipUI() {
+    function applyUIFlip() {
       var floating = [ctxEl, pc, adjBox].map(function (el) { return { el: el, rect: el.getBoundingClientRect() }; });
       document.documentElement.classList.toggle('ui-flipped');
       storeIt('paint-ui-flipped', uiFlipped());
@@ -6869,6 +6879,55 @@
         var o = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [o.x, o.y]);
       }
       refit(true); relayout();
+    }
+    var uiFlipBusy = false;
+    async function flipUI() {
+      if (uiFlipBusy) return;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) { applyUIFlip(); return; }
+      uiFlipBusy = true;
+      var html = document.documentElement, centre = $('.paint-centre');
+      var panels = [header, left, dock];
+      if (!panel.hidden) panels.push(panel);
+      var animations = [], css = getComputedStyle(html);
+      var duration = parseFloat(css.getPropertyValue('--dur-flip')) * 1000 || 600;
+      var easing = css.getPropertyValue('--ease-flip').trim() || 'ease-in-out';
+      function outside(el) {
+        var r = el.getBoundingClientRect(), lo = r.left, hi = r.right;
+        if (el === dock) [ctxEl, pc, adjBox].forEach(function (p) {
+          if (p.hidden || p.classList.contains('min') || p.classList.contains('aside')) return;
+          var q = p.getBoundingClientRect(); lo = Math.min(lo, q.left); hi = Math.max(hi, q.right);
+        });
+        return (lo + hi) / 2 < innerWidth / 2 ? -hi - 24 : innerWidth - lo + 24;
+      }
+      function motion(el, frames, time, fill) {
+        var a = el.animate(frames, { duration: time, easing: easing, fill: fill || 'none' });
+        animations.push(a); return a.finished.catch(function () {});
+      }
+      html.classList.add('ui-flipping'); hideTip(); ctxClose();
+      try {
+        await Promise.all(panels.map(function (el) {
+          return motion(el, [{ transform: 'translateX(0)', opacity: 1 }, { transform: 'translateX(' + outside(el) + 'px)', opacity: 0 }], duration / 2, 'forwards');
+        }));
+        var before = centre.getBoundingClientRect();
+        var controls = Array.from(bbar.children).filter(function (el) { return !el.hidden; }).map(function (el) { return { el: el, x: el.getBoundingClientRect().left }; });
+        animations.forEach(function (a) { a.cancel(); }); animations = [];
+        applyUIFlip();
+        var dx = before.left - centre.getBoundingClientRect().left;
+        controls.forEach(function (q) { q.shift = q.x - q.el.getBoundingClientRect().left - dx; });
+        var pending = [motion(centre, [{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(0)' }], duration)];
+        controls.forEach(function (q) {
+          var shift = q.shift;
+          pending.push(motion(q.el, [{ transform: 'translateX(' + shift + 'px)' }, { transform: 'translateX(0)' }], duration));
+        });
+        panels.forEach(function (el) {
+          pending.push(motion(el, [{ transform: 'translateX(' + outside(el) + 'px)', opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], duration));
+        });
+        await Promise.all(pending);
+      } finally {
+        animations.forEach(function (a) { a.cancel(); });
+        html.classList.remove('ui-flipping'); uiFlipBusy = false;
+        refit(true); relayout();
+      }
     }
     function settingsMenu() {
       var open = settingsBox.hidden;
