@@ -401,7 +401,7 @@
     function besideBar(el, btn) {
       if (!btn) return;
       var r = btn.getBoundingClientRect(), bar = btn.closest('.paint-bar') || btn, b = bar.getBoundingClientRect(), vw = document.documentElement.clientWidth, g = narrow() ? 6 : 10;
-      var x = b.right + g;
+      var x = uiFlipped() ? b.left - el.offsetWidth - g : b.right + g;
       el.style.left = Math.round(Math.max(8, Math.min(vw - el.offsetWidth - 8, x))) + 'px';
       el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
       keepOnScreen(el);
@@ -6728,6 +6728,7 @@
       if (!btn.offsetParent && hb('more')) btn = hb('more'); // (on a phone the button is in the ••• menu)
       btn = hdrBtn(btn);
       var r = btn.getBoundingClientRect();
+      el.style.left = 'auto';
       el.style.top = Math.round(r.bottom + 8) + 'px';
       el.style.right = Math.round(Math.max(8, document.documentElement.clientWidth - r.right - 4)) + 'px';
     }
@@ -6853,13 +6854,29 @@
     var settingsBox = dropdown('paint-settings');
     settingsBox.setAttribute('role', 'menu');
     settingsBox.setAttribute('aria-label', 'Settings');
+    function uiFlipped() { return document.documentElement.classList.contains('ui-flipped'); }
+    function flipUI() {
+      var floating = [ctxEl, pc, adjBox].map(function (el) { return { el: el, rect: el.getBoundingClientRect() }; });
+      document.documentElement.classList.toggle('ui-flipped');
+      storeIt('paint-ui-flipped', uiFlipped());
+      if (!ctxLocked) {
+        floating.forEach(function (q) {
+          if (q.el.hidden || !q.rect.width) return;
+          q.el.style.translate = '';
+          var base = q.el.getBoundingClientRect();
+          q.el.style.translate = (document.documentElement.clientWidth - q.rect.right - base.left) + 'px ' + (q.rect.top - base.top) + 'px';
+        });
+        var o = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [o.x, o.y]);
+      }
+      refit(true); relayout();
+    }
     function settingsMenu() {
       var open = settingsBox.hidden;
       closeDrops();
       if (!open) return;
       otherPopovers();
       var theme = header.querySelector('.theme-toggle');
-      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button>';
+      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>';
       settingsBox.hidden = false;
       hb('settings').setAttribute('aria-expanded', 'true');
       placeDrop(settingsBox, hb('settings'));
@@ -6879,6 +6896,8 @@
       var b = e.target.closest('[data-setting]'); if (!b) return;
       closeDrops(); hb('settings').focus();
       if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
+      else if (b.dataset.setting === 'gestures') gestureSheet();
+      else if (b.dataset.setting === 'flip') flipUI();
       else helpSheet();
     });
     // FOCUS MODE: just the picture. The bars fade away and the picture gets
@@ -7127,9 +7146,8 @@
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
-        '</div><div class="pa-sheet-acts"><button type="button" data-gestures>Touch Gestures\u2026</button><button type="button" class="pa-primary" data-close>Done</button></div>');
+        '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
-      sheetEl.querySelector('[data-gestures]').addEventListener('click', gestureSheet);
     }
 
     // ---- SHARE: the picture as a PNG, to Messages, Photos, Mail... (or,
@@ -7455,8 +7473,9 @@
       if (el.parentNode !== dock) return;
       if (ctxLocked || el.hidden) { el.style.translate = ''; return; }
       var o = panelOffset(ctxEl), d = dock.getBoundingClientRect(), W = paintEl.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
-      var x = Math.max(W.left, Math.min(W.right - w, d.right - w + o.x)), y = Math.max(W.top, Math.min(W.bottom - h, d.top + o.y));
-      el.style.translate = Math.round(x - (d.right - w)) + 'px ' + Math.round(y - d.top) + 'px';
+      var anchor = uiFlipped() ? d.left : d.right - w;
+      var x = Math.max(W.left, Math.min(W.right - w, anchor + o.x)), y = Math.max(W.top, Math.min(W.bottom - h, d.top + o.y));
+      el.style.translate = Math.round(x - anchor) + 'px ' + Math.round(y - d.top) + 'px';
     }
     // Locking returns the settings to their place without changing their folded state.
     function lockToggle() {
@@ -7922,6 +7941,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
   document.addEventListener('pageswap:done', setup);
 })();
+
 
 
 

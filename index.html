@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="style.css?v=ui-selection-20261019">
+  <link rel="stylesheet" href="style.css?v=flip-ui-20261019">
   <link rel="stylesheet" href="color-controls.css?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -27,6 +27,7 @@
     try { savedTheme = localStorage.getItem('theme-choice'); } catch (e) {}
     var wantDark = savedTheme ? savedTheme === 'dark' : window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
     if (wantDark) document.documentElement.setAttribute('data-theme', 'dark');
+    try { if (localStorage.getItem('paint-ui-flipped') === 'true') document.documentElement.classList.add('ui-flipped'); } catch (e) {}
     document.documentElement.classList.add('js');
     if (navigator.maxTouchPoints > 0) document.documentElement.classList.add('touch');
     // (the top bar starts folded to a thin strip, unless it was left open)
@@ -144,7 +145,7 @@
       </div>
     </section>
   </main>
-  <script src="paint.js?v=ui-selection-20261019"></script>
+  <script src="paint.js?v=flip-ui-20261019"></script>
   <script src="color-controls.js?v=2" defer></script>
 
   <script>
@@ -152,6 +153,7 @@
   </script>
 </body>
 </html>
+
 
 
 

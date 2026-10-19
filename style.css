@@ -1743,3 +1743,25 @@ body [contenteditable]:not([contenteditable="false"]) * {
 }
 body svg, body img { -webkit-user-drag: none; }
 input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-select: none; }
+
+
+/* Handedness changes layout only: artwork and icons keep their orientation. */
+.ui-flipped .site-header { left: auto; right: var(--edge); }
+.ui-flipped .paint { flex-direction: row-reverse; }
+.ui-flipped .paint-dock { margin-left: 0; margin-right: calc(-1 * var(--pgap)); }
+.ui-flipped .paint.dock-on .paint-dock { margin-right: 0; }
+.ui-flipped .paint-bottom { flex-direction: row-reverse; }
+.ui-flipped .paint-bottom .paint-settings-toggle { margin-left: 0; margin-right: var(--s-2); }
+.settings-check { margin-left: auto; color: var(--muted); }
+.ui-flipped.focus-mode .paint-left { margin-right: 0; margin-left: calc(-1 * var(--bar)); transform: translateX(calc(100% + 2 * var(--edge))); }
+.ui-flipped.focus-mode .paint .paint-dock { margin-left: 0; margin-right: calc(-1 * var(--pgap)); }
+@media (min-width: 561px) {
+  .ui-flipped .paint-dock > .paint-ctx,
+  .ui-flipped .paint-dock > .paint-colorpanel,
+  .ui-flipped .paint-dock > .paint-adjust { left: 0; right: auto; }
+}
+@media (max-width: 560px) {
+  .ui-flipped .paint-dock { left: 0; right: calc(var(--bar) + var(--pgap)); margin: 0; }
+  .ui-flipped .paint-ctx { left: auto; right: 6px; }
+  .ui-flipped .paint-left .paint-adjust { left: auto; right: calc(100% + 6px); }
+}
