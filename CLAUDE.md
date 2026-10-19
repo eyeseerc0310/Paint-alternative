@@ -30,7 +30,12 @@ When building or changing anything visual:
   checkerboard), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`. Glass:
   `--glass`. Radii: `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button).
+  States: `--disabled` (how faint anything greyed out is, once: a group that's
+  greyed out doesn't grey its parts again), `--ring-picked` (with `--selected`,
+  a picked item in a list or panel), `--ring-focus` (a focused field; elsewhere
+  the shared `:focus-visible` outline), `--seg-on` with `--seg-shadow` (the
+  picked part of a segmented control, in both themes).
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
   `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`. Motion: `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
