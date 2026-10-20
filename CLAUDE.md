@@ -279,7 +279,8 @@ When building or changing anything visual:
   (`.paint-bar` > `.paint-toolgroups` > `.paint-group`, so the same glass,
   corners, buttons, dividers and sizes everywhere), never over the picture.
   `placeSelectionToolbar` puts it under the toolbar wherever that is (the
-  top menu folding, frame by frame; the sides swapped; the window resized)
+  top menu folding, frame by frame; the sides swapped, sliding out and in
+  with the other bars in `flipUI`; the window resized)
   and caps its height at the bottom of the picture's space: its buttons
   scroll past that. Its options (Feather, Expand, Rotate, Transform with
   Scale and Distort, More) open beside it, towards the picture, level with

@@ -7107,6 +7107,8 @@
       var html = document.documentElement, centre = $('.paint-centre');
       var panels = [header, left, dock];
       if (!panel.hidden) panels.push(panel);
+      // (the selection panel goes with the left toolbar, as they all do)
+      if (selectionSlot && selectionSlot.classList.contains('on')) panels.push(selectionSlot);
       var animations = [], css = getComputedStyle(html);
       var duration = parseFloat(css.getPropertyValue('--dur-flip')) * 1000 || 600;
       var easing = css.getPropertyValue('--ease-flip').trim() || 'ease-in-out';
