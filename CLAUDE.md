@@ -103,6 +103,10 @@ When building or changing anything visual:
   rest, and `fitTo` fits the picture with the same margin of the dotted well
   all round. A tool's own settings go in the **context bar** (`.paint-ctx`,
   built per tool by `CTX` in `paint.js`), and so do a selection's actions.
+  A tool with nothing to set (Fill, the colour picker, Move) has no `CTX`
+  entry: picking it hides the panel without folding it (the dock keeps its
+  room, so nothing moves; the bottom bar's settings toggle greys out), and
+  the next tool's settings come back (`bare` in `chooseTool`).
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
   as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
   settings as switches), so it never covers the picture, while it's
@@ -220,9 +224,15 @@ When building or changing anything visual:
   hand. The Pencil's eraser end rubs out, its barrel button picks a colour.
   A still click or tap on the empty space around the picture puts the tool
   down (`st.tool` is `'none'`, from `offTap`; a stroke that starts there still
-  paints, and an open selection, words or path is dealt with first): no tool
-  button is lit, a drag moves the picture, and picking a colour takes up the
-  brush. New tools mustn't assume a tool is always in hand.
+  paints; words, a path, a cutout or a gradient being made are dealt with
+  first): no tool button is lit, a drag moves the picture, and picking a
+  colour takes up the brush. An open selection stays exactly as it is
+  (`setTool('none')` neither commits nor lays it down; a press on it or on
+  its handles off the edge isn't an empty-space tap, so the tool in hand
+  still works it; picking a tool again carries on with it), and once the Pencil's in use a finger's tap there
+  still puts the tool down (its drag does nothing). Tapping a tool's button
+  again folds its settings only while that tool is in hand. New tools
+  mustn't assume a tool is always in hand.
 - **The pen's path** has steps of its own while it's being made
   (`pen.hist`/`pen.fut`, kept with `penRecord`): each point placed, point or
   handle moved, close or Backspace is one step, and undo/redo take those
@@ -279,11 +289,28 @@ When building or changing anything visual:
   (`manipulating`), never while the picture is moved or zoomed. Its groups:
   what's picked and its edge (Select All, Invert, Feather, Expand), where it
   is and which way round (Transform, Rotate, the flips), what's done with it
-  (Duplicate, Delete, Deselect, More); then, at its foot (`.selection-foot`,
+  (Copy, Delete, Deselect, More; More also has Paste, and Duplicate to New
+  Layer, `data-sel="duplicate"`); then, at its foot (`.selection-foot`,
   outside the scrolling groups, so always in view), **Commit**
-  (`.selection-commit`, `data-sel="done"`, solid accent): it lays down
-  whatever's been moved, sized, turned or distorted (`commitSelection`) and
-  closes the selection, touching nothing else.
+  (`.selection-commit`, `data-sel="done"`, solid accent, its word alone,
+  centred by its letters): it lays down whatever's been moved, sized, turned
+  or distorted (`commitSelection`) and closes the selection, touching nothing
+  else. Return does the same wherever the focus is (once; not mid-drag; not
+  in a field, the words being typed, or on a control reached with Tab,
+  `keyNav`, which keeps Return for itself).
+- **Copy and paste:** Copy (`copySel`, the panel, More, ⌘/Ctrl+C) makes the
+  selected pixels as they'd be laid down, moved, sized, turned or distorted,
+  on every picked layer (`selBounds`; `liftFrom(..., true)` when still in
+  place), without changing anything, and keeps them (`selClip`, until the next
+  copy) as well as writing a PNG to the system clipboard where allowed.
+  Paste (`pasteClip`: ⌘/Ctrl+V, More, the selection tool's settings) puts
+  them on a new layer above the current one, where they were, picked up with
+  the Move tool at their own pixels (one 'Paste' step). The paste event takes
+  a picture from the system clipboard (`pasteFile`: the one copied here,
+  matched by its pixels, comes back exact; anything else is added like a
+  dropped picture), and with none, or no event (`pasteWait`), what was copied
+  here (`pasteAny`, which also reads the system clipboard for the buttons
+  when nothing was copied here).
 - **The selection's outline on the screen:** what's lifted is drawn on the
   picture's own sheet (`sov`/`sctx`, clipped at its edges, like the picture),
   but the outline, handles, the round handle, a cutout being drawn and Smart

@@ -860,10 +860,13 @@
       ctxMin(true); ctxAside();
     }
     function chooseTool(t, repeatOpens) {
-      if (repeatOpens === true && toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'tool' && ctxToolId === t) {
+      if (repeatOpens === true && st.tool === t && toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'tool' && ctxToolId === t) {
         minimizeToolMenu(); return;
       }
-      var show = toolMenuOpen() || (repeatOpens !== false && st.tool === t);
+      // (Fill, the colour picker and Move have no settings: they hide the
+      // panel without folding it, so the next tool's settings come back)
+      var bare = ctxView === 'tool' && !CTX[ctxToolId] && !ctxEl.classList.contains('min');
+      var show = toolMenuOpen() || bare || (repeatOpens !== false && st.tool === t);
       if (show) {
         if (!pc.hidden) picker(null);
         if (!adjBox.hidden || adj) adjustDone();
@@ -883,10 +886,11 @@
       if (isBlend(t) && t !== blendTool) { blendTool = t; storeIt('paint-blend-tool', t); comboSync(); }
       var wasBlend = isBlend(st.tool);
       if (wasBlend) blendSave(); else if (isBlend(t)) blendOut = { size: st.size, alpha: st.alpha };
-      if (sel && (sel.auto || sel.text) && t !== 'move') commitSelection();
+      // (putting the tool down leaves a selection exactly as it is)
+      if (sel && (sel.auto || sel.text) && t !== 'move' && t !== 'none') commitSelection();
       if (adj) adjustDone(!showSettings);
       if (textBox) commitText();
-      if (sel && !selTool(t)) anchor();
+      if (sel && !selTool(t) && t !== 'none') anchor();
       st.tool = t;
       if (isBlend(t)) blendLoad(); else if (wasBlend && blendOut) { setSize(blendOut.size); setAlpha(blendOut.alpha); blendOut = null; }
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
@@ -3539,8 +3543,8 @@
       var words = many && (sel.more || sel.items || []).some(function (it) { return it.L.text; });
       Array.prototype.forEach.call((selectionSlot || selbar).querySelectorAll('[data-sel]'), function (b) {
         var k = b.dataset.sel;
-        b.disabled = (t && !/^(rot90|done|delete)$/.test(k)) || (many && (/^(copy|invert|layer)$/.test(k) || (words && /^(fliph|flipv|delete)$/.test(k))));
-        if (/^(all|deselect|done)$/.test(k)) b.disabled = false;
+        b.disabled = (t && !/^(rot90|done|delete|copy|paste)$/.test(k)) || (many && (/^(duplicate|invert|layer)$/.test(k) || (words && /^(fliph|flipv|delete)$/.test(k))));
+        if (/^(all|deselect|done|paste)$/.test(k)) b.disabled = false;
         if (k === 'region-invert') b.disabled = t || many || !!(sel && sel.thing);
         b.title = many && b.disabled ? 'Not with more than one layer picked' : '';
       });
@@ -3637,9 +3641,100 @@
       drawSel(); autosave();
     }
     function selectAll() { if (textBox) commitText(); commitSelection(); need(); sel = { x: 0, y: 0, w: W, h: H, float: null }; selbar.hidden = false; drawSel(); }
+    // COPY: what's selected, as it would be laid down (moved, sized, turned
+    // or distorted; on every picked layer), kept here and put on the system
+    // clipboard as a PNG; nothing on the picture changes. PASTE puts it on a
+    // layer of its own where it was, picked up with the Move tool, at its
+    // own pixels (selClip stays until the next copy, whatever's committed)
+    var selClip = null, pasteWait = 0;
+    // (how the focus last moved: by Tab, or by a press; a
+    // control reached from the keyboard keeps Return for itself)
+    var keyNav = false;
+    document.addEventListener('pointerdown', function () { keyNav = false; }, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Tab') keyNav = true; }, true);
+    function selBounds() {
+      var pts = sel.quad ? quadAbs() : localCorners().map(selWorld), xs = pts.map(function (q) { return q.x; }), ys = pts.map(function (q) { return q.y; });
+      var x0 = Math.floor(Math.min.apply(null, xs) * R), y0 = Math.floor(Math.min.apply(null, ys) * R);
+      var x1 = Math.ceil(Math.max.apply(null, xs) * R), y1 = Math.ceil(Math.max.apply(null, ys) * R);
+      return { x: x0 / R, y: y0 / R, w: Math.max(1, x1 - x0) / R, h: Math.max(1, y1 - y0) / R };
+    }
+    function copySel() {
+      if (!sel || !(sel.w > 0 && sel.h > 0)) return;
+      var cv = document.createElement('canvas'), c, b;
+      if (lifted()) {
+        // (picked up: drawn as it would be put down, past the picture's edge too)
+        b = selBounds(); cv.width = Math.round(b.w * R); cv.height = Math.round(b.h * R);
+        c = cv.getContext('2d', { willReadFrequently: true }); c.setTransform(R, 0, 0, R, -b.x * R, -b.y * R); // (drawn as on a layer, to the pixel)
+        if (sel.more) sel.more.forEach(function (it) { if (it.f) putFloat(c, it.f); }); else putFloat(c);
+      } else if (sel.rot || sel.quad) {
+        // (words being moved and turned: what's on their layer round them)
+        b = selBounds(); cv.width = Math.round(b.w * R); cv.height = Math.round(b.h * R);
+        cv.getContext('2d').drawImage((sel.text || active).cv, -b.x * R, -b.y * R);
+      } else {
+        // (still in place: each picked layer's pixels inside it, as Move would lift them)
+        var its = sel.text ? [{ L: sel.text }] : sel.items || (multi() ? picks() : [active]).map(function (L) { return { L: L }; });
+        b = { x: Math.round(sel.x * R) / R, y: Math.round(sel.y * R) / R, w: Math.max(1, Math.round(sel.w * R)) / R, h: Math.max(1, Math.round(sel.h * R)) / R };
+        cv.width = Math.round(b.w * R); cv.height = Math.round(b.h * R); c = cv.getContext('2d');
+        its.forEach(function (it) { if (it.L) c.drawImage(liftFrom(it.L, it.m || null, true), 0, 0); });
+      }
+      selClip = { cv: cv, x: b.x, y: b.y, w: b.w, h: b.h };
+      // (the system clipboard too, where the browser allows it: a promise
+      // made now, inside the click or key, as Safari needs)
+      try {
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          navigator.clipboard.write([new ClipboardItem({ 'image/png': new Promise(function (ok) { cv.toBlob(ok, 'image/png'); }) })]).catch(function () {});
+        }
+      } catch (x) {}
+      toast('Copied: paste it with ' + CMD.trim() + (MAC ? 'V' : '+V') + ' or Paste');
+    }
+    function pasteClip() {
+      var c = selClip; if (!c) { toast('Nothing copied yet: select something and Copy it'); return; }
+      if (!roomFor()) return;
+      finishWork(); rememberLayers('Paste');
+      var L = makeLayer('Pasted', false); L.ctx.drawImage(c.cv, c.x, c.y, c.w, c.h);
+      layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; mount();
+      var src = document.createElement('canvas'); src.width = c.cv.width; src.height = c.cv.height; src.getContext('2d').drawImage(c.cv, 0, 0);
+      sel = { x: c.x, y: c.y, w: c.w, h: c.h, float: null, whole: true, auto: true, src: src, base: { w: c.w, h: c.h } };
+      setTool('move'); selbar.hidden = false; drawSel();
+      toast('Pasted on a new layer: drag it into place, size or turn it');
+      autosave();
+    }
+    // (a picture on the system clipboard: the one copied here, at its own
+    // pixels, if it's the same; anything else comes in as a picture)
+    function pasteFile(file) {
+      if (!selClip) { addPicture(file, 'paste'); return; }
+      var im = new Image(), url = URL.createObjectURL(file);
+      im.onload = function () {
+        URL.revokeObjectURL(url);
+        var a = selClip.cv, same = im.naturalWidth === a.width && im.naturalHeight === a.height;
+        if (same) {
+          var t = document.createElement('canvas'); t.width = a.width; t.height = a.height; var tx = t.getContext('2d', { willReadFrequently: true }); tx.drawImage(im, 0, 0);
+          var d1 = tx.getImageData(0, 0, a.width, a.height).data, d2 = a.getContext('2d').getImageData(0, 0, a.width, a.height).data, step = Math.max(4, Math.floor(d1.length / 4 / 4000) * 4);
+          for (var i = 0; i < d1.length && same; i += step) if (Math.abs(d1[i + 3] - d2[i + 3]) > 2 || (d2[i + 3] > 32 && (Math.abs(d1[i] - d2[i]) > 6 || Math.abs(d1[i + 1] - d2[i + 1]) > 6 || Math.abs(d1[i + 2] - d2[i + 2]) > 6))) same = false;
+        }
+        if (same) pasteClip(); else addPicture(file, 'paste');
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); pasteClip(); };
+      im.src = url;
+    }
+    // (the Paste buttons: what was copied here; or, with nothing copied
+    // here, a picture from the system clipboard, where it can be read)
+    function pasteAny() {
+      clearTimeout(pasteWait); pasteWait = 0;
+      if (selClip || !(navigator.clipboard && navigator.clipboard.read)) { pasteClip(); return; }
+      navigator.clipboard.read().then(function (items) {
+        for (var i = 0; i < items.length; i++) {
+          var ty = items[i].types.filter(function (t) { return /^image\//.test(t); })[0];
+          if (ty) return items[i].getType(ty).then(function (blob) { addPicture(new File([blob], 'pasted.png', { type: ty }), 'paste'); });
+        }
+        pasteClip();
+      }).catch(function () { pasteClip(); });
+    }
     function selAction(a) {
       if (a === 'all') { selectAll(); return; }
+      if (a === 'paste') { pasteAny(); return; }
       if (!sel) return;
+      if (a === 'copy') { copySel(); return; }
       if (a === 'deselect') { commitSelection(); return; }
       if (a === 'region-invert') { changeSelectionMask('invert', 0); return; }
       if (sel.text && a === 'delete') { var TL = sel.text; clearSel(); active = TL; layerAct('delete'); return; }
@@ -3659,8 +3754,8 @@
         clearSel(); mount(); return;
       }
       if (a === 'delete') { if (!lifted()) lift(); if (sel.more) sel.more.forEach(function (it) { it.f = null; }); sel.float = null; clearSel(); autosave(); return; }
-      if (a === 'copy') {
-        // COPY: the selection is copied onto a new layer just above, picked
+      if (a === 'duplicate') {
+        // DUPLICATE: the selection is copied onto a new layer just above, picked
         // up and ready to move (the original stays where it is)
         if (!roomFor()) return;
         var f;
@@ -6079,16 +6174,21 @@
       // when it lifts: a second finger may be about to land, for undo)
       // (once the Pencil is in use a finger doesn't paint, but it can still
       // take hold of a gradient's handles)
-      if (e.pointerType === 'touch' && fingerDraw === 'pencil' && penSeen && !(st.tool === 'gradient' && grad && gradHit(pos(e), 20 / view.k))) return;
+      var fingerOff = e.pointerType === 'touch' && fingerDraw === 'pencil' && penSeen;
+      if (fingerOff && st.tool === 'gradient' && grad && gradHit(pos(e), 20 / view.k)) fingerOff = false;
       // A CLICK ON THE EMPTY SPACE AROUND THE PICTURE puts the tool down
       // (when it lifts without moving: a stroke may start off the edge).
-      // Something open goes first: a selection, the words being typed, a
-      // path or a cutout being drawn, a selection's corners off the edge.
+      // Work in progress goes first: the words being typed, a path, a
+      // cutout or a gradient being made. A selection stays just as it is,
+      // and pressing on it, or on its handles off the edge, still works it.
+      // (a finger that doesn't paint, once the Pencil's in use, can still
+      // put the tool down; dragged, it does nothing, as before)
       var p0 = pos(e);
-      if (offPic(p0) && !penBtn && !e.altKey && !sel && !textBox && !lassoOn && !(pen && pen.pts.length) && !grad && !cornerAt(p0, e.pointerType !== 'mouse')) {
-        offTap = { id: e.pointerId, s: screen(e), ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
+      if (offPic(p0) && !penBtn && !e.altKey && !(sel && (selMode || inSel(p0))) && !textBox && !lassoOn && !(pen && pen.pts.length) && !grad && !cornerAt(p0, e.pointerType !== 'mouse')) {
+        offTap = { id: e.pointerId, s: screen(e), ev: fingerOff ? null : { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
         return;
       }
+      if (fingerOff) return;
       if (e.pointerType === 'touch') holdOn(e);
       if (e.pointerType === 'touch' && /^(fill|wand)$/.test(st.tool)) {
         tapLater = { id: e.pointerId, ev: { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: e.pointerType, pressure: e.pressure, altKey: false, button: 0 } };
@@ -6139,7 +6239,7 @@
       if (pointers[e.pointerId]) { pointers[e.pointerId] = screen(e); busyMove(e); }
       if (holdG && holdG.id === e.pointerId) { var hs = screen(e); if (Math.hypot(hs.x - holdG.s.x, hs.y - holdG.s.y) > 8) holdOff(); else { holdG.ev.clientX = e.clientX; holdG.ev.clientY = e.clientY; } }
       if (touchWait && touchWait.id === e.pointerId) { var ws = screen(e); if (Math.hypot(ws.x - touchWait.s.x, ws.y - touchWait.s.y) > touchWait.far) waitGo(); }
-      if (offTap && offTap.id === e.pointerId) { var os = screen(e); if (Math.hypot(os.x - offTap.s.x, os.y - offTap.s.y) > (e.pointerType === 'mouse' ? 3 : 6)) { var o = offTap; offTap = null; begin(o.ev); } }
+      if (offTap && offTap.id === e.pointerId) { var os = screen(e); if (Math.hypot(os.x - offTap.s.x, os.y - offTap.s.y) > (e.pointerType === 'mouse' ? 3 : 6)) { var o = offTap; offTap = null; if (o.ev) begin(o.ev); } }
       if (noTap && noTap.id === e.pointerId) { var ns = screen(e); if (Math.hypot(ns.x - noTap.s.x, ns.y - noTap.s.y) > 6) noTap = null; }
       if (e.pointerType === 'pen') lastPen = performance.now();
       // (a mouse button let go of somewhere the page didn't hear it, like over a menu of the browser's own)
@@ -7243,8 +7343,10 @@
     document.addEventListener('paste', function (e) {
       if (!document.contains(root) || sheetEl) return;
       var t = e.target; if (t && (t.isContentEditable || /input|textarea/i.test(t.tagName || ''))) return;
+      clearTimeout(pasteWait); pasteWait = 0;
       var items = (e.clipboardData && e.clipboardData.items) || [];
-      for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { e.preventDefault(); addPicture(items[i].getAsFile(), 'paste'); return; }
+      for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { e.preventDefault(); pasteFile(items[i].getAsFile()); return; }
+      if (selClip) { e.preventDefault(); pasteClip(); }
     });
     function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
     document.addEventListener('dragover', function (e) { if (!hasFiles(e) || !document.contains(root)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; stage.classList.add('drop'); });
@@ -7313,7 +7415,7 @@
       var group = function (title, rows) { return '<div class="hs-group"><div class="hs-h">' + title + '</div>' + rows.map(function (r) { return '<div class="hs-row"><span>' + r[0] + '</span><span>' + k(r[1]) + '</span></div>'; }).join('') + '</div>'; };
       openSheet('hs', '<div class="pa-sheet-title">Keyboard Shortcuts</div><div class="hs-cols">' +
         group('Tools', [['Brush', 'B'], ['Eraser', 'E'], ['Fill', 'F'], ['Gradient', 'G'], ['Colour picker', 'I'], ['Shapes: line', 'L'], ['Shapes', 'R'], ['Text', 'T'], ['Pen', 'P'], ['Blend: smudge', 'S'], ['Blend: blur', 'U'], ['Blend: lighten or darken', 'O'], ['Select: box', 'M'], ['Select: cutout', 'Q'], ['Select: circle', 'C'], ['Select: magic wand', 'W'], ['Move', 'V'], ['Move around', 'H']]) +
-        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Paste a picture', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Finish selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Gradient: lay it down', MAC ? '↩' : 'Enter'], ['Gradient: remove the picked stop', MAC ? '⌫' : 'Del'], ['Close / cancel', 'Esc']]) +
+        group('Edit', [['Undo', CMD + 'Z'], ['Redo', (MAC ? '⇧⌘' : 'Ctrl ') + (MAC ? 'Z' : 'Y')], ['Select all', CMD + 'A'], ['Copy selection', CMD + 'C'], ['Paste (on a new layer)', CMD + 'V'], ['Delete selection', MAC ? '⌫' : 'Del'], ['Commit selection', MAC ? '↩' : 'Enter'], ['Nudge selection', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Finish cutout', MAC ? '↩' : 'Enter'], ['Cutout: last point off', MAC ? '⌫' : 'Backspace'], ['Pen: lay the path down', MAC ? '↩' : 'Enter'], ['Gradient: lay it down', MAC ? '↩' : 'Enter'], ['Gradient: remove the picked stop', MAC ? '⌫' : 'Del'], ['Close / cancel', 'Esc']]) +
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
@@ -7405,8 +7507,7 @@
         copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
         delete: '<path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/>',
         transform: '<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z" fill="var(--panel-solid)"/>',
-        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
-        commit: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
       };
       var button = function (attr, key, label, icon, extra) { return '<button type="button" ' + attr + '="' + key + '" aria-label="' + label + '" data-tip="' + label + '"' + (extra || '') + '>' + svg(icons[icon]) + '</button>'; };
       // (the groups, and their dividers, as in the left toolbar)
@@ -7421,9 +7522,9 @@
         group(button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') +
           button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
           button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"')) +
-        group(button('data-sel', 'copy', 'Duplicate Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
+        group(button('data-sel', 'copy', 'Copy Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
           button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"')) + '</div>' +
-        '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)">' + svg(icons.commit) + '<span aria-hidden="true">Commit</span></button></div>';
+        '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)"><span aria-hidden="true">Commit</span></button></div>';
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
       // Reuse the existing scale and perspective controls, including all their listeners.
@@ -7496,7 +7597,7 @@
       var transform = selectionPop.querySelector('.selection-transform'); transform.hidden = kind !== 'transform';
       var content = document.createElement('div'); content.className = 'selection-pop-content';
       if (kind === 'more') {
-        var rows = [['all','Select All'], ['region-invert','Invert Selection'], ['fliph','Flip Horizontal'], ['flipv','Flip Vertical'], ['rot90','Rotate 90°'], ['invert','Invert Colours'], ['layer','Cut to Layer'], ['done','Commit Selection']];
+        var rows = [['all','Select All'], ['region-invert','Invert Selection'], ['fliph','Flip Horizontal'], ['flipv','Flip Vertical'], ['rot90','Rotate 90°'], ['invert','Invert Colours'], ['copy','Copy'], ['paste','Paste'], ['duplicate','Duplicate to New Layer'], ['layer','Cut to Layer'], ['done','Commit Selection']];
         content.innerHTML = rows.map(function (q) { return '<button type="button" data-sel="' + q[0] + '">' + q[1] + '</button>'; }).join('') +
           '<button type="button" data-selection-more="feather"' + (!selectionCanMask() ? ' disabled' : '') + '>Feather Selection…</button><button type="button" data-selection-more="grow"' + (!selectionCanMask() ? ' disabled' : '') + '>Expand / Contract…</button><button type="button" data-selection-more="rotate">Rotate…</button>';
       } else if (kind === 'transform') {
@@ -7614,6 +7715,8 @@
     function settingsToggleSync() {
       if (!settingsToggle) return;
       var open = toolMenuOpen();
+      // (greyed out for a tool with no settings, while nothing else is open)
+      settingsToggle.disabled = !open && !!ctxEl && ctxEl.hidden;
       settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
       settingsToggle.setAttribute('aria-label', open ? 'Hide tool settings' : 'Show tool settings');
     }
@@ -7708,7 +7811,8 @@
     // (the selection tool's ways, as a segmented control at the top of its panel)
     function selWays(how) {
       return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with">' + SEL_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
-        hint('<b>' + selKindOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>';
+        hint('<b>' + selKindOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>' +
+        '<button type="button" class="ctx-btn" data-ctx="paste" data-tip="Paste what was copied, on a new layer where it was (Ctrl+V)">Paste</button>';
     }
     // (the Shapes tool's kinds: the line, then each shape, in one segmented control)
     function shapeWays() {
@@ -7748,7 +7852,6 @@
           '<button type="button" class="ctx-btn" data-ctx="tpathoff" data-tpath-on data-tip="Take the words off the path, back onto a straight line">' + CI('<path d="M4 17h16"/><path d="M4 11c4-5 12-5 16 0" stroke-dasharray="2 2"/>') + '<span>Straighten</span></button>' +
           '<div data-tpath-off>' + hint('For words along a line, draw it with the Pen, then pick <b>Text on Path</b>') + '</div>';
       },
-      fill: function () { return hint('Tap an area to fill it · or drag a colour onto the picture'); },
       gradient: function () {
         return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Gradient">' + GRAD_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-gk="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[2] + '">' + CI(q[3]) + '</button>'; }).join('') + '</div>' +
           '<span class="ctx-hint" data-gradhint></span>' +
@@ -7759,12 +7862,10 @@
           '<button type="button" class="ctx-btn" data-ctx="gradcancel" data-grad-on data-tip="Let the gradient go (Esc)">Cancel</button>' +
           '<button type="button" class="ctx-btn ctx-done" data-ctx="graddone" data-grad-on data-tip="Lay the gradient down (Return)">Done</button>';
       },
-      picker: function () { return hint('Press on the picture: a loupe shows the colour under it, and letting go picks it \u00b7 or hold <b>Alt</b> with any tool'); },
       select: function () { return selWays('Drag a box round what to select'); },
       lasso: function () { return selWays('Draw round it, or click to place points'); },
       circle: function () { return selWays('Drag an oval round it \u00b7 <b>Shift</b> for a circle'); },
       wand: function () { return selWays('Tap an area of one colour'); },
-      move: function () { return hint('Drag to move what\u2019s on the layer \u00b7 its corners to size it \u00b7 the round handle to turn it'); },
       pen: function () {
         return '<span class="ctx-hint" data-penhint></span>' + sep +
           chip('penstroke', 'Outline', '<path d="M5 18C8 6 16 6 19 18"/>', 'Draw the path as a line, at the brush size') +
@@ -7887,6 +7988,7 @@
     function ctxShow() {
       ctxEl.classList.remove('has-sel');
       ctxEl.hidden = !ctxTool.innerHTML;
+      settingsToggleSync();
       selectionToolbarSync();
     }
     function ctxSync() {
@@ -8040,6 +8142,7 @@
       if (k === 'swap' && grad && st.tool === 'gradient') { gradReverse(); return; }
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
       if (k === 'all') { selectAll(); return; }
+      if (k === 'paste') { pasteAny(); return; }
       if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
       if (b.dataset.ctxSel) { chooseTool(b.dataset.ctxSel, false); return; }
@@ -8072,6 +8175,10 @@
         if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
         if (mod && k === 'y') { e.preventDefault(); doRedo(); return; }
         if (mod && k === 'a') { e.preventDefault(); selectAll(); return; }
+        // (copy what's selected; paste: the paste event brings what's on the
+        // clipboard, and if the browser sends none, what was copied here)
+        if (mod && k === 'c' && !e.shiftKey && sel) { e.preventDefault(); if (!e.repeat) copySel(); return; }
+        if (mod && k === 'v' && !e.shiftKey) { if (!e.repeat) { clearTimeout(pasteWait); pasteWait = setTimeout(pasteAny, 150); } return; }
         if (k === 'alt') { stage.classList.add('picking'); e.preventDefault(); return; }
         // the arrow keys nudge a selection (a pixel at a time; 10 with shift)
         if (sel && !selMode && !mod && /^arrow/.test(k) && e.target.type !== 'range') {
@@ -8105,7 +8212,14 @@
         if (k === 'escape' && !bsBox.hidden) { studio(false); return; }
         if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
-        if (k === 'enter' && sel) { e.preventDefault(); selAction('done'); return; }
+        if (k === 'enter' && sel) {
+          // (Return commits, as the Commit button does, wherever the focus is,
+          // except on a control reached with the keyboard, which keeps it;
+          // once, and not in the middle of a drag)
+          var fb = e.target && e.target.closest && e.target.closest('button, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="option"], [role="switch"]');
+          if (fb && keyNav && !fb.classList.contains('selection-commit')) return;
+          e.preventDefault(); if (!e.repeat && !down && !selMode) selAction('done'); return;
+        }
         var map = { b: 'brush', e: 'eraser', s: 'smudge', u: 'blur', l: 'line', r: 'shape', f: 'fill', g: 'gradient', t: 'text', m: 'select', q: 'lasso', c: 'circle', w: 'wand', v: 'move', p: 'pen', i: 'picker', h: 'hand', o: 'tone' };
         if (map[k]) chooseTool(map[k], false);
         else if (k === 'a') adjustOpen();
