@@ -6432,7 +6432,9 @@
       if (!document.contains(root)) return;
       if (anyMenu() && !e.target.closest('.paint-brushes, button[data-tool], .paint-mirror')) openMenu(null);
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle') && !stage.contains(e.target)) picker(null);
+      // (the colour picker stays open for the top bar's Settings, its menu,
+      // and the arrow that opens the bar to reach it)
+      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
       if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
@@ -7536,6 +7538,14 @@
         group(button('data-sel', 'delete', 'Delete Selection', 'delete') + button('data-sel', 'deselect', 'Deselect', 'deselect')) + '</div>' +
         '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)"><span aria-hidden="true">Commit</span></button></div>';
       selbar.querySelector('.paint-toolgroups').addEventListener('scroll', selFades, { passive: true });
+      // (an arrow over each edge with more past it: a press scrolls a group's worth)
+      selArrows = ['up', 'down'].map(function (dir) {
+        var a = document.createElement('button'); a.type = 'button'; a.className = 'sel-more sel-more-' + dir; a.tabIndex = -1;
+        a.setAttribute('aria-hidden', 'true'); a.dataset.tip = dir === 'up' ? 'More above' : 'More below';
+        a.innerHTML = svg(dir === 'up' ? '<path d="M6 15l6-6 6 6"/>' : '<path d="M6 9l6 6 6-6"/>');
+        a.addEventListener('click', function () { selStep(dir === 'up' ? -1 : 1); });
+        selbar.appendChild(a); return a;
+      });
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
       // Reuse the existing scale and perspective controls, including all their listeners.
@@ -7586,6 +7596,7 @@
         // to give the panel room; it can be opened again as ever)
         if (on && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
         placeSelectionToolbar();
+        if (on) selNudge();
       }
       if (selbar.hidden === on) selbar.hidden = !on;
       if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
@@ -7625,10 +7636,38 @@
     }
     // (when its buttons don't all fit, the edge with more past it fades, so
     // it reads as something to scroll)
+    var selArrows = null, selNudged = stored('paint-sel-nudged', false);
     function selFades() {
       var g = selbar.querySelector('.paint-toolgroups'); if (!g) return;
-      g.classList.toggle('more-above', g.scrollTop > 1);
-      g.classList.toggle('more-below', g.scrollTop + g.clientHeight < g.scrollHeight - 1);
+      var up = g.scrollTop > 1, dn = g.scrollTop + g.clientHeight < g.scrollHeight - 1;
+      g.classList.toggle('more-above', up); g.classList.toggle('more-below', dn);
+      if (!selArrows) return;
+      selArrows[0].classList.toggle('on', up); selArrows[1].classList.toggle('on', dn);
+      selArrows[0].style.top = (g.offsetTop + 4) + 'px';
+      selArrows[1].style.top = (g.offsetTop + g.clientHeight - selArrows[1].offsetHeight - 4) + 'px';
+    }
+    // (an arrow pressed: the next group past that edge comes fully into view,
+    // clear of the fade)
+    function selStep(dir) {
+      var g = selbar.querySelector('.paint-toolgroups'), top = g.scrollTop, h = g.clientHeight, max = g.scrollHeight - h, gr = g.getBoundingClientRect();
+      var fade = parseFloat(getComputedStyle(g).getPropertyValue('--fade')) || 28, t = top, kids = Array.prototype.slice.call(g.children);
+      var at = function (e) { var r = e.getBoundingClientRect(); return { a: r.top - gr.top + top, b: r.bottom - gr.top + top }; };
+      if (dir > 0) { for (var i = 0; i < kids.length; i++) { var q = at(kids[i]); if (q.b > top + h + 1) { t = Math.max(top + 1, Math.min(q.a - fade, q.b - h + fade)); break; } } }
+      else { for (var j = kids.length - 1; j >= 0; j--) { var w = at(kids[j]); if (w.a < top - 1) { t = Math.min(top - 1, Math.max(w.b - h + fade, w.a - fade)); break; } } }
+      g.scrollTo({ top: Math.max(0, Math.min(max, t)), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+    // (the first time it turns up with more than fits: it scrolls a little
+    // way down and back, once, to show that it does)
+    function selNudge() {
+      if (selNudged || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var g = selbar.querySelector('.paint-toolgroups');
+      if (!g || g.scrollHeight - g.clientHeight < 8 || g.scrollTop > 0) return;
+      selNudged = true; storeIt('paint-sel-nudged', true);
+      setTimeout(function () {
+        if (!selectionSlot.classList.contains('on') || g.scrollTop > 0) return;
+        g.scrollTo({ top: Math.min(40, g.scrollHeight - g.clientHeight), behavior: 'smooth' });
+        setTimeout(function () { g.scrollTo({ top: 0, behavior: 'smooth' }); }, 560);
+      }, 520);
     }
     function placeSelectionToolbar() {
       if (!selectionSlot) return;

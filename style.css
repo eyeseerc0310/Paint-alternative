@@ -250,6 +250,7 @@ body > * { flex-shrink: 0; }
 @media (pointer: coarse) {
   .paint .paint-zoom button, .paint .pc-icon, .paint .pc-add { position: relative; }
   .paint .paint-zoom button::after, .paint .pc-icon::after, .paint .pc-add::after { content: ""; position: absolute; inset: -6px -2px; }
+  .paint .selection-toolbar .sel-more::after { content: ""; position: absolute; inset: -8px -12px; }
 }
 @media (pointer: coarse) and (min-width: 561px) {
   .paint .paint-ctx:not(.min) .ctx-min, .paint .paint-ctx:not(.min) .ctx-lock, .paint .pc-top .ctx-min, .paint .pc-top .ctx-lock { width: 28px; height: 28px; }
@@ -1639,6 +1640,15 @@ select.p-field {
 /* (its groups take the room above Commit, which stands at its foot) */
 .paint .selection-toolbar > .paint-toolgroups { flex: 1 1 auto; }
 .paint .selection-toolbar > .paint-toolgroups { --fade: 28px; }
+/* (an arrow over an edge with more past it, like the selection's X: press it to scroll a group's worth) */
+.paint .selection-toolbar .sel-more {
+  position: absolute; left: 50%; z-index: 1; width: 24px; height: 24px; padding: 0; margin-left: -12px; border-radius: 50%;
+  background: var(--panel-solid); color: var(--text); box-shadow: 0 0 0 .5px var(--line), var(--shadow-float);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.paint .selection-toolbar .sel-more.on { opacity: 1; pointer-events: auto; }
+@media (hover: hover) { .paint .selection-toolbar .sel-more:hover { background: var(--panel-solid); transform: scale(1.1); } }
+.paint .selection-toolbar .sel-more svg { width: 12px; height: 12px; stroke-width: var(--stroke-xs); }
 .paint .selection-toolbar > .paint-toolgroups.more-below { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); }
 .paint .selection-toolbar > .paint-toolgroups.more-above { -webkit-mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); }
 .paint .selection-toolbar > .paint-toolgroups.more-above.more-below { -webkit-mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); }
