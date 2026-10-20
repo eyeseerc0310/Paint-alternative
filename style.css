@@ -813,6 +813,9 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .pl-grip { flex: none; width: 24px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--muted); cursor: grab; touch-action: none; }
 .pl-grip svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
 .pl-row.dragging { position: relative; z-index: 1; background: var(--panel-solid); box-shadow: var(--shadow-pop); transition: none; }
+/* (held a moment with a finger or the Pencil: lifted, ready to be dragged) */
+.pl-row.lifted { position: relative; z-index: 1; background: var(--panel-solid); box-shadow: var(--shadow-pop); transform: scale(1.02); }
+.paint-layerpanel .pl-row[data-i] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .pl-row.dragging .pl-grip { cursor: grabbing; }
 .pl-input {
   flex: 1; min-width: 0; height: 28px; padding: 0 .5rem; font: inherit; font-size: var(--fs-ui);

@@ -4145,13 +4145,16 @@
       }
       mount(); layerPanel(true); autosave();
     }
-    // reordering: drag a layer by its grip
+    // reordering: drag a layer by its grip (or by its row, see below)
     panel.addEventListener('pointerdown', function (e) {
       var g = e.target.closest('.pl-grip'); if (!g) return;
       e.preventDefault(); e.stopPropagation();
-      var row = g.closest('.pl-row'), list = row.parentNode, y0 = e.clientY;
-      try { g.setPointerCapture(e.pointerId); } catch (x) {}
-      row.classList.add('dragging');
+      reorder(g.closest('.pl-row'), g, e.pointerId, e.clientY);
+    });
+    function reorder(row, g, id, y0) {
+      var list = row.parentNode;
+      try { g.setPointerCapture(id); } catch (x) {}
+      row.classList.remove('lifted'); row.classList.add('dragging');
       function mv(ev) {
         var dy = ev.clientY - y0, prev = row.previousElementSibling, next = row.nextElementSibling;
         if (next && dy > next.offsetHeight / 2) { list.insertBefore(next, row); y0 += next.offsetHeight + 2; }
@@ -4180,7 +4183,34 @@
         layerPanel(true);
       }
       g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+    }
+    // ...or by the row itself: with a mouse, a drag up or down (the wheel
+    // scrolls the list); with a finger or the Pencil, a moment's hold lifts
+    // the row and then it follows (a quick drag still scrolls, a swipe right
+    // still picks, and a longer still hold still opens the layer's menu)
+    var lift = null;
+    panel.addEventListener('pointerdown', function (e) {
+      var row = e.target.closest('.pl-row[data-i]'); lift = null;
+      if (!row || e.button || e.target.closest('.pl-grip, .pl-more, .pl-eye, input, select')) return;
+      lift = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse', up: false, t: 0 };
+      if (!lift.mouse) { var L = lift; L.t = setTimeout(function () { if (lift === L) { L.up = true; row.classList.add('lifted'); } }, 280); }
     });
+    panel.addEventListener('pointermove', function (e) {
+      var L = lift; if (!L || e.pointerId !== L.id) return;
+      if (!lmenu.hidden) { clearTimeout(L.t); L.row.classList.remove('lifted'); lift = null; return; } // (the hold opened its menu)
+      var dx = e.clientX - L.x, dy = e.clientY - L.y, far = Math.hypot(dx, dy);
+      if (L.mouse ? far > 6 && Math.abs(dy) > Math.abs(dx) : L.up && far > 4) {
+        lift = null; clearTimeout(L.t); clearTimeout(holdTimer); swipe = null; hidePeek();
+        reorderDone = performance.now() + 1e9; reorder(L.row, L.row, L.id, L.y);
+        L.row.addEventListener('pointerup', function () { reorderDone = performance.now(); }, { once: true });
+      } else if (!L.up && (L.mouse ? Math.abs(dx) > 6 : far > 8)) { lift = null; clearTimeout(L.t); }
+    });
+    ['pointerup', 'pointercancel'].forEach(function (t) { panel.addEventListener(t, function () { if (lift) { clearTimeout(lift.t); lift.row.classList.remove('lifted'); lift = null; } }); });
+    // (once lifted, a finger's drag moves the row rather than scrolling the list)
+    panel.addEventListener('touchmove', function (e) { if ((lift && lift.up) || panel.querySelector('.pl-row.dragging')) e.preventDefault(); }, { passive: false });
+    // (the click at the end of a drag isn't a tap on the row, or a rename)
+    var reorderDone = 0;
+    panel.addEventListener('click', function (e) { if (performance.now() - reorderDone < 400 && e.target.closest('.pl-row')) { e.stopPropagation(); e.preventDefault(); } }, true);
     function layerAct(a) {
       if (multi() && (a === 'group' || a === 'delete')) { multiOption('m-' + a); return; }
       if (sel) commitSelection();
