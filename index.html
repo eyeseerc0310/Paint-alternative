@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="style.css?v=selection-panel-20261020">
+  <link rel="stylesheet" href="style.css?v=sel-bounds-20261020">
   <link rel="stylesheet" href="color-controls.css?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -117,6 +117,7 @@
             <canvas class="paint-over" aria-hidden="true"></canvas>
             <canvas class="paint-selov" aria-hidden="true"></canvas>
           </div>
+          <canvas class="paint-selui" aria-hidden="true"></canvas>
           <button type="button" class="paint-selx" hidden aria-label="Close the selection" data-tip="Close the selection (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>
           <button type="button" class="paint-seldist" hidden aria-pressed="false" data-tip="Distort: drag each corner on its own"><svg class="sd-on" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M8.75 10.5V8a3.25 3.25 0 0 1 6.5 0v2.5"/></svg><svg class="sd-off" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M8.75 10.5V8a3.25 3.25 0 0 1 6.3-1.1"/></svg><span>Distort</span></button>
           <div class="paint-scale" role="group" aria-label="Scale" hidden><label for="paint-scale-in">Scale</label><input id="paint-scale-in" class="ps-in" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" maxlength="6" value="100" data-tip="Type a size: 100% is its own size, 200% twice as big, 50% half (the arrow keys go up and down)"><i aria-hidden="true">%</i><button type="button" class="ps-lock" aria-pressed="true" aria-label="Keep proportions" data-tip="Keep proportions: the corners size it without stretching (hold Shift to stretch it)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1"/><path d="M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/></svg></button></div>
@@ -145,7 +146,7 @@
       </div>
     </section>
   </main>
-  <script src="paint.js?v=selection-panel-20261020"></script>
+  <script src="paint.js?v=sel-bounds-20261020"></script>
   <script src="color-controls.js?v=2" defer></script>
 
   <script>

@@ -275,7 +275,25 @@ When building or changing anything visual:
   Scale and Distort, More) open beside it, towards the picture, level with
   their button, inside the picture's space (`placeSelectionPopover`). A
   selection turning up folds the top menu (`headerOpen(false)`, once), and it
-  fades while the selection itself is moved, sized or turned (`manipulating`).
+  fades only while the selection itself is moved, sized or turned
+  (`manipulating`), never while the picture is moved or zoomed. Its groups:
+  what's picked and its edge (Select All, Invert, Feather, Expand), where it
+  is and which way round (Transform, Rotate, the flips), what's done with it
+  (Duplicate, Delete, Deselect, More); then, at its foot (`.selection-foot`,
+  outside the scrolling groups, so always in view), **Commit**
+  (`.selection-commit`, `data-sel="done"`, solid accent): it lays down
+  whatever's been moved, sized, turned or distorted (`commitSelection`) and
+  closes the selection, touching nothing else.
+- **The selection's outline on the screen:** what's lifted is drawn on the
+  picture's own sheet (`sov`/`sctx`, clipped at its edges, like the picture),
+  but the outline, handles, the round handle, a cutout being drawn and Smart
+  Guides' lines are drawn on `.paint-selui`, a sheet the stage's size, through
+  the view (`uiSheet`, `drawSelUi`; `drawLasso`), so they reach past the
+  picture into the workspace, where they can still be taken hold of.
+  `applyView` draws it again, so it stays on what's picked while the picture
+  is moved, zoomed or turned. With a selection open, one finger waits longer
+  (and further) before it starts anything (`touchWait.far`), so a two-finger
+  move of the picture whose fingers land apart doesn't start a new selection.
 - **Transforming a selection:** while something is picked up, each move,
   size, turn or typed size is a step of its own (`sel.hist`/`sel.fut`, kept
   with `selRecord` at the start and `selTrim` at the end of a press), which
@@ -316,7 +334,7 @@ When building or changing anything visual:
   `SNAP_PX` screen pixels, let go past `SNAP_LET`. Layers' boxes come from
   `paintBox` (a small copy, then each edge exactly) and are kept until the
   layer's paint changes (`boxStale` in `push`/`apply`, and `putFloat`). The
-  lines (`snap.lines`) are drawn by `drawSel` on the selection's overlay.
+  lines (`snap.lines`) are drawn by `drawSelUi` on the stage's selection sheet.
 - **Effects run fast three ways**, all from the same settings (`fxParams`):
   the graphics chip (`fxGL*`: WebGL 2, a shader drawing on a stand-in canvas
   in the layer's place, read back once at Done), a worker (`fxWorker`, for
