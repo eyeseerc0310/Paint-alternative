@@ -166,8 +166,16 @@ When building or changing anything visual:
   pick or rename. The drag is followed on the window (moving the row in
   the list drops pointer capture), the row takes every place the pointer
   passed in one move (a step is a row plus the list's gap, changed a little
-  past half a step, so it never bounces), and it never goes under the
-  Background.
+  past half a step, so it never bounces).
+- **The Background** (`bg`: the white paper, opaque, always at the
+  bottom) is where a picture starts, so it's often drawn on. Moving it (a
+  drag, Move Up) or moving a layer under it (a drag, Move Down) lifts its
+  drawing off the paper (`bgLift`): a new layer with the white made
+  see-through (colour to alpha, so a stroke over white comes back exactly,
+  soft edges and all) goes where the Background was put, and the paper,
+  now plain white, stays at the bottom; one undo step brings both back.
+  Blank paper has nothing to lift (`bgBlank`): it stays, and nothing can be
+  dragged under it.
 - **Several layers picked:** `also` holds the layers picked alongside
   `active` (a swipe right on a row, Shift- or Ctrl/⌘-click); `picks()` gives
   them all in stack order. A selection or the Move tool lifts every picked
