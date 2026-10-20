@@ -187,6 +187,17 @@
     var sov = $('.paint-selov'), sctx = sov.getContext('2d'), selx = $('.paint-selx');
     sov.width = ov.width; sov.height = ov.height; sov.style.width = W + 'px'; sov.style.height = H + 'px';
     base(sctx);
+    // (its outline, handles and guides go on a sheet the stage's size, drawn
+    // through the view, so they reach past the picture's edges into the
+    // workspace; what's lifted stays on the picture's own sheet, clipped as before)
+    var selui = $('.paint-selui'), uctx = selui.getContext('2d');
+    function uiSheet() {
+      var d = Math.min(window.devicePixelRatio || 1, 3), w = Math.max(1, Math.round(stage.clientWidth * d)), h = Math.max(1, Math.round(stage.clientHeight * d));
+      if (selui.width !== w || selui.height !== h) { selui.width = w; selui.height = h; }
+      uctx.setTransform(1, 0, 0, 1, 0, 0); uctx.clearRect(0, 0, w, h);
+      var c = Math.cos(view.r) * view.k * d, n = Math.sin(view.r) * view.k * d;
+      uctx.setTransform(c, n, -n, c, view.x * d, view.y * d);
+    }
     var count = 1;
     function makeLayer(name, white) {
       var c = document.createElement('canvas');
@@ -335,6 +346,7 @@
       zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       placeSelectionToolbar();
       if (textBox) placeTextBox();
+      if (lasso && lasso.length) drawLasso(lassoHover); else if (sel && uctx) drawSelUi();
       placeSelX(); placeSelDist(); placeSymHandles(); gridDraw(); if (hoverPick && hoverPick.ev && !down) loupeShow(hoverPick, hoverPick.ev, pos(hoverPick.ev)); if (grad) { gradMarks(); gradZoomed(); }
     }
     // the zoom buttons sit above SAVE; on a phone (no room there) they sit
@@ -2734,26 +2746,26 @@
       return Math.hypot(p.x - lasso[0].x, p.y - lasso[0].y) * view.k <= (touch ? 18 : 10);
     }
     function drawLasso(hover) {
-      sctx.clearRect(0, 0, W, H);
+      uiSheet();
       if (!lasso.length) return;
       var k = view.k, closing = hover && nearStart(hover, false);
-      sctx.save(); sctx.lineWidth = 1.2 / k; sctx.setLineDash([5 / k, 4 / k]);
-      sctx.beginPath(); lasso.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); });
-      if (hover) sctx.lineTo(closing ? lasso[0].x : hover.x, closing ? lasso[0].y : hover.y);
-      sctx.strokeStyle = '#000'; sctx.stroke(); sctx.lineDashOffset = 4.5 / k; sctx.strokeStyle = '#fff'; sctx.stroke();
+      uctx.save(); uctx.lineWidth = 1.2 / k; uctx.setLineDash([5 / k, 4 / k]);
+      uctx.beginPath(); lasso.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); });
+      if (hover) uctx.lineTo(closing ? lasso[0].x : hover.x, closing ? lasso[0].y : hover.y);
+      uctx.strokeStyle = '#000'; uctx.stroke(); uctx.lineDashOffset = 4.5 / k; uctx.strokeStyle = '#fff'; uctx.stroke();
       if (lassoOn) {
         // the corners as small dots, and the first point as a ring to click
         // (it fills in when the pointer is close enough to close the shape)
-        sctx.setLineDash([]);
+        uctx.setLineDash([]);
         lasso.forEach(function (q, i) {
-          if (q.corner && i) { sctx.beginPath(); sctx.arc(q.x, q.y, 2.5 / k, 0, Math.PI * 2); sctx.fillStyle = '#fff'; sctx.fill(); sctx.lineWidth = 1 / k; sctx.strokeStyle = '#141414'; sctx.stroke(); }
+          if (q.corner && i) { uctx.beginPath(); uctx.arc(q.x, q.y, 2.5 / k, 0, Math.PI * 2); uctx.fillStyle = '#fff'; uctx.fill(); uctx.lineWidth = 1 / k; uctx.strokeStyle = '#141414'; uctx.stroke(); }
         });
         var a = lasso[0], r = (closing ? 7 : 5) / k;
-        sctx.beginPath(); sctx.arc(a.x, a.y, r, 0, Math.PI * 2);
-        sctx.fillStyle = closing ? (getComputedStyle(root).getPropertyValue('--accent').trim() || '#ff3b30') : '#fff'; sctx.fill();
-        sctx.lineWidth = 1.5 / k; sctx.strokeStyle = closing ? '#fff' : '#141414'; sctx.stroke();
+        uctx.beginPath(); uctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+        uctx.fillStyle = closing ? (getComputedStyle(root).getPropertyValue('--accent').trim() || '#ff3b30') : '#fff'; uctx.fill();
+        uctx.lineWidth = 1.5 / k; uctx.strokeStyle = closing ? '#fff' : '#141414'; uctx.stroke();
       }
-      sctx.restore();
+      uctx.restore();
     }
     function finishLasso() {
       var xs = lasso.map(function (q) { return q.x; }), ys = lasso.map(function (q) { return q.y; });
@@ -2763,7 +2775,7 @@
       lassoOn = false; lassoHover = null; lasso = []; stage.classList.remove('closing'); toastEl.classList.remove('on');
       selbar.hidden = !sel; selMode = null; down = null; drawSel();
     }
-    function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); drawSel(); }
+    function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); uiSheet(); drawSel(); }
     function selTool(t) { return selKindOf(t) || t === 'move'; }
     // THE SELECTION TOOL: one button, four ways to select (picked in the
     // tool panel, and remembered): a cutout (the first time), a box, a circle
@@ -3106,7 +3118,7 @@
       if ((sel.rot || sel.quad) && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selectionToolbarSync(); selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
+    function clearSel() { if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selectionToolbarSync(); selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); if (!lasso.length) uiSheet(); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
     // A SELECTION'S OWN STEPS: while something is picked up, each move, size,
     // turn (or size typed in Scale) is a step of its own, which undo and redo
     // take first; undone past the first, it goes back down where it was
@@ -3308,49 +3320,63 @@
     function drawSel() {
       sctx.clearRect(0, 0, W, H);
       placeSelX(); selButtons(); scaleSync(); placeSelDist(); selectionToolbarSync();
-      if (!sel) return;
+      if (!sel) { if (!lasso.length) uiSheet(); return; }
       if (sel.text && sel.lifted) placeTextSel();
       if (sel.more) drawMore(); else if (sel.float) putFloat(sctx, null, true);
+      // a wand selection shows as a light blue wash over what's picked (on the picture)
+      if (sel.mask && !sel.thing) {
+        sctx.save(); sctx.globalAlpha = 0.35;
+        if (sel.quad) warpShow(sctx, sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6')));
+        else { if (sel.rot) { var m0 = selMid(); sctx.translate(m0.x, m0.y); sctx.rotate(sel.rot); sctx.translate(-m0.x, -m0.y); } sctx.drawImage(sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6')), sel.x, sel.y, sel.w, sel.h); }
+        sctx.restore();
+      }
+      drawSelUi();
+    }
+    // the outline, handles and Smart Guides' lines, on the stage's sheet
+    // (drawn again whenever the view moves, so they stay on what's picked)
+    function drawSelUi() {
+      uiSheet();
+      if (!sel) return;
       if (sel.thing) { if (snap && snap.lines.length) drawSnapLines(); return; }
       if (sel.quad) { drawQuadSel(); if (snap && snap.lines.length) drawSnapLines(); return; }
       // (the outline and handles are drawn in the box's own frame, turned with it)
       var turned = !!sel.rot;
-      if (turned) { var m0 = selMid(); sctx.save(); sctx.translate(m0.x, m0.y); sctx.rotate(sel.rot); sctx.translate(-m0.x, -m0.y); }
-      // a wand selection shows as a light blue wash over what's picked
-      if (sel.mask) { sctx.save(); sctx.globalAlpha = 0.35; sctx.drawImage(sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6')), sel.x, sel.y, sel.w, sel.h); sctx.restore(); }
-      sctx.save(); sctx.lineWidth = 1 / view.k;
-      var edge = function () { if (sel.poly) outline(sctx, sel.x, sel.y, 1); else { sctx.beginPath(); sctx.rect(sel.x, sel.y, sel.w, sel.h); } sctx.stroke(); };
-      sctx.setLineDash([5 / view.k, 4 / view.k]); sctx.strokeStyle = '#000'; edge();
-      sctx.lineDashOffset = 4.5 / view.k; sctx.strokeStyle = '#fff'; edge();
+      if (turned) { var m0 = selMid(); uctx.save(); uctx.translate(m0.x, m0.y); uctx.rotate(sel.rot); uctx.translate(-m0.x, -m0.y); }
+      uctx.save(); uctx.lineWidth = 1 / view.k;
+      var edge = function () { if (sel.poly) outline(uctx, sel.x, sel.y, 1); else { uctx.beginPath(); uctx.rect(sel.x, sel.y, sel.w, sel.h); } uctx.stroke(); };
+      uctx.setLineDash([5 / view.k, 4 / view.k]); uctx.strokeStyle = '#000'; edge();
+      uctx.lineDashOffset = 4.5 / view.k; uctx.strokeStyle = '#fff'; edge();
       // little squares on the corners: drag one to make it bigger or smaller
       if (selMode !== 'new') {
-        var hs = 7 / view.k; sctx.setLineDash([]); sctx.fillStyle = '#fff'; sctx.strokeStyle = '#141414';
-        localCorners().forEach(function (q) { sctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); sctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); });
+        var hs = 7 / view.k; uctx.setLineDash([]); uctx.fillStyle = '#fff'; uctx.strokeStyle = '#141414';
+        localCorners().forEach(function (q) { uctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); uctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); });
         // (a round handle below the bottom: drag it to turn the selection)
         var tp = { x: sel.x + sel.w / 2, y: sel.y + sel.h }, rh = rotHandleLocal();
-        sctx.beginPath(); sctx.moveTo(tp.x, tp.y); sctx.lineTo(rh.x, rh.y - 5 / view.k); sctx.stroke();
-        sctx.beginPath(); sctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); sctx.fill(); sctx.stroke();
+        uctx.beginPath(); uctx.moveTo(tp.x, tp.y); uctx.lineTo(rh.x, rh.y - 5 / view.k); stem();
+        uctx.beginPath(); uctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); uctx.fill(); uctx.stroke();
       }
-      sctx.restore();
-      if (turned) sctx.restore();
+      uctx.restore();
+      if (turned) uctx.restore();
       if (snap && snap.lines.length) drawSnapLines();
     }
+    // (the round handle's stem, with a soft light edge so it shows on the
+    // dark workspace past the picture too)
+    function stem() { uctx.save(); uctx.strokeStyle = 'rgba(255, 255, 255, .7)'; uctx.lineWidth = 3 / view.k; uctx.stroke(); uctx.restore(); uctx.stroke(); }
     // (distorting: the outline and the wand's wash as the pixels go, a
     // square on each corner to pull it on its own, and the round handle)
     function drawQuadSel() {
-      if (sel.mask) { sctx.save(); sctx.globalAlpha = 0.35; warpShow(sctx, sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6'))); sctx.restore(); }
-      sctx.save(); sctx.lineWidth = 1 / view.k;
+      uctx.save(); uctx.lineWidth = 1 / view.k;
       var pts = sel.poly ? sel.poly.map(function (q) { return selWorld({ x: sel.x + q.x, y: sel.y + q.y }); }) : quadAbs();
-      var edge = function () { sctx.beginPath(); pts.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); sctx.closePath(); sctx.stroke(); };
-      sctx.setLineDash([5 / view.k, 4 / view.k]); sctx.strokeStyle = '#000'; edge();
-      sctx.lineDashOffset = 4.5 / view.k; sctx.strokeStyle = '#fff'; edge();
-      if (sel.poly) { sctx.setLineDash([2 / view.k, 3 / view.k]); sctx.lineDashOffset = 0; sctx.strokeStyle = 'rgba(255, 255, 255, .7)'; var Q = quadAbs(); sctx.beginPath(); Q.forEach(function (q, i) { sctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); sctx.closePath(); sctx.stroke(); }
-      var hs = 8 / view.k, cs = corners(); sctx.setLineDash([]); sctx.fillStyle = '#fff'; sctx.strokeStyle = '#141414';
-      cs.forEach(function (q) { if (q.c !== 'rot') { sctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); sctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); } });
+      var edge = function () { uctx.beginPath(); pts.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); uctx.closePath(); uctx.stroke(); };
+      uctx.setLineDash([5 / view.k, 4 / view.k]); uctx.strokeStyle = '#000'; edge();
+      uctx.lineDashOffset = 4.5 / view.k; uctx.strokeStyle = '#fff'; edge();
+      if (sel.poly) { uctx.setLineDash([2 / view.k, 3 / view.k]); uctx.lineDashOffset = 0; uctx.strokeStyle = 'rgba(255, 255, 255, .7)'; var Q = quadAbs(); uctx.beginPath(); Q.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); uctx.closePath(); uctx.stroke(); }
+      var hs = 8 / view.k, cs = corners(); uctx.setLineDash([]); uctx.fillStyle = '#fff'; uctx.strokeStyle = '#141414';
+      cs.forEach(function (q) { if (q.c !== 'rot') { uctx.fillRect(q.x - hs / 2, q.y - hs / 2, hs, hs); uctx.strokeRect(q.x - hs / 2, q.y - hs / 2, hs, hs); } });
       var rh = cs[4], tm = quadBottom();
-      sctx.beginPath(); sctx.moveTo(tm.x, tm.y); sctx.lineTo(rh.x - tm.n.x * 5 / view.k, rh.y - tm.n.y * 5 / view.k); sctx.stroke();
-      sctx.beginPath(); sctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); sctx.fill(); sctx.stroke();
-      sctx.restore();
+      uctx.beginPath(); uctx.moveTo(tm.x, tm.y); uctx.lineTo(rh.x - tm.n.x * 5 / view.k, rh.y - tm.n.y * 5 / view.k); stem();
+      uctx.beginPath(); uctx.arc(rh.x, rh.y, 5 / view.k, 0, Math.PI * 2); uctx.fill(); uctx.stroke();
+      uctx.restore();
     }
     // (the middle of the top edge, and the way out from it)
     function quadTop() {
@@ -3486,10 +3512,10 @@
     document.addEventListener('paint:theme', function () { snapInk = null; });
     function drawSnapLines() {
       if (!snapInk) snapInk = getComputedStyle(document.documentElement).getPropertyValue('--snap').trim() || '#ff2d78';
-      sctx.save(); sctx.setLineDash([]); sctx.lineCap = 'butt';
+      uctx.save(); uctx.setLineDash([]); uctx.lineCap = 'butt';
       // (a soft light edge under a thin line, so it shows on light and dark paint)
-      snap.lines.forEach(function (l) { sctx.beginPath(); sctx.moveTo(l[0], l[1]); sctx.lineTo(l[2], l[3]); sctx.strokeStyle = 'rgba(255, 255, 255, .55)'; sctx.lineWidth = 3 / view.k; sctx.stroke(); sctx.strokeStyle = snapInk; sctx.lineWidth = 1 / view.k; sctx.stroke(); });
-      sctx.restore();
+      snap.lines.forEach(function (l) { uctx.beginPath(); uctx.moveTo(l[0], l[1]); uctx.lineTo(l[2], l[3]); uctx.strokeStyle = 'rgba(255, 255, 255, .55)'; uctx.lineWidth = 3 / view.k; uctx.stroke(); uctx.strokeStyle = snapInk; uctx.lineWidth = 1 / view.k; uctx.stroke(); });
+      uctx.restore();
     }
     // MOVE ON A TEXT LAYER: the box round its words is moved, sized (keeping
     // its shape) and turned like a selection, and the words are drawn again
@@ -6070,10 +6096,12 @@
       }
       // (one finger waits a moment, or until it moves, before it starts
       // anything: a second finger landing just after makes it a pinch, and
-      // nothing is begun only to be called off)
+      // nothing is begun only to be called off; with a selection open it
+      // waits a little longer, so a two-finger move of the picture whose
+      // fingers land apart doesn't start a new selection or drop this one)
       if (e.pointerType === 'touch') {
-        var ev = { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: 'touch', pressure: e.pressure, altKey: false, button: 0 };
-        touchWait = { id: e.pointerId, ev: ev, s: screen(e), t: setTimeout(waitGo, 70) };
+        var ev = { clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, pointerType: 'touch', pressure: e.pressure, altKey: false, button: 0 }, hold = !!(sel && !sel.thing);
+        touchWait = { id: e.pointerId, ev: ev, s: screen(e), far: hold ? 12 : 6, t: setTimeout(waitGo, hold ? 200 : 70) };
         return;
       }
       // (a Pencil's eraser end rubs out, and its barrel button picks a colour)
@@ -6110,7 +6138,7 @@
     stage.addEventListener('pointermove', function (e) {
       if (pointers[e.pointerId]) { pointers[e.pointerId] = screen(e); busyMove(e); }
       if (holdG && holdG.id === e.pointerId) { var hs = screen(e); if (Math.hypot(hs.x - holdG.s.x, hs.y - holdG.s.y) > 8) holdOff(); else { holdG.ev.clientX = e.clientX; holdG.ev.clientY = e.clientY; } }
-      if (touchWait && touchWait.id === e.pointerId) { var ws = screen(e); if (Math.hypot(ws.x - touchWait.s.x, ws.y - touchWait.s.y) > 6) waitGo(); }
+      if (touchWait && touchWait.id === e.pointerId) { var ws = screen(e); if (Math.hypot(ws.x - touchWait.s.x, ws.y - touchWait.s.y) > touchWait.far) waitGo(); }
       if (offTap && offTap.id === e.pointerId) { var os = screen(e); if (Math.hypot(os.x - offTap.s.x, os.y - offTap.s.y) > (e.pointerType === 'mouse' ? 3 : 6)) { var o = offTap; offTap = null; begin(o.ev); } }
       if (noTap && noTap.id === e.pointerId) { var ns = screen(e); if (Math.hypot(ns.x - noTap.s.x, ns.y - noTap.s.y) > 6) noTap = null; }
       if (e.pointerType === 'pen') lastPen = performance.now();
@@ -7377,21 +7405,25 @@
         copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
         delete: '<path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/>',
         transform: '<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z" fill="var(--panel-solid)"/>',
-        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+        commit: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
       };
       var button = function (attr, key, label, icon, extra) { return '<button type="button" ' + attr + '="' + key + '" aria-label="' + label + '" data-tip="' + label + '"' + (extra || '') + '>' + svg(icons[icon]) + '</button>'; };
       // (the groups, and their dividers, as in the left toolbar)
       var group = function (b) { return '<div class="paint-group">' + b + '</div>'; };
+      // (what's picked and its edge; where it is and which way round; what's
+      // done with it; and, at the foot where it stays in view, Commit, which
+      // lays it down)
       selbar.innerHTML = '<div class="paint-toolgroups">' +
-        group(button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') +
-          button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-sel', 'region-invert', 'Invert Selection', 'invert')) +
-        group(button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
+        group(button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') +
+          button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
           button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"')) +
-        group(button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"') +
+        group(button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') +
           button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
-          button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"')) +
+          button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"')) +
         group(button('data-sel', 'copy', 'Duplicate Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
-          button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"')) + '</div>';
+          button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"')) + '</div>' +
+        '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)">' + svg(icons.commit) + '<span aria-hidden="true">Commit</span></button></div>';
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
       // Reuse the existing scale and perspective controls, including all their listeners.
