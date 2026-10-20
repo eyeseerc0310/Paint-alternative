@@ -7509,24 +7509,33 @@
         copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>',
         delete: '<path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/>',
         transform: '<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z" fill="var(--panel-solid)"/>',
-        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+        more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+        rot90: '<rect x="3.5" y="10" width="10.5" height="10.5" rx="1.5"/><path d="M9.5 4.5H12a8 8 0 0 1 8 8v1.5M17 11.5l3 3 3-3"/>',
+        colours: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>',
+        paste: '<path d="M9 4.5H7.5a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2H15"/><rect x="9" y="3" width="6" height="3.5" rx="1"/>',
+        duplicate: '<path d="M11 3.5l7.5 3.75L11 11 3.5 7.25z"/><path d="M3.5 11.5L11 15.25l2.5-1.25"/><path d="M18 14v7M14.5 17.5h7"/>',
+        cut: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8.2 8.3L20 18M8.2 15.7L20 6"/>'
       };
       var button = function (attr, key, label, icon, extra) { return '<button type="button" ' + attr + '="' + key + '" aria-label="' + label + '" data-tip="' + label + '"' + (extra || '') + '>' + svg(icons[icon]) + '</button>'; };
       // (the groups, and their dividers, as in the left toolbar)
       var group = function (b) { return '<div class="paint-group">' + b + '</div>'; };
-      // (what's picked and its edge; where it is and which way round; what's
-      // done with it; and, at the foot where it stays in view, Commit, which
-      // lays it down)
+      // (what's picked and its edge; what's done to its pixels: where they
+      // are, which way round, their colours; the clipboard and layers; taking
+      // it away or letting it go; and, at the foot where it stays in view,
+      // Commit, which lays it down)
       selbar.innerHTML = '<div class="paint-toolgroups">' +
         group(button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') +
           button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
           button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"')) +
         group(button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') +
           button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
+          button('data-sel', 'rot90', 'Rotate 90°', 'rot90') + button('data-sel', 'invert', 'Invert Colours', 'colours') +
           button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"')) +
-        group(button('data-sel', 'copy', 'Copy Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
-          button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"')) + '</div>' +
+        group(button('data-sel', 'copy', 'Copy Selection', 'copy') + button('data-sel', 'paste', 'Paste', 'paste') +
+          button('data-sel', 'duplicate', 'Duplicate to New Layer', 'duplicate') + button('data-sel', 'layer', 'Cut to Layer', 'cut')) +
+        group(button('data-sel', 'delete', 'Delete Selection', 'delete') + button('data-sel', 'deselect', 'Deselect', 'deselect')) + '</div>' +
         '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)"><span aria-hidden="true">Commit</span></button></div>';
+      selbar.querySelector('.paint-toolgroups').addEventListener('scroll', selFades, { passive: true });
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
       // Reuse the existing scale and perspective controls, including all their listeners.
@@ -7614,13 +7623,24 @@
       selButtons(); if (anchor) anchor.setAttribute('aria-expanded', 'true'); placeSelectionPopover();
       var input = content.querySelector('input'); if (input) { input.focus({ preventScroll: true }); input.select(); }
     }
+    // (when its buttons don't all fit, the edge with more past it fades, so
+    // it reads as something to scroll)
+    function selFades() {
+      var g = selbar.querySelector('.paint-toolgroups'); if (!g) return;
+      g.classList.toggle('more-above', g.scrollTop > 1);
+      g.classList.toggle('more-below', g.scrollTop + g.clientHeight < g.scrollHeight - 1);
+    }
     function placeSelectionToolbar() {
       if (!selectionSlot) return;
       var P = paintEl.getBoundingClientRect(), L = left.getBoundingClientRect(), V = stage.getBoundingClientRect();
       var gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--menu-stack-gap')) || 12;
-      var top = L.bottom + gap, room = Math.max(0, Math.min(V.bottom, window.innerHeight) - top);
+      // (down to the bottom of the colour bar, Commit at its foot; to the
+      // picture's space's when that bar is away, as in focus mode)
+      var B = bbar.getBoundingClientRect(), foot = B.height && B.bottom <= window.innerHeight + 1 ? Math.max(B.bottom, V.bottom) : V.bottom;
+      var top = L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
       selectionSlot.style.left = (L.left - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
-      selectionSlot.style.width = L.width + 'px'; selbar.style.maxHeight = room + 'px';
+      selectionSlot.style.width = L.width + 'px'; selbar.style.height = selbar.style.maxHeight = room + 'px';
+      selFades();
       placeSelectionPopover();
     }
     // (an option opens beside the panel, towards the picture, level with its

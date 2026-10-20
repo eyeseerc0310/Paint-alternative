@@ -1636,6 +1636,12 @@ select.p-field {
 .paint .selection-toolbar[hidden] { display: flex; }
 .paint .selection-toolbar .paint-group > button { width: 40px; height: 40px; padding: 0; border-radius: var(--r-btn); color: var(--menu-link); }
 .paint .selection-toolbar button svg { width: var(--icon); height: var(--icon); }
+/* (its groups take the room above Commit, which stands at its foot) */
+.paint .selection-toolbar > .paint-toolgroups { flex: 1 1 auto; }
+.paint .selection-toolbar > .paint-toolgroups { --fade: 28px; }
+.paint .selection-toolbar > .paint-toolgroups.more-below { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); }
+.paint .selection-toolbar > .paint-toolgroups.more-above { -webkit-mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); }
+.paint .selection-toolbar > .paint-toolgroups.more-above.more-below { -webkit-mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); }
 /* (Commit, at its foot: kept in view below the groups if they scroll, set
    apart by the groups' divider, and solid accent, as a primary action) */
 .paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding-top: var(--group-gap); }
