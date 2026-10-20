@@ -3713,8 +3713,8 @@
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
           '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
-          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 || active.bg ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
-          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) <= (layers[0].bg ? 1 : 0) ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
+          '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
+          '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) < 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
           '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
         '</div>';
     }
@@ -3829,7 +3829,7 @@
         item('merge', 'Merge Down', { off: i === 0 || !L.visible || layers[i - 1].group !== L.group }) + (L.group ? item('leavegroup', 'Remove from Group') : '') +
         '<hr>' + (L.mask ? (L.editMask ? item('editlayer', 'Paint on the Layer') : item('editmask', 'Paint on the Mask')) + item('invertmask', 'Invert Mask') + item('applymask', 'Apply Mask') + item('deletemask', 'Delete Mask', { danger: true }) : item('addmask', sel ? 'Add Mask from Selection' : 'Add Mask')) +
         '<hr>' + item('lock', 'Alpha Lock', { check: L.alphaLock }) + item('clip', 'Clipping Mask', { check: L.clip, off: i === 0 }) +
-        '<hr>' + item('hide', L.visible ? 'Hide' : 'Show') + item('up', 'Move Up', { off: i === n - 1 || L.bg }) + item('down', 'Move Down', { off: i <= lowest }) +
+        '<hr>' + item('hide', L.visible ? 'Hide' : 'Show') + item('up', 'Move Up', { off: i === n - 1 }) + item('down', 'Move Down', { off: i < 1 }) +
         '<hr>' + item('delete', 'Delete', { danger: true });
       lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
       var left = fromRight ? x - lmenu.offsetWidth : x;
@@ -4151,6 +4151,37 @@
       e.preventDefault(); e.stopPropagation();
       reorder(g.closest('.pl-row'), g, e.pointerId, e.clientY);
     });
+    // THE BACKGROUND is the white paper and stays at the bottom; but it's
+    // where a picture starts, so it's often drawn on. Moving it (or moving
+    // a layer under it) moves its drawing instead: lifted off as a layer of
+    // its own, its white made see-through (a stroke laid over white comes
+    // back as itself, soft edges and all), the paper staying where it was
+    function bgBlank(B) {
+      var p = snapOf(B).data;
+      for (var k = 0; k < p.length; k += 4) if (p[k + 3] && (p[k] < 255 || p[k + 1] < 255 || p[k + 2] < 255)) return false;
+      return true;
+    }
+    function bgLift(B, label) {
+      if (bgBlank(B)) { toast('The Background is blank paper, so it stays at the bottom'); return null; }
+      if (sel) commitSelection();
+      push({ parts: [{ L: B, data: snapOf(B), bg: true, text: B.text, name: B.name }, { list: layers.slice(), active: active, props: props() }], label: label });
+      var d = snapOf(B), p = d.data;
+      for (var k = 0; k < p.length; k += 4) {
+        var m = Math.max(255 - p[k], 255 - p[k + 1], 255 - p[k + 2]), a0 = p[k + 3];
+        if (!m || !a0) { p[k + 3] = 0; continue; }
+        var a = m / 255;
+        p[k] = Math.round(255 - (255 - p[k]) / a); p[k + 1] = Math.round(255 - (255 - p[k + 1]) / a); p[k + 2] = Math.round(255 - (255 - p[k + 2]) / a);
+        p[k + 3] = Math.round(m * a0 / 255);
+      }
+      var D = makeLayer('Layer ' + (++count), false);
+      D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.putImageData(d, 0, 0); D.ctx.restore();
+      D.visible = B.visible; D.opacity = B.opacity; D.blend = B.blend; D.group = B.group;
+      B.ctx.save(); B.ctx.setTransform(1, 0, 0, 1, 0, 0); B.ctx.fillStyle = '#fff'; B.ctx.fillRect(0, 0, B.cv.width, B.cv.height); B.ctx.restore();
+      B.text = null; B.opacity = 1; B.blend = 'normal'; B.group = null;
+      if (active === B) active = D;
+      toast('Your drawing on the Background is now ' + D.name + ', so it can move; the white paper stays at the bottom');
+      return D;
+    }
     function reorder(row, g, id, y0, ev0) {
       var list = row.parentNode;
       try { g.setPointerCapture(id); } catch (x) {}
@@ -4158,7 +4189,8 @@
       // (the row takes every place the pointer has passed, however far it
       // went since the last move, and never goes under the white Background)
       var gap = parseFloat(getComputedStyle(list).rowGap) || 0;
-      var isBg = function (r) { return r && r.dataset.i != null && layers[+r.dataset.i] && layers[+r.dataset.i].bg; };
+      var paper = layers[0] && layers[0].bg && bgBlank(layers[0]); // (blank paper: nothing to lift, so nothing goes under it)
+      var isBg = function (r) { return paper && r && r.dataset.i != null && layers[+r.dataset.i] && layers[+r.dataset.i].bg; };
       function mv(ev) {
         if (ev.pointerId !== id) return;
         // (a step is a row and the gap after it; the row changes places a
@@ -4191,8 +4223,12 @@
         var pr = row.previousElementSibling, nx = row.nextElementSibling, inG = function (r) { return r && r.dataset.i != null && layers[+r.dataset.i].group; };
         var Gt = pr && pr.dataset.gid ? (groupOf(pr.dataset.gid) && groupOf(pr.dataset.gid).open ? groupOf(pr.dataset.gid) : null) : inG(pr) && inG(pr) === inG(nx) ? inG(pr) : null;
         // (the white Background always stays at the bottom)
-        var b0 = layers[0]; if (b0.bg && order[0] !== b0) { order.splice(order.indexOf(b0), 1); order.unshift(b0); }
-        if (order.length === layers.length && (order.some(function (L, i) { return L !== layers[i]; }) || M.group !== Gt)) { if (sel) commitSelection(); rememberLayers('Reorder Layers'); layers = order; M.group = Gt; mount(); }
+        // (the Background left the bottom: its drawing goes where it was put,
+        // its paper stays; blank paper just stays)
+        var b0 = layers[0], D = b0.bg && order[0] !== b0 && order.length === layers.length ? bgLift(b0, 'Reorder Layers') : null;
+        if (b0.bg && order[0] !== b0) { var at = order.indexOf(b0); if (D) order[at] = D; else order.splice(at, 1); order.unshift(b0); }
+        if (D) { if (M === b0) M = D; layers = order; M.group = Gt; mount(); }
+        else if (order.length === layers.length && (order.some(function (L, i) { return L !== layers[i]; }) || M.group !== Gt)) { if (sel) commitSelection(); rememberLayers('Reorder Layers'); layers = order; M.group = Gt; mount(); }
         else renderLayers();
         layerPanel(true);
       }
@@ -4246,8 +4282,17 @@
         layers.splice(i, 1);
         active = layers[Math.max(0, i - 1)] || null;
         if (!layers.length) count = 0;
+      } else if (a === 'up' && active && i < layers.length - 1 && active.bg && i === 0) {
+        // (the Background's drawing goes up past the layer above; its paper stays)
+        var D = bgLift(active, 'Move Layer Up'); if (!D) return;
+        layers.splice(2, 0, D);
       } else if (a === 'up' && active && i < layers.length - 1 && !active.bg) {
         rememberLayers('Move Layer Up'); layers.splice(i, 1); layers.splice(i + 1, 0, active); fixGroups([active]);
+      } else if (a === 'down' && active && i === 1 && layers[0].bg) {
+        // (under the Background: under its drawing, which is lifted off the paper)
+        var B = layers[0], X = active, D2 = bgLift(B, 'Move Layer Down'); if (!D2) return;
+        layers.splice(1, 0, D2); active = X; // ([paper, drawing, X] -> [paper, X, drawing])
+        layers.splice(layers.indexOf(X), 1); layers.splice(1, 0, X); fixGroups([X]);
       } else if (a === 'down' && active && i > (layers[0].bg ? 1 : 0)) {
         rememberLayers('Move Layer Down'); layers.splice(i, 1); layers.splice(i - 1, 0, active); fixGroups([active]);
       } else return;
