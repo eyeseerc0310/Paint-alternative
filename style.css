@@ -1612,43 +1612,39 @@ select.p-field {
 .paint-dock > .paint-adjust .pa-title { position: static; margin: 0 0 var(--s-2); padding: 0; }
 
 
-/* The contextual selection bar uses the bottom bar's glass, height and controls. */
+/* THE SELECTION PANEL: a selection's actions in a card of their own, just
+   under the left toolbar and built like it (.paint-bar, .paint-toolgroups,
+   .paint-group: the same glass, corners, shadow, padding, buttons and
+   dividers); its place and height come from placeSelectionToolbar (as tall
+   as the room above the bottom of the picture's space; the buttons scroll
+   past that). Its options open beside it, towards the picture. */
 :root {
-  --selection-button: 36px;
-  --selection-inset: 12px;
   --selection-pop-width: 240px;
   --selection-pop-pad: var(--s-3);
   --selection-pop-gap: var(--s-2);
 }
-.selection-slot {
-  position: absolute; z-index: 7; display: flex; justify-content: center;
-  height: var(--bbar-h); min-width: 0; pointer-events: none;
-}
+.selection-slot { position: absolute; z-index: 7; display: flex; flex-direction: column; min-height: 0; pointer-events: none; }
 .paint .selection-toolbar {
-  align-self: flex-start; flex: none; width: max-content; max-width: 100%;
-  height: var(--bbar-h); margin: 0; gap: var(--s-1); padding: 0 var(--s-3);
-  opacity: 0; visibility: hidden; transform: translateY(calc(-1 * var(--s-2)));
-  animation: none; pointer-events: none;
-  transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease), visibility var(--dur);
+  flex-direction: column; align-items: stretch; gap: 0; width: 100%; max-height: 100%; min-height: 0; margin: 0; animation: none;
+  opacity: 0; visibility: hidden; transform: translateX(-8px); pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur);
 }
-.paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; }
+.ui-flipped .paint .selection-toolbar { transform: translateX(8px); }
+.paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
+/* (it fades while the selection itself is being moved, sized or turned) */
 .paint .selection-slot.manipulating .selection-toolbar { opacity: 0; visibility: hidden; transform: none; pointer-events: none; }
 .paint .selection-toolbar[hidden] { display: flex; }
-.paint .selection-toolbar > button {
-  width: var(--selection-button); height: var(--selection-button); padding: 0;
-  border-radius: var(--r-pill); color: var(--menu-link);
-}
+.paint .selection-toolbar .paint-group > button { width: 40px; height: 40px; padding: 0; border-radius: var(--r-btn); color: var(--menu-link); }
 .paint .selection-toolbar button svg { width: var(--icon); height: var(--icon); }
-.paint .selection-toolbar button[data-sel="done"] { margin: 0; background: none; }
-.paint .selection-toolbar .pb-sep { margin: 0 var(--s-1); }
 .paint.selection-active .ctx-tool [data-ctx="all"] { display: none; }
 .selection-pop {
-  position: absolute; top: calc(100% + var(--selection-pop-gap)); left: 0;
-  width: var(--selection-pop-width); max-width: 100%; max-height: min(60svh, 440px);
+  position: absolute; top: 0; left: calc(100% + var(--selection-pop-gap));
+  width: var(--selection-pop-width); max-width: calc(100vw - 2 * var(--edge)); max-height: min(60svh, 440px);
   padding: var(--selection-pop-pad); border-radius: var(--r-menu); color: var(--menu-link);
   background: var(--menu-bg); box-shadow: var(--shadow-pop); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
-  pointer-events: auto; overflow: auto; animation: pd-in var(--dur-pop) var(--spring);
+  pointer-events: auto; overflow: auto; animation: pb-in var(--dur-pop) var(--spring);
 }
+.ui-flipped .selection-pop { animation-name: pl-in; }
 .selection-pop[hidden], .selection-transform[hidden] { display: none; }
 .selection-pop-content { display: flex; flex-direction: column; gap: var(--s-2); }
 .selection-pop label { display: flex; flex-direction: column; gap: var(--s-2); font-size: var(--fs-sm); }
@@ -1659,15 +1655,11 @@ select.p-field {
 .selection-transform .paint-scale { position: static; display: flex; width: 100%; margin: 0 0 var(--s-2); transform: none; box-shadow: none; background: none; padding: 0; }
 .selection-transform .paint-scale[hidden] { display: none; }
 .selection-transform .paint-seldist { position: static !important; margin: var(--s-2) 0; transform: none; }
-@media (max-width: 900px) {
-  .paint .selection-toolbar .selection-secondary { display: none; }
-  .paint .selection-toolbar { padding: 0 var(--s-2); gap: var(--s-1); }
-}
+/* (its buttons the left toolbar's size wherever that changes) */
+@media (max-height: 850px) { .paint .selection-toolbar .paint-group > button { height: 32px; } }
+@media (max-width: 560px) { .paint .selection-toolbar .paint-group > button { width: 36px; height: 28px; } }
 @media (prefers-reduced-motion: reduce) {
   .selection-slot, .paint .selection-toolbar { transition: none; }
-}
-@media (max-width: 560px) {
-  .paint.selection-active .paint-dock:has(.paint-ctx.locked) { top: calc(var(--bbar-h) + var(--bbar-gap)); }
 }
 
 
@@ -1814,16 +1806,16 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .hb,
 .paint .paint-toolgroups .paint-group > button,
 .paint .paint-bottom > button,
-.paint .selection-toolbar > button { border-radius: var(--r-btn); }
+.paint .selection-toolbar .paint-group > button { border-radius: var(--r-btn); }
 .site-header .hb:is([aria-expanded="true"], [aria-pressed="true"]),
 .paint .paint-bottom > button:is([aria-expanded="true"], [aria-pressed="true"]),
-.paint .selection-toolbar > button:is([aria-expanded="true"], [aria-pressed="true"]) {
+.paint .selection-toolbar .paint-group > button:is([aria-expanded="true"], [aria-pressed="true"]) {
   color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow);
 }
 @media (hover: hover) {
   .site-header .hb:is([aria-expanded="true"], [aria-pressed="true"]):hover,
   .paint .paint-bottom > button:is([aria-expanded="true"], [aria-pressed="true"]):hover,
-  .paint .selection-toolbar > button:is([aria-expanded="true"], [aria-pressed="true"]):hover { background: var(--chip); }
+  .paint .selection-toolbar .paint-group > button:is([aria-expanded="true"], [aria-pressed="true"]):hover { background: var(--chip); }
 }
 
 /* Stable status slots prevent longer saving labels crowding the dot or chevron. */
@@ -1836,17 +1828,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .doc-status i { display: block; width: 6px; height: 6px; }
 .site-header .doc-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Position changes share the interface's gentle motion; direct dragging stays under the pointer. */
-.selection-slot { transition: left .28s ease-in-out, top .28s ease-in-out; }
-.selection-slot.dragging, .selection-slot.manipulating { transition: none; }
-.paint .selection-toolbar { touch-action: none; cursor: grab; }
-.selection-slot.dragging .selection-toolbar { cursor: grabbing; }
 .paint .selection-slot.manipulating .selection-pop { visibility: hidden; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .selection-slot { transition: none; } }
 /* Equal side slots keep the status word centered independently of its dot and chevron. */
 .site-header .hdr-fold, :root.hdr-open .site-header .hdr-fold { position: relative; left: auto; top: auto; }
 .site-header .doc-status { grid-template-columns: 12px minmax(0, 1fr) 12px; column-gap: 0; text-align: center; }
 .site-header .doc-status i { justify-self: center; }
 .site-header .hdr-fold > svg { position: absolute; right: 0; }
 
-.paint .selection-slot.repositioning .selection-toolbar, .paint .selection-slot.repositioning .selection-pop { pointer-events: none; }
