@@ -1643,10 +1643,11 @@ select.p-field {
 .paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding-top: var(--group-gap); }
 .paint .selection-toolbar .selection-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
 .paint .selection-toolbar .selection-foot > .selection-commit {
-  width: 100%; height: 40px; margin: 0; padding: 0 var(--s-1); gap: var(--s-1); border-radius: var(--r-btn);
+  width: 100%; height: 40px; margin: 0; padding: 0 var(--s-1); border-radius: var(--r-btn); text-align: center;
   color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); font-size: var(--fs-ui); font-weight: 600;
 }
-.paint .selection-toolbar .selection-foot > .selection-commit svg { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
+/* (its word centred by its letters, not its line: "Commit" has no descenders, so it's nudged down to the middle) */
+.paint .selection-toolbar .selection-foot > .selection-commit span { display: block; line-height: 1; position: relative; top: .08em; }
 @media (hover: hover) { .paint .selection-toolbar .selection-foot > .selection-commit:hover { color: var(--on-accent); background: var(--accent-hover); } }
 .paint.selection-active .ctx-tool [data-ctx="all"] { display: none; }
 .selection-pop {
