@@ -1633,8 +1633,6 @@ select.p-field {
 }
 .ui-flipped .paint .selection-toolbar { transform: translateX(8px); }
 .paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
-/* (it fades while the selection itself is being moved, sized or turned) */
-.paint .selection-slot.manipulating .selection-toolbar { opacity: 0; visibility: hidden; transform: none; pointer-events: none; }
 .paint .selection-toolbar[hidden] { display: flex; }
 .paint .selection-toolbar .paint-group > button { width: 40px; height: 40px; padding: 0; border-radius: var(--r-btn); color: var(--menu-link); }
 .paint .selection-toolbar button svg { width: var(--icon); height: var(--icon); }
@@ -1841,7 +1839,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .doc-status i { display: block; width: 6px; height: 6px; }
 .site-header .doc-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.paint .selection-slot.manipulating .selection-pop { visibility: hidden; pointer-events: none; }
 /* Equal side slots keep the status word centered independently of its dot and chevron. */
 .site-header .hdr-fold, :root.hdr-open .site-header .hdr-fold { position: relative; left: auto; top: auto; }
 .site-header .doc-status { grid-template-columns: 12px minmax(0, 1fr) 12px; column-gap: 0; text-align: center; }

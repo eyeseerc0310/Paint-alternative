@@ -286,8 +286,10 @@ When building or changing anything visual:
   Scale and Distort, More) open beside it, towards the picture, level with
   their button, inside the picture's space (`placeSelectionPopover`). A
   selection turning up folds the top menu (`headerOpen(false)`, once), and it
-  fades only while the selection itself is moved, sized or turned
-  (`manipulating`), never while the picture is moved or zoomed. Its groups:
+  stays in view while the selection is moved, sized, turned or distorted
+  and while the picture is moved or zoomed (it never fades for a press; an
+  option open beside it closes on a press elsewhere, as every pop-over does).
+  Its groups:
   what's picked and its edge (Select All, Invert, Feather, Expand), where it
   is and which way round (Transform, Rotate, the flips), what's done with it
   (Copy, Delete, Deselect, More; More also has Paste, and Duplicate to New
