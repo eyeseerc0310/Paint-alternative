@@ -157,6 +157,13 @@ When building or changing anything visual:
   (`L.editMask`), painting tools work on `L.mask.P`, which stands in for the
   layer (`maskIn`/`maskOut`). New layers made next to one join its group
   (`L.group`).
+- **Reordering layers:** by a row's grip, or by the row itself (`reorder`,
+  one path for both): with a mouse a drag up or down moves it (the wheel
+  scrolls the list); with a finger or the Pencil a moment's hold lifts it
+  (`.lifted`, `lift`) and then it follows, while a quick drag still scrolls,
+  a swipe right still picks and a longer hold still opens the layer's menu.
+  The click that ends a drag is swallowed (`reorderDone`), so it doesn't
+  pick or rename.
 - **Several layers picked:** `also` holds the layers picked alongside
   `active` (a swipe right on a row, Shift- or Ctrl/⌘-click); `picks()` gives
   them all in stack order. A selection or the Move tool lifts every picked
