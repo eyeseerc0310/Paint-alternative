@@ -106,11 +106,15 @@ When building or changing anything visual:
   A tool with nothing to set (Fill, the colour picker, Move) has no `CTX`
   entry: picking it hides the panel without folding it (the dock keeps its
   room, so nothing moves; the bottom bar's settings toggle greys out), and
-  the next tool's settings come back (`bare` in `chooseTool`).
+  the next tool's settings come back (`bare` in `chooseTool`), folded still
+  if they were folded. `hasMenu(t)` (a `CTX` entry) is the one test for
+  anything that would open, unfold or replace the panel: picking a tool with
+  no settings again does nothing to any panel (Move still picks the layer up
+  again), and such a tool never unfolds the panel, whatever is open.
   The colour picker stays open for the top bar's Settings (its button, its
   menu, and the fold arrow that opens the bar to reach it). In the dock
   (not on phones) it also stays open through a change to a tool with no
-  settings (`keepPc` in `chooseTool`), Layers and the zoom (`pcStays`);
+  settings (`keepPc` in `chooseTool`), Layers, the zoom and Fit (`pcStays`);
   a tool with settings, symmetry, Effects or the Brush Studio take its
   place, as before. Only the picker does this.
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
