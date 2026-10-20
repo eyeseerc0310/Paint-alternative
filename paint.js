@@ -6969,7 +6969,7 @@
         });
         var o = panelOffset(ctxEl); storeIt('paint-pos-ctx2', [o.x, o.y]);
       }
-      refit(true); relayout();
+      refit(true); relayout(); placeSelectionToolbar();
     }
     var uiFlipBusy = false;
     async function flipUI() {
@@ -7119,10 +7119,10 @@
       html.classList.toggle('hdr-open', on); hdrSync();
       try { localStorage.setItem('paint-hdr-open', on ? '1' : '0'); } catch (x) {}
       var t0 = performance.now(), dur = (parseFloat(getComputedStyle(html).transitionDuration) || 0) * 1000;
-      (function frame(t) { refit(); if (t - t0 < dur + 34) hdrAnim = requestAnimationFrame(frame); })(t0);
+      (function frame(t) { refit(); placeSelectionToolbar(); if (t - t0 < dur + 34) hdrAnim = requestAnimationFrame(frame); })(t0);
       hdrEnd = setTimeout(function () {
         cancelAnimationFrame(hdrAnim); html.classList.remove('hdr-anim');
-        refit(); relayout();
+        refit(); relayout(); placeSelectionToolbar();
       }, dur + 60);
     }
     if (hdrFold) { hdrSync(); hdrFold.addEventListener('click', function () { headerOpen(!document.documentElement.classList.contains('hdr-open')); }); }
@@ -7354,13 +7354,15 @@
     // bold / italic / underline, alignment and more; light & dark: which;
     // the others say how they're used. With a selection it shows what can be
     // done with it (copy, flip, turn, invert, delete, cut to a layer, done). ----
-    // Contextual selection actions live above the canvas, independently of tool settings.
+    // A selection's actions stand in a panel of their own just under the
+    // left toolbar, built like it (the same card, groups and buttons), as
+    // tall as the room left above the bottom of the picture's space (its
+    // buttons scroll if they need more); their options open beside it.
     var selectionSlot, selectionPop, selectionOpen = '', selectionAnchor = null;
-    var selectionPosition = null, selectionManual = null, selectionDrag = null;
     function buildSelectionToolbar() {
       selectionSlot = document.createElement('div'); selectionSlot.className = 'selection-slot';
-      stage.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
-      selbar.className = 'paint-selbar paint-bottom selection-toolbar';
+      paintEl.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
+      selbar.className = 'paint-selbar paint-bar selection-toolbar';
       selbar.setAttribute('role', 'toolbar'); selbar.setAttribute('aria-label', 'Selection actions');
       var svg = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
       var icons = {
@@ -7378,16 +7380,18 @@
         more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
       };
       var button = function (attr, key, label, icon, extra) { return '<button type="button" ' + attr + '="' + key + '" aria-label="' + label + '" data-tip="' + label + '"' + (extra || '') + '>' + svg(icons[icon]) + '</button>'; };
-      var sep = '<span class="pb-sep selection-secondary" aria-hidden="true"></span>';
-      selbar.innerHTML = button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') +
-        button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') + sep +
-        button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
-        button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"') + sep +
-        button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"') +
-        button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
-        button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') + sep +
-        button('data-sel', 'copy', 'Duplicate Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
-        button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"');
+      // (the groups, and their dividers, as in the left toolbar)
+      var group = function (b) { return '<div class="paint-group">' + b + '</div>'; };
+      selbar.innerHTML = '<div class="paint-toolgroups">' +
+        group(button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') +
+          button('data-sel', 'deselect', 'Deselect', 'deselect') + button('data-sel', 'region-invert', 'Invert Selection', 'invert')) +
+        group(button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
+          button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"')) +
+        group(button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"') +
+          button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
+          button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"')) +
+        group(button('data-sel', 'copy', 'Duplicate Selection', 'copy') + button('data-sel', 'delete', 'Delete Selection', 'delete') +
+          button('data-selection-pop', 'more', 'More selection actions', 'more', ' aria-expanded="false"')) + '</div>';
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
       // Reuse the existing scale and perspective controls, including all their listeners.
@@ -7414,28 +7418,11 @@
       });
       document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot')) closeSelectionPopover(); }, true);
       selectionSlot.inert = true;
-      new ResizeObserver(placeSelectionToolbar).observe(stage);
-      new ResizeObserver(placeSelectionToolbar).observe(selbar);
+      // (it follows the left toolbar and the picture's space, however they
+      // change: the window, the top menu folding, the sides swapping)
+      var ro = new ResizeObserver(placeSelectionToolbar); ro.observe(stage); ro.observe(left); ro.observe(paintEl);
       window.addEventListener('resize', placeSelectionToolbar);
-      selbar.addEventListener('pointerdown', function (e) {
-        if (e.button !== 0 || e.target.closest('button, input, select, a')) return;
-        e.preventDefault(); e.stopPropagation(); closeSelectionPopover();
-        selectionDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: selectionPosition.x, top: selectionPosition.y };
-        selectionSlot.classList.add('dragging'); selbar.setPointerCapture(e.pointerId);
-      });
-      selbar.addEventListener('pointermove', function (e) {
-        if (!selectionDrag || selectionDrag.id !== e.pointerId) return;
-        e.preventDefault(); e.stopPropagation();
-        selectionManual = { x: selectionDrag.left + e.clientX - selectionDrag.x, y: selectionDrag.top + e.clientY - selectionDrag.y };
-        placeSelectionToolbar();
-      });
-      function finishToolbarDrag(e) {
-        if (!selectionDrag || selectionDrag.id !== e.pointerId) return;
-        e.stopPropagation(); selectionDrag = null; selectionSlot.classList.remove('dragging');
-      }
-      selbar.addEventListener('pointerup', finishToolbarDrag);
-      selbar.addEventListener('pointercancel', finishToolbarDrag);
-      selbar.addEventListener('lostpointercapture', finishToolbarDrag);
+      left.addEventListener('transitionend', placeSelectionToolbar);
       placeSelectionToolbar();
     }
     function closeSelectionPopover(focus) {
@@ -7451,6 +7438,9 @@
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
         selbar.hidden = !on; if (!on) closeSelectionPopover();
+        // (a selection turning up folds the top menu, as its own arrow does,
+        // to give the panel room; it can be opened again as ever)
+        if (on && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
         placeSelectionToolbar();
       }
       if (selbar.hidden === on) selbar.hidden = !on;
@@ -7464,7 +7454,6 @@
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
       var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !sel || !!sel.thing;
       paintEl.classList.toggle('selection-active', on);
-      if (!on) { selectionManual = null; selectionPosition = null; }
       placeSelectionToolbar();
     }
     function openSelectionPopover(kind, anchor) {
@@ -7492,99 +7481,26 @@
       selButtons(); if (anchor) anchor.setAttribute('aria-expanded', 'true'); placeSelectionPopover();
       var input = content.querySelector('input'); if (input) { input.focus({ preventScroll: true }); input.select(); }
     }
-    // All geometry is in stage CSS pixels, using the same transformed handles as hit testing.
-    function selectionSegmentHits(a, b, r) {
-      var lo = 0, hi = 1, dx = b.x - a.x, dy = b.y - a.y;
-      var p = [-dx, dx, -dy, dy], q = [a.x-r.x, r.x+r.w-a.x, a.y-r.y, r.y+r.h-a.y];
-      for (var i=0;i<4;i++) {
-        if (!p[i]) { if(q[i]<0)return false; }
-        else { var t=q[i]/p[i]; if(p[i]<0)lo=Math.max(lo,t);else hi=Math.min(hi,t); if(lo>hi)return false; }
-      }
-      return true;
-    }
     function placeSelectionToolbar() {
-      if (!selectionSlot || !sel || !selectionSlot.classList.contains('on')) return;
-      var r=stage.getBoundingClientRect(), pad=12, gap=16;
-      var v={x:Math.max(0,-r.left)+pad,y:Math.max(0,-r.top)+pad,
-        right:Math.min(r.width,window.innerWidth-r.left)-pad,bottom:Math.min(r.height,window.innerHeight-r.top)-pad};
-      var available=Math.max(0,v.right-v.x);
-      selectionSlot.style.width=available+'px';
-      var w=Math.min(selbar.offsetWidth,available), h=selbar.offsetHeight;
-      selectionSlot.style.width=w+'px';
-      var pts=corners().map(toScreen), box={left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity};
-      pts.slice(0,4).forEach(function(p){box.left=Math.min(box.left,p.x);box.right=Math.max(box.right,p.x);box.top=Math.min(box.top,p.y);box.bottom=Math.max(box.bottom,p.y);});
-      var edges=[[pts[0],pts[1]],[pts[1],pts[3]],[pts[3],pts[2]],[pts[2],pts[0]],
-        [{x:(pts[2].x+pts[3].x)/2,y:(pts[2].y+pts[3].y)/2},pts[4]]];
-      function clamp(p){return {x:Math.max(v.x,Math.min(v.right-w,p.x)),y:Math.max(v.y,Math.min(v.bottom-h,p.y))};}
-      function hits(p){
-        var rect={x:p.x-8,y:p.y-8,w:w+16,h:h+16}, n=0;
-        edges.forEach(function(e){if(selectionSegmentHits(e[0],e[1],rect))n++;});
-        pts.forEach(function(q){if(q.x>=p.x-14&&q.x<=p.x+w+14&&q.y>=p.y-14&&q.y<=p.y+h+14)n+=10;});
-        return n;
-      }
-      var off=box.right<v.x||box.left>v.right||box.bottom<v.y||box.top>v.bottom;
-      var large=(box.right-box.left)>(v.right-v.x)*.8&&(box.bottom-box.top)>(v.bottom-v.y)*.7;
-      var center=(box.left+box.right-w)/2, above={x:center,y:box.top-h-gap}, below={x:center,y:Math.max(box.bottom,pts[4].y)+gap};
-      var wanted=selectionManual || (off&&selectionPosition) || (above.y>=v.y ? above : below);
-      var mode='floating', chosen=null;
-      if(selectionManual || off) {chosen=clamp(wanted);mode='docked';}
-      else if(!large && wanted.y>=v.y && wanted.y+h<=v.bottom && !hits(clamp(wanted))) {
-        chosen=clamp(wanted); if(chosen.x!==wanted.x)mode='docked';
-      }
-      if(!chosen || hits(chosen)) {
-        mode='docked';
-        var candidates=[], xs=[center,v.x,v.right-w], ys=[v.y,v.bottom-h,above.y,below.y];
-        if(selectionPosition){xs.push(selectionPosition.x);ys.push(selectionPosition.y);}
-        if(selectionManual){xs.unshift(selectionManual.x);ys.unshift(selectionManual.y);}
-        pts.forEach(function(p){xs.push(p.x-w-22,p.x+22);ys.push(p.y-h-22,p.y+22);});
-        xs.forEach(function(x){ys.forEach(function(y){var p=clamp({x:x,y:y});
-          var target=selectionManual||((large||off)?selectionPosition:null)||{x:center,y:v.y};
-          p.score=hits(p)*100000+Math.hypot(p.x-target.x,p.y-target.y);
-          if(large && !selectionManual && p.y!==v.y && p.y!==v.bottom-h)p.score+=10000;
-          candidates.push(p);
-        });});
-        candidates.sort(function(a,b){return a.score-b.score;});chosen=candidates[0];
-      }
-      if(selectionPosition && !selectionDrag && !down && (Math.abs(selectionPosition.x-chosen.x)>1 || Math.abs(selectionPosition.y-chosen.y)>1)) {
-        selectionSlot.classList.add('repositioning');
-        clearTimeout(selectionSlot.motionTimer);
-        selectionSlot.motionTimer=setTimeout(function(){selectionSlot.classList.remove('repositioning');},300);
-      }
-      selectionPosition={x:chosen.x,y:chosen.y}; selectionSlot.dataset.mode=mode;
-      selectionSlot.style.left=chosen.x+'px';selectionSlot.style.top=chosen.y+'px';
-      // In a viewport too small for a clear rectangle, cut out protected hit areas.
-      // Clip paths also exclude pointer hits, so handles remain reachable underneath.
-      var cuts=[];
-      if(hits(chosen)) {
-        pts.forEach(function(p){cuts.push({x:p.x-20,y:p.y-20,w:40,h:40});});
-        edges.forEach(function(e){var n=Math.ceil(Math.hypot(e[1].x-e[0].x,e[1].y-e[0].y)/8);n=Math.min(n,2000);
-          for(var i=0;i<=n;i++){var t=n?i/n:0;var x=e[0].x+(e[1].x-e[0].x)*t,y=e[0].y+(e[1].y-e[0].y)*t;
-            if(x>chosen.x-12&&x<chosen.x+w+12&&y>chosen.y-12&&y<chosen.y+h+12)cuts.push({x:x-10,y:y-10,w:20,h:20});}
-        });
-      }
-      var strips=[{x:0,y:0,w:w,h:h}];
-      cuts.forEach(function(c){var next=[];c={x:c.x-chosen.x,y:c.y-chosen.y,w:c.w,h:c.h};
-        strips.forEach(function(a){var l=Math.max(a.x,c.x),t=Math.max(a.y,c.y),rr=Math.min(a.x+a.w,c.x+c.w),bb=Math.min(a.y+a.h,c.y+c.h);
-          if(l>=rr||t>=bb){next.push(a);return;}
-          if(t>a.y)next.push({x:a.x,y:a.y,w:a.w,h:t-a.y});
-          if(bb<a.y+a.h)next.push({x:a.x,y:bb,w:a.w,h:a.y+a.h-bb});
-          if(l>a.x)next.push({x:a.x,y:t,w:l-a.x,h:bb-t});
-          if(rr<a.x+a.w)next.push({x:rr,y:t,w:a.x+a.w-rr,h:bb-t});
-        });strips=next;
-      });
-      selbar.style.clipPath=cuts.length?'path("'+strips.map(function(a){return 'M'+a.x+' '+a.y+'h'+a.w+'v'+a.h+'h-'+a.w+'Z';}).join(' ')+'")':'';
+      if (!selectionSlot) return;
+      var P = paintEl.getBoundingClientRect(), L = left.getBoundingClientRect(), V = stage.getBoundingClientRect();
+      var gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--menu-stack-gap')) || 12;
+      var top = L.bottom + gap, room = Math.max(0, Math.min(V.bottom, window.innerHeight) - top);
+      selectionSlot.style.left = (L.left - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
+      selectionSlot.style.width = L.width + 'px'; selbar.style.maxHeight = room + 'px';
       placeSelectionPopover();
     }
+    // (an option opens beside the panel, towards the picture, level with its
+    // button, and kept within the picture's space)
     function placeSelectionPopover() {
       if (!selectionPop || selectionPop.hidden || !selectionAnchor) return;
-      var a=selectionAnchor.getBoundingClientRect(),r=selectionSlot.getBoundingClientRect(),v=stage.getBoundingClientRect();
-      var x=Math.max(0,Math.min(r.width-selectionPop.offsetWidth,a.left-r.left+a.width/2-selectionPop.offsetWidth/2));
-      selectionPop.style.left=Math.round(x)+'px';
-      var below=Math.min(v.bottom,window.innerHeight)-r.bottom-12,above=r.top-Math.max(v.top,0)-12;
-      var up=below<selectionPop.scrollHeight+8&&above>below;
-      selectionPop.style.top=up?'auto':'calc(100% + var(--selection-pop-gap))';
-      selectionPop.style.bottom=up?'calc(100% + var(--selection-pop-gap))':'auto';
-      selectionPop.style.maxHeight=Math.max(40,(up?above:below)-8)+'px';
+      var a = selectionAnchor.getBoundingClientRect(), r = selectionSlot.getBoundingClientRect(), v = stage.getBoundingClientRect();
+      var gap = parseFloat(getComputedStyle(selectionPop).getPropertyValue('--selection-pop-gap')) || 8;
+      var lo = Math.max(v.top, 0) + 8, hi = Math.min(v.bottom, window.innerHeight) - 8;
+      selectionPop.style.maxHeight = Math.max(40, hi - lo) + 'px';
+      var h = selectionPop.offsetHeight, y = Math.max(lo, Math.min(hi - h, a.top));
+      selectionPop.style.top = Math.round(y - r.top) + 'px'; selectionPop.style.bottom = 'auto';
+      selectionPop.style.left = uiFlipped() ? Math.round(-selectionPop.offsetWidth - gap) + 'px' : Math.round(r.width + gap) + 'px';
     }
     function rotateSelection(degrees) {
       if (!sel || selMode || !Number.isFinite(degrees)) return;

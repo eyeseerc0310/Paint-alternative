@@ -263,6 +263,19 @@ When building or changing anything visual:
   A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
   works on a cutout works on it. Use `selTool(t)` to ask "is this
   selecting?", and `setTool(selKind)` to bring the tool up.
+- **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
+  selection's actions stand in a card of their own just under the left
+  toolbar (the top menu's gap below it, `--menu-stack-gap`), built like it
+  (`.paint-bar` > `.paint-toolgroups` > `.paint-group`, so the same glass,
+  corners, buttons, dividers and sizes everywhere), never over the picture.
+  `placeSelectionToolbar` puts it under the toolbar wherever that is (the
+  top menu folding, frame by frame; the sides swapped; the window resized)
+  and caps its height at the bottom of the picture's space: its buttons
+  scroll past that. Its options (Feather, Expand, Rotate, Transform with
+  Scale and Distort, More) open beside it, towards the picture, level with
+  their button, inside the picture's space (`placeSelectionPopover`). A
+  selection turning up folds the top menu (`headerOpen(false)`, once), and it
+  fades while the selection itself is moved, sized or turned (`manipulating`).
 - **Transforming a selection:** while something is picked up, each move,
   size, turn or typed size is a step of its own (`sel.hist`/`sel.fut`, kept
   with `selRecord` at the start and `selTrim` at the end of a press), which
