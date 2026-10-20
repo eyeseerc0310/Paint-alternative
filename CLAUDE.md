@@ -32,14 +32,14 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
-  greyed out doesn't grey its parts again), `--ring-picked` (with `--selected`,
-  a picked item in a list or panel), `--ring-focus` (a focused field; elsewhere
+  greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
+  outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
   the shared `:focus-visible` outline), `--seg-on` with `--seg-shadow` (the
   picked part of a segmented control, in both themes).
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs-ui` (buttons with words, rows, fields), `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
-  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`, `--stroke-xs` (a 12px glyph: a
+  `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`, `--chev-down` (a drop-down field's chevron; every `select` uses it), `--stroke-xs` (a 12px glyph: a
   list's chevron, a close X, the fold arrow, so it isn't drawn thinner than the
   rest; icons ≥14px keep `--stroke`). Motion: `--dur-fast` (a knob or swatch answering a touch), `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
@@ -51,9 +51,15 @@ When building or changing anything visual:
 - **Keep interaction behaviour consistent:** the same hover, pressed
   (slight scale), focus, disabled and selected states everywhere. Hover
   styles go inside `@media (hover: hover)`, so a tap on a touch screen
-  doesn't leave one behind. The tool in hand (and a pressed button in the
-  bars) is a solid neutral chip (`--chip`); picked list items use a neutral
-  rounded outline. Neither uses the accent.
+  doesn't leave one behind. Anything picked (the tool in hand, a pressed
+  button, a picked brush, font, shape, layer, history step or preset) is the
+  same solid neutral chip (`--chip`, no outline), so the brush list, the bars
+  and the menus all read alike; hover is the lighter `--hover`, so a picked
+  row stays distinct while hovered. Only a picked part of a segmented control
+  differs (`--seg-on` thumb), and the active layer keeps an outline
+  (`--ring-picked`) only while other layers are picked with it. Full-width
+  rows press by `--press-row`, other buttons by `--press`; a row's keyboard
+  ring sits just inside it. Neither picked nor hover uses the accent.
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
@@ -322,6 +328,17 @@ When building or changing anything visual:
   tokens, which carry a light top edge); the picture sits in a dotted well.
   Pop-overs open with `pd-in`/`pb-in`/`pl-in` on `--dur-pop` and `--spring`;
   sheets rise in over a blurred `--scrim`. Titles use `--display` in bold.
+- **Surfaces:** every pop-over, menu and panel has one hairline edge, its
+  shadow's (`--shadow-pop`, or `--shadow-panel` for what stands in the dock):
+  a border, where one is needed for the box's size, is transparent. Every
+  control, wherever it sits, takes the app's font and eases between its
+  states (the `:where(button)` rules near the top of `style.css`).
+  A slider row is its name in `--muted` and its value in `--text`
+  everywhere; section labels are `--fs-xs`/`--fs-sm` at weight 500 in
+  `--muted`.
+- **Layout is fixed:** a polish or styling change must not move or resize
+  anything; compare every element's box before and after (the layout lock
+  check) in each menu and panel, at desktop, iPad and phone sizes.
 - **Shared looks:** every `input[type="range"]` gets the same thin track
   and white knob (one rule near the top of `style.css`; a slider whose track
   shows what it does sets `--track` and keeps it). A Done inside the tool
