@@ -4151,18 +4151,32 @@
       e.preventDefault(); e.stopPropagation();
       reorder(g.closest('.pl-row'), g, e.pointerId, e.clientY);
     });
-    function reorder(row, g, id, y0) {
+    function reorder(row, g, id, y0, ev0) {
       var list = row.parentNode;
       try { g.setPointerCapture(id); } catch (x) {}
       row.classList.remove('lifted'); row.classList.add('dragging');
+      // (the row takes every place the pointer has passed, however far it
+      // went since the last move, and never goes under the white Background)
+      var gap = parseFloat(getComputedStyle(list).rowGap) || 0;
+      var isBg = function (r) { return r && r.dataset.i != null && layers[+r.dataset.i] && layers[+r.dataset.i].bg; };
       function mv(ev) {
-        var dy = ev.clientY - y0, prev = row.previousElementSibling, next = row.nextElementSibling;
-        if (next && dy > next.offsetHeight / 2) { list.insertBefore(next, row); y0 += next.offsetHeight + 2; }
-        else if (prev && dy < -prev.offsetHeight / 2) { list.insertBefore(row, prev); y0 -= prev.offsetHeight + 2; }
+        if (ev.pointerId !== id) return;
+        // (a step is a row and the gap after it; the row changes places a
+        // little past half a step, and a change moves it a whole step, so a
+        // shaky hand on the line doesn't flick it back and forth)
+        for (;;) {
+          var dy = ev.clientY - y0, prev = row.previousElementSibling, next = row.nextElementSibling;
+          var sn = next ? next.offsetHeight + gap : 0, sp = prev ? prev.offsetHeight + gap : 0;
+          if (next && !isBg(next) && dy > sn / 2 + 3) { list.insertBefore(next, row); y0 += sn; }
+          else if (prev && dy < -sp / 2 - 3) { list.insertBefore(row, prev); y0 -= sp; }
+          else break;
+        }
         row.style.transform = 'translateY(' + (ev.clientY - y0) + 'px)';
       }
-      function up() {
-        g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+      function up(ev) {
+        if (ev.pointerId !== id) return;
+        window.removeEventListener('pointermove', mv, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', up, true);
+        reorderDone = performance.now();
         row.classList.remove('dragging'); row.style.transform = '';
         // the list shows the top layer first (a folded group's row stands for
         // all its layers)
@@ -4182,7 +4196,10 @@
         else renderLayers();
         layerPanel(true);
       }
-      g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+      // (followed on the whole window: moving the row in the list, or the
+      // pointer leaving it, mustn't lose the drag)
+      window.addEventListener('pointermove', mv, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
+      if (ev0) mv(ev0); // (the move that started it counts too)
     }
     // ...or by the row itself: with a mouse, a drag up or down (the wheel
     // scrolls the list); with a finger or the Pencil, a moment's hold lifts
@@ -4201,8 +4218,7 @@
       var dx = e.clientX - L.x, dy = e.clientY - L.y, far = Math.hypot(dx, dy);
       if (L.mouse ? far > 6 && Math.abs(dy) > Math.abs(dx) : L.up && far > 4) {
         lift = null; clearTimeout(L.t); clearTimeout(holdTimer); swipe = null; hidePeek();
-        reorderDone = performance.now() + 1e9; reorder(L.row, L.row, L.id, L.y);
-        L.row.addEventListener('pointerup', function () { reorderDone = performance.now(); }, { once: true });
+        reorder(L.row, L.row, L.id, L.y, e);
       } else if (!L.up && (L.mouse ? Math.abs(dx) > 6 : far > 8)) { lift = null; clearTimeout(L.t); }
     });
     ['pointerup', 'pointercancel'].forEach(function (t) { panel.addEventListener(t, function () { if (lift) { clearTimeout(lift.t); lift.row.classList.remove('lifted'); lift = null; } }); });
