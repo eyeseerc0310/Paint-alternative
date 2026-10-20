@@ -163,7 +163,11 @@ When building or changing anything visual:
   (`.lifted`, `lift`) and then it follows, while a quick drag still scrolls,
   a swipe right still picks and a longer hold still opens the layer's menu.
   The click that ends a drag is swallowed (`reorderDone`), so it doesn't
-  pick or rename.
+  pick or rename. The drag is followed on the window (moving the row in
+  the list drops pointer capture), the row takes every place the pointer
+  passed in one move (a step is a row plus the list's gap, changed a little
+  past half a step, so it never bounces), and it never goes under the
+  Background.
 - **Several layers picked:** `also` holds the layers picked alongside
   `active` (a swipe right on a row, Shift- or Ctrl/⌘-click); `picks()` gives
   them all in stack order. A selection or the Move tool lifts every picked
