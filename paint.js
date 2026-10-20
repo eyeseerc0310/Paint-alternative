@@ -859,24 +859,33 @@
       if (!bsBox.hidden) studio(false);
       ctxMin(true); ctxAside();
     }
+    // (whether a tool has settings of its own to show in the panel: the one
+    // test for anything that would open, unfold or replace it)
+    function hasMenu(t) { return !!CTX[t]; }
     function chooseTool(t, repeatOpens) {
+      // (a tool with no settings, already in hand: picking it again leaves
+      // the panels exactly as they are; Move still picks the layer up again)
+      if (!hasMenu(t) && st.tool === t) { if (t === 'move' && !sel) movePick(); return; }
       if (repeatOpens === true && st.tool === t && toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'tool' && ctxToolId === t) {
         minimizeToolMenu(); return;
       }
       // (Fill, the colour picker and Move have no settings: they hide the
-      // panel without folding it, so the next tool's settings come back)
-      var bare = ctxView === 'tool' && !CTX[ctxToolId] && !ctxEl.classList.contains('min');
-      var show = toolMenuOpen() || bare || (repeatOpens !== false && st.tool === t);
+      // panel without folding it, so the next tool's settings come back,
+      // folded still if they were folded)
+      var bare = ctxView === 'tool' && !hasMenu(ctxToolId);
+      var open = toolMenuOpen() || (repeatOpens !== false && st.tool === t);
+      var show = open || bare;
       // (the colour picker in the dock stays open for a tool with no
       // settings of its own; one with settings takes its place)
-      var keepPc = !pc.hidden && pc.parentNode === dock && !CTX[t];
+      var keepPc = !pc.hidden && pc.parentNode === dock && !hasMenu(t);
       if (show) {
         if (!pc.hidden && !keepPc) picker(null);
         if (!adjBox.hidden || adj) adjustDone();
         if (!bsBox.hidden) studio(false);
       }
-      setTool(t, show);
-      if (show && !keepPc && ctxEl.classList.contains('min')) ctxMin(false);
+      // (folded, a tool with no settings leaves the folded panel as it is)
+      setTool(t, show && (hasMenu(t) || !ctxEl.classList.contains('min')));
+      if (open && hasMenu(t) && !keepPc && ctxEl.classList.contains('min')) ctxMin(false); // (never unfolded for nothing)
       ctxAside();
     }
     function setTool(t, showSettings) {
@@ -6439,7 +6448,7 @@
       // and the arrow that opens the bar to reach it)
       // (and, while it's in the dock, for Layers and the zoom, which open
       // nowhere near it)
-      var pcStays = pc.parentNode === dock && e.target.closest('[data-act="layers"], .paint-layerpanel, .paint-lmenu, .paint-zoom');
+      var pcStays = pc.parentNode === dock && e.target.closest('[data-act="layers"], .paint-layerpanel, .paint-lmenu, .paint-zoom, [data-zoom]');
       if (!pc.hidden && !pcStays && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
       if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
