@@ -108,7 +108,11 @@ When building or changing anything visual:
   room, so nothing moves; the bottom bar's settings toggle greys out), and
   the next tool's settings come back (`bare` in `chooseTool`).
   The colour picker stays open for the top bar's Settings (its button, its
-  menu, and the fold arrow that opens the bar to reach it).
+  menu, and the fold arrow that opens the bar to reach it). In the dock
+  (not on phones) it also stays open through a change to a tool with no
+  settings (`keepPc` in `chooseTool`), Layers and the zoom (`pcStays`);
+  a tool with settings, symmetry, Effects or the Brush Studio take its
+  place, as before. Only the picker does this.
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
   as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
   settings as switches), so it never covers the picture, while it's

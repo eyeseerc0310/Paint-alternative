@@ -867,13 +867,16 @@
       // panel without folding it, so the next tool's settings come back)
       var bare = ctxView === 'tool' && !CTX[ctxToolId] && !ctxEl.classList.contains('min');
       var show = toolMenuOpen() || bare || (repeatOpens !== false && st.tool === t);
+      // (the colour picker in the dock stays open for a tool with no
+      // settings of its own; one with settings takes its place)
+      var keepPc = !pc.hidden && pc.parentNode === dock && !CTX[t];
       if (show) {
-        if (!pc.hidden) picker(null);
+        if (!pc.hidden && !keepPc) picker(null);
         if (!adjBox.hidden || adj) adjustDone();
         if (!bsBox.hidden) studio(false);
       }
       setTool(t, show);
-      if (show && ctxEl.classList.contains('min')) ctxMin(false);
+      if (show && !keepPc && ctxEl.classList.contains('min')) ctxMin(false);
       ctxAside();
     }
     function setTool(t, showSettings) {
@@ -6434,7 +6437,10 @@
       if (!panel.hidden && !e.target.closest('.paint-layerpanel, .paint-lmenu, [data-act="layers"]')) layerPanel(false);
       // (the colour picker stays open for the top bar's Settings, its menu,
       // and the arrow that opens the bar to reach it)
-      if (!pc.hidden && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
+      // (and, while it's in the dock, for Layers and the zoom, which open
+      // nowhere near it)
+      var pcStays = pc.parentNode === dock && e.target.closest('[data-act="layers"], .paint-layerpanel, .paint-lmenu, .paint-zoom');
+      if (!pc.hidden && !pcStays && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
       if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
