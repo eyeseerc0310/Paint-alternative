@@ -281,19 +281,21 @@ When building or changing anything visual:
   `placeSelectionToolbar` puts it under the toolbar wherever that is (the
   top menu folding, frame by frame; the sides swapped, sliding out and in
   with the other bars in `flipUI`; the window resized)
-  and caps its height at the bottom of the picture's space: its buttons
-  scroll past that. Its options (Feather, Expand, Rotate, Transform with
-  Scale and Distort, More) open beside it, towards the picture, level with
+  and makes it reach down to the bottom of the colour bar (`bbar`; the
+  picture's space's when that bar is away): its buttons take the room above
+  Commit and scroll past that, the edge with more past it fading
+  (`selFades`, `more-above`/`more-below`). Its options (Feather, Expand,
+  Rotate, Transform with Scale and Distort) open beside it, towards the picture, level with
   their button, inside the picture's space (`placeSelectionPopover`). A
   selection turning up folds the top menu (`headerOpen(false)`, once), and it
   stays in view while the selection is moved, sized, turned or distorted
   and while the picture is moved or zoomed (it never fades for a press; an
   option open beside it closes on a press elsewhere, as every pop-over does).
-  Its groups:
-  what's picked and its edge (Select All, Invert, Feather, Expand), where it
-  is and which way round (Transform, Rotate, the flips), what's done with it
-  (Copy, Delete, Deselect, More; More also has Paste, and Duplicate to New
-  Layer, `data-sel="duplicate"`); then, at its foot (`.selection-foot`,
+  Its groups, every selection action as a button (there's no ••• menu):
+  what's picked and its edge (Select All, Invert Selection, Feather,
+  Expand); what's done to its pixels (Transform, Rotate, Rotate 90°, Invert
+  Colours, the flips); the clipboard and layers (Copy, Paste, Duplicate to
+  New Layer `data-sel="duplicate"`, Cut to Layer); and Delete, Deselect; then, at its foot (`.selection-foot`,
   outside the scrolling groups, so always in view), **Commit**
   (`.selection-commit`, `data-sel="done"`, solid accent, its word alone,
   centred by its letters): it lays down whatever's been moved, sized, turned
@@ -301,12 +303,12 @@ When building or changing anything visual:
   else. Return does the same wherever the focus is (once; not mid-drag; not
   in a field, the words being typed, or on a control reached with Tab,
   `keyNav`, which keeps Return for itself).
-- **Copy and paste:** Copy (`copySel`, the panel, More, ⌘/Ctrl+C) makes the
+- **Copy and paste:** Copy (`copySel`, the panel, ⌘/Ctrl+C) makes the
   selected pixels as they'd be laid down, moved, sized, turned or distorted,
   on every picked layer (`selBounds`; `liftFrom(..., true)` when still in
   place), without changing anything, and keeps them (`selClip`, until the next
   copy) as well as writing a PNG to the system clipboard where allowed.
-  Paste (`pasteClip`: ⌘/Ctrl+V, More, the selection tool's settings) puts
+  Paste (`pasteClip`: ⌘/Ctrl+V, the panel, the selection tool's settings) puts
   them on a new layer above the current one, where they were, picked up with
   the Move tool at their own pixels (one 'Paste' step). The paste event takes
   a picture from the system clipboard (`pasteFile`: the one copied here,
