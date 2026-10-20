@@ -160,7 +160,7 @@ When building or changing anything visual:
 - **Reordering layers:** by a row's grip, or by the row itself (`reorder`,
   one path for both): with a mouse a drag up or down moves it (the wheel
   scrolls the list); with a finger or the Pencil a moment's hold lifts it
-  (`.lifted`, `lift`) and then it follows, while a quick drag still scrolls,
+  (`.lifted`, `rowLift`) and then it follows, while a quick drag still scrolls,
   a swipe right still picks and a longer hold still opens the layer's menu.
   The click that ends a drag is swallowed (`reorderDone`), so it doesn't
   pick or rename. The drag is followed on the window (moving the row in
@@ -370,6 +370,12 @@ When building or changing anything visual:
   options in the tool settings stays inside the strip: icon segments narrow,
   word segments wrap.
 - **Test in light and dark mode and at phone width** (560px and narrower: check 360 and 375 too).
+- **One big scope:** most of `paint.js` shares one function's scope, so a
+  new `var` or function can silently replace an existing one of the same
+  name (a `var lift` once replaced the selection's `lift()`, and nothing
+  picked up could move). Before adding a name, search for it
+  (`function NAME`, `var NAME`), and run the selection and layer checks
+  after any change there.
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
   touch them, and keep unrelated changes out of a task.

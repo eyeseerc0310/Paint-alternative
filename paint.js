@@ -4241,25 +4241,25 @@
     // scrolls the list); with a finger or the Pencil, a moment's hold lifts
     // the row and then it follows (a quick drag still scrolls, a swipe right
     // still picks, and a longer still hold still opens the layer's menu)
-    var lift = null;
+    var rowLift = null;
     panel.addEventListener('pointerdown', function (e) {
-      var row = e.target.closest('.pl-row[data-i]'); lift = null;
+      var row = e.target.closest('.pl-row[data-i]'); rowLift = null;
       if (!row || e.button || e.target.closest('.pl-grip, .pl-more, .pl-eye, input, select')) return;
-      lift = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse', up: false, t: 0 };
-      if (!lift.mouse) { var L = lift; L.t = setTimeout(function () { if (lift === L) { L.up = true; row.classList.add('lifted'); } }, 280); }
+      rowLift = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse', up: false, t: 0 };
+      if (!rowLift.mouse) { var L = rowLift; L.t = setTimeout(function () { if (rowLift === L) { L.up = true; row.classList.add('lifted'); } }, 280); }
     });
     panel.addEventListener('pointermove', function (e) {
-      var L = lift; if (!L || e.pointerId !== L.id) return;
-      if (!lmenu.hidden) { clearTimeout(L.t); L.row.classList.remove('lifted'); lift = null; return; } // (the hold opened its menu)
+      var L = rowLift; if (!L || e.pointerId !== L.id) return;
+      if (!lmenu.hidden) { clearTimeout(L.t); L.row.classList.remove('lifted'); rowLift = null; return; } // (the hold opened its menu)
       var dx = e.clientX - L.x, dy = e.clientY - L.y, far = Math.hypot(dx, dy);
       if (L.mouse ? far > 6 && Math.abs(dy) > Math.abs(dx) : L.up && far > 4) {
-        lift = null; clearTimeout(L.t); clearTimeout(holdTimer); swipe = null; hidePeek();
+        rowLift = null; clearTimeout(L.t); clearTimeout(holdTimer); swipe = null; hidePeek();
         reorder(L.row, L.row, L.id, L.y, e);
-      } else if (!L.up && (L.mouse ? Math.abs(dx) > 6 : far > 8)) { lift = null; clearTimeout(L.t); }
+      } else if (!L.up && (L.mouse ? Math.abs(dx) > 6 : far > 8)) { rowLift = null; clearTimeout(L.t); }
     });
-    ['pointerup', 'pointercancel'].forEach(function (t) { panel.addEventListener(t, function () { if (lift) { clearTimeout(lift.t); lift.row.classList.remove('lifted'); lift = null; } }); });
+    ['pointerup', 'pointercancel'].forEach(function (t) { panel.addEventListener(t, function () { if (rowLift) { clearTimeout(rowLift.t); rowLift.row.classList.remove('lifted'); rowLift = null; } }); });
     // (once lifted, a finger's drag moves the row rather than scrolling the list)
-    panel.addEventListener('touchmove', function (e) { if ((lift && lift.up) || panel.querySelector('.pl-row.dragging')) e.preventDefault(); }, { passive: false });
+    panel.addEventListener('touchmove', function (e) { if ((rowLift && rowLift.up) || panel.querySelector('.pl-row.dragging')) e.preventDefault(); }, { passive: false });
     // (the click at the end of a drag isn't a tap on the row, or a rename)
     var reorderDone = 0;
     panel.addEventListener('click', function (e) { if (performance.now() - reorderDone < 400 && e.target.closest('.pl-row')) { e.stopPropagation(); e.preventDefault(); } }, true);
