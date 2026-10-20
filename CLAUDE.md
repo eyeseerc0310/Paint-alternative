@@ -107,6 +107,8 @@ When building or changing anything visual:
   entry: picking it hides the panel without folding it (the dock keeps its
   room, so nothing moves; the bottom bar's settings toggle greys out), and
   the next tool's settings come back (`bare` in `chooseTool`).
+  The colour picker stays open for the top bar's Settings (its button, its
+  menu, and the fold arrow that opens the bar to reach it).
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
   as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
   settings as switches), so it never covers the picture, while it's
@@ -284,7 +286,11 @@ When building or changing anything visual:
   and makes it reach down to the bottom of the colour bar (`bbar`; the
   picture's space's when that bar is away): its buttons take the room above
   Commit and scroll past that, the edge with more past it fading
-  (`selFades`, `more-above`/`more-below`). Its options (Feather, Expand,
+  (`selFades`, `more-above`/`more-below`) under a small round arrow
+  (`.sel-more`, `selArrows`) that scrolls the next group fully into view
+  (`selStep`), and the first time it turns up with more than fits it scrolls
+  a little way down and back, once ever (`selNudge`, `paint-sel-nudged`).
+  Its options (Feather, Expand,
   Rotate, Transform with Scale and Distort) open beside it, towards the picture, level with
   their button, inside the picture's space (`placeSelectionPopover`). A
   selection turning up folds the top menu (`headerOpen(false)`, once), and it
