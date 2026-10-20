@@ -7580,10 +7580,8 @@
       }
       if (selbar.hidden === on) selbar.hidden = !on;
       if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
-      var manipulating = !!down;
-      selectionSlot.classList.toggle('manipulating', manipulating);
-      selectionSlot.inert = !on || manipulating;
-      if (manipulating) closeSelectionPopover();
+      // (it stays in view while the selection is moved, sized or turned)
+      selectionSlot.inert = !on;
       var masking = selectionCanMask();
       selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
