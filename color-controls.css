@@ -1,7 +1,7 @@
 /* Shared design tokens for the paired colour control. */
 :root {
   --color-pair-height: 48px;
-  --color-pair-gap: 18px;
+  --color-pair-gap: 26px;
   --color-pair-padding: var(--s-2);
   --color-pair-hairline: .5px;
   --color-pair-tint: 58%;
@@ -61,7 +61,7 @@
 .color-swap-motion .swap-well { background: var(--panel-solid); }
 .color-swap-motion .swap-disc { transform-origin: center; will-change: transform; }
 @media (max-width: 560px) {
-  :root { --color-pair-height: 42px; --color-pair-gap: 14px; --color-pair-padding: 6px; --color-swap-icon-size: 16px; }
+  :root { --color-pair-height: 42px; --color-pair-gap: 22px; --color-pair-padding: 6px; --color-swap-icon-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .paint .paint-pair .paint-swap:hover svg { rotate: none; }

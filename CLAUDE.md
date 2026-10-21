@@ -82,7 +82,9 @@ When building or changing anything visual:
   with the bottom bar's middle (hidden in focus mode). The **bottom bar**
   (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
   like the top bar's capsules) holds, in this order, Size, Undo, the two
-  colours (`.paint-pair`, the swap tucked at their top), Redo and Opacity;
+  colours (`.paint-pair`, in `color-controls.css`: the pair is the swap
+  button, its arrows in the gap between the two, `--color-pair-gap`, wide
+  enough that they never touch either), Redo and Opacity;
   a slider the tool doesn't use is greyed out (`data-uses`). On wider
   screens the colour picker and Effects open from the tool settings, as wide
   as them, over them, and they step aside (`dockPanels`, `in-dock`,
