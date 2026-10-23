@@ -546,7 +546,8 @@
     pc.innerHTML = pcTop +
       '<div class="pc-grab" aria-hidden="true" data-tip="Drag to move (double-click: back in place)"></div>' +
       '<div class="pc-head">' +
-        '<div class="pa-tabs pc-which" role="tablist"><button type="button" role="tab" data-pc-which="main"><i></i>Main</button><button type="button" role="tab" data-pc-which="second"><i></i>Second</button></div>' +
+        '<div class="pa-tabs pc-which" role="tablist"><button type="button" role="tab" data-pc-which="main"><i></i><span>Main</span></button><button type="button" role="tab" data-pc-which="second"><i></i><span>Second</span></button></div>' +
+        '<button type="button" class="pc-none" data-pc-act="none" hidden aria-pressed="false" aria-label="None" data-tip="None: no fill (or no stroke)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></svg></button>' +
         '<div class="pc-compare"><button type="button" class="pc-was" title="Go back to the colour before" aria-label="Go back to the colour before"></button><span class="pc-now"></span></div>' +
       '</div>' +
       '<div class="pc-disc"><canvas aria-hidden="true"></canvas><i class="pc-knob pc-hk"></i><i class="pc-knob pc-sk"></i></div>' +
@@ -601,7 +602,13 @@
       c.restore();
     }
     function pcColor() { var c = hsv2rgb(hsv[0], hsv[1], hsv[2]); return rgb2hex(c[0], c[1], c[2]); }
-    function pcTarget() { return pcWhich === 'main' ? st.color : st.color2; }
+    function pcTarget() { if (wsMode === 'vector') return PV.pcGet(pcWhich) || '#000000'; return pcWhich === 'main' ? st.color : st.color2; }
+    // (Vector mode changed what the picker shows: the picked object, or the colour itself)
+    function pcRefresh() {
+      if (!pc || pc.hidden || pcBusy) return;
+      var c = hex2rgb(pcTarget()), x = rgb2hsv(c[0], c[1], c[2]);
+      hsv = [x[1] && x[2] ? x[0] : hsv[0], x[1], x[2]]; pcShow();
+    }
     // show it all for the colour as it is now (but not over the box being typed in)
     function pcShow(skip) {
       var hex = pcColor(), a = (hsv[0] - 90) * Math.PI / 180, mr = DISC / 2 - RING / 2;
@@ -617,8 +624,13 @@
       v.style.setProperty('--track', 'linear-gradient(90deg,#000,' + rgb2hex.apply(null, lit) + ')');
       pc.querySelector('.pc-now').style.background = hex;
       pc.querySelector('.pc-was').style.background = pcWas || hex;
-      pc.querySelector('[data-pc-which="main"] i').style.background = st.color;
-      pc.querySelector('[data-pc-which="second"] i').style.background = st.color2;
+      var vec = wsMode === 'vector';
+      pc.querySelector('[data-pc-which="main"] i').style.background = vec ? PV.pcCss('main') || 'transparent' : st.color;
+      pc.querySelector('[data-pc-which="second"] i').style.background = vec ? PV.pcCss('second') || 'transparent' : st.color2;
+      pc.querySelector('[data-pc-which="main"] span').textContent = vec ? 'Fill' : 'Main';
+      pc.querySelector('[data-pc-which="second"] span').textContent = vec ? 'Stroke' : 'Second';
+      pc.querySelector('.pc-none').hidden = !vec;
+      pc.querySelector('.pc-none').setAttribute('aria-pressed', vec && !PV.pcGet(pcWhich) ? 'true' : 'false');
       Array.prototype.forEach.call(pc.querySelectorAll('[data-pc-which]'), function (b) { b.setAttribute('aria-selected', b.dataset.pcWhich === pcWhich ? 'true' : 'false'); });
       Array.prototype.forEach.call(pc.querySelectorAll('[data-pc-mode]'), function (b) { b.setAttribute('aria-selected', b.dataset.pcMode === pcMode ? 'true' : 'false'); });
       var vals = pc.querySelector('.pc-values'), rgb = hex2rgb(hex);
@@ -653,7 +665,8 @@
     function pcSet(h, s, v, skip) {
       hsv = [h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v))];
       var hex = pcColor(); pcBusy = true;
-      if (pcWhich === 'main') setColor(hex);
+      if (wsMode === 'vector') PV.pcSet(pcWhich, hex);
+      else if (pcWhich === 'main') setColor(hex);
       else setColor2(hex);
       pcBusy = false; pcShow(skip);
     }
@@ -770,6 +783,7 @@
       if (e.target.closest('.pc-was')) { if (pcWas) pcFrom(pcWas); return; }
       var c = e.target.closest('[data-pc-color]'); if (c) { pcFrom(c.dataset.pcColor); return; }
       var a = e.target.closest('[data-pc-act]'); if (!a) return;
+      if (a.dataset.pcAct === 'none') { if (wsMode === 'vector') { PV.pcSet(pcWhich, null); pcShow(); } return; }
       var P = palettes(), p = P[Math.max(0, Math.min(P.length - 1, palIndex))];
       if (a.dataset.pcAct === 'add' && !p.ready) { var hex = pcColor(); if (p.colors.indexOf(hex) < 0) p.colors.push(hex); }
       else if (a.dataset.pcAct === 'photo') { photoIn.click(); return; }
@@ -6458,8 +6472,8 @@
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
-    sizeIn.addEventListener('input', function () { setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
-    alphaIn.addEventListener('input', function () { st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
+    sizeIn.addEventListener('input', function () { if (wsMode === 'vector') return; setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
+    alphaIn.addEventListener('input', function () { if (wsMode === 'vector') return; st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
 
     // ---- DRAG A COLOUR onto the picture: it drops in and spreads out to
     // fill the area it lands on (like the fill tool). Any swatch, a recent
@@ -6470,16 +6484,17 @@
     var blob = null, pairPressed = -1e9;
     function colourDrag(e) {
       var sw = e.target.closest('.paint-current, .paint-second, .paint-colorpanel [data-pc-color]');
-      if (!sw || wsMode === 'vector' || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      var main = sw.classList.contains('paint-current'), pair = main || sw.classList.contains('paint-second');
-      var start = { x: e.clientX, y: e.clientY, c: sw.dataset.pcColor || (main ? st.color : st.color2), el: sw, id: e.pointerId, on: false };
+      if (!sw || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      var main = sw.classList.contains('paint-current'), pair = main || sw.classList.contains('paint-second'), vec = wsMode === 'vector';
+      var c0 = sw.dataset.pcColor || (vec ? PV.pcGet(main ? 'main' : 'second') : main ? st.color : st.color2);
+      var start = { x: e.clientX, y: e.clientY, c: c0, el: sw, id: e.pointerId, on: false };
       e.preventDefault(); // (no text selection or focus ring from a drag)
       try { sw.setPointerCapture(e.pointerId); } catch (x) {}
       function mv(ev) {
         if (!start.on) {
           if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
           start.on = true; clearTimeout(pcHold); // (a drag isn't a press and hold)
-          blob = document.createElement('div'); blob.className = 'paint-blob'; blob.style.background = start.c; busy(true);
+          blob = document.createElement('div'); blob.className = 'paint-blob' + (start.c ? '' : ' v-none'); blob.style.background = start.c || ''; busy(true);
           document.body.appendChild(blob);
         }
         // (placed with translate, not transform: its grow-and-plop scale is
@@ -6502,6 +6517,7 @@
         var b = blob; blob = null;
         var over = ev.type === 'pointerup' && document.elementFromPoint(ev.clientX, ev.clientY);
         if (b) { if (over && over.closest('.paint-stage')) plopAt(0, 0, '', b); else { b.classList.add('gone'); setTimeout(function () { b.remove(); }, ev.type === 'pointerup' ? 260 : 0); } }
+        if (vec) { if (over && over.closest('.paint-stage')) PV.dropColour(ev.clientX, ev.clientY, start.c, main ? 'main' : pair ? 'second' : (pcWhich || 'main')); return; }
         if (over && over.closest('.paint-stage') && !over.closest(STAGE_UI)) {
           var r = stage.getBoundingClientRect();
           plopFill(fromScreen(ev.clientX - r.left, ev.clientY - r.top), start.c);
@@ -7450,7 +7466,8 @@
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
-        (PV ? group('Vector mode', [['Selection', 'V'], ['Hand', 'H'], ['Zoom', 'Z'], ['Fit to screen', '0'], ['Actual size', CMD + '1'], ['Pick everything', CMD + 'A'], ['Nudge', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Delete', MAC ? '⌫' : 'Del'], ['Let go of what\u2019s picked', 'Esc']]) : '') +
+        (PV ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Rotate View', 'R'], ['Hand', 'H'], ['Zoom', 'Z']]) +
+          group('Vector editing', [['Group', CMD + 'G'], ['Ungroup', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'G'], ['Join picked paths', CMD + 'J'], ['Duplicate', CMD + 'D'], ['Copy, cut, paste', CMD + 'C'], ['Bring forward', CMD + ']'], ['Send backward', CMD + '['], ['Swap fill and stroke', 'X'], ['Default fill and stroke', 'D'], ['No fill', '/'], ['Finish a path', MAC ? '↩' : 'Enter'], ['Nudge (by 10)', '← ↑ (⇧)'], ['Fit to screen', '0'], ['Actual size', CMD + '1']]) : '') +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
@@ -7804,6 +7821,7 @@
     });
     function settingsToggleSync() {
       if (!settingsToggle) return;
+      if (wsMode === 'vector') { settingsToggle.disabled = false; settingsToggle.setAttribute('aria-label', 'Quick options'); return; } // (Vector's quick options, not the panel)
       var open = toolMenuOpen();
       // (greyed out for a tool with no settings, while nothing else is open)
       settingsToggle.disabled = !open && !!ctxEl && ctxEl.hidden;
@@ -8257,7 +8275,12 @@
       docSize: function () { return { pw: ov.width, ph: ov.height }; },
       autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, draggable: draggable,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
-      showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); }
+      showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
+      panelOpen: toolMenuOpen, togglePanel: function () { ctxMin(toolMenuOpen()); },
+      // (the bottom bar: Size is the stroke's width, the two colours are the fill and the stroke)
+      sizeIn: sizeIn, alphaIn: alphaIn, fillBtn: $('.paint-current'), strokeBtn: $('.paint-second'), fillDot: colorDot, strokeDot: color2Dot, ctxBtn: settingsToggle,
+      picker: function (which) { if (pc.hidden || pcWhich !== which) picker(which); else pcRefresh(); },
+      pcRefresh: pcRefresh, palettes: palettes
     });
     function modeSync() {
       var vec = wsMode === 'vector';
@@ -8265,8 +8288,14 @@
       Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.tabIndex = b.dataset.mode === wsMode ? 0 : -1; });
       // (what's only the painting's is greyed out, so nothing moves)
       ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec; });
-      Array.prototype.forEach.call(bbar.querySelectorAll('.paint-pair button'), function (b) { b.disabled = vec; });
       Array.prototype.forEach.call(saveMenu.querySelectorAll('[data-save="svg"]'), function (b) { b.hidden = !vec; });
+    }
+    // (the bottom bar back to the painting's: its size, opacity and two colours)
+    function bbarBack() {
+      sizeIn.parentNode.querySelector('span').textContent = 'Size'; sizeIn.setAttribute('aria-label', 'Size'); alphaIn.min = 5;
+      setSize(st.size); setAlpha(st.alpha); colorDot.style.background = st.color; color2Dot.style.background = st.color2;
+      $('.paint-current').setAttribute('aria-label', 'Colour'); $('.paint-second').setAttribute('aria-label', 'Second colour');
+      settingsToggle.dataset.tip = 'Tool settings'; settingsToggle.removeAttribute('aria-haspopup'); settingsToggleSync();
     }
     // (a copy of the painting as it's seen, see-through where it is)
     function flatCopy() { var c = document.createElement('canvas'); c.width = ov.width; c.height = ov.height; flattenInto(c.getContext('2d')); return c; }
@@ -8284,7 +8313,7 @@
         var flat = bring ? flatCopy() : null;
         wsMode = 'vector'; modeSync(); ctxAside(); PV.enter(flat);
       } else {
-        PV.leave(); wsMode = 'paint'; modeSync();
+        PV.leave(); wsMode = 'paint'; modeSync(); bbarBack();
         if (bring) PV.raster(ov.width, ov.height).then(function (c) {
           if (wsMode !== 'paint' || !roomFor()) return;
           if (grad) gradDone(); if (textBox) commitText(); if (sel) commitSelection();

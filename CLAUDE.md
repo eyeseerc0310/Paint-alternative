@@ -428,19 +428,67 @@ When building or changing anything visual:
   new paint layer "Vector Artwork" above the active one (`rememberLayers`,
   one undo step). Each side keeps its own layers, undo, view, selection
   and tool. **`vector.js`** (`window.PaintVector`, `PV` in `paint.js`) owns
-  Vector's side: its document (`doc`: artboard `w`/`h` in the picture's
-  pixels, layers of objects; pictures as data URLs in `assets`), its undo
-  (JSON snapshots, `record`), its view (`fit` keeps clear of the switch),
-  SVG on `.vec-stage` inside `.paint-stage` (it stops its pointer events,
-  so the painting's handlers never see them), its categories in the left
-  bar (`CATS`/`TOOLS`, one registry; `.vec-group`, laid over the hidden
-  paint groups so the bar keeps its size), its panel in the tool settings
-  (`panelHTML`, through `ctxRender`'s `vector` key; `panelSync` fills it),
-  its Vector Layers panel, and keys (`PV.key` first in `app.key`). Paint
-  hands it what it shares through the bridge in `PV.init` (the stage, the
-  tool panel, Layers, the zoom, undo and redo, autosave, toasts). In
-  Vector mode: what's only the painting's is hidden or greyed out (History,
-  Crop, the two colours, Size and Opacity), pictures opened, pasted or
+  Vector's side, in this order: THE TOOLS (`CATS`, the left bar's
+  categories in the spec's order, only those whose tools are all real;
+  `TOOLS`, each tool's name, key and tip; `ICONS`; `TS`, each tool's own
+  settings, kept as `paint-vec-tools`), GEOMETRY (a path's `d` is a list
+  of subpaths `{ pts, closed }`, each point an anchor with its handles
+  `{ x, y, ix, iy, ox, oy, s }` (s smooth; `a`: kept curving through its
+  neighbours, the Curvature tool's, `reflowAuto`); `seg`/`bez`/`splitBez`/
+  `insertAt`, `flat`/`measure`, `nearest`, `inside` (non-zero), `dBox`,
+  `fitCurves` (Schneider), `rdp`), THE DOCUMENT (`doc.layers`, top last:
+  `layer` nodes hold sublayers, `group`s, `path`s and `image`s, each with
+  `id`, `name`, `visible`, `locked`; `walk`/`where`/`chain`; `topPick`, what
+  the Selection tool picks, the outermost group in its layer; `editable`;
+  `xform(n, matrix)`; LIVE SHAPES, `n.live`, what a shape was made from,
+  `liveGen`, kept through moves and sizes by `liveXform`, dropped by
+  `unlive` when its points are edited), HOW IT LOOKS (`n.app`, fills and
+  strokes stacked from the bottom: `{ k: 'f'|'s', p, o, on }`, strokes with
+  `w`, `cap`, `join`, `ml`, `dash`, `prof`; a paint `p` is null (none),
+  `{ t: 'c', c }` or a gradient `{ t: 'l'|'r', st: [{ t, c, o }], ... }` in
+  fractions of the object's box; `itemOf(app, k)` is the one the colours
+  change, the top one unless Fills & Strokes focused another; `prof`, a
+  width profile `[{ t, w }]`, is drawn as a filled outline, `outlineD`;
+  `doc.def` is what new objects take, and every colour, width or opacity
+  set goes to what's picked and to it), DRAWING IT (`nodeSvg` for the
+  screen and saving, pictures as `<use>` of a `<symbol>` in `defsEl`;
+  `cDraw` on a canvas for `raster`, the eyedropper's `sampleAt` and the
+  Vector Fill, from the same appearance), UNDO (`record`, a whole-document
+  snapshot; `begin` records a drag on its first move, `cancelDrag` takes it
+  back when a second finger lands; `recordC` makes a run of slider or
+  picker changes one step), THE VIEW (`view` x, y, k and r, turned by
+  Rotate View or two fingers' twist; `vmat`, `toScreen`/`fromScreen`; `fit`
+  keeps clear of the switch and sets it upright), ON THE SCREEN (`renderArt`,
+  `renderNode` for one node during a drag; `drawUI` draws what's picked,
+  handles, anchors and what's being made on `.vec-ui`, in screen pixels),
+  PICKING (`hitLeaf`, `hitAnchor`, `hitHandleOf`, `hitSegment`,
+  `hitBoxHandle`), the pointer (`down`/`move`/`up` hand each press to
+  `H[tool]` (`H.select` for a tool with none): `down`, `move`, `up`, `hover`;
+  a drag object `drag` carries its kind and tool), THE PANEL (`panelHTML`:
+  the category's tools as a grid, then `SET[tool]()`; every control names
+  what it changes with `data-vk`, read and set through `BK` (or `L.` for a
+  live shape's settings, `T.` for `TS`), buttons name an action with
+  `data-va` (`act`); `panelSync` fills it, and it's made again only when
+  `keyNow()` changes), COLOURS (`pcGet`/`pcSet`/`pcCss` for the picker,
+  'main' the fill and 'second' the stroke; a gradient's picked stop with
+  the Gradient tool), THE BOTTOM BAR (`bbarSync`, `bbarInput`: Size is the
+  stroke's width, `swAt`/`swPos`, its slider narrowed so the longer name
+  keeps the bar its width; Opacity; the two colours, the stroke as a ring,
+  none as a red slash; Swap; the last button opens QUICK OPTIONS, `quickItems`,
+  for the tool and what's picked, ending with showing or hiding the tool
+  settings), LAYERS (a tree, top first, a level a step in; eye, lock, fold,
+  rename with a double-tap; a row dragged with the mouse, or by its grip
+  with a finger, goes into a layer or group or between rows, `dropAt`,
+  `moveTo`; objects never go loose at the top, layers never into groups),
+  KEEPING IT (`serialize`; `load` checks everything, `sNode`, `sApp`,
+  `sPaint`), and IN AND OUT (`enter`, `leave`, `key`). Paint hands it what
+  it shares through the bridge in `PV.init` (the stage, the tool panel,
+  Layers, the zoom, undo and redo, the bottom bar's controls, the colour
+  picker, `palettes`, autosave, toasts); the picker's tabs read Fill and
+  Stroke in Vector mode and it has None (`.pc-none`), and a colour dragged
+  from the bar or the picker onto an object fills or strokes it
+  (`PV.dropColour`). In Vector mode: what's only the painting's is hidden or
+  greyed out (History, Crop), pictures opened, pasted or
   dropped are placed as objects (`PV.addImageFile`), Save offers SVG and
   saves Vector's art, Share sends it. Both sides are kept together:
   `docInfo`/`applyInfo` and the project file carry `mode` and `vector`
@@ -490,7 +538,8 @@ When building or changing anything visual:
   name (a `var lift` once replaced the selection's `lift()`, and nothing
   picked up could move). Before adding a name, search for it
   (`function NAME`, `var NAME`), and run the selection and layer checks
-  after any change there.
+  after any change there. `vector.js` is one scope too (a control builder
+  once took the geometry's `seg` name): search it the same way.
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
   touch them, and keep unrelated changes out of a task.
