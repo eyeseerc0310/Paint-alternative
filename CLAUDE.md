@@ -1,7 +1,8 @@
 # Paint Alternative: notes for Claude
 
 A browser painting app (plain HTML/CSS/JS, no build step), published with
-GitHub Pages from `main`. The app is `index.html`, `style.css` and `paint.js`;
+GitHub Pages from `main`. The app is `index.html`, `style.css` and `paint.js`,
+with Vector mode in `vector.js` (loaded before `paint.js`);
 `sw.js`, `manifest.webmanifest` and `icons/` make it installable and offline.
 
 ## Design: use one shared design system
@@ -32,7 +33,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the Paint / Vector switch's height; the phone's tool settings strip starts under it).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -410,6 +411,41 @@ When building or changing anything visual:
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
   choice, for testing.
+- **Paint and Vector** are two workspaces in one drawing. The switch
+  (`.mode-switch`, a radio group in a frosted capsule at the top middle of
+  `.paint-centre`, over the picture's space; picked side `--seg-on`) calls
+  `askMode(m)`: when the side being left has art (`thumbOf().blank`,
+  `PV.isEmpty()`) and `modeAsk` is on (`paint-mode-ask`; the dialog's
+  Don't ask again, and Settings' Ask to bring artwork across), a sheet
+  offers Cancel, Switch Without Copying and Bring Artwork; otherwise it
+  switches with no copy. `setMode(m, bring)` does the switch (`wsMode`,
+  `vector-mode` on `:root`, `modeSync`). The painting is only hidden in
+  Vector mode, never changed: the words being typed and Effects are
+  finished first, a selection, path or gradient stays open. Bring to
+  Vector: `flatCopy()` goes in as a picture object on a new layer
+  "Painting" (`PV.enter(flat)`, one Vector undo step). Bring to Paint:
+  `PV.raster(pw, ph)` (see-through, fitted as the artboard fits) goes on a
+  new paint layer "Vector Artwork" above the active one (`rememberLayers`,
+  one undo step). Each side keeps its own layers, undo, view, selection
+  and tool. **`vector.js`** (`window.PaintVector`, `PV` in `paint.js`) owns
+  Vector's side: its document (`doc`: artboard `w`/`h` in the picture's
+  pixels, layers of objects; pictures as data URLs in `assets`), its undo
+  (JSON snapshots, `record`), its view (`fit` keeps clear of the switch),
+  SVG on `.vec-stage` inside `.paint-stage` (it stops its pointer events,
+  so the painting's handlers never see them), its categories in the left
+  bar (`CATS`/`TOOLS`, one registry; `.vec-group`, laid over the hidden
+  paint groups so the bar keeps its size), its panel in the tool settings
+  (`panelHTML`, through `ctxRender`'s `vector` key; `panelSync` fills it),
+  its Vector Layers panel, and keys (`PV.key` first in `app.key`). Paint
+  hands it what it shares through the bridge in `PV.init` (the stage, the
+  tool panel, Layers, the zoom, undo and redo, autosave, toasts). In
+  Vector mode: what's only the painting's is hidden or greyed out (History,
+  Crop, the two colours, Size and Opacity), pictures opened, pasted or
+  dropped are placed as objects (`PV.addImageFile`), Save offers SVG and
+  saves Vector's art, Share sends it. Both sides are kept together:
+  `docInfo`/`applyInfo` and the project file carry `mode` and `vector`
+  (`PV.serialize`, `vecLoad`); New Picture starts Vector blank again; the
+  gallery keeps a drawing whose painting is blank if Vector has art.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
