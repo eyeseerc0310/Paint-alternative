@@ -1898,12 +1898,26 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vec-board { position: absolute; left: 0; top: 0; background: var(--paper); box-shadow: var(--shadow-paper); }
 /* (the artwork's own drawing, not an icon's: none of the icons' sizes or strokes) */
 .paint .vec-stage svg { width: auto; height: auto; fill: initial; stroke: initial; stroke-width: initial; stroke-linecap: initial; stroke-linejoin: initial; }
-.paint .vec-stage .vec-art { position: absolute; left: 0; top: 0; display: block; overflow: hidden; }
+/* (what reaches past the artboard still shows round it; saving keeps to the artboard) */
+.paint .vec-stage .vec-art { position: absolute; left: 0; top: 0; display: block; overflow: visible; }
 .paint .vec-stage .vec-ui { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.vs-box { fill: none; stroke: var(--edit); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* (on the artwork, so the same in both themes: --edit, the picked's blue) */
+.vs-box, .vs-path { fill: none; stroke: var(--edit); stroke-width: 1; }
+.vs-hover { fill: none; stroke: var(--edit); stroke-width: 2; opacity: .55; }
 .vs-bounds { fill: none; stroke: var(--edit); stroke-width: 1; stroke-dasharray: 4 3; }
 .vs-handle { fill: var(--paper); stroke: var(--edit); stroke-width: 1.5; }
 .vs-marquee { fill: color-mix(in srgb, var(--edit) 10%, transparent); stroke: var(--edit); stroke-width: 1; stroke-dasharray: 4 3; }
+.vs-anchor { fill: var(--paper); stroke: var(--edit); stroke-width: 1.25; }
+.vs-anchor.on { fill: var(--edit); }
+.vs-hline { stroke: var(--edit); stroke-width: 1; opacity: .8; }
+.vs-hdot { fill: var(--edit); stroke: var(--paper); stroke-width: 1; }
+.vs-rubber { fill: none; stroke: var(--edit); stroke-width: 1.25; stroke-dasharray: 5 3; }
+.vs-dot { fill: var(--paper); stroke: var(--edit); stroke-width: 2; }
+.vs-knife { fill: none; stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 6 3; }
+.vs-gline { stroke: var(--edit-edge); stroke-width: 3; }
+.vs-gline + .vs-gend, .vs-gend { fill: var(--paper); stroke: var(--edit); stroke-width: 2; }
+.vs-wpt { fill: var(--paper); stroke: var(--edit); stroke-width: 2; }
+.vs-wpt.on { fill: var(--edit); }
 .vector-mode .paint-stage > :not(.vec-stage) { visibility: hidden !important; }
 .vector-mode .paint-stage { cursor: default; }
 /* (the left bar: Vector's categories stand where the painting's tools were,
@@ -1915,11 +1929,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .paint-left .paint-toolgroups > .vec-group::before { display: none; }
 /* (what's only the painting's: out of sight, or greyed out where hiding it
    would move something) */
-.vector-mode .selection-slot, .vector-mode .paint-colorpanel, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),
+.vector-mode .selection-slot, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),
 .vector-mode .paint-selx, .vector-mode .paint-seldist, .vector-mode .paint-scale { display: none !important; }
-.vector-mode .paint-pair { opacity: var(--disabled); }
-.vector-mode .paint-pair button:disabled { opacity: 1; cursor: default; }
-.vector-mode .paint-ctx.aside { opacity: 1; pointer-events: auto; }
 .paint-savemenu button[hidden] { display: none; }
 
 /* Vector's tool settings: the category's tools at the top, a grid of
@@ -1938,7 +1949,63 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vec-name { padding: var(--s-1) var(--s-2); font-size: var(--fs-ui); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vec-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px var(--s-1); }
 .vec-fields .ctx-field { justify-content: space-between; padding: 0 var(--s-1) 0 var(--s-2); }
-.vec-fields .ctx-num { width: 58px !important; }
+.vec-fields .ctx-field { min-width: 0; }
+.vec-fields .ctx-num { flex: 1 1 auto; width: auto !important; min-width: 0; max-width: 64px; }
+.vec-fields.vec-1col { grid-template-columns: 1fr; }
+.vec-fields.vec-1col .ctx-num { max-width: 72px; }
+.vec-count { padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
+.vec-name .p-field, .vec-selrow select { flex: 1; min-width: 0; height: 26px; }
+.vec-name { gap: var(--s-2); }
+.vec-selrow select { padding: 0 1.6rem 0 .5rem; background: var(--hover) var(--chev-down) no-repeat right .4rem center / 14px; border: 0; border-radius: var(--r-2xs); -webkit-appearance: none; appearance: none; font: inherit; font-size: var(--fs-ui); color: var(--text); }
+/* a colour: its swatch (a ring for a stroke, a slash for none), name and hex */
+.paint .vec-colour { gap: var(--s-2); }
+.vec-sw { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--sw, transparent); box-shadow: var(--swatch-edge); }
+.vec-sw.ring { -webkit-mask: radial-gradient(circle, transparent 0 4px, #000 4.5px); mask: radial-gradient(circle, transparent 0 4px, #000 4.5px); }
+.vec-sw.none, .v-none { background: linear-gradient(135deg, transparent calc(50% - 1px), var(--danger) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)), var(--paper) !important; -webkit-mask: none; mask: none; }
+.vec-hex { margin-left: auto; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--muted); }
+.vec-gbar { width: auto; margin: 2px var(--s-1); }
+.vec-gbar.vec-off > b.on { opacity: .35; }
+/* swatches, profiles and blend modes: grids of small buttons */
+.vec-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(22px, 1fr)); gap: 5px; padding: 2px var(--s-2) var(--s-1); }
+.paint .vec-swatch { width: 100%; height: auto; aspect-ratio: 1; border-radius: 50%; box-shadow: var(--swatch-edge); }
+.paint .vec-swatch.vec-add { color: var(--muted); background: var(--hover); box-shadow: none; }
+.paint .vec-swatch.vec-add svg { width: 14px; height: 14px; }
+.vec-profiles, .vec-blends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.paint .vec-profile, .paint .vec-blend { width: auto; height: auto; min-height: 30px; padding: 4px 6px; border-radius: var(--r-2xs); font-size: var(--fs-xs); font-weight: 500; color: var(--menu-link); }
+.paint .vec-profile { flex-direction: column; gap: 2px; }
+.paint .vec-profile svg { width: 100%; height: 18px; }
+.paint .vec-profile[aria-pressed="true"], .paint .vec-blend[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+/* multiple fills and strokes: one row each, the top drawn last */
+.vec-alist { display: flex; flex-direction: column; gap: 2px; }
+.vec-arow { display: flex; align-items: center; gap: 2px; border-radius: var(--r-2xs); }
+.vec-arow.on { background: var(--chip); box-shadow: var(--chip-shadow); }
+.paint .vec-arow button { height: 30px; color: var(--menu-link); }
+.paint .vec-arow .pl-eye { width: 28px; flex: none; color: var(--muted); }
+.paint .vec-arow .pl-eye svg { width: var(--icon-sm); height: var(--icon-sm); }
+.paint .vec-aname { flex: 1; width: auto; min-width: 0; justify-content: flex-start; gap: var(--s-2); padding: 0 var(--s-1); font-size: var(--fs-ui); }
+.vec-aname span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Vector's layers: a tree, each level a step in */
+.paint .vl-row { padding-left: calc(2px + var(--vd, 0) * 14px); }
+.vl-gap { flex: none; width: 22px; }
+.vl-row.cur .pl-name span { font-weight: 600; }
+.vl-row.vl-layer .pl-folder { opacity: .55; }
+.vl-row.off .pl-name { opacity: .5; }
+.vl-row.vl-dragging { opacity: .5; }
+.vec-layerpanel .pl-list { position: relative; }
+.vec-layerpanel .pl-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.vl-drop { position: absolute; left: 4px; right: 4px; height: 2px; border-radius: 1px; background: var(--edit); pointer-events: none; z-index: 2; }
+.vl-drop.into { height: auto; background: color-mix(in srgb, var(--edit) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--edit); border-radius: var(--r-btn); }
+.vl-drop.bad { background: var(--danger); opacity: .6; }
+.vl-drop[hidden] { display: none; }
+/* the bottom bar in Vector mode: the stroke shows as a ring */
+.vector-mode .paint-second span::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: var(--panel-solid); }
+.vector-mode .paint-second span.v-none::after { display: none; }
+.paint-blob.v-none { background: var(--paper); }
+/* the colour picker's None (Vector mode) */
+.paint .pc-none { flex: none; width: 28px; height: 28px; border-radius: var(--r-2xs); color: var(--muted); }
+.paint .pc-none svg { width: var(--icon-sm); height: var(--icon-sm); }
+.paint .pc-none[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+.pc-none[hidden] { display: none !important; }
 .vec-zoomrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
 .paint .vec-zoomrow .ctx-btn { width: auto; }
 /* (phones: the strip along the top; the tools a row, the settings wrapping) */
@@ -1946,13 +2013,16 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   .vec-panel { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px var(--s-1); }
   .vec-cat { display: none; }
   .vec-tools { display: flex; flex-wrap: wrap; gap: 2px; }
-  .paint .vec-tool { min-height: 0; height: 28px; flex-direction: row; gap: 4px; padding: 0 var(--s-2); }
+  .paint .vec-tool { min-height: 0; width: 30px; height: 28px; padding: 0; }
+  .paint .vec-tool span { display: none; }
   .paint .vec-tool svg { width: var(--icon-sm); height: var(--icon-sm); }
   .vec-set { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px var(--s-1); }
   .vec-name { display: none; }
   .vec-fields { display: flex; flex-wrap: wrap; }
   .vec-fields .ctx-field > span:first-child { display: inline; } /* (four numbers say nothing without their names) */
   .vec-zoomrow { display: flex; }
+  /* (the strip along the top keeps to the top of the artwork: it scrolls past that) */
+  .vector-mode .paint-ctx:not(.min) { max-height: min(46%, 300px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 }
 /* the transfer dialog */
 .vm-text { margin: 0; font-size: var(--fs); line-height: 1.5; color: var(--text); }
