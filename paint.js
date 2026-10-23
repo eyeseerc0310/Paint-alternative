@@ -127,6 +127,9 @@
     // (the left bar: the tools, then Layers and the zoom; the bottom bar: size,
     // undo, the two colours, redo and opacity; the dock: the tool options)
     var left = $('.paint-left'), bbar = $('.paint-bottom'), dock = $('.paint-dock'), paintEl = root.querySelector('.paint') || root;
+    // (Paint or Vector: which workspace shows; see PAINT AND VECTOR, near the end)
+    var PV = window.PaintVector || null, modeEl = $('.mode-switch'), wsMode = 'paint', modeAsk = stored('paint-mode-ask', true);
+    if (!modeEl) PV = null;
 
     // ---- a little label beside the mouse saying what each tool does ----
     var tip = document.createElement('div'), tipOn = null;
@@ -343,7 +346,7 @@
 
     function applyView() {
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
-      zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
+      if (wsMode !== 'vector') zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       placeSelectionToolbar();
       if (textBox) placeTextBox();
       if (lasso && lasso.length) drawLasso(lassoHover); else if (sel && uctx) drawSelUi();
@@ -995,6 +998,7 @@
     function fxAfter(on) { if (!on || !adj) return; if (layers.indexOf(adj.L) < 0 || adj.L !== active) adjustClose(); else adjustRebase(); }
     function buttons() { histButtons(); renderHistory(); }
     function histButtons() {
+      if (wsMode === 'vector') { PV.histButtons(); return; } // (Vector's own steps)
       var P = pen && pen.hist ? pen : null;
       var S = sel && selSteps() ? sel : null, G = grad && grad.hist ? grad : null;
       $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length) && !(S && S.hist && S.hist.length) && !G;
@@ -3714,7 +3718,7 @@
     // (a picture on the system clipboard: the one copied here, at its own
     // pixels, if it's the same; anything else comes in as a picture)
     function pasteFile(file) {
-      if (!selClip) { addPicture(file, 'paste'); return; }
+      if (!selClip || wsMode === 'vector') { addPicture(file, 'paste'); return; }
       var im = new Image(), url = URL.createObjectURL(file);
       im.onload = function () {
         URL.revokeObjectURL(url);
@@ -6466,7 +6470,7 @@
     var blob = null, pairPressed = -1e9;
     function colourDrag(e) {
       var sw = e.target.closest('.paint-current, .paint-second, .paint-colorpanel [data-pc-color]');
-      if (!sw || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!sw || wsMode === 'vector' || (e.pointerType === 'mouse' && e.button !== 0)) return;
       var main = sw.classList.contains('paint-current'), pair = main || sw.classList.contains('paint-second');
       var start = { x: e.clientX, y: e.clientY, c: sw.dataset.pcColor || (main ? st.color : st.color2), el: sw, id: e.pointerId, on: false };
       e.preventDefault(); // (no text selection or focus ring from a drag)
@@ -6541,7 +6545,7 @@
     function saveProject() {
       finishWork();
       var gl = []; layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
-      var out = { app: 'Paint Alternative', version: 1, width: ov.width, height: ov.height, active: layers.indexOf(active), palettes: myPalettes,
+      var out = { app: 'Paint Alternative', version: 1, width: ov.width, height: ov.height, active: layers.indexOf(active), palettes: myPalettes, mode: wsMode, vector: PV ? PV.serialize() : null,
         groups: gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; }),
         layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, group: gl.indexOf(L.group), mask: L.mask ? L.mask.cv.toDataURL('image/png') : null, png: L.cv.toDataURL('image/png') }; }) };
       var blob = new Blob([JSON.stringify(out)], { type: 'application/x-paint-alternative' }), a = document.createElement('a');
@@ -6590,7 +6594,7 @@
             });
             storeIt('paint-palettes', myPalettes);
           }
-          mount(); fit(); buttons(); autosave();
+          mount(); fit(); vecLoad(d.vector, d.mode); buttons(); autosave();
           toast('Opened the project');
           });
         });
@@ -6601,6 +6605,7 @@
     saveMenu.className = 'paint-savemenu'; saveMenu.hidden = true; saveMenu.setAttribute('role', 'menu');
     saveMenu.innerHTML = '<button type="button" role="menuitem" data-save="png">PNG<small>Keeps see-through parts</small></button>' +
       '<button type="button" role="menuitem" data-save="jpeg">JPEG<small>Smaller file</small></button>' +
+      '<button type="button" role="menuitem" data-save="svg" hidden>SVG<small>The vector artwork, sharp at any size</small></button>' +
       '<button type="button" role="menuitem" data-save="share">Share\u2026<small>Messages, Photos, Mail\u2026</small></button>' +
       '<button type="button" role="menuitem" data-save="project">Project<small>Every layer, to carry on later</small></button>';
     root.appendChild(saveMenu);
@@ -6612,6 +6617,7 @@
     function save(type) {
       if (type === 'share') { share(); return; }
       if (type === 'project') { saveProject(); return; }
+      if (wsMode === 'vector') { PV.exportBlob(type).then(function (blob) { if (blob) download(blob, type === 'jpeg' ? 'jpg' : type); }); return; }
       if (grad) gradDone(); if (adj) adjustDone();
       if (textBox) commitText();
       if (sel) commitSelection();
@@ -6650,7 +6656,7 @@
     // the drawing as it's kept: its size, its layers (each as a PNG, with its
     // mask) and their groups, and which drawing of the gallery it is
     function docInfo(then) {
-      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count, gid: gid, name: docName }, gl = [];
+      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count, gid: gid, name: docName, mode: wsMode, vector: PV ? PV.serialize() : null }, gl = [];
       layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
       info.groups = gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; });
       Promise.all(layers.map(function (L) {
@@ -6739,7 +6745,7 @@
         active = layers[Math.max(0, Math.min(layers.length - 1, d.active | 0))] || null;
         count = layers.length ? Math.max(count, d.count | 0) : 0;
         ims.forEach(function (b) { if (b && b.close) b.close(); });
-        mount(); if (d.pw) fit(); done(true);
+        mount(); if (d.pw) fit(); vecLoad(d.vector, d.mode); done(true);
       }, function () { done(); });
     }
     // ---- THE GALLERY: every drawing, kept in this browser. The one being
@@ -6782,7 +6788,7 @@
       var go = function (list) {
         if (!list) { then(false); return; }
         var th = thumbOf(), i = -1; list.forEach(function (e, j) { if (e.id === gid) i = j; });
-        if (th.blank && i < 0) { then(true, list); return; }
+        if (th.blank && i < 0 && (!PV || PV.isEmpty())) { then(true, list); return; }
         docInfo(function (info) {
           if (!info) { then(false); return; }
           dbAsk(function (os) { return os.put(info, 'g:' + gid); }, function (v) {
@@ -7073,7 +7079,10 @@
       setDoc(pw, ph);
       count = 1;
       layers = [makeLayer(white ? 'Background' : 'Layer 1', white)]; active = layers[0];
-      mount(); fit(); buttons(); autosave();
+      mount(); fit();
+      // (and a blank vector artboard the new size, if Vector mode is out)
+      if (PV) { PV.load(null); if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); } }
+      buttons(); autosave();
     }
 
     // ---- IMAGE: rotate, flip or crop the whole picture (every layer) ----
@@ -7084,7 +7093,7 @@
     function moreMenu(open) {
       if (!open) { moreBox.hidden = true; hb('more').setAttribute('aria-expanded', 'false'); return; }
       closeDrops(); otherPopovers();
-      var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '">' + (src ? src.outerHTML : '') + label + '</button>'; };
+      var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '"' + (hb(k) && hb(k).disabled ? ' disabled' : '') + '>' + (src ? src.outerHTML : '') + label + '</button>'; };
       moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
         it('focus', 'Focus Mode') + it('guides', smartOn ? 'Smart Guides: On' : 'Smart Guides: Off') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
       moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
@@ -7167,7 +7176,8 @@
       if (!open) return;
       otherPopovers();
       var theme = header.querySelector('.theme-toggle');
-      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>';
+      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
+        (PV ? '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
       settingsBox.hidden = false;
       hb('settings').setAttribute('aria-expanded', 'true');
       placeDrop(settingsBox, hb('settings'));
@@ -7189,6 +7199,7 @@
       if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
       else if (b.dataset.setting === 'gestures') gestureSheet();
       else if (b.dataset.setting === 'flip') flipUI();
+      else if (b.dataset.setting === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); }
       else helpSheet();
     });
     // FOCUS MODE: just the picture. The bars fade away and the picture gets
@@ -7332,6 +7343,7 @@
     // it comes in on a layer of its own ----
     function addPicture(file, how) {
       if (!file || !/^image\//.test(file.type)) { if (how !== 'open') toast('That isn’t a picture'); return; }
+      if (wsMode === 'vector') { PV.addImageFile(file); return; } // (Vector mode: placed as a picture object)
       var im = new Image(), url = URL.createObjectURL(file);
       im.onload = function () {
         URL.revokeObjectURL(url);
@@ -7365,7 +7377,7 @@
       clearTimeout(pasteWait); pasteWait = 0;
       var items = (e.clipboardData && e.clipboardData.items) || [];
       for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { e.preventDefault(); pasteFile(items[i].getAsFile()); return; }
-      if (selClip) { e.preventDefault(); pasteClip(); }
+      if (selClip && wsMode !== 'vector') { e.preventDefault(); pasteClip(); }
     });
     function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
     document.addEventListener('dragover', function (e) { if (!hasFiles(e) || !document.contains(root)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; stage.classList.add('drop'); });
@@ -7438,6 +7450,7 @@
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
+        (PV ? group('Vector mode', [['Selection', 'V'], ['Hand', 'H'], ['Zoom', 'Z'], ['Fit to screen', '0'], ['Actual size', CMD + '1'], ['Pick everything', CMD + 'A'], ['Nudge', '← ↑ → ↓'], ['Nudge by 10', '⇧ ←'], ['Delete', MAC ? '⌫' : 'Del'], ['Let go of what\u2019s picked', 'Esc']]) : '') +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
@@ -7453,8 +7466,7 @@
       out.toBlob(done, jpg ? 'image/jpeg' : 'image/png', 0.93);
     }
     function share() {
-      if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
-      flatBlob('png', function (blob) {
+      var made = function (blob) {
         if (!blob) return;
         var f = window.File ? new File([blob], 'drawing.png', { type: 'image/png' }) : null;
         if (f && navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f], title: 'Drawing' }).catch(function () {}); return; }
@@ -7463,7 +7475,10 @@
           return;
         }
         download(blob, 'png');
-      });
+      };
+      if (wsMode === 'vector') { PV.exportBlob('png').then(made); return; } // (Vector's artwork)
+      if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      flatBlob('png', made);
     }
     function download(blob, ext) {
       var a = document.createElement('a');
@@ -7781,6 +7796,7 @@
     var settingsToggle = $('.paint-settings-toggle');
     settingsToggle.addEventListener('click', function () {
       var open = toolMenuOpen();
+      if (wsMode === 'vector') { ctxMin(open); return; } // (Vector's panel: just folded or opened)
       if (!pc.hidden) picker(null);
       if (!adjBox.hidden || adj) adjustDone();
       if (!bsBox.hidden) studio(false);
@@ -8019,13 +8035,14 @@
     function ctxRender() {
       if (!ctxEl) return;
       ctxClose();
-      var key = ctxView === 'sym' ? 'sym' : (ctxToolId || 'brush');
-      if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = CTX[key] ? CTX[key]() : ''; }
+      var key = wsMode === 'vector' ? 'vector' : ctxView === 'sym' ? 'sym' : (ctxToolId || 'brush');
+      if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = key === 'vector' ? PV.panelHTML() : CTX[key] ? CTX[key]() : ''; }
+      if (key === 'vector') PV.panelSync();
       var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
       // (and the bottom bar: which of size and opacity this tool uses; the
       // other is greyed out, so nothing moves)
-      var uses = { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
+      var uses = wsMode === 'vector' ? '' : { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
       bbar.dataset.uses = uses; sizeIn.disabled = uses.indexOf('s') < 0; alphaIn.disabled = uses.indexOf('o') < 0;
     }
     // (symmetry's settings take the panel's place while they're open)
@@ -8228,6 +8245,93 @@
     });
     document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
+    // ---- PAINT AND VECTOR: two workspaces in one drawing (Vector's is in
+    // vector.js). The switch at the top of the picture's space (.mode-switch)
+    // changes which shows: the painting is only hidden while Vector's is out,
+    // never changed, and each keeps its own layers, undo, view and
+    // selection. Artwork goes across only as a copy, and only when asked
+    // (askMode: every time, unless Settings says not to, modeAsk) ----
+    if (PV) PV.init({
+      stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
+      layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl,
+      docSize: function () { return { pw: ov.width, ph: ov.height }; },
+      autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, draggable: draggable,
+      ctxRefresh: function () { ctxFor = null; ctxRender(); },
+      showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); }
+    });
+    function modeSync() {
+      var vec = wsMode === 'vector';
+      document.documentElement.classList.toggle('vector-mode', vec);
+      Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.tabIndex = b.dataset.mode === wsMode ? 0 : -1; });
+      // (what's only the painting's is greyed out, so nothing moves)
+      ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec; });
+      Array.prototype.forEach.call(bbar.querySelectorAll('.paint-pair button'), function (b) { b.disabled = vec; });
+      Array.prototype.forEach.call(saveMenu.querySelectorAll('[data-save="svg"]'), function (b) { b.hidden = !vec; });
+    }
+    // (a copy of the painting as it's seen, see-through where it is)
+    function flatCopy() { var c = document.createElement('canvas'); c.width = ov.width; c.height = ov.height; flattenInto(c.getContext('2d')); return c; }
+    function setMode(m, bring) {
+      if (!PV || m === wsMode) return;
+      hideTip(); finishMenus(); lmenu.hidden = true; ctxClose(); closeSelectionPopover();
+      if (!bsBox.hidden) studio(false);
+      if (m === 'vector') {
+        // (what can't wait hidden is finished: the words being typed, and
+        // Effects, kept as they're set; a selection, a path or a gradient
+        // stays as it is, to carry on with)
+        if (textBox) commitText();
+        if (adj || !adjBox.hidden) adjustDone();
+        if (spaceDown) letGoOfSpace();
+        var flat = bring ? flatCopy() : null;
+        wsMode = 'vector'; modeSync(); ctxAside(); PV.enter(flat);
+      } else {
+        PV.leave(); wsMode = 'paint'; modeSync();
+        if (bring) PV.raster(ov.width, ov.height).then(function (c) {
+          if (wsMode !== 'paint' || !roomFor()) return;
+          if (grad) gradDone(); if (textBox) commitText(); if (sel) commitSelection();
+          rememberLayers('Bring Artwork');
+          var n = 1; layers.forEach(function (L) { if (/^Vector Artwork( \d+)?$/.test(L.name)) n++; });
+          var L = makeLayer(n > 1 ? 'Vector Artwork ' + n : 'Vector Artwork', false);
+          L.ctx.drawImage(c, 0, 0, W, H);
+          layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; also = []; mount(); buttons(); autosave();
+          toast('Brought a copy of the vector artwork in, on a layer of its own');
+        });
+        applyView();
+      }
+      ctxFor = null; ctxRender(); histButtons(); autosave();
+    }
+    function askMode(m) {
+      if (!PV || m === wsMode || sheetEl) return;
+      var has = wsMode === 'paint' ? !thumbOf().blank : !PV.isEmpty();
+      if (!modeAsk || !has) { setMode(m, false); return; }
+      var vec = m === 'vector';
+      var box = openSheet('vm', '<div class="pa-sheet-title">Switch to ' + (vec ? 'Vector' : 'Paint') + '</div>' +
+        '<p class="vm-text">' + (vec ? 'Bring a copy of your painting into Vector mode? It comes in as a picture on a layer of its own, to trace over. The painting itself stays just as it is.' : 'Bring a copy of your vector artwork into Paint mode? It comes in as paint on a new layer. The vector artwork stays just as it is, to edit later.') + '</p>' +
+        '<label class="vm-ask"><input type="checkbox" data-vm-ask> Don’t ask again <small>(Settings can turn it back on)</small></label>' +
+        '<div class="pa-sheet-acts"><button type="button" data-vm="cancel">Cancel</button><button type="button" data-vm="switch">Switch Without Copying</button><button type="button" class="pa-primary" data-vm="bring">Bring Artwork</button></div>');
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-vm]'); if (!b) return;
+        var w = b.dataset.vm;
+        if (w !== 'cancel' && box.querySelector('[data-vm-ask]').checked) { modeAsk = false; storeIt('paint-mode-ask', false); }
+        closeSheet();
+        if (w !== 'cancel') setMode(m, w === 'bring');
+      });
+    }
+    if (PV) modeEl.addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) askMode(b.dataset.mode); });
+    // (a radio group: the arrow keys go between the two)
+    if (PV) modeEl.addEventListener('keydown', function (e) {
+      if (!/^Arrow(Left|Right|Up|Down)$/.test(e.key)) return;
+      e.preventDefault(); e.stopPropagation();
+      var to = wsMode === 'paint' ? 'vector' : 'paint'; modeEl.querySelector('[data-mode="' + to + '"]').focus(); askMode(to);
+    });
+    // (a kept drawing's Vector side, and which was showing)
+    function vecLoad(v, m) {
+      if (!PV) return;
+      PV.load(v || null);
+      var want = m === 'vector' && v ? 'vector' : 'paint';
+      if (want !== wsMode) setMode(want, false); else if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); }
+    }
+    if (PV) modeSync(); else if (modeEl) modeEl.hidden = true;
+
     setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first
     // pencil stroke doesn't stutter while it's made)
@@ -8245,6 +8349,14 @@
         if (k === 'escape' && document.documentElement.classList.contains('focus-mode')) { focusMode(false); return; }
         if (k === 'escape' && !pc.hidden) { picker(null); return; }
         if (e.target && (e.target.isContentEditable || (/input|textarea|select/i.test(e.target.tagName || '') && e.target.type !== 'range'))) return;
+        // (Vector mode: its own keys, then the few that are the app's)
+        if (wsMode === 'vector') {
+          if (PV.key(e) || mod || e.altKey) return;
+          if (e.key === '?') helpSheet();
+          else if (e.key === '\\') focusMode(!document.documentElement.classList.contains('focus-mode'));
+          else if (k === 'n') newSheet();
+          return;
+        }
         if (mod && k === 'z' && lassoOn && !e.shiftKey) { e.preventDefault(); if (lasso.length > 1) { lasso.pop(); drawLasso(lassoHover); } else cancelLasso(); return; } // (while placing points: the last one)
         if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
         if (mod && k === 'y') { e.preventDefault(); doRedo(); return; }
@@ -8307,7 +8419,7 @@
         else if (e.key === '\\') focusMode(!document.documentElement.classList.contains('focus-mode'));
         else if (k === 'n' && !mod) newSheet();
       },
-      keyup: function (e) { if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
+      keyup: function (e) { if (wsMode === 'vector') { PV.keyup(e); return; } if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
     };
   }
   function setup() {

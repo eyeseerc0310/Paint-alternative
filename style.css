@@ -1861,3 +1861,107 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .doc-status i { justify-self: center; }
 .site-header .hdr-fold > svg { position: absolute; right: 0; }
 
+
+/* ---------- PAINT OR VECTOR: the switch at the top of the picture's space,
+   and Vector mode's own workspace (vector.js). The switch is a frosted
+   capsule like the top bar's; the picked side is a segmented control's thumb ---------- */
+:root { --mode-h: 36px; }
+.paint-centre { position: relative; }
+.mode-switch {
+  position: absolute; left: 50%; top: var(--s-2); z-index: 5; transform: translateX(-50%);
+  display: flex; gap: 2px; height: var(--mode-h); padding: 3px; border-radius: var(--r-pill);
+  background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
+  transition: opacity var(--dur) ease, visibility 0s;
+}
+.mode-switch[hidden] { display: none; }
+.paint .mode-switch button {
+  width: auto; height: 100%; gap: 6px; padding: 0 var(--s-3) 0 10px; border-radius: var(--r-pill);
+  font-size: var(--fs-sm); font-weight: 600; color: var(--muted);
+}
+.paint .mode-switch button svg { width: var(--icon-sm); height: var(--icon-sm); }
+@media (hover: hover) { .paint .mode-switch button:hover { color: var(--text); background: var(--hover); } }
+.paint .mode-switch button[aria-checked="true"] { color: var(--text); background: var(--seg-on); box-shadow: var(--seg-shadow); }
+.focus-mode .mode-switch { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
+@media (max-width: 560px) {
+  :root { --mode-h: 32px; }
+  .paint .mode-switch button { padding: 0 10px 0 var(--s-2); }
+  /* (the tool settings' strip runs along the top here: it starts under the switch) */
+  .paint-ctx { top: calc(var(--s-2) + var(--mode-h) + var(--s-1)); }
+}
+
+/* Vector mode: the painting's own parts step out of sight (kept as they
+   are), and Vector's take their places, the same sizes */
+.vec-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; cursor: default; }
+.vec-stage[hidden] { display: none; }
+.vec-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* (the artboard: white paper, like the painting's) */
+.vec-board { position: absolute; left: 0; top: 0; background: var(--paper); box-shadow: var(--shadow-paper); }
+/* (the artwork's own drawing, not an icon's: none of the icons' sizes or strokes) */
+.paint .vec-stage svg { width: auto; height: auto; fill: initial; stroke: initial; stroke-width: initial; stroke-linecap: initial; stroke-linejoin: initial; }
+.paint .vec-stage .vec-art { position: absolute; left: 0; top: 0; display: block; overflow: hidden; }
+.paint .vec-stage .vec-ui { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.vs-box { fill: none; stroke: var(--edit); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.vs-bounds { fill: none; stroke: var(--edit); stroke-width: 1; stroke-dasharray: 4 3; }
+.vs-handle { fill: var(--paper); stroke: var(--edit); stroke-width: 1.5; }
+.vs-marquee { fill: color-mix(in srgb, var(--edit) 10%, transparent); stroke: var(--edit); stroke-width: 1; stroke-dasharray: 4 3; }
+.vector-mode .paint-stage > :not(.vec-stage) { visibility: hidden !important; }
+.vector-mode .paint-stage { cursor: default; }
+/* (the left bar: Vector's categories stand where the painting's tools were,
+   over the same room, so the bar keeps its size) */
+.vec-group[hidden] { display: none; }
+.vector-mode .paint-left .paint-toolgroups { position: relative; }
+.vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { visibility: hidden; }
+.paint-left .paint-toolgroups > .vec-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
+.paint-left .paint-toolgroups > .vec-group::before { display: none; }
+/* (what's only the painting's: out of sight, or greyed out where hiding it
+   would move something) */
+.vector-mode .selection-slot, .vector-mode .paint-colorpanel, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),
+.vector-mode .paint-selx, .vector-mode .paint-seldist, .vector-mode .paint-scale { display: none !important; }
+.vector-mode .paint-pair { opacity: var(--disabled); }
+.vector-mode .paint-pair button:disabled { opacity: 1; cursor: default; }
+.vector-mode .paint-ctx.aside { opacity: 1; pointer-events: auto; }
+.paint-savemenu button[hidden] { display: none; }
+
+/* Vector's tool settings: the category's tools at the top, a grid of
+   buttons with their names; the tool's settings (or what's picked) under them */
+.vec-panel { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.vec-cat { padding: var(--s-1) var(--s-2) 0; font-family: var(--display); font-size: var(--fs-title); font-weight: 700; letter-spacing: -.022em; color: var(--text); }
+.vec-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.paint .vec-tool {
+  width: auto; height: auto; min-height: 52px; flex-direction: column; gap: 3px; padding: 6px 4px; border-radius: var(--r-btn);
+  font-size: var(--fs-xs); font-weight: 500; color: var(--menu-link); line-height: 1.15; text-align: center;
+}
+.paint .vec-tool svg { width: var(--icon); height: var(--icon); }
+.paint .vec-tool[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+@media (hover: hover) { .paint .vec-tool[aria-pressed="true"]:hover { background: var(--chip); } }
+.vec-set { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.vec-name { padding: var(--s-1) var(--s-2); font-size: var(--fs-ui); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vec-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px var(--s-1); }
+.vec-fields .ctx-field { justify-content: space-between; padding: 0 var(--s-1) 0 var(--s-2); }
+.vec-fields .ctx-num { width: 58px !important; }
+.vec-zoomrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.paint .vec-zoomrow .ctx-btn { width: auto; }
+/* (phones: the strip along the top; the tools a row, the settings wrapping) */
+@media (max-width: 560px) {
+  .vec-panel { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px var(--s-1); }
+  .vec-cat { display: none; }
+  .vec-tools { display: flex; flex-wrap: wrap; gap: 2px; }
+  .paint .vec-tool { min-height: 0; height: 28px; flex-direction: row; gap: 4px; padding: 0 var(--s-2); }
+  .paint .vec-tool svg { width: var(--icon-sm); height: var(--icon-sm); }
+  .vec-set { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px var(--s-1); }
+  .vec-name { display: none; }
+  .vec-fields { display: flex; flex-wrap: wrap; }
+  .vec-fields .ctx-field > span:first-child { display: inline; } /* (four numbers say nothing without their names) */
+  .vec-zoomrow { display: flex; }
+}
+/* the transfer dialog */
+.vm-text { margin: 0; font-size: var(--fs); line-height: 1.5; color: var(--text); }
+.vm-ask { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); font-size: var(--fs-ui); color: var(--text); cursor: pointer; }
+.vm-ask input { width: 18px; height: 18px; margin: 0; accent-color: var(--control); }
+.vm-ask small { font-size: var(--fs-xs); color: var(--muted); }
+.vm .pa-sheet-acts { flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .vm .pa-sheet-acts { flex-direction: column-reverse; align-items: stretch; }
+  .vm-ask small { display: block; }
+  .vm-ask { align-items: flex-start; flex-wrap: wrap; }
+}

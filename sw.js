@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-pair-gap-20261021';
-var SHELL = ['./', 'index.html', 'style.css?v=pair-gap-20261021', 'paint.js?v=pair-gap-20261021', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-vector-mode-20261023';
+var SHELL = ['./', 'index.html', 'style.css?v=vector-mode-20261023', 'vector.js?v=vector-mode-20261023', 'paint.js?v=vector-mode-20261023', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {
