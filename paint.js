@@ -7466,8 +7466,8 @@
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
-        (PV ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Rotate View', 'R'], ['Hand', 'H'], ['Zoom', 'Z']]) +
-          group('Vector editing', [['Group', CMD + 'G'], ['Ungroup', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'G'], ['Join picked paths', CMD + 'J'], ['Duplicate', CMD + 'D'], ['Copy, cut, paste', CMD + 'C'], ['Bring forward', CMD + ']'], ['Send backward', CMD + '['], ['Swap fill and stroke', 'X'], ['Default fill and stroke', 'D'], ['No fill', '/'], ['Finish a path', MAC ? '↩' : 'Enter'], ['Nudge (by 10)', '← ↑ (⇧)'], ['Fit to screen', '0'], ['Actual size', CMD + '1']]) : '') +
+        (PV ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Vector Brush', 'B'], ['Blob Brush', '⇧ B'], ['Vector Eraser', '⇧ E'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Shape Builder', '⇧ M'], ['Free Transform', 'E'], ['Scale', 'S'], ['Rotate', 'R'], ['Reflect', 'O'], ['Text', 'T'], ['Character Editing', '⇧ T'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Rotate View', '⇧ H'], ['Hand', 'H'], ['Zoom', 'Z']]) +
+          group('Vector editing', [['Group', CMD + 'G'], ['Ungroup', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'G'], ['Join picked paths', CMD + 'J'], ['Duplicate', CMD + 'D'], ['Copy, cut, paste', CMD + 'C'], ['Bring forward', CMD + ']'], ['Send backward', CMD + '['], ['Bring to front', (MAC ? '⇧⌘' : 'Ctrl Shift ') + ']'], ['Send to back', (MAC ? '⇧⌘' : 'Ctrl Shift ') + '['], ['Compound path', CMD + '8'], ['Clipping mask', CMD + '7'], ['Convert to outlines', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'O'], ['Turn (Selection)', 'Drag outside a corner'], ['Swap fill and stroke', 'X'], ['Default fill and stroke', 'D'], ['No fill', '/'], ['Finish a path', MAC ? '↩' : 'Enter'], ['Nudge (by 10)', '← ↑ (⇧)'], ['Fit to screen', '0'], ['Actual size', CMD + '1']]) : '') +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
@@ -8280,7 +8280,9 @@
       // (the bottom bar: Size is the stroke's width, the two colours are the fill and the stroke)
       sizeIn: sizeIn, alphaIn: alphaIn, fillBtn: $('.paint-current'), strokeBtn: $('.paint-second'), fillDot: colorDot, strokeDot: color2Dot, ctxBtn: settingsToggle,
       picker: function (which) { if (pc.hidden || pcWhich !== which) picker(which); else pcRefresh(); },
-      pcRefresh: pcRefresh, palettes: palettes
+      pcRefresh: pcRefresh, palettes: palettes,
+      // (the fonts, the same as the Text tool's, fetched the first time they're wanted)
+      fonts: function () { return FONTS; }, ensureFonts: ensureFonts
     });
     function modeSync() {
       var vec = wsMode === 'vector';
