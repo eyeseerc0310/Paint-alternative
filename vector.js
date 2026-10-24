@@ -27,7 +27,7 @@
   var view = { x: 0, y: 0, k: 1, r: 0, fit: true }, fitK = 1;
   var tool = 'select', cat = 'selection', lastTool = {};
   var focusF = -1, focusS = -1;       // (which fill and which stroke the colours edit: -1, the top one)
-  var stageEl, worldEl, boardEl, artEl, artRoot, defsEl, uiEl, groupEl, vlp, ctxMenu;
+  var stageEl, worldEl, boardsEl, gridEl, artEl, artRoot, defsEl, uiEl, groupEl, vlp, ctxMenu;
   var SVGNS = 'http://www.w3.org/2000/svg';
   var KAPPA = 0.5522847498;
 
@@ -117,7 +117,28 @@
     fwd: '<path d="M12 4v9M8.5 7.5L12 4l3.5 3.5"/><path d="M4 15l8 4 8-4"/>',
     back: '<path d="M12 4v9M8.5 9.5L12 13l3.5-3.5"/><path d="M4 15l8 4 8-4"/>',
     backmost: '<path d="M12 3.5v8M9 8.5l3 3 3-3M7 14.5h10"/><path d="M4 17.5l8 4 8-4"/>',
-    groupun: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke-dasharray="2.5 2"/><rect x="7" y="7" width="6" height="6" rx="1"/><circle cx="15" cy="15" r="3"/>'
+    groupun: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5" stroke-dasharray="2.5 2"/><rect x="7" y="7" width="6" height="6" rx="1"/><circle cx="15" cy="15" r="3"/>',
+    vblend: '<circle cx="5.5" cy="17.5" r="2.5"/><circle cx="9.8" cy="13.6" r="2.3" opacity=".75"/><circle cx="14.2" cy="10.2" r="2.3" opacity=".5"/><circle cx="18.5" cy="6.5" r="2.5" fill="currentColor"/>',
+    warp: '<path d="M4 7c4-3 12 3 16 0v10c-4 3-12-3-16 0z"/><path d="M4 12c4-3 12 3 16 0" opacity=".5"/>',
+    envelope: '<path d="M4 5c5 2 11 2 16 0l-1 14c-4-2-10-2-14 0z"/><path d="M12 5.8l-.3 13M4.5 12c5 1.5 10 1.5 15 0" opacity=".55"/>',
+    offset: '<rect x="8" y="8" width="8" height="8" rx="1.5"/><rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke-dasharray="2.5 2"/>',
+    repeat: '<circle cx="12" cy="5.5" r="2.3"/><circle cx="18" cy="15.5" r="2.3" opacity=".6"/><circle cx="6" cy="15.5" r="2.3" opacity=".6"/><path d="M15.5 6.8a7.5 7.5 0 0 1 3.2 5.2M5.3 12a7.5 7.5 0 0 1 3.2-5.2M9.5 19.4a7.5 7.5 0 0 0 5 0" opacity=".45"/>',
+    pattern: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.7" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.7" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.7" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.7" fill="currentColor"/>',
+    transp: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M12 3.5h6a2.5 2.5 0 0 1 2.5 2.5v6H12zM3.5 12H12v8.5H6A2.5 2.5 0 0 1 3.5 18z" fill="currentColor" fill-opacity=".35" stroke="none"/>',
+    artboard: '<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M6 2.5V4M18 2.5V4M6 20v1.5M18 20v1.5M2.5 6H4M2.5 18H4M20 6h1.5M20 18h1.5"/>',
+    abnew: '<rect x="3.5" y="3.5" width="12" height="12" rx="1.5"/><path d="M18.5 14.5v6M15.5 17.5h6"/>',
+    abresize: '<rect x="3.5" y="3.5" width="11" height="11" rx="1.5"/><path d="M14.5 9.5h6v11h-11v-6" stroke-dasharray="2 2"/><path d="M12 12l6.5 6.5M18.5 14v4.5H14"/>',
+    abdup: '<rect x="3.5" y="3.5" width="11" height="11" rx="1.5"/><path d="M17.5 9.5h1.5a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 9.5 19v-1.5"/><path d="M9 6.5v5M6.5 9h5"/>',
+    abarr: '<rect x="3.5" y="4" width="7" height="9" rx="1"/><rect x="13.5" y="11" width="7" height="9" rx="1"/><path d="M7 16.5v1a2 2 0 0 0 2 2h1.5M17 7.5v-1a2 2 0 0 0-2-2h-1.5"/>',
+    abset: '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M7.5 9h9M7.5 15h9"/><circle cx="10" cy="9" r="1.7" fill="currentColor"/><circle cx="14.5" cy="15" r="1.7" fill="currentColor"/>',
+    rulers: '<path d="M3.5 3.5h17v5h-12v12h-5z"/><path d="M8.5 3.5V6M12.5 3.5v2M16.5 3.5V6M3.5 12.5h2M3.5 16.5H6"/>',
+    guides: '<path d="M3 8h18M15 3v18" stroke-dasharray="2.5 2"/><rect x="5" y="11" width="6.5" height="6.5" rx="1"/>',
+    smartg: '<rect x="4" y="6" width="6" height="11" rx="1"/><rect x="14" y="10" width="6" height="7" rx="1"/><path d="M2.5 20h19" stroke-dasharray="2 2"/>',
+    grid: '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17" stroke-dasharray="1.5 1.5"/>',
+    snapgrid: '<path d="M3.5 8h17M3.5 16h17M8 3.5v17M16 3.5v17" opacity=".5"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/>',
+    snappts: '<path d="M4 19.5L12 7l8 12.5" opacity=".5"/><rect x="9.25" y="4.25" width="5.5" height="5.5" rx=".8"/><circle cx="12" cy="7" r="1.1" fill="currentColor"/>',
+    snapobj: '<circle cx="11" cy="13" r="7.5"/><rect x="14" y="4" width="5.5" height="5.5" rx=".8" fill="currentColor"/>',
+    measure: '<path d="M3.5 17.5L17.5 3.5l3 3-14 14z"/><path d="M8 13l1.5 1.5M10.5 10.5l2 2M13 8l1.5 1.5M15.5 5.5l2 2"/>'
   };
   // (the categories, in the left bar's order, and the tools in each)
   var CATS = [
@@ -130,8 +151,11 @@
     { id: 'type', name: 'Typography', icon: 'text', tools: ['text', 'areatext', 'ptext', 'vtext', 'chedit', 'outlines'] },
     { id: 'fill', name: 'Fill & Color', icon: 'fillcat', tools: ['solid', 'gradient', 'eyedropper', 'swatches', 'vfill', 'cpick'] },
     { id: 'stroke', name: 'Stroke & Appearance', icon: 'swidth', tools: ['swidth', 'vwidth', 'sprofile', 'capjoin', 'dash', 'appear', 'opacity', 'blend'] },
+    { id: 'effects', name: 'Effects', icon: 'warp', tools: ['vblend', 'warp', 'envelope', 'offset', 'repeat', 'pattern', 'transp'] },
     { id: 'arrange', name: 'Align & Arrange', icon: 'align', tools: ['align', 'distribute', 'dspace', 'fwd', 'back', 'front', 'backmost', 'groupun'] },
-    { id: 'navigation', name: 'Navigation', icon: 'hand', tools: ['hand', 'zoom', 'fit', 'actual', 'rotview'] }
+    { id: 'boards', name: 'Artboards', icon: 'artboard', tools: ['artboard', 'abnew', 'abresize', 'abdup', 'abarr', 'abset'] },
+    { id: 'navigation', name: 'Navigation', icon: 'hand', tools: ['hand', 'zoom', 'fit', 'actual', 'rotview'] },
+    { id: 'precision', name: 'Guides & Precision', icon: 'rulers', tools: ['rulers', 'guides', 'smartg', 'grid', 'snapgrid', 'snappts', 'snapobj', 'measure'] }
   ];
   var TOOLS = {
     select: { name: 'Selection', key: 'v', tip: 'Selection (V): pick objects to move or size them; drag round several. Alt-drag copies' },
@@ -211,7 +235,28 @@
     back: { name: 'Send Backward', action: true, tip: 'Send Backward (Ctrl/⌘ [): down one' },
     front: { name: 'Bring to Front', action: true, tip: 'Bring to Front (Ctrl/⌘ Shift ]): to the top of its layer' },
     backmost: { name: 'Send to Back', action: true, tip: 'Send to Back (Ctrl/⌘ Shift [): to the bottom of its layer' },
-    groupun: { name: 'Group / Ungroup', action: true, tip: 'Group (Ctrl/⌘ G) what’s picked, or ungroup a picked group (Ctrl/⌘ Shift G)' }
+    groupun: { name: 'Group / Ungroup', action: true, tip: 'Group (Ctrl/⌘ G) what’s picked, or ungroup a picked group (Ctrl/⌘ Shift G)' },
+    vblend: { name: 'Blend', key: 'w', tip: 'Blend (W): tap one shape, then another, for the shapes and colours in between' },
+    warp: { name: 'Warp', key: 'R', tip: 'Warp (Shift R): bend what’s picked into an arc, a flag, a wave and more; change it any time' },
+    envelope: { name: 'Envelope Distort', tip: 'Envelope Distort: a mesh over what’s picked; drag its points to bend what’s inside' },
+    offset: { name: 'Offset Path', tip: 'Offset Path: a new path round the picked ones, a set distance out (or in)' },
+    repeat: { name: 'Repeat', tip: 'Repeat: copies of what’s picked round a circle, in a grid or mirrored; they follow the original' },
+    pattern: { name: 'Pattern', tip: 'Pattern: make a repeating tile from art, and fill shapes or strokes with it' },
+    transp: { name: 'Transparency', tip: 'Transparency: opacity, blend modes, opacity masks and fades' },
+    artboard: { name: 'Artboard', key: 'O', tip: 'Artboard (Shift O): tap an artboard to make it active; drag it to move it, its handles to size it; drag on the pasteboard for a new one' },
+    abnew: { name: 'Create Artboard', tip: 'Create Artboard: tap the pasteboard for one the size set, or drag one out' },
+    abresize: { name: 'Resize Artboard', tip: 'Resize Artboard: drag the active artboard’s handles, or type its size' },
+    abdup: { name: 'Duplicate Artboard', action: true, tip: 'Duplicate Artboard: a copy of the active artboard, and what’s on it, beside the others' },
+    abarr: { name: 'Rearrange Artboards', tip: 'Rearrange Artboards: their order, and laying them out in a grid, a row or a column' },
+    abset: { name: 'Artboard Settings', tip: 'Artboard Settings: the active artboard’s name, place, size and background' },
+    rulers: { name: 'Rulers', tip: 'Rulers: along the top and left, from the artboard’s corner; drag out of one for a guide' },
+    guides: { name: 'Guides', tip: 'Guides (Ctrl/⌘ ; shows or hides them): tap to place one, drag one to move it' },
+    smartg: { name: 'Smart Guides', tip: 'Smart Guides: line things up with the edges and middles of others as you move and draw' },
+    grid: { name: 'Grid', tip: 'Grid (Ctrl/⌘ \' shows or hides it): lines at a set spacing, behind the art or in front' },
+    snapgrid: { name: 'Snap to Grid', tip: 'Snap to Grid: points, edges and moves keep to the grid' },
+    snappts: { name: 'Snap to Points', tip: 'Snap to Points: drawing and dragging catch on anchor points' },
+    snapobj: { name: 'Snap to Objects', tip: 'Snap to Objects: drawing and dragging catch on other objects’ outlines' },
+    measure: { name: 'Measure', tip: 'Measure: drag from one point to another for the distance and angle' }
   };
   function catOf(t) { return CATS.filter(function (c) { return c.tools.indexOf(t) >= 0; })[0]; }
   // (each tool's own settings, remembered between visits)
@@ -222,7 +267,12 @@
     simplify: { tol: 2.5, corner: 1 }, gradient: { kind: 'l', to: 'f' }, swatches: { to: 'f' }, cpick: { to: 'f' },
     pencil: { smooth: 40, fill: 0, close: 1, edit: 1 }, vbrush: { kind: 'taper', w: 8, smooth: 50, angle: 30, round: 30, press: 1, edit: 0, close: 0 }, blob: { w: 24, sel: 0 }, smooth: { str: 50, r: 30 }, veraser: { w: 24 },
     builder: { mode: 'merge', col: 'own' }, xf: { ref: 'c', strokes: 0 }, ftrans: { side: 'scale' }, move: { dx: 10, dy: 10 }, scale: { uni: 1, u: 100, h: 100, v: 100 }, rotate: { a: 45 }, reflect: { axis: 'v', a: 90 }, shear: { a: 20, axis: 'h' },
-    type: { font: '-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif', size: 48, weight: 400, italic: 0, lead: 1.2, track: 0, align: 'left' }, align: { to: 'sel', gap: 20 } };
+    type: { font: '-apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Helvetica Neue", Arial, sans-serif', size: 48, weight: 400, italic: 0, lead: 1.2, track: 0, align: 'left' }, align: { to: 'sel', gap: 20 },
+    prec: { rulers: 0, units: 'px', smart: 0, grid: 0, gsize: 32, gsub: 4, gfront: 0, snapGrid: 0, snapPts: 0, snapObj: 0, guides: 1, glock: 0, gnew: 'h' },
+    abnew: { w: 1080, h: 1080 }, abresize: { ref: 'c' }, abarr: { layout: 'grow', cols: 2, gap: 60, art: 1 },
+    vblend: { mode: 'steps', steps: 4 }, warp: { st: 'arc', bend: 50, hd: 0, vd: 0, dir: 'h' }, env: { rows: 3, cols: 3 }, offset: { d: 10, join: 'round', ml: 4 },
+    repeat: { k: 'radial', n: 8, r: 120, rows: 3, cols: 3, gx: 20, gy: 20, a: 90, off: 0 }, pattern: { to: 'f', cur: '' }, transp: { dir: 'h' },
+    trace: { mode: 'colour', n: 6, th: 128, noise: 3, smooth: 40, white: 1 } };
   try { var ts0 = JSON.parse(localStorage.getItem('paint-vec-tools') || 'null'); if (ts0 && typeof ts0 === 'object') Object.keys(TS).forEach(function (k) { if (ts0[k] && typeof ts0[k] === 'object') Object.keys(TS[k]).forEach(function (q) { if (typeof ts0[k][q] === typeof TS[k][q]) TS[k][q] = ts0[k][q]; }); }); } catch (x) {}
   var tsTimer = 0;
   function tsSave() { clearTimeout(tsTimer); tsTimer = setTimeout(function () { try { localStorage.setItem('paint-vec-tools', JSON.stringify(TS)); } catch (x) {} }, 300); }
@@ -528,6 +578,8 @@
   function picked() { return sel.map(byId).filter(Boolean); }
   function curLayer() { var L = doc && byId(doc.cur); if (!L || L.type !== 'layer') { L = doc.layers[doc.layers.length - 1]; if (L) doc.cur = L.id; } return L; }
   function nodeBox(n) {
+    if (hasFx(n)) return nodeBox(shownOf(n));
+    if (n.omask && n.items.length > 1) return n.omask.clip ? nodeBox(n.items[n.items.length - 1]) : boxOf(n.items.slice(0, -1));
     if (n.type === 'path') return dBox(n.d);
     if (n.type === 'image' || n.type === 'text') return quadBox(nodeQuad(n));
     if (n.clip && n.items.length) return nodeBox(n.items[n.items.length - 1]);
@@ -673,6 +725,7 @@
   function paintCss(p) {
     if (!p) return '';
     if (p.t === 'c') return p.c;
+    if (p.t === 'p') return 'repeating-linear-gradient(45deg, var(--muted) 0 2px, var(--paper) 2px 5px)';
     return 'linear-gradient(90deg,' + p.st.map(function (s) { return rgba(s.c, s.o) + ' ' + Math.round(s.t * 100) + '%'; }).join(',') + ')';
   }
   function rgba(c, o) { var n = parseInt(c.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + (o == null ? 1 : r2(o)) + ')'; }
@@ -725,7 +778,8 @@
     var a = forScreen ? ' data-v="' + n.id + '"' : '';
     if (!n.visible) a += ' display="none"';
     if (n.opacity != null && n.opacity < 1) a += ' opacity="' + r2(n.opacity) + '"';
-    if (n.blend && n.blend !== 'normal') a += ' style="mix-blend-mode:' + n.blend + '"';
+    var st = (n.blend && n.blend !== 'normal' ? 'mix-blend-mode:' + n.blend + ';' : '') + (n.iso ? 'isolation:isolate;' : '');
+    if (st) a += ' style="' + st + '"';
     return a;
   }
   function gradDef(id, p) {
@@ -735,6 +789,8 @@
   }
   function nodeSvg(n, forScreen) {
     if (!forScreen && !n.visible) return '';
+    if (hasFx(n)) return nodeSvg(shownOf(n), forScreen);
+    if (n.omask && n.items.length > 1) return maskSvg(n, forScreen);
     if (isCont(n)) {
       // (a clipping group: its top object is the shape the rest are seen through)
       var cl = n.clip && n.items.length > 1 ? n.items[n.items.length - 1] : null;
@@ -752,7 +808,7 @@
     n.app.forEach(function (it, i) {
       if (!it.on || !it.p) return;
       var paint = it.p.t === 'c' ? it.p.c : 'url(#vg-' + n.id + '-' + i + ')';
-      if (it.p.t !== 'c') defs += gradDef('vg-' + n.id + '-' + i, it.p);
+      if (it.p.t !== 'c') defs += it.p.t === 'p' ? patDef('vg-' + n.id + '-' + i, it.p) : gradDef('vg-' + n.id + '-' + i, it.p);
       var op = it.o < 1 ? (it.k === 'f' ? ' fill-opacity="' : ' opacity="') + r2(it.o) + '"' : '';
       if (it.k === 'f') body += '<path d="' + D + '" fill="' + paint + '"' + rule + op + ' stroke="none"/>';
       else if (it.w > 0) {
@@ -767,6 +823,7 @@
   // (on a canvas, already set to the artboard's units)
   function cPaint(x, p, b, o) {
     if (p.t === 'c') return rgba(p.c, o);
+    if (p.t === 'p') return patCanvas(x, p);
     var g = p.t === 'r' ? x.createRadialGradient(b.x + p.cx * b.w, b.y + p.cy * b.h, 0, b.x + p.cx * b.w, b.y + p.cy * b.h, p.r * (b.w + b.h) / 2)
       : x.createLinearGradient(b.x + p.x1 * b.w, b.y + p.y1 * b.h, b.x + p.x2 * b.w, b.y + p.y2 * b.h);
     p.st.forEach(function (s) { g.addColorStop(Math.max(0, Math.min(1, s.t)), rgba(s.c, s.o * o)); });
@@ -774,11 +831,13 @@
   }
   function cDraw(x, n) {
     if (!n.visible) return;
+    if (hasFx(n)) { cDraw(x, shownOf(n)); return; }
+    if (n.omask && n.items.length > 1) { maskDraw(x, n); return; }
     var op = n.opacity == null ? 1 : n.opacity, bl = n.blend && n.blend !== 'normal' ? n.blend : null;
     if (isCont(n)) {
       var cl = n.clip && n.items.length > 1 ? n.items[n.items.length - 1] : null, inner = cl ? n.items.slice(0, -1) : n.items;
       var drawIn = function (cx) { cx.save(); if (cl) cx.clip(new Path2D(dStr(cl.d)), cl.rule === 'evenodd' ? 'evenodd' : 'nonzero'); inner.forEach(function (q) { cDraw(cx, q); }); cx.restore(); };
-      if (n.type === 'group' && (op < 1 || bl)) {
+      if (n.type === 'group' && (op < 1 || bl || n.iso)) {
         var t = document.createElement('canvas'); t.width = x.canvas.width; t.height = x.canvas.height;
         var tx = t.getContext('2d'); tx.setTransform(x.getTransform()); drawIn(tx);
         x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = op; if (bl) x.globalCompositeOperation = bl; x.drawImage(t, 0, 0); x.restore();
@@ -799,6 +858,7 @@
       x.globalAlpha = op;
       if (it.k === 'f') {
         if (it.p.t === 'c') { x.fillStyle = rgba(it.p.c, it.o); x.fill(path, rule); }
+        else if (it.p.t === 'p') { x.save(); x.globalAlpha = op * it.o; x.fillStyle = patCanvas(x, it.p); x.fill(path, rule); x.restore(); }
         else { // (a gradient across the box, exactly as SVG lays it: clipped, in the box's units)
           x.save(); x.clip(path, rule); x.transform(Math.max(b.w, 1e-6), 0, 0, Math.max(b.h, 1e-6), b.x, b.y);
           x.fillStyle = cPaint(x, it.p, { x: 0, y: 0, w: 1, h: 1 }, it.o); x.fillRect(0, 0, 1, 1); x.restore();
@@ -1037,7 +1097,7 @@
     n.app.forEach(function (it, i) {
       if (!it.on || !it.p || (it.k === 's' && !(it.w > 0))) return;
       var paint = it.p.t === 'c' ? it.p.c : 'url(#vg-' + n.id + '-' + i + ')';
-      if (it.p.t !== 'c') defs += gradDef('vg-' + n.id + '-' + i, it.p);
+      if (it.p.t !== 'c') defs += it.p.t === 'p' ? patDef('vg-' + n.id + '-' + i, it.p) : gradDef('vg-' + n.id + '-' + i, it.p);
       var at = function (pt) { return it.k === 'f' ? ' fill="' + pt + '"' + (it.o < 1 ? ' fill-opacity="' + r2(it.o) + '"' : '') + ' stroke="none"' : ' fill="none" stroke="' + pt + '" stroke-width="' + r2(it.w) + '" stroke-linejoin="' + it.join + '" stroke-linecap="' + it.cap + '"' + (it.o < 1 ? ' stroke-opacity="' + r2(it.o) + '"' : ''); };
       var plain = [], one = [];
       gl.forEach(function (g) { var k = chOf(n, g.u); if (own(g) || (k && k.c && it.k === 'f')) one.push(g); else plain.push(g); });
@@ -1293,11 +1353,307 @@
     return groups.map(function (g) { return [g.o].concat(g.h); });
   }
 
+  // ---- LIVE EFFECTS: a path or group can carry a warp or an envelope
+  // (n.efx), a group can be a blend (n.blnd: its items the keys, the steps
+  // between made as it's drawn) or a repeat (n.rep: radial, grid or
+  // mirror copies of its items). What's drawn, hit and boxed is a stand-in
+  // made from them (shownOf); the objects themselves stay as they were, so
+  // they can still be edited, and Expand makes the stand-in real ----
+  var SHOWN = new Map();
+  function hasFx(n) { return !!(n && (n.efx || n.rep || n.blnd)); }
+  function shownOf(n) {
+    if (!hasFx(n)) return n;
+    var key = JSON.stringify(n), hit = SHOWN.get(n.id); if (hit && hit.key === key) return hit.v;
+    var v = makeShown(n); SHOWN.set(n.id, { key: key, v: v }); if (SHOWN.size > 400) SHOWN.delete(SHOWN.keys().next().value);
+    return v;
+  }
+  function makeShown(n) {
+    var c = clone(n); delete c.efx; delete c.rep; delete c.blnd;
+    if (n.type === 'path') { c.d = effD(n.d, n.efx, dBox(n.d)); return c; }
+    if (!isCont(n)) return c;
+    c.items = n.items.map(function (q) { return clone(shownOf(q)); });
+    if (n.blnd) c.items = blendItems(c.items, n.blnd, n.id);
+    if (n.rep) c.items = repeatItems(c.items, n.rep, n.id);
+    if (n.efx) { var b = boxOf(c.items); if (b) c.items.forEach(function (q) { leaves(q).forEach(function (l) { if (l.type === 'path') l.d = effD(l.d, n.efx, b); }); }); }
+    return c;
+  }
+  // (a path's subpaths cut finer, so a warp bends it smoothly)
+  function finer(d, b) {
+    var step = Math.max(b.w, b.h) / 24;
+    return d.map(function (sp) {
+      var out = { pts: sp.pts.map(cp), closed: sp.closed };
+      for (var i = segN(out) - 1; i >= 0; i--) { var s = seg(out, i), L = dist(s[0], s[1]) + dist(s[1], s[2]) + dist(s[2], s[3]), m = Math.min(16, Math.max(1, Math.ceil(L / Math.max(step, 1e-6)))); for (var k = m; k > 1; k--) insertAt(out, i, (k - 1) / k); }
+      return out;
+    });
+  }
+  function effD(d, fx, b) {
+    if (!fx || !b || b.w < 1e-9 && b.h < 1e-9) return d;
+    var f = fx.k === 'env' ? envMap(fx, b) : warpMap(fx, b); if (!f) return d;
+    var dd = finer(d, b);
+    dd.forEach(function (sp) { sp.pts.forEach(function (q) { var a = f(q.x, q.y), i = f(q.ix, q.iy), o = f(q.ox, q.oy); q.x = a.x; q.y = a.y; q.ix = i.x; q.iy = i.y; q.ox = o.x; q.oy = o.y; }); });
+    return dd;
+  }
+  // WARP: a shape for the whole box, in its own fractions (u across, v
+  // down), bent by fx.bend, with a little perspective either way (hd, vd);
+  // dir 'v' bends the other way
+  var WARPS = [['arc', 'Arc'], ['arclow', 'Arc Lower'], ['archigh', 'Arc Upper'], ['bulge', 'Bulge'], ['flag', 'Flag'], ['wave', 'Wave'], ['fish', 'Fish'], ['rise', 'Rise'], ['fisheye', 'Fisheye'], ['inflate', 'Inflate'], ['squeeze', 'Squeeze'], ['twist', 'Twist']];
+  function warpUV(st, u, v, k) { // (u, v in 0..1; returns the new u, v)
+    var c = 1 - (2 * u - 1) * (2 * u - 1);
+    switch (st) {
+      case 'arc': return [u, v - k * 0.5 * c];
+      case 'arclow': return [u, v - k * 0.5 * c * v];
+      case 'archigh': return [u, v - k * 0.5 * c * (1 - v)];
+      case 'bulge': return [u, v - k * 0.5 * c * (1 - 2 * v)];
+      case 'flag': return [u, v + k * 0.25 * Math.sin(2 * Math.PI * u)];
+      case 'wave': return [u, v + k * 0.25 * Math.sin(2 * Math.PI * u) * (1 - Math.abs(2 * v - 1))];
+      case 'fish': return [u, 0.5 + (v - 0.5) * (1 + k * 0.6 * Math.sin(Math.PI * u) * (u < 0.5 ? 1 : -1))];
+      case 'rise': return [u, v - k * 0.5 * u * u * (1 + (0.5 - v))];
+      case 'fisheye': { var dx = u - 0.5, dy = v - 0.5, r = Math.sqrt(dx * dx + dy * dy) * 2, m = r < 1 ? 1 + k * 0.6 * (1 - r * r) : 1; return [0.5 + dx * m, 0.5 + dy * m]; }
+      case 'inflate': { var cu = 1 - (2 * v - 1) * (2 * v - 1); return [0.5 + (u - 0.5) * (1 + k * 0.4 * cu), 0.5 + (v - 0.5) * (1 + k * 0.4 * c)]; }
+      case 'squeeze': { var cv = 1 - (2 * v - 1) * (2 * v - 1); return [0.5 + (u - 0.5) * (1 - k * 0.5 * cv), v]; }
+      case 'twist': { var tx = u - 0.5, ty = v - 0.5, rr = Math.min(1, Math.sqrt(tx * tx + ty * ty) * 2), an = k * Math.PI * (1 - rr), cs = Math.cos(an), sn = Math.sin(an); return [0.5 + tx * cs - ty * sn, 0.5 + tx * sn + ty * cs]; }
+    }
+    return [u, v];
+  }
+  function warpMap(fx, b) {
+    var W = Math.max(b.w, 1e-6), Hh = Math.max(b.h, 1e-6), k = fx.bend / 100, hd = fx.hd / 100, vd = fx.vd / 100, vert = fx.dir === 'v';
+    return function (x, y) {
+      var u = (x - b.x) / W, v = (y - b.y) / Hh, r;
+      if (vert) { r = warpUV(fx.st, v, u, k); r = [r[1], r[0]]; } else r = warpUV(fx.st, u, v, k);
+      u = r[0]; v = r[1];
+      u = 0.5 + (u - 0.5) * (1 + hd * (v - 0.5)); v = 0.5 + (v - 0.5) * (1 + vd * (u - 0.5));
+      return v2(b.x + u * W, b.y + v * Hh);
+    };
+  }
+  // ENVELOPE (a mesh): fx.m holds (rows+1) × (cols+1) points in the box's
+  // fractions; a point is put where its cell's four corners say (smoothly
+  // across the cells, through Catmull-Rom between the mesh's points)
+  function envGrid(rows, cols) { var m = []; for (var j = 0; j <= rows; j++) for (var i = 0; i <= cols; i++) m.push([i / cols, j / rows]); return m; }
+  function envMap(fx, b) {
+    var R = fx.rows, C = fx.cols, m = fx.m; if (!m || m.length !== (R + 1) * (C + 1)) return null;
+    var at = function (i, j) { i = Math.max(0, Math.min(C, i)); j = Math.max(0, Math.min(R, j)); var q = m[j * (C + 1) + i]; return q; };
+    var cr = function (p0, p1, p2, p3, t) { var t2 = t * t, t3 = t2 * t; return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3); };
+    // (a point past the mesh's edge goes on as its edge leans)
+    var ext = function (i, j, k) { if (i >= 0 && i <= C && j >= 0 && j <= R) return at(i, j)[k]; var ci = Math.max(0, Math.min(C, i)), cj = Math.max(0, Math.min(R, j)), di = i - ci, dj = j - cj, a = at(ci, cj)[k]; return a + (a - at(ci - di, cj - dj)[k]); };
+    return function (x, y) {
+      var u = (x - b.x) / Math.max(b.w, 1e-6) * C, v = (y - b.y) / Math.max(b.h, 1e-6) * R, i = Math.max(0, Math.min(C - 1, Math.floor(u))), j = Math.max(0, Math.min(R - 1, Math.floor(v))), s = u - i, t = v - j, out = [0, 0];
+      [0, 1].forEach(function (k) {
+        var rows = [-1, 0, 1, 2].map(function (dj) { return cr(ext(i - 1, j + dj, k), ext(i, j + dj, k), ext(i + 1, j + dj, k), ext(i + 2, j + dj, k), s); });
+        out[k] = cr(rows[0], rows[1], rows[2], rows[3], t);
+      });
+      return v2(b.x + out[0] * b.w, b.y + out[1] * b.h);
+    };
+  }
+  // (a mesh made from a warp, so it can be pulled about afterwards)
+  function envFromWarp(st, bend, rows, cols) { var f = warpMap({ st: st, bend: bend, hd: 0, vd: 0, dir: 'h' }, { x: 0, y: 0, w: 1, h: 1 }); return envGrid(rows, cols).map(function (q) { var r = f(q[0], q[1]); return [r.x, r.y]; }); }
+  // BLEND: the steps between each key and the next, their shapes and looks in between
+  function blendItems(items, bl, gid) {
+    var keys = items, out = [];
+    keys.forEach(function (a, i) {
+      out.push(a); var b = keys[i + 1]; if (!b || a.type !== 'path' || b.type !== 'path') return;
+      var n = bl.smooth ? smoothSteps(a, b) : Math.max(1, Math.min(500, bl.steps | 0)), pair = matchPaths(a.d, b.d);
+      for (var k = 1; k <= n; k++) {
+        var t = k / (n + 1), st = clone(a); st.id = gid + '~b' + i + '-' + k; st.name = 'Step';
+        st.d = pair.a.map(function (sp, si) { var sb = pair.b[si]; return { pts: sp.pts.map(function (q, pi) { var r = sb.pts[pi]; var L = function (f) { return q[f] + (r[f] - q[f]) * t; }; return { x: L('x'), y: L('y'), ix: L('ix'), iy: L('iy'), ox: L('ox'), oy: L('oy'), s: q.s }; }), closed: sp.closed }; });
+        st.app = blendApp(a.app, b.app, t); st.opacity = (a.opacity == null ? 1 : a.opacity) + ((b.opacity == null ? 1 : b.opacity) - (a.opacity == null ? 1 : a.opacity)) * t;
+        delete st.live; out.push(st);
+      }
+    });
+    return out;
+  }
+  function hexMix(a, b, t) { var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), m = function (s) { return Math.round(((x >> s) & 255) + (((y >> s) & 255) - ((x >> s) & 255)) * t); }; return '#' + [16, 8, 0].map(function (s) { return ('0' + m(s).toString(16)).slice(-2); }).join(''); }
+  function solidHex(p) { return !p ? null : p.t === 'c' ? p.c : p.st ? p.st[0].c : '#888888'; }
+  function blendApp(A, Bp, t) {
+    var out = [];
+    ['f', 's'].forEach(function (k) {
+      var a = A[topOf(A, k)], b = Bp[topOf(Bp, k)]; if (!a && !b) return;
+      var it = clone(a || b), ca = solidHex(a && a.on && a.p), cb = solidHex(b && b.on && b.p);
+      if (ca && cb) it.p = { t: 'c', c: hexMix(ca, cb, t) }; else it.p = t < 0.5 ? clone(a && a.p) : clone(b && b.p);
+      it.o = (a ? a.o : 1) + ((b ? b.o : 1) - (a ? a.o : 1)) * t; it.on = 1;
+      if (k === 's') { it.w = (a ? a.w : 0) + ((b ? b.w : 0) - (a ? a.w : 0)) * t; it.prof = null; }
+      out.push(it);
+    });
+    return out;
+  }
+  function smoothSteps(a, b) {
+    var ca = solidHex(itemOf(a.app, 'f', false) && itemOf(a.app, 'f', false).p) || '#000000', cb = solidHex(itemOf(b.app, 'f', false) && itemOf(b.app, 'f', false).p) || '#000000';
+    var x = parseInt(ca.slice(1), 16), y = parseInt(cb.slice(1), 16), dm = Math.max(Math.abs((x >> 16) - (y >> 16)), Math.abs((x >> 8 & 255) - (y >> 8 & 255)), Math.abs((x & 255) - (y & 255)));
+    return Math.max(1, Math.min(255, Math.round(dm / 3)));
+  }
+  // (two paths made alike: the same subpaths, each with as many points,
+  // the closed ones started where they're nearest)
+  function matchPaths(da, db) {
+    var n = Math.min(da.length, db.length), A = dCopy(da.slice(0, n)), Bd = dCopy(db.slice(0, n));
+    A.forEach(function (sa, i) {
+      var sb = Bd[i];
+      var grow = function (sp, want) { var g = 0; while (sp.pts.length < want && g++ < 2000) { var best = 0, bl = -1; for (var k = 0; k < segN(sp); k++) { var s = seg(sp, k), L = dist(s[0], s[3]) + dist(s[0], s[1]) + dist(s[2], s[3]); if (L > bl) { bl = L; best = k; } } insertAt(sp, best, 0.5); } };
+      if (sa.pts.length < sb.pts.length) grow(sa, sb.pts.length); else grow(sb, sa.pts.length);
+      if (sa.closed && sb.closed && sb.pts.length > 2) {
+        var N = sb.pts.length, bestR = 0, bestD = Infinity, ca = boxC(sa), cb = boxC(sb);
+        for (var r = 0; r < N; r++) { var tot = 0; for (var k = 0; k < N; k++) { var p = sa.pts[k], q = sb.pts[(k + r) % N]; tot += Math.hypot(p.x - ca.x - (q.x - cb.x), p.y - ca.y - (q.y - cb.y)); } if (tot < bestD) { bestD = tot; bestR = r; } }
+        sb.pts = sb.pts.slice(bestR).concat(sb.pts.slice(0, bestR));
+      }
+    });
+    return { a: A, b: Bd };
+  }
+  function boxC(sp) { var b = dBox([sp]) || { x: 0, y: 0, w: 0, h: 0 }; return v2(b.x + b.w / 2, b.y + b.h / 2); }
+  // REPEAT: copies of the group's items round a middle (radial), in rows
+  // and columns (grid), or mirrored across a line (mirror)
+  function repeatItems(items, rp, gid) {
+    var b = boxOf(items); if (!b) return items;
+    var out = items.slice(), copy = function (k, m) { items.forEach(function (q) { var c = clone(q); (function re(x, j) { x.id = gid + '~r' + k + '-' + j + '-' + x.id; if (isCont(x)) x.items.forEach(function (y, jj) { re(y, jj); }); })(c, 0); xform(c, m); out.push(c); }); };
+    if (rp.k === 'radial') {
+      var n = Math.max(2, Math.min(200, rp.n | 0)), c = v2(b.x + b.w / 2, b.y + b.h / 2 + Math.max(1, rp.r));
+      for (var k = 1; k < n; k++) copy(k, mRot(k * 2 * Math.PI / n, c));
+    } else if (rp.k === 'grid') {
+      var R = Math.max(1, Math.min(50, rp.rows | 0)), C = Math.max(1, Math.min(50, rp.cols | 0));
+      for (var j = 0; j < R; j++) for (var i = 0; i < C; i++) { if (!i && !j) continue; copy(j * C + i, [1, 0, 0, 1, i * (b.w + rp.gx), j * (b.h + rp.gy)]); }
+    } else if (rp.k === 'mirror') {
+      var a = rp.a * Math.PI / 180, o = v2(b.x + b.w + rp.off / 2, b.y + b.h / 2);
+      copy(1, mRefl(a, o));
+    }
+    return out;
+  }
+  // PATTERNS: doc.pats ({ id, name, items, w, h, gap }), tiles made from
+  // art; a fill or stroke paint { t: 'p', id, s, a, x, y } (size, turn, shift)
+  var patIds = {};
+  function patById(id) { return doc && doc.pats ? doc.pats.filter(function (q) { return q.id === id; })[0] : null; }
+  function patTile(pt) { var b = boxOf(pt.items) || { x: 0, y: 0, w: 1, h: 1 }; return { x: b.x - pt.gap / 2, y: b.y - pt.gap / 2, w: Math.max(1, b.w + pt.gap), h: Math.max(1, b.h + pt.gap) }; }
+  function patDef(id, p) {
+    var pt = patById(p.id); if (!pt) return '';
+    var t = patTile(pt);
+    return '<pattern id="' + id + '" patternUnits="userSpaceOnUse" x="' + r2(t.x) + '" y="' + r2(t.y) + '" width="' + r2(t.w) + '" height="' + r2(t.h) + '" patternTransform="translate(' + r2(p.x) + ' ' + r2(p.y) + ') rotate(' + r2(p.a) + ') scale(' + r2(p.s) + ')">' + pt.items.map(function (q) { return nodeSvg(q, false); }).join('') + '</pattern>';
+  }
+  function patCanvas(x, p) {
+    var pt = patById(p.id); if (!pt) return 'rgba(0,0,0,0)';
+    var t = patTile(pt), m = x.getTransform(), k = Math.max(0.05, Math.min(8, Math.hypot(m.a, m.b) * p.s)), W = Math.max(1, Math.round(t.w * k)), Hh = Math.max(1, Math.round(t.h * k));
+    if (W * Hh > 4e6) { k *= Math.sqrt(4e6 / (W * Hh)); W = Math.max(1, Math.round(t.w * k)); Hh = Math.max(1, Math.round(t.h * k)); }
+    var c = document.createElement('canvas'); c.width = W; c.height = Hh; var cx = c.getContext('2d'); cx.setTransform(W / t.w, 0, 0, Hh / t.h, -t.x * W / t.w, -t.y * Hh / t.h);
+    pt.items.forEach(function (q) { cDraw(cx, q); });
+    var pat = x.createPattern(c, 'repeat'), M = new DOMMatrix().translate(p.x, p.y).rotate(p.a).scale(p.s).translate(t.x, t.y).scale(t.w / W, t.h / Hh);
+    pat.setTransform(M); return pat;
+  }
+  function patSwatch(pt, sz) { var t = patTile(pt); return '<svg viewBox="0 0 ' + sz + ' ' + sz + '" aria-hidden="true"><defs>' + patDef('vpp-' + pt.id, { id: pt.id, s: sz / Math.max(t.w, t.h), a: 0, x: -t.x * sz / Math.max(t.w, t.h), y: -t.y * sz / Math.max(t.w, t.h) }) + '</defs><rect width="' + sz + '" height="' + sz + '" fill="url(#vpp-' + pt.id + ')"/></svg>'; }
+  function makePattern() {
+    var list = picked().filter(editable); if (!list.length) { B.toast('Pick the art to make a pattern from'); return; }
+    var items = stackOrder(list).map(function (n) { var c = fresh(n); return c; }), b = boxOf(items);
+    items.forEach(function (c) { xform(c, [1, 0, 0, 1, -b.x, -b.y]); (function strip(q) { if (q.app) q.app.forEach(function (it) { if (it.p && it.p.t === 'p') it.p = null; }); if (isCont(q)) q.items.forEach(strip); })(c); });
+    record('Make Pattern');
+    var n = 1; while (doc.pats.some(function (q) { return q.name === 'Pattern ' + n; })) n++;
+    var pt = { id: 'P' + uid(''), name: 'Pattern ' + n, items: items, gap: 0 }; doc.pats.push(pt); TS.pattern.cur = pt.id; changed();
+    B.toast('Made ' + pt.name + ': pick shapes and tap it to fill them');
+  }
+  function usePattern(id) {
+    var list = targets(); if (!list.length) { TS.pattern.cur = id; panelRefresh(); B.toast('Pick shapes to fill with the pattern'); return; }
+    record('Pattern Fill'); TS.pattern.cur = id;
+    list.forEach(function (n) { var it = itemOf(n.app, TS.pattern.to === 's' ? 's' : 'f', true); it.p = { t: 'p', id: id, s: 1, a: 0, x: 0, y: 0 }; it.on = 1; if (it.k === 's' && !(it.w > 0)) it.w = 8; });
+    changed();
+  }
+  function patItem() { var t = targets(), app = t.length ? t[t.length - 1].app : null, it = app ? itemOf(app, TS.pattern.to === 's' ? 's' : 'f', false) : null; return it && it.p && it.p.t === 'p' ? it : null; }
+  // OPACITY MASKS (Transparency): a group with omask: its top item is the
+  // mask, light shows and dark hides (inv the other way round; clip hides
+  // what's outside the mask's art); iso keeps a group's blending inside it
+  var INV = '<filter id="vinv" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0"/></filter>';
+  function maskSvg(n, forScreen) {
+    var mk = n.items[n.items.length - 1], om = n.omask;
+    return '<g' + gAttrs(n, forScreen) + '><defs>' + INV + '<mask id="vm-' + n.id + '" maskUnits="userSpaceOnUse" x="-1000000" y="-1000000" width="2000000" height="2000000"><rect x="-1000000" y="-1000000" width="2000000" height="2000000" fill="' + (om.clip ? '#000' : '#fff') + '"/><g' + (om.inv ? ' filter="url(#vinv)"' : '') + '>' + nodeSvg(mk, false) + '</g></mask></defs><g mask="url(#vm-' + n.id + ')">' +
+      n.items.slice(0, -1).map(function (q) { return nodeSvg(q, forScreen); }).join('') + '</g></g>';
+  }
+  function maskDraw(x, n) {
+    var W = x.canvas.width, Hh = x.canvas.height, T = x.getTransform(), mk = n.items[n.items.length - 1], om = n.omask;
+    var a = document.createElement('canvas'); a.width = W; a.height = Hh; var ax = a.getContext('2d'); ax.setTransform(T); n.items.slice(0, -1).forEach(function (q) { cDraw(ax, q); });
+    var m = document.createElement('canvas'); m.width = W; m.height = Hh; var mx2 = m.getContext('2d'); mx2.setTransform(T); cDraw(mx2, mk);
+    var ad = ax.getImageData(0, 0, W, Hh), md = mx2.getImageData(0, 0, W, Hh).data, bg = om.clip ? 0 : 1;
+    for (var i = 0; i < md.length; i += 4) {
+      var al = md[i + 3] / 255, L = (0.2126 * md[i] + 0.7152 * md[i + 1] + 0.0722 * md[i + 2]) / 255; if (om.inv) L = 1 - L;
+      ad.data[i + 3] = Math.round(ad.data[i + 3] * (L * al + bg * (1 - al)));
+    }
+    ax.putImageData(ad, 0, 0);
+    x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = n.opacity == null ? 1 : n.opacity; if (n.blend && n.blend !== 'normal') x.globalCompositeOperation = n.blend; x.drawImage(a, 0, 0); x.restore();
+  }
+  // OFFSET PATH: the path grown (or shrunk) by d: its area with (or
+  // without) the band a stroke 2|d| wide along its edge covers, traced at a
+  // fine size, corners kept where the joins are sharp
+  function offsetPath(n, off, join, ml) {
+    var b = dBox(n.d); if (!b || !off) return null;
+    var a = Math.abs(off), bw = b.w + 2 * a + 4, bh = b.h + 2 * a + 4, k = Math.min(Math.max(4, 24 / a), 3000 / Math.max(bw, bh)), W = Math.ceil(bw * k) + 6, Hh = Math.ceil(bh * k) + 6, ox = 3 - (b.x - a - 2) * k, oy = 3 - (b.y - a - 2) * k;
+    var c = document.createElement('canvas'); c.width = W; c.height = Hh; var x = c.getContext('2d', { willReadFrequently: true });
+    x.setTransform(k, 0, 0, k, ox, oy); x.lineWidth = 2 * a; x.lineJoin = join; x.miterLimit = ml; x.lineCap = 'round'; x.strokeStyle = '#000'; x.stroke(new Path2D(dStr(n.d)));
+    var band = { rings: maskRings(x.getImageData(0, 0, W, Hh).data, W, Hh, function (q) { return v2((q.x - ox) / k, (q.y - oy) / k); }, join !== 'round'), rule: 'n' };
+    var closed = n.d.some(function (sp) { return sp.closed; }), tol = boolTol([n]), err = Math.max(0.6 / k, tol * 2);
+    if (!closed) return ringsToD(boolRings([band], 'union'), err);
+    var me = shapeOf(n, tol);
+    return ringsToD(boolRings(off > 0 ? [me, band] : [me, band], off > 0 ? 'union' : 'minus'), err);
+  }
+  // (a mask's edges as rings for the shape engine; corner: sharp turns are
+  // kept as corners when the curves are fitted again)
+  function maskRings(img, W, Hh, map, corner) {
+    var mask = new Uint8Array(W * Hh); for (var i = 0; i < W * Hh; i++) mask[i] = img[i * 4 + 3] > 127 ? 1 : 0;
+    return traceMask(mask, W, Hh).filter(function (lp) { return lp.length > 3; }).map(function (lp) {
+      var poly = rdp(lp.concat([lp[0]]), 0.6).slice(0, -1), N = poly.length;
+      return poly.map(function (q, j) { var A = poly[(j - 1 + N) % N], C = poly[(j + 1) % N], u = vnorm(vsub(q, A)), w = vnorm(vsub(C, q)), m = map(q); return { x: m.x, y: m.y, b: !!corner && u.x * w.x + u.y * w.y < 0.5, sm: true }; });
+    }).filter(function (r) { return r.length >= 3; });
+  }
+  // IMAGE TRACE: a picture as paths: its colours brought down to a few (or
+  // black and white), each colour's areas traced and fitted with curves,
+  // one path each, the picture hidden under them
+  function imageTrace(n) {
+    var im = imgFor(n.asset), S = TS.trace; if (!im) return;
+    im.ready.then(function () {
+      if (!im.naturalWidth || !byId(n.id)) return;
+      var sc = Math.min(1, 900 / Math.max(im.naturalWidth, im.naturalHeight)), W = Math.max(2, Math.round(im.naturalWidth * sc)), Hh = Math.max(2, Math.round(im.naturalHeight * sc));
+      var c = document.createElement('canvas'); c.width = W; c.height = Hh; var x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, W, Hh);
+      var px = x.getImageData(0, 0, W, Hh).data, N = W * Hh, lab = new Int16Array(N).fill(-1), cols = [];
+      if (S.mode === 'bw') {
+        for (var i = 0; i < N; i++) if (px[i * 4 + 3] > 127 && (0.2126 * px[i * 4] + 0.7152 * px[i * 4 + 1] + 0.0722 * px[i * 4 + 2]) < S.th) lab[i] = 0;
+        cols = ['#1d1d1f'];
+      } else {
+        // (k-means on a sample of the colours, then every pixel to its nearest)
+        var K = Math.max(2, Math.min(16, S.n | 0)), grey = S.mode === 'grey', val = function (i) { var r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2]; if (grey) { var l = 0.2126 * r + 0.7152 * g + 0.0722 * b; return [l, l, l]; } return [r, g, b]; };
+        var samp = []; for (var s2 = 0; s2 < 24000; s2++) { var j = Math.floor(Math.random() * N); if (px[j * 4 + 3] > 127) samp.push(val(j)); }
+        if (!samp.length) { B.toast('There’s nothing to trace in that picture'); return; }
+        var cen = []; for (var q = 0; q < K; q++) cen.push(samp[Math.floor(q * samp.length / K)].slice());
+        for (var it = 0; it < 10; it++) {
+          var sum = cen.map(function () { return [0, 0, 0, 0]; });
+          samp.forEach(function (v) { var bi = 0, bd = Infinity; cen.forEach(function (cc, ci) { var d = (v[0] - cc[0]) * (v[0] - cc[0]) + (v[1] - cc[1]) * (v[1] - cc[1]) + (v[2] - cc[2]) * (v[2] - cc[2]); if (d < bd) { bd = d; bi = ci; } }); var su = sum[bi]; su[0] += v[0]; su[1] += v[1]; su[2] += v[2]; su[3]++; });
+          cen = cen.map(function (cc, ci) { var su = sum[ci]; return su[3] ? [su[0] / su[3], su[1] / su[3], su[2] / su[3]] : cc; });
+        }
+        for (i = 0; i < N; i++) { if (px[i * 4 + 3] <= 127) continue; var v = val(i), bi = 0, bd = Infinity; for (var ci = 0; ci < K; ci++) { var cc = cen[ci], d = (v[0] - cc[0]) * (v[0] - cc[0]) + (v[1] - cc[1]) * (v[1] - cc[1]) + (v[2] - cc[2]) * (v[2] - cc[2]); if (d < bd) { bd = d; bi = ci; } } lab[i] = bi; }
+        cols = cen.map(function (cc) { return '#' + cc.map(function (u) { return ('0' + Math.round(Math.max(0, Math.min(255, u))).toString(16)).slice(-2); }).join(''); });
+      }
+      // (to the picture's place on the artboard: its box, flips and matrix)
+      var map = function (q) { var u = q.x / W, v = q.y / Hh; if (n.fx) u = 1 - u; if (n.fy) v = 1 - v; var p = v2(n.x + u * n.w, n.y + v * n.h); return n.mt ? mx(n.mt, p) : p; };
+      var minA = S.noise * S.noise, err = 0.5 + S.smooth / 100 * 2.5, made = [];
+      cols.forEach(function (col, ci) {
+        var count = 0; for (var i2 = 0; i2 < N; i2++) if (lab[i2] === ci) count++;
+        if (!count || (S.white && S.mode !== 'bw' && hexDist(col, '#ffffff') < 24)) return;
+        // (each colour grown a pixel, so neighbours meet without a hairline gap)
+        var m = new Uint8Array(N); for (var i3 = 0; i3 < N; i3++) if (lab[i3] === ci) m[i3] = 1;
+        if (S.mode !== 'bw') { var g2 = m.slice(); for (var y = 1; y < Hh - 1; y++) for (var xx = 1; xx < W - 1; xx++) { var o = y * W + xx; if (!m[o] && (m[o - 1] || m[o + 1] || m[o - W] || m[o + W])) g2[o] = 1; } m = g2; }
+        var loops = traceMask(m, W, Hh).filter(function (lp) { return lp.length > 3 && Math.abs(ringArea(lp)) >= minA; });
+        var d = loops.map(function (lp) {
+          var poly = rdp(lp.concat([lp[0]]), 0.6).slice(0, -1), L = poly.length;
+          var R = poly.map(function (q, j) { var A = poly[(j - 1 + L) % L], C = poly[(j + 1) % L], u = vnorm(vsub(q, A)), w = vnorm(vsub(C, q)); return { x: q.x, y: q.y, b: u.x * w.x + u.y * w.y < 0.3, sm: false }; });
+          var sp = ringToSp(R, err); sp.pts.forEach(function (q) { var a = map(q), ii = map(v2(q.ix, q.iy)), oo = map(v2(q.ox, q.oy)); q.x = a.x; q.y = a.y; q.ix = ii.x; q.iy = ii.y; q.ox = oo.x; q.oy = oo.y; });
+          return sp;
+        }).filter(function (sp) { return sp.pts.length > 2; });
+        if (d.length) made.push({ d: d, col: col, n: count });
+      });
+      if (!made.length) { B.toast('Nothing came out of the trace: try another threshold or fewer colours'); return; }
+      made.sort(function (a, b) { return b.n - a.n; }); // (the biggest areas at the bottom)
+      record('Image Trace');
+      var paths = made.map(function (m) { var q = newPath(m.d, m.col.toUpperCase(), [{ k: 'f', p: { t: 'c', c: m.col }, o: 1, on: 1 }]); q.opacity = 1; q.blend = 'normal'; return q; });
+      var g = { id: uid('g'), type: 'group', name: 'Image Trace', items: paths, opacity: 1, blend: 'normal', visible: true, locked: false, open: false };
+      var nn = byId(n.id); insertNode(g, nn); nn.visible = false; sel = [g.id]; asel = {}; changed();
+      B.toast('Traced into ' + paths.length + (paths.length === 1 ? ' shape' : ' shapes') + '; the picture is hidden underneath');
+    });
+  }
+
   // ---- UNDO AND REDO: Vector mode's own steps (the painting has its own),
   // each a copy of the document as it was ----
-  function snap() { return JSON.stringify({ layers: doc.layers, cur: doc.cur, n: doc.n, w: doc.w, h: doc.h, def: doc.def, sw: doc.sw, sel: sel, asel: asel }); }
+  function snap() { return JSON.stringify({ layers: doc.layers, cur: doc.cur, n: doc.n, boards: doc.boards, ab: doc.ab, guides: doc.guides, pats: doc.pats, def: doc.def, sw: doc.sw, sel: sel, asel: asel }); }
   function restore(s) {
-    var d = JSON.parse(s); doc.layers = d.layers; doc.cur = d.cur; doc.n = d.n; doc.w = d.w; doc.h = d.h; doc.def = d.def; doc.sw = d.sw;
+    var d = JSON.parse(s); doc.layers = d.layers; doc.cur = d.cur; doc.n = d.n; doc.boards = d.boards; doc.ab = d.ab; doc.guides = d.guides; doc.pats = d.pats; doc.def = d.def; doc.sw = d.sw;
     sel = (d.sel || []).filter(function (id) { return !!byId(id); });
     asel = {}; Object.keys(d.asel || {}).forEach(function (id) { if (byId(id)) asel[id] = d.asel[id]; });
   }
@@ -1322,12 +1678,12 @@
     var sw = stageEl.clientWidth, sh = stageEl.clientHeight; if (!sw || !sh || !doc) return;
     fitM = fitT = B.phone() ? 10 : 34;
     var me = B.modeEl; if (me && me.offsetParent) fitT = Math.max(fitM, me.getBoundingClientRect().bottom - stageEl.getBoundingClientRect().top + 8);
-    fitK = Math.max(0.01, Math.min((sw - 2 * fitM) / doc.w, (sh - fitT - fitM) / doc.h));
+    var A = AB(); fitK = Math.max(0.01, Math.min((sw - 2 * fitM) / A.w, (sh - fitT - fitM) / A.h));
   }
   function fit() {
     fitView(); if (!doc) return;
     var sw = stageEl.clientWidth, sh = stageEl.clientHeight;
-    view.k = fitK; view.r = 0; view.x = (sw - doc.w * fitK) / 2; view.y = fitT + (sh - fitT - fitM - doc.h * fitK) / 2; view.fit = true;
+    var A = AB(); view.k = fitK; view.r = 0; view.x = (sw - A.w * fitK) / 2 - A.x * fitK; view.y = fitT + (sh - fitT - fitM - A.h * fitK) / 2 - A.y * fitK; view.fit = true;
     applyView();
   }
   // (the point of the artboard under (cx, cy) stays there)
@@ -1342,6 +1698,7 @@
   function applyView() {
     if (!worldEl) return;
     worldEl.style.transform = 'matrix(' + vmat().join(',') + ')';
+    rulersDraw(); gridDraw();
     if (on && B.zoomVal) B.zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
     drawUI();
   }
@@ -1358,20 +1715,25 @@
   // size above it, in screen pixels ----
   function renderArt() {
     if (!doc || !artEl) return;
-    boardEl.style.width = doc.w + 'px'; boardEl.style.height = doc.h + 'px';
-    artEl.setAttribute('width', doc.w); artEl.setAttribute('height', doc.h); artEl.setAttribute('viewBox', '0 0 ' + doc.w + ' ' + doc.h);
+    // (the artboards; the art's sheet covers them all, and shows past them)
+    var bh = doc.boards.map(function (b) { return '<div class="vec-board' + (b.clear ? ' clear' : '') + '" data-ab="' + b.id + '" style="left:' + r2(b.x) + 'px;top:' + r2(b.y) + 'px;width:' + r2(b.w) + 'px;height:' + r2(b.h) + 'px"></div>'; }).join('');
+    if (bh !== boardsEl.dataset.k) { boardsEl.innerHTML = bh; boardsEl.dataset.k = bh; }
+    var U = boardsBox(); artEl.style.left = r2(U.x) + 'px'; artEl.style.top = r2(U.y) + 'px';
+    artEl.setAttribute('width', r2(U.w)); artEl.setAttribute('height', r2(U.h)); artEl.setAttribute('viewBox', r2(U.x) + ' ' + r2(U.y) + ' ' + r2(U.w) + ' ' + r2(U.h));
     ensureDefs();
     artRoot.innerHTML = doc.layers.map(function (L) { return nodeSvg(L, true); }).join('');
   }
   // (one node drawn again in place, while it's dragged or edited)
   function renderNode(n) {
+    // (inside something with an effect, a mask or a clip, the whole of that is drawn again)
+    var c = chain(n.id); for (var i = 0; i < c.length - 1; i++) if (hasFx(c[i]) || c[i].omask || c[i].clip) { n = c[i]; break; }
     var el = artRoot.querySelector('[data-v="' + n.id + '"]');
     if (!el) { renderArt(); return; }
     var tmp = document.createElementNS(SVGNS, 'g'); tmp.innerHTML = nodeSvg(n, true);
     if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
   }
   function renderSome(list) { if (list.length > 40) renderArt(); else list.forEach(renderNode); }
-  var ui = { marquee: null, lasso: null, knife: null, zoom: null, hover: null, pen: null, hoverPt: null, join: null, ink: null, brush: null, build: null, bface: -1, chover: null };
+  var ui = { marquee: null, lasso: null, knife: null, zoom: null, hover: null, pen: null, hoverPt: null, join: null, ink: null, brush: null, build: null, bface: -1, chover: null, smart: null, snapMk: null };
   var HS = 4;   // (half a handle's size, in screen pixels)
   function pickBox() { // (the box round what's picked and can be changed)
     var list = picked().filter(editable); return list.length ? boxOf(list) : null;
@@ -1383,10 +1745,11 @@
     var m = function (x, y) { return toScreen(v2(b.x + b.w * x, b.y + b.h * y)); };
     return { nw: m(0, 0), n: m(0.5, 0), ne: m(1, 0), e: m(1, 0.5), se: m(1, 1), s: m(0.5, 1), sw: m(0, 1), w: m(0, 0.5) };
   }
-  var BOXTOOLS = { select: 1, solid: 1, gradient: 0, swatches: 1, cpick: 1, swidth: 1, sprofile: 1, capjoin: 1, dash: 1, appear: 1, opacity: 1, blend: 1, wand: 1, groupsel: 1, eyedropper: 1, vfill: 0 };
+  var BOXTOOLS = { select: 1, solid: 1, gradient: 0, swatches: 1, cpick: 1, swidth: 1, sprofile: 1, capjoin: 1, dash: 1, appear: 1, opacity: 1, blend: 1, wand: 1, groupsel: 1, eyedropper: 1, vfill: 0,
+    vblend: 1, warp: 1, envelope: 1, offset: 1, repeat: 1, pattern: 1, transp: 1, rulers: 1, smartg: 1, grid: 1, snapgrid: 1, snappts: 1, snapobj: 1 };
   var ANCHORTOOLS = { direct: 1, lasso: 1, anchor: 1, addpt: 1, delpt: 1, convert: 1, scissors: 1, join: 1, pen: 1, curvature: 1, simplify: 1, knife: 1, smooth: 1 };
   function outlineOf(n, cls) {
-    if (n.type === 'path') { var m = vmat(); var dd = dCopy(n.d); dXform(dd, m); return '<path class="' + cls + '" d="' + dStr(dd) + '"/>'; }
+    if (n.type === 'path') { var m = vmat(); var dd = dCopy(n.efx ? shownOf(n).d : n.d); dXform(dd, m); return '<path class="' + cls + '" d="' + dStr(dd) + '"/>'; }
     if (n.type === 'text' && n.kind === 'area' && n.area) return pathOutline(n.area, n.mt, cls);
     if (n.type === 'image' || n.type === 'text') return '<polygon class="' + cls + '" points="' + polyStr(nodeQuad(n).map(toScreen)) + '"/>';
     var b = nodeBox(n); return b ? '<polygon class="' + cls + '" points="' + polyStr(quad(b)) + '"/>' : '';
@@ -1395,6 +1758,7 @@
     if (!uiEl || !doc) return;
     var w = stageEl.clientWidth, h = stageEl.clientHeight, out = '';
     uiEl.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    out += precUi();
     var list = picked();
     if (ui.hover && !drag) { var hn = byId(ui.hover); if (hn && sel.indexOf(hn.id) < 0) out += outlineOf(hn, 'vs-hover'); }
     if (BOXTOOLS[tool] || tool === 'gradient' || tool === 'vfill' || tool === 'vwidth' || tool === 'hand' || tool === 'zoom' || tool === 'rotview' || TOOLS[tool].shape || XF[tool] || ALIGNT[tool] || TYPE[tool] || tool === 'chedit' || tool === 'pencil' || tool === 'vbrush') {
@@ -1449,7 +1813,7 @@
   function changed(full) {
     ver++;
     if (full !== false) renderArt();
-    drawUI(); panelSync(); layersRender(); histButtons(); bbarSync(); pcRefresh();
+    rulersDraw(); gridDraw(); drawUI(); panelSync(); layersRender(); histButtons(); bbarSync(); pcRefresh();
     B.autosave();
   }
   function selChanged() { drawUI(); panelSync(); layersRender(); bbarSync(); pcRefresh(); B.autosave(); }
@@ -1459,6 +1823,7 @@
   // near counts, from the screen's pixels) ----
   function tolDoc(touch) { return (touch ? 12 : 5) / view.k; }
   function leafHit(n, p, tol) {
+    if (n.efx) n = shownOf(n);
     if (n.type === 'image') { var q0 = n.mt ? mx(mInv(n.mt), p) : p; return q0.x >= n.x - tol && q0.x <= n.x + n.w + tol && q0.y >= n.y - tol && q0.y <= n.y + n.h + tol; }
     if (n.type === 'text') return textHit(n, p, tol);
     var b = dBox(n.d); if (!b) return false;
@@ -1475,6 +1840,9 @@
       for (var i = list.length - 1; i >= 0; i--) {
         var n = list[i]; if (!n.visible || (n.locked && !any)) continue;
         if (isCont(n)) {
+          // (a blend's or repeat's steps and copies, or a warped group: hit as drawn, picking its own first object)
+          if (hasFx(n)) { if (go([shownOf(n)])) { var r1 = go(n.items); return r1 || leaves(n)[0]; } continue; }
+          if (n.omask && n.items.length > 1) { var rm = go(n.items.slice(0, -1)); if (rm) return rm; continue; }
           var cl = n.clip && n.items.length > 1 ? n.items[n.items.length - 1] : null;
           if (cl) {
             var ne = nearest(cl.d, p, Math.max(0.2, tol / 4)), edge = ne && ne.d <= tol;
@@ -1659,6 +2027,7 @@
     lastDown = { t: dbl ? 0 : now, s: s };
     if (spaceDown || e.button === 1 || tool === 'hand') { drag = { kind: 'pan', s0: s, vx: view.x, vy: view.y }; stageEl.style.cursor = 'grabbing'; return; }
     var p = fromScreen(s.x, s.y), h = H[tool] || H.select;
+    ui.snapMk = ui.smart = null; if (snapsAt(tool)) { var sq = snapPt(p, null, touch); p = v2(sq.x, sq.y); ui.snapMk = sq.mk; }
     h.down(e, s, p, touch, dbl);
   }
   function move(e) {
@@ -1673,13 +2042,18 @@
       var r = pinch.r + an - pinch.an, deg = ((r * 180 / Math.PI) % 360 + 540) % 360 - 180; if (Math.abs(deg) < 4) r = 0;
       view.r = r; keepAt(pinch.p, mxp, myp); view.fit = false; applyView(); return;
     }
-    if (!drag) { var h0 = H[tool] || H.select; if (h0.hover && e.pointerType !== 'touch') h0.hover(s, fromScreen(s.x, s.y), touch); stageEl.style.cursor = cursorFor(s, touch); return; }
+    if (!drag) {
+      var h0 = H[tool] || H.select, hp = fromScreen(s.x, s.y);
+      if (snapsAt(tool) && e.pointerType !== 'touch') { var hq = snapPt(hp, null, touch), mk0 = JSON.stringify(ui.snapMk); hp = v2(hq.x, hq.y); ui.snapMk = hq.mk; if (JSON.stringify(hq.mk) !== mk0) drawUI(); }
+      if (h0.hover && e.pointerType !== 'touch') h0.hover(s, hp, touch); stageEl.style.cursor = cursorFor(s, touch); return;
+    }
     if (taps && Math.hypot(s.x - drag.s0.x, s.y - drag.s0.y) > 8) taps.moved = true;
     var p = fromScreen(s.x, s.y);
     if (drag.kind === 'pan') { view.x = drag.vx + s.x - drag.s0.x; view.y = drag.vy + s.y - drag.s0.y; view.fit = false; applyView(); return; }
     var slop = e.pointerType === 'touch' ? 6 : 3;
     if (!drag.moved && Math.hypot(s.x - drag.s0.x, s.y - drag.s0.y) < slop) return;
     drag.moved = true;
+    if (snapsAt(drag.tool)) { var mq = snapPt(p, null, touch); p = v2(mq.x, mq.y); ui.snapMk = mq.mk; }
     (H[drag.tool] || H.select).move(e, s, p, touch);
   }
   function up(e) {
@@ -1691,7 +2065,8 @@
       var d = drag;
       if (d.kind === 'pan') { drag = null; }
       else if (e.type === 'pointercancel') cancelDrag();
-      else { (H[d.tool] || H.select).up(e, s, fromScreen(s.x, s.y), e.pointerType !== 'mouse'); if (drag === d) drag = null; }
+      else { var up0 = fromScreen(s.x, s.y); if (snapsAt(d.tool)) { var uq = snapPt(up0, null, e.pointerType !== 'mouse'); up0 = v2(uq.x, uq.y); } (H[d.tool] || H.select).up(e, s, up0, e.pointerType !== 'mouse'); if (drag === d) drag = null; }
+      if (!drag && (ui.smart || ui.snapMk)) { ui.smart = ui.snapMk = null; drawUI(); }
     }
     if (!n && taps) {
       var t = taps; taps = null;
@@ -1754,12 +2129,14 @@
         }
         var dx = p.x - d.p0.x, dy = p.y - d.p0.y;
         if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+        if (d.b0 === undefined) d.b0 = boxOf(d.orig); var sb = snapBox(d.b0, dx, dy, d.ids); dx = sb.dx; dy = sb.dy;
         d.ids.forEach(function (id, i) { var n = replaceNode(id, clone(d.orig[i])); xform(n, [1, 0, 0, 1, dx, dy]); });
         renderSome(d.ids.map(byId)); drawUI(); panelSync(); return;
       }
       if (d.kind === 'scale') {
         begin(d, 'Size');
-        var M = scaleMat(d.b, d.h, p, e.shiftKey, e.altKey);
+        var sq2 = snapPt(p, d.ids, e.pointerType !== 'mouse'); ui.snapMk = sq2.mk;
+        var M = scaleMat(d.b, d.h, v2(sq2.x, sq2.y), e.shiftKey, e.altKey);
         d.ids.forEach(function (id, i) { var n = replaceNode(id, clone(d.orig[i])); xformS(n, M); });
         renderSome(d.ids.map(byId)); drawUI(); panelSync();
       }
@@ -1841,6 +2218,8 @@
       if (d.kind === 'anchors') {
         begin(d, 'Move Points');
         var dx = p.x - d.p0.x, dy = p.y - d.p0.y; if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+        if (!d.grab) d.grab = grabAnchor(d);
+        var aq = snapPt(v2(d.grab.x + dx, d.grab.y + dy), d.ids, e.pointerType !== 'mouse'); if (aq.mk) { dx = aq.x - d.grab.x; dy = aq.y - d.grab.y; } ui.snapMk = aq.mk;
         d.ids.forEach(function (id, i) {
           var n2 = replaceNode(id, clone(d.orig[i]));
           if (n2.type !== 'path') { xform(n2, [1, 0, 0, 1, dx, dy]); return; }
@@ -1870,6 +2249,14 @@
     if (sel.indexOf(n.id) < 0 && asel[n.id]) sel.push(n.id);
     selChanged();
   }
+  // (the picked anchor nearest where a drag of them began: the one that snaps)
+  function grabAnchor(d) {
+    var best = null, bd = Infinity;
+    d.orig.forEach(function (n) { var A = asel[n.id]; if (n.type !== 'path' || !A) return; n.d.forEach(function (sp, si) { sp.pts.forEach(function (q, pi) { if (!A[si + ':' + pi]) return; var dd = dist(q, d.p0); if (dd < bd) { bd = dd; best = v2(q.x, q.y); } }); }); });
+    return best || v2(d.p0.x, d.p0.y);
+  }
+  // (the tools whose points are snapped as they're placed: shapes, the pen, words)
+  function snapsAt(t) { return !!(TOOLS[t] && (TOOLS[t].shape || t === 'pen' || t === 'curvature' || t === 'text' || t === 'areatext' || t === 'vtext')) && snapping(); }
   // (what's picked by its anchors, dragged: paths by their picked anchors, pictures whole)
   function anchorDrag(s, p) {
     var ids = sel.filter(function (id) { var n = byId(id); return n && editable(n) && (n.type !== 'path' || asel[id]); });
@@ -1899,7 +2286,7 @@
     }
   };
   // MAGIC WAND: everything like the object tapped
-  function primHex(n, k) { if (!n.app) return null; var i = topOf(n.app, k), it = n.app[i]; return it && it.p && it.p.t === 'c' ? it.p.c : it && it.p ? it.p.st[0].c : null; }
+  function primHex(n, k) { if (!n.app) return null; var i = topOf(n.app, k), it = n.app[i]; return it && it.p ? solidHex(it.p) : null; }
   function hexDist(a, b) { if (!a || !b) return a === b ? 0 : 1e9; var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16); return Math.max(Math.abs((x >> 16) - (y >> 16)), Math.abs((x >> 8 & 255) - (y >> 8 & 255)), Math.abs((x & 255) - (y & 255))); }
   function strokeW(n) { var i = n.app ? topOf(n.app, 's') : -1; return i >= 0 && n.app[i].p ? n.app[i].w : 0; }
   H.wand = {
@@ -2441,7 +2828,8 @@
 
   // FILL TOOLS on the artboard
   function defItem(k) { return itemOf(doc.def.app, k, false); }
-  function solidOf(p) { return !p ? null : p.t === 'c' ? clone(p) : { t: 'c', c: p.st[p.st.length - 1].c }; }
+  function solidOf(p) { return !p ? null : p.t === 'c' ? clone(p) : p.st ? { t: 'c', c: p.st[p.st.length - 1].c } : { t: 'c', c: '#888888' }; }
+  function isGrad(p) { return !!p && (p.t === 'l' || p.t === 'r'); }
   H.solid = {
     down: function (e, s, p, touch) {
       var hit = hitLeaf(p, tolDoc(touch)); if (!hit || !hit.app) { H.select.down(e, s, p, touch); return; }
@@ -2465,7 +2853,7 @@
       var d = drag; if (d.kind !== 'grad' && d.kind !== 'gend') { H.select.move(e, s, p); return; }
       begin(d, 'Gradient');
       var n = byId(d.id), b = dBox(n.d) || { x: 0, y: 0, w: 1, h: 1 }, it = itemOf(n.app, TS.gradient.to === 's' ? 's' : 'f', true);
-      if (!it.p || it.p.t === 'c') it.p = gradNow();
+      if (!isGrad(it.p)) it.p = gradNow();
       var fx = function (q) { return v2((q.x - b.x) / Math.max(b.w, 1e-6), (q.y - b.y) / Math.max(b.h, 1e-6)); };
       var g = it.p;
       if (d.kind === 'grad') {
@@ -2484,14 +2872,14 @@
       drag = null;
       if (!d.moved && d.kind === 'grad') { // (a tap: the gradient on, or a solid colour again with a second tap)
         var n = byId(d.id), it = itemOf(n.app, TS.gradient.to === 's' ? 's' : 'f', true);
-        record('Gradient'); it.p = it.p && it.p.t !== 'c' ? it.p : gradNow(); it.on = 1;
+        record('Gradient'); it.p = isGrad(it.p) ? it.p : gradNow(); it.on = 1;
       }
       changed();
     },
     hover: H.select.hover
   };
   function gradEnds(n) {
-    var it = n.type === 'path' ? itemOf(n.app, TS.gradient.to === 's' ? 's' : 'f', false) : null; if (!it || !it.p || it.p.t === 'c') return null;
+    var it = n.type === 'path' ? itemOf(n.app, TS.gradient.to === 's' ? 's' : 'f', false) : null; if (!it || !isGrad(it.p)) return null;
     var b = dBox(n.d); if (!b) return null; var g = it.p, at = function (x, y) { return toScreen(v2(b.x + x * b.w, b.y + y * b.h)); };
     return g.t === 'r' ? { a: at(g.cx, g.cy), b: at(g.cx + g.r * (b.w + b.h) / 2 / Math.max(b.w, 1e-6), g.cy), g: g } : { a: at(g.x1, g.y1), b: at(g.x2, g.y2), g: g };
   }
@@ -3025,14 +3413,14 @@
     var d = drag, M = null, label = 'Transform', sn = function (a, st) { return e.shiftKey ? Math.round(a / st) * st : a; };
     if (!d) return false;
     if (d.kind === 'rot') { M = mRot(sn(Math.atan2(p.y - d.c.y, p.x - d.c.x) - d.a0, Math.PI / 12), d.c); label = 'Rotate'; }
-    else if (d.kind === 'scale') { M = scaleMat(d.b, d.h, p, e.shiftKey, e.altKey); label = 'Size'; }
+    else if (d.kind === 'scale') { var xq = snapPt(p, d.ids, e.pointerType !== 'mouse'); ui.snapMk = xq.mk; M = scaleMat(d.b, d.h, v2(xq.x, xq.y), e.shiftKey, e.altKey); label = 'Size'; }
     else if (d.kind === 'shear') {
       var b = d.b, h = d.h;
       if (h === 'n' || h === 's') { var oy = e.altKey ? b.y + b.h / 2 : h === 'n' ? b.y + b.h : b.y, hy = h === 'n' ? b.y : b.y + b.h; M = mShear((p.x - d.p0.x) / ((hy - oy) || 1), 0, v2(0, oy)); }
       else { var ox = e.altKey ? b.x + b.w / 2 : h === 'w' ? b.x + b.w : b.x, hx = h === 'w' ? b.x : b.x + b.w; M = mShear(0, (p.y - d.p0.y) / ((hx - ox) || 1), v2(ox, 0)); }
       label = 'Shear';
     }
-    else if (d.kind === 'xm') { var dx = p.x - d.p0.x, dy = p.y - d.p0.y; if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } M = [1, 0, 0, 1, dx, dy]; d.dx = dx; d.dy = dy; label = 'Move'; }
+    else if (d.kind === 'xm') { var dx = p.x - d.p0.x, dy = p.y - d.p0.y; if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } var xsn = snapBox(d.b, dx, dy, d.ids); dx = xsn.dx; dy = xsn.dy; M = [1, 0, 0, 1, dx, dy]; d.dx = dx; d.dy = dy; label = 'Move'; }
     else if (d.kind === 'xs') {
       var o = d.o, ux = d.p0.x - o.x, uy = d.p0.y - o.y, sx = Math.abs(ux) > 2 / view.k ? (p.x - o.x) / ux : 1, sy = Math.abs(uy) > 2 / view.k ? (p.y - o.y) / uy : 1;
       if (e.shiftKey || TS.scale.uni) { var k = dist(p, o) / Math.max(1e-6, dist(d.p0, o)); if (vdot(vsub(p, o), vsub(d.p0, o)) < 0) k = -k; sx = sy = k; }
@@ -3141,7 +3529,7 @@
   var ALIGNT = { align: 1, distribute: 1, dspace: 1 }, keyId = null;
   function keyObj() { var l = xfList(); if (keyId && sel.indexOf(keyId) >= 0 && byId(keyId)) return byId(keyId); return l[l.length - 1] || null; }
   function alignRef(list) {
-    if (TS.align.to === 'board' || list.length === 1) return { x: 0, y: 0, w: doc.w, h: doc.h };
+    if (TS.align.to === 'board' || list.length === 1) { var A = AB(); return { x: A.x, y: A.y, w: A.w, h: A.h }; }
     if (TS.align.to === 'key') { var k = keyObj(); return k ? nodeBox(k) : boxOf(list); }
     return boxOf(list);
   }
@@ -3159,7 +3547,7 @@
     if (list.length < (board ? 2 : 3)) { B.toast(board ? 'Pick two or more to spread across the artboard' : 'Pick three or more to spread out'); return; }
     var a = AL[how], items = list.map(function (n) { return { n: n, b: nodeBox(n) }; }).filter(function (q) { return q.b; }).sort(function (p, q) { return edgeOf(p.b, how) - edgeOf(q.b, how); });
     var f = items[0], l = items[items.length - 1], lo = edgeOf(f.b, how), hi = edgeOf(l.b, how);
-    if (board) { var size = a[1] === 'x' ? doc.w : doc.h, fw = a[1] === 'x' ? f.b.w : f.b.h, lw = a[1] === 'x' ? l.b.w : l.b.h; lo = fw * a[0]; hi = size - lw * (1 - a[0]); }
+    if (board) { var A = AB(), o0 = a[1] === 'x' ? A.x : A.y, size = a[1] === 'x' ? A.w : A.h, fw = a[1] === 'x' ? f.b.w : f.b.h, lw = a[1] === 'x' ? l.b.w : l.b.h; lo = o0 + fw * a[0]; hi = o0 + size - lw * (1 - a[0]); }
     record('Distribute');
     items.forEach(function (q, i) { var v = lo + (hi - lo) * i / (items.length - 1) - edgeOf(q.b, how); if (Math.abs(v) > 1e-9) xform(q.n, a[1] === 'x' ? [1, 0, 0, 1, v, 0] : [1, 0, 0, 1, 0, v]); });
     changed();
@@ -3177,8 +3565,8 @@
       for (i = ki - 1; i >= 0; i--) target[i] = target[i + 1] - g - len(items[i].b);
     } else {
       var sum = 0; items.forEach(function (q) { sum += len(q.b); });
-      var start = board ? 0 : pos(items[0].b), end = board ? (X ? doc.w : doc.h) : pos(items[items.length - 1].b) + len(items[items.length - 1].b), gap = items.length > 1 ? (end - start - sum) / (items.length - 1) : 0;
-      if (items.length === 1) { start = (end - sum) / 2; }
+      var A2 = AB(), start = board ? (X ? A2.x : A2.y) : pos(items[0].b), end = board ? (X ? A2.x + A2.w : A2.y + A2.h) : pos(items[items.length - 1].b) + len(items[items.length - 1].b), gap = items.length > 1 ? (end - start - sum) / (items.length - 1) : 0;
+      if (items.length === 1) { start = start + (end - start - sum) / 2; }
       var at = start; items.forEach(function (q, j) { target[j] = at; at += len(q.b) + gap; });
     }
     record('Distribute Spacing');
@@ -3201,7 +3589,8 @@
     fit: function () { fit(); }, actual: function () { actualSize(); },
     union: function () { pathfinder('union'); }, minus: function () { pathfinder('minus'); }, intersect: function () { pathfinder('intersect'); }, exclude: function () { pathfinder('exclude'); }, divide: function () { pathfinder('divide'); },
     compound: compoundToggle, clipmask: clipToggle, outlines: function () { outlines(); },
-    front: function () { arrangeA(2); }, fwd: function () { arrangeA(1); }, back: function () { arrangeA(-1); }, backmost: function () { arrangeA(-2); }, groupun: groupToggle
+    front: function () { arrangeA(2); }, fwd: function () { arrangeA(1); }, back: function () { arrangeA(-1); }, backmost: function () { arrangeA(-2); }, groupun: groupToggle,
+    abdup: function () { dupBoard(); }
   };
   function arrangeA(dir) { if (!xfList().length) { B.toast('Pick something first'); return; } arrange(dir); }
   function runAction(t) { if (te && t !== 'fit' && t !== 'actual') endEdit(); ACTIONS[t](); }
@@ -3310,7 +3699,7 @@
       if (d.kind !== 'tnew') return;
       var vert = tool === 'vtext', n, w = Math.abs(p.x - d.p0.x), h = Math.abs(p.y - d.p0.y);
       if (d.moved && w > 6 / view.k && h > 6 / view.k) n = newText('area', { area: rectD(Math.min(p.x, d.p0.x), Math.min(p.y, d.p0.y), w, h), vert: vert });
-      else if (tool === 'areatext') n = newText('area', { area: rectD(p.x, p.y, Math.min(doc.w / 2, 260), Math.min(doc.h / 3, 160)) });
+      else if (tool === 'areatext') n = newText('area', { area: rectD(p.x, p.y, Math.min(AB().w / 2, 260), Math.min(AB().h / 3, 160)) });
       else n = newText('point', { x: p.x, y: p.y, vert: vert });
       record('Text'); insertNode(n); startEdit(n, 0, 0, true);
     },
@@ -3416,7 +3805,7 @@
   // parts, a brush's circle and what's being drawn)
   function pathOutline(d, M, cls) { var dd = dCopy(d); if (M) dXform(dd, M); dXform(dd, vmat()); return '<path class="' + cls + '" d="' + dStr(dd) + '"/>'; }
   function uiExtra() {
-    var out = '', list = picked();
+    var out = envUi(), list = picked();
     if (XF[tool] && tool !== 'ftrans' && tool !== 'move' && tool !== 'distort' && xfList().length) {
       var o = xfOrigin(); if (o) { var so = toScreen(o); out += '<g class="vs-origin"><circle cx="' + r2(so.x) + '" cy="' + r2(so.y) + '" r="5.5"/><path d="M' + r2(so.x - 10) + ' ' + r2(so.y) + 'h20M' + r2(so.x) + ' ' + r2(so.y - 10) + 'v20"/></g>'; }
     }
@@ -3458,6 +3847,410 @@
     return out;
   }
 
+  // ---- ARTBOARDS: doc.boards ({ id, name, x, y, w, h, clear }), in the
+  // artwork's own space, which runs on past them (the pasteboard); doc.ab is
+  // the active one: Fit, saving and exporting, the rulers and aligning to
+  // the artboard all go by it ----
+  function AB() {
+    var b = null; if (doc && doc.boards) { doc.boards.forEach(function (q) { if (q.id === doc.ab) b = q; }); if (!b) { b = doc.boards[0]; if (b) doc.ab = b.id; } }
+    return b || { id: 'B1', name: 'Artboard 1', x: 0, y: 0, w: 1024, h: 768 };
+  }
+  function boardsBox() { var r = null; doc.boards.forEach(function (b) { if (!r) r = { x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.h }; else { r.x0 = Math.min(r.x0, b.x); r.y0 = Math.min(r.y0, b.y); r.x1 = Math.max(r.x1, b.x + b.w); r.y1 = Math.max(r.y1, b.y + b.h); } }); return r ? { x: r.x0, y: r.y0, w: r.x1 - r.x0, h: r.y1 - r.y0 } : { x: 0, y: 0, w: 1, h: 1 }; }
+  function boardAt(p) { var hit = null; doc.boards.forEach(function (b) { if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) hit = b; }); return hit; }
+  function boardById(id) { return doc.boards.filter(function (b) { return b.id === id; })[0] || null; }
+  function newBoardId() { return 'B' + uid(''); }
+  function boardName() { var n = doc.boards.length + 1; while (doc.boards.some(function (b) { return b.name === 'Artboard ' + n; })) n++; return 'Artboard ' + n; }
+  // (the next free place for a new board: to the right of them all)
+  function boardSlot(w, h) { var U = boardsBox(); return v2(U.x + U.w + 60, AB().y); }
+  function setAB(id) { if (doc.ab === id) return; doc.ab = id; if (on) { drawUI(); panelSync(); rulersDraw(); gridDraw(); B.autosave(); } }
+  // (the objects that sit on a board: their middle inside it)
+  function onBoard(b) { var out = []; doc.layers.forEach(function (L) { walk(L.items, function (n) { if (n.type === 'layer') return; var q = nodeBox(n); if (q && editable(n) && q.x + q.w / 2 >= b.x && q.x + q.w / 2 <= b.x + b.w && q.y + q.h / 2 >= b.y && q.y + q.h / 2 <= b.y + b.h) out.push(n); return false; }); }); return out; }
+  function addBoard(x, y, w, h, label) {
+    record(label || 'New Artboard');
+    var b = { id: newBoardId(), name: boardName(), x: x, y: y, w: Math.max(1, w), h: Math.max(1, h) }; doc.boards.push(b); doc.ab = b.id; sel = []; asel = {};
+    changed(); return b;
+  }
+  function dupBoard() {
+    var b = AB(), at = boardSlot(b.w, b.h), dx = at.x - b.x, dy = at.y - b.y, list = onBoard(b);
+    record('Duplicate Artboard');
+    var nb = { id: newBoardId(), name: b.name + ' copy', x: at.x, y: at.y, w: b.w, h: b.h }; if (b.clear) nb.clear = 1;
+    doc.boards.splice(doc.boards.indexOf(b) + 1, 0, nb); doc.ab = nb.id;
+    var ids = []; list.forEach(function (n) { var c = fresh(n); xform(c, [1, 0, 0, 1, dx, dy]); insertNode(c, n); ids.push(c.id); });
+    sel = ids; asel = {}; changed(); fitBoardView(nb);
+  }
+  function delBoard(b) {
+    b = b || AB(); if (doc.boards.length < 2) { B.toast('A drawing needs one artboard'); return; }
+    record('Delete Artboard'); var i = doc.boards.indexOf(b); doc.boards.splice(i, 1); doc.ab = doc.boards[Math.max(0, i - 1)].id; changed();
+  }
+  // (a board moved: what's on it goes with it, if asked)
+  function moveBoard(b, dx, dy, art) { b.x += dx; b.y += dy; if (art) art.forEach(function (n) { xform(n, [1, 0, 0, 1, dx, dy]); }); }
+  function fitBoardView(b) { if (b) doc.ab = b.id; fit(); }
+  function fitAllView() {
+    var U = boardsBox(), sw = stageEl.clientWidth, sh = stageEl.clientHeight; fitView();
+    var k = Math.max(fitK * 0.1, Math.min((sw - 2 * fitM) / U.w, (sh - fitT - fitM) / U.h));
+    view.k = k; view.r = 0; view.x = (sw - U.w * k) / 2 - U.x * k; view.y = fitT + (sh - fitT - fitM - U.h * k) / 2 - U.y * k; view.fit = false; applyView();
+  }
+  function rearrangeBoards() {
+    var R = TS.abarr, n = doc.boards.length, cols = R.layout === 'row' ? n : R.layout === 'col' ? 1 : Math.max(1, Math.min(n, R.cols | 0)), gap = R.gap;
+    record('Rearrange Artboards');
+    var arts = TS.abarr.art ? doc.boards.map(onBoard) : null, x0 = doc.boards[0].x, y0 = doc.boards[0].y;
+    var byCol = R.layout === 'gcol', rows = Math.ceil(n / cols), colW = [], rowH = [];
+    var cell = function (i) { return byCol ? [Math.floor(i / rows), i % rows] : [i % cols, Math.floor(i / cols)]; };
+    doc.boards.forEach(function (b, i) { var c = cell(i); colW[c[0]] = Math.max(colW[c[0]] || 0, b.w); rowH[c[1]] = Math.max(rowH[c[1]] || 0, b.h); });
+    var cx = [x0], cy = [y0]; for (var i = 1; i < colW.length; i++) cx[i] = cx[i - 1] + colW[i - 1] + gap; for (i = 1; i < rowH.length; i++) cy[i] = cy[i - 1] + rowH[i - 1] + gap;
+    doc.boards.forEach(function (b, i) { var c = cell(i); moveBoard(b, cx[c[0]] - b.x, cy[c[1]] - b.y, arts && arts[i]); });
+    changed(); fitAllView();
+  }
+  // (a board's handles, on the screen)
+  function boardHandle(s, touch) {
+    var b = AB(), hp = handlePts(b), r = touch ? 16 : 8, hit = null;
+    HANDLES.forEach(function (k) { if (!hit && Math.abs(s.x - hp[k].x) <= r && Math.abs(s.y - hp[k].y) <= r) hit = k; });
+    return hit;
+  }
+  var ABT = { artboard: 1, abnew: 1, abresize: 1, abarr: 1, abset: 1 };
+  // ARTBOARD TOOL: tap a board to make it the active one; drag it to move
+  // it (what's on it too, if Move Artwork is on), its handles to size it;
+  // drag on the pasteboard for a new one (Create Artboard: a tap makes one
+  // the size set)
+  H.artboard = {
+    down: function (e, s, p, touch) {
+      var h = tool !== 'abnew' && boardHandle(s, touch), b0 = AB();
+      if (h) { drag = { kind: 'abs', tool: tool, s0: s, h: h, id: b0.id, o: clone(b0) }; return; }
+      var b = boardAt(p);
+      if (b && tool !== 'abnew') { setAB(b.id); drag = { kind: 'abm', tool: tool, s0: s, p0: p, id: b.id, o: clone(b), art: TS.abarr.art ? onBoard(b).map(function (n) { return n.id; }) : [], orig: null }; drag.orig = drag.art.map(function (id) { return clone(byId(id)); }); return; }
+      drag = { kind: 'abn', tool: tool, s0: s, p0: p };
+    },
+    move: function (e, s, p) {
+      var d = drag, b = d.id && boardById(d.id);
+      if (d.kind === 'abn') { ui.marquee = { x0: d.s0.x, y0: d.s0.y, x1: s.x, y1: s.y }; drawUI(); return; }
+      if (!b) return;
+      begin(d, d.kind === 'abs' ? 'Size Artboard' : 'Move Artboard');
+      if (d.kind === 'abm') {
+        var dx = p.x - d.p0.x, dy = p.y - d.p0.y; if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+        var sn = snapBox(d.o, dx, dy, [], b.id); dx = sn.dx; dy = sn.dy; if (!ui.smart) { dx = Math.round(d.o.x + dx) - d.o.x; dy = Math.round(d.o.y + dy) - d.o.y; }
+        b.x = d.o.x + dx; b.y = d.o.y + dy;
+        d.art.forEach(function (id, i) { var n = replaceNode(id, clone(d.orig[i])); xform(n, [1, 0, 0, 1, dx, dy]); });
+        renderArt(); drawUI(); panelSync(); rulersDraw(); return;
+      }
+      var q = snapPt(p, null, false), o = d.o, x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h; if (!q.mk) q = v2(Math.round(q.x), Math.round(q.y));
+      if (/w/.test(d.h)) x0 = Math.min(q.x, x1 - 1); if (/e/.test(d.h)) x1 = Math.max(q.x, x0 + 1); if (/^n/.test(d.h)) y0 = Math.min(q.y, y1 - 1); if (/^s/.test(d.h)) y1 = Math.max(q.y, y0 + 1);
+      if (d.h.length === 2 && e.shiftKey) { var k = Math.max((x1 - x0) / o.w, (y1 - y0) / o.h); if (/w/.test(d.h)) x0 = x1 - o.w * k; else x1 = x0 + o.w * k; if (/^n/.test(d.h)) y0 = y1 - o.h * k; else y1 = y0 + o.h * k; }
+      b.x = x0; b.y = y0; b.w = x1 - x0; b.h = y1 - y0; renderArt(); drawUI(); panelSync(); rulersDraw();
+    },
+    up: function (e, s, p) {
+      var d = drag; drag = null; ui.marquee = null;
+      if (d.kind === 'abn') {
+        if (d.moved && Math.abs(p.x - d.p0.x) > 4 / view.k && Math.abs(p.y - d.p0.y) > 4 / view.k) { var a = snapPt(d.p0), c = snapPt(p); a = v2(Math.round(a.x), Math.round(a.y)); c = v2(Math.round(c.x), Math.round(c.y)); addBoard(Math.min(a.x, c.x), Math.min(a.y, c.y), Math.abs(c.x - a.x), Math.abs(c.y - a.y)); return; }
+        if (tool === 'abnew') { var S = TS.abnew; addBoard(Math.round(p.x - S.w / 2), Math.round(p.y - S.h / 2), S.w, S.h); return; }
+        drawUI(); return;
+      }
+      changed();
+    },
+    hover: function () {}
+  };
+  H.abnew = H.abresize = H.abarr = H.abset = H.artboard;
+  var AB_PRESETS = [['custom', 'Custom'], ['1080x1080', 'Square 1080 × 1080'], ['1080x1350', 'Portrait 1080 × 1350'], ['1080x1920', 'Story 1080 × 1920'], ['1920x1080', 'HD 1920 × 1080'], ['1280x720', 'HD 720p 1280 × 720'],
+    ['794x1123', 'A4 794 × 1123'], ['1123x1587', 'A3 1123 × 1587'], ['816x1056', 'Letter 816 × 1056'], ['1024x768', 'Tablet 1024 × 768'], ['390x844', 'Phone 390 × 844'], ['512x512', 'Icon 512 × 512'], ['1500x500', 'Banner 1500 × 500']];
+
+  // ---- GUIDES AND PRECISION: rulers along the top and left (in the
+  // active artboard's units, from its corner), guides (doc.guides, { o: 'h'
+  // or 'v', p }, dragged out of the rulers or placed with the Guides tool),
+  // a grid in the artwork's units (TS.prec.gsize, from the active board's
+  // corner), and snapping: to the grid, to guides, to anchor points (Snap
+  // to Points), to the outlines of other objects (Snap to Objects), and to
+  // the edges and middles of other objects and the artboard, with lines
+  // showing what lined up (Smart Guides). Measure reads distances ----
+  var UNITS = { px: [1, 'px'], pt: [0.75, 'pt'], mm: [25.4 / 96, 'mm'], in: [1 / 96, 'in'] };
+  var rulerH = null, rulerV = null, rulerC = null, RW = 18;
+  function prec() { return TS.prec; }
+  function rulersOn() { return on && TS.prec.rulers && Math.abs(view.r) < 1e-6; }
+  // (a canvas strip, drawn again as the view moves; numbers every so often)
+  function rulersDraw() {
+    if (!rulerH) return;
+    var show = rulersOn(); rulerH.hidden = rulerV.hidden = rulerC.hidden = !show; stageEl.classList.toggle('vec-ruled', !!show);
+    if (!show) return;
+    var W = stageEl.clientWidth, Hh = stageEl.clientHeight, dpr = window.devicePixelRatio || 1, cs = getComputedStyle(stageEl), ink = cs.getPropertyValue('--muted').trim() || '#888', line = cs.getPropertyValue('--line').trim() || 'rgba(0,0,0,.15)';
+    var A = AB(), U = UNITS[TS.prec.units] || UNITS.px, k = view.k / U[0];
+    // (a step in units that's at least 50px on the screen: 1, 2 or 5 of a power of ten)
+    var step = 1, raw = 50 / k, pw = Math.pow(10, Math.floor(Math.log10(raw))); [1, 2, 5, 10].some(function (m) { step = m * pw; return step >= raw; });
+    [[rulerH, W, RW, 'h'], [rulerV, RW, Hh, 'v']].forEach(function (q) {
+      var c = q[0], w = q[1], h = q[2]; if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); c.style.width = w + 'px'; c.style.height = h + 'px'; }
+      var x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+      x.strokeStyle = line; x.lineWidth = 1; x.beginPath(); if (q[3] === 'h') { x.moveTo(0, h - 0.5); x.lineTo(w, h - 0.5); } else { x.moveTo(w - 0.5, 0); x.lineTo(w - 0.5, h); } x.stroke();
+      x.fillStyle = ink; x.strokeStyle = ink; x.font = '9px ' + (cs.fontFamily || 'sans-serif'); x.textBaseline = 'top';
+      var o = q[3] === 'h' ? view.x + A.x * view.k : view.y + A.y * view.k, len = q[3] === 'h' ? w : h;
+      var first = Math.floor((-o) / (step * k)) - 1, last = Math.ceil((len - o) / (step * k)) + 1;
+      x.beginPath();
+      for (var i = first; i <= last; i++) for (var j = 0; j < 10; j++) {
+        var at = o + (i + j / 10) * step * k; if (at < RW || at > len) continue;
+        var tl = j === 0 ? h * 0.6 : j === 5 ? 6 : 3, tl2 = j === 0 ? w * 0.6 : j === 5 ? 6 : 3;
+        if (q[3] === 'h') { x.moveTo(Math.round(at) + 0.5, h); x.lineTo(Math.round(at) + 0.5, h - tl); } else { x.moveTo(w, Math.round(at) + 0.5); x.lineTo(w - tl2, Math.round(at) + 0.5); }
+        if (j === 0) { var lab = String(r2(i * step)); if (q[3] === 'h') x.fillText(lab, Math.round(at) + 3, 2); else { x.save(); x.translate(2, Math.round(at) + 3); x.rotate(Math.PI / 2); x.fillText(lab, 0, -9); x.restore(); } }
+      }
+      x.stroke();
+    });
+  }
+  // (a guide dragged out of a ruler: away from it, it stays; back over it, it goes)
+  function rulerDown(e) {
+    if (!on || !doc) return; e.preventDefault(); e.stopPropagation();
+    var o = e.currentTarget === rulerH ? 'h' : 'v', g = { o: o, p: 0 }, r = stageEl.getBoundingClientRect(), st = false;
+    var mv = function (ev) {
+      var q = fromScreen(ev.clientX - r.left, ev.clientY - r.top), sq = snapPt(q, null, ev.pointerType !== 'mouse');
+      if (!st) { st = true; record('Guide'); doc.guides.push(g); TS.prec.guides = 1; }
+      g.p = r2(o === 'h' ? sq.y : sq.x); ui.snapMk = sq.mk; drawUI(); rulersDraw();
+    };
+    var upf = function (ev) {
+      window.removeEventListener('pointermove', mv, true); window.removeEventListener('pointerup', upf, true); window.removeEventListener('pointercancel', upf, true);
+      if (!st) return;
+      var sx = ev.clientX - r.left, sy = ev.clientY - r.top;
+      if ((o === 'h' ? sy : sx) < RW || ev.type === 'pointercancel') { dropLast(); doc.guides.pop(); }
+      ui.snapMk = null; changed();
+    };
+    window.addEventListener('pointermove', mv, true); window.addEventListener('pointerup', upf, true); window.addEventListener('pointercancel', upf, true);
+  }
+  // THE GRID: lines a screen pixel wide (--gw), --gs apart (every 2nd, 4th...
+  // when zoomed far out), finer ones between; behind the art or in front
+  var gridSeen = '';
+  function gridDraw() {
+    if (!gridEl) return;
+    var P2 = TS.prec, show = on && doc && P2.grid; gridEl.hidden = !show; if (!show) { gridSeen = ''; return; }
+    var g = Math.max(1, P2.gsize), s = g; while (s * view.k < 8) s *= 2;
+    var sub = Math.max(1, P2.gsub | 0), fs = s / sub, U = boardsBox(), A = AB(), pad = Math.max(U.w, U.h) * 2 + 2000, x0 = U.x - pad, y0 = U.y - pad;
+    var key = [s, fs, view.k, U.x, U.y, U.w, U.h, A.x, A.y, P2.gfront, fs * view.k >= 6].join(); if (key === gridSeen) return; gridSeen = key;
+    gridEl.style.left = x0 + 'px'; gridEl.style.top = y0 + 'px'; gridEl.style.width = (U.w + 2 * pad) + 'px'; gridEl.style.height = (U.h + 2 * pad) + 'px';
+    gridEl.style.setProperty('--gs', s + 'px'); gridEl.style.setProperty('--gf', fs + 'px'); gridEl.style.setProperty('--gw', (1 / view.k) + 'px');
+    gridEl.style.backgroundPosition = ['', ''].map(function () { return (((A.x - x0) % s) + s) % s + 'px ' + (((A.y - y0) % s) + s) % s + 'px'; }).concat(['', ''].map(function () { return (((A.x - x0) % fs) + fs) % fs + 'px ' + (((A.y - y0) % fs) + fs) % fs + 'px'; })).join(',');
+    gridEl.classList.toggle('fine', sub > 1 && fs * view.k >= 6);
+    // (in front of the art, or behind it)
+    var want = P2.gfront ? artEl.nextSibling : artEl; if (gridEl.nextSibling !== want && gridEl !== want) worldEl.insertBefore(gridEl, want);
+  }
+  // SNAPPING. What can be snapped to is gathered once per change (snapCache):
+  // the anchors and box edges and middles of everything else, the active
+  // board's edges and middle
+  var snapCache = null;
+  function snapTargets(excl) {
+    var key = ver + '|' + (excl || []).join(','); if (snapCache && snapCache.key === key) return snapCache;
+    var ex = {}; (excl || []).forEach(function (id) { var n = byId(id); if (n) leaves(n).concat([n]).forEach(function (q) { ex[q.id] = 1; }); });
+    var pts = [], xs = [], ys = [], paths = [], A = AB();
+    var addBox = function (b, src) { [b.x, b.x + b.w / 2, b.x + b.w].forEach(function (v) { xs.push({ v: v, b: b, src: src }); }); [b.y, b.y + b.h / 2, b.y + b.h].forEach(function (v) { ys.push({ v: v, b: b, src: src }); }); };
+    allLeaves().forEach(function (n) {
+      if (ex[n.id] || !shownN(n)) return;
+      var b = nodeBox(n); if (b) addBox(b, 'obj');
+      if (n.type === 'path') { paths.push(n); n.d.forEach(function (sp) { sp.pts.forEach(function (q) { pts.push(v2(q.x, q.y)); }); }); }
+      else if (b) [v2(b.x, b.y), v2(b.x + b.w, b.y), v2(b.x + b.w, b.y + b.h), v2(b.x, b.y + b.h)].forEach(function (q) { pts.push(q); });
+    });
+    addBox(A, 'board'); [v2(A.x, A.y), v2(A.x + A.w, A.y), v2(A.x + A.w, A.y + A.h), v2(A.x, A.y + A.h), v2(A.x + A.w / 2, A.y + A.h / 2)].forEach(function (q) { pts.push(q); });
+    snapCache = { key: key, pts: pts, xs: xs, ys: ys, paths: paths }; return snapCache;
+  }
+  function snapping() { var P2 = TS.prec; return P2.snapGrid || P2.snapPts || P2.snapObj || P2.smart || (P2.guides && doc && doc.guides.length); }
+  function gridLine(v, o) { var g = Math.max(1, TS.prec.gsize) / Math.max(1, TS.prec.gsub | 0); return Math.round((v - o) / g) * g + o; }
+  // (a point snapped: to a point first, otherwise each way on its own to a grid line, a guide or a smart guide)
+  function snapPt(p, excl, touch) {
+    var P2 = TS.prec, t = (touch ? 12 : 7) / view.k, out = { x: p.x, y: p.y, mk: null }; if (!doc || !snapping()) return out;
+    var T = snapTargets(excl), best = null;
+    if (P2.snapPts) T.pts.forEach(function (q) { var d = dist(q, p); if (d <= t && (!best || d < best.d)) best = { x: q.x, y: q.y, d: d }; });
+    if (!best && P2.snapObj) T.paths.forEach(function (n) { var q = nearest(n.d, p, Math.max(0.2, t / 4)); if (q && q.d <= t && (!best || q.d < best.d)) best = { x: q.x, y: q.y, d: q.d }; });
+    if (best) { out.x = best.x; out.y = best.y; out.mk = { x: best.x, y: best.y, k: 'pt' }; return out; }
+    var bx = null, by = null, A = AB(), lines = [];
+    var tryX = function (v, kind, ln) { var d = Math.abs(v - p.x); if (d <= t && (!bx || d < bx.d)) bx = { v: v, d: d, k: kind, ln: ln }; };
+    var tryY = function (v, kind, ln) { var d = Math.abs(v - p.y); if (d <= t && (!by || d < by.d)) by = { v: v, d: d, k: kind, ln: ln }; };
+    if (P2.guides) doc.guides.forEach(function (g) { if (g.o === 'v') tryX(g.p, 'guide'); else tryY(g.p, 'guide'); });
+    if (P2.smart) { T.xs.forEach(function (c) { tryX(c.v, 'smart', c); }); T.ys.forEach(function (c) { tryY(c.v, 'smart', c); }); }
+    if (P2.snapGrid) { tryX(gridLine(p.x, A.x), 'grid'); tryY(gridLine(p.y, A.y), 'grid'); }
+    if (bx) { out.x = bx.v; if (bx.ln) lines.push({ o: 'v', v: bx.v, a: Math.min(p.y, bx.ln.b.y), b: Math.max(p.y, bx.ln.b.y + bx.ln.b.h) }); }
+    if (by) { out.y = by.v; if (by.ln) lines.push({ o: 'h', v: by.v, a: Math.min(p.x, by.ln.b.x), b: Math.max(p.x, by.ln.b.x + by.ln.b.w) }); }
+    if (bx || by) out.mk = { x: out.x, y: out.y, k: 'line', lines: lines };
+    return out;
+  }
+  // (a box being moved by dx, dy: its edges and middle snapped to the grid,
+  // guides and other objects (Smart Guides), each way on its own)
+  function snapBox(b, dx, dy, excl, boardId) {
+    var P2 = TS.prec, out = { dx: dx, dy: dy }; ui.smart = null; if (!doc || !b || !snapping()) return out;
+    var t = 7 / view.k, T = boardId ? boardTargets(boardId) : snapTargets(excl), A = AB(), bx = null, by = null;
+    var cx = [b.x + dx, b.x + b.w / 2 + dx, b.x + b.w + dx], cy = [b.y + dy, b.y + b.h / 2 + dy, b.y + b.h + dy];
+    var tryX = function (v, c, ln) { var d = v - c; if (Math.abs(d) <= t && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d: d, v: v, ln: ln }; };
+    var tryY = function (v, c, ln) { var d = v - c; if (Math.abs(d) <= t && (!by || Math.abs(d) < Math.abs(by.d))) by = { d: d, v: v, ln: ln }; };
+    cx.forEach(function (c) { if (P2.guides) doc.guides.forEach(function (g) { if (g.o === 'v') tryX(g.p, c); }); if (P2.smart) T.xs.forEach(function (q) { tryX(q.v, c, q); }); if (P2.snapGrid) tryX(gridLine(c, A.x), c); });
+    cy.forEach(function (c) { if (P2.guides) doc.guides.forEach(function (g) { if (g.o === 'h') tryY(g.p, c); }); if (P2.smart) T.ys.forEach(function (q) { tryY(q.v, c, q); }); if (P2.snapGrid) tryY(gridLine(c, A.y), c); });
+    var lines = [];
+    if (bx) { out.dx += bx.d; if (bx.ln) lines.push({ o: 'v', v: bx.v, a: Math.min(b.y + out.dy, bx.ln.b.y), b: Math.max(b.y + b.h + out.dy, bx.ln.b.y + bx.ln.b.h) }); }
+    if (by) { out.dy += by.d; if (by.ln) lines.push({ o: 'h', v: by.v, a: Math.min(b.x + out.dx, by.ln.b.x), b: Math.max(b.x + b.w + out.dx, by.ln.b.x + by.ln.b.w) }); }
+    ui.smart = lines.length ? lines : null;
+    return out;
+  }
+  // (a board moved: the other boards' edges and middles)
+  function boardTargets(id) { var xs = [], ys = []; doc.boards.forEach(function (b) { if (b.id === id) return; [b.x, b.x + b.w / 2, b.x + b.w].forEach(function (v) { xs.push({ v: v, b: b }); }); [b.y, b.y + b.h / 2, b.y + b.h].forEach(function (v) { ys.push({ v: v, b: b }); }); }); return { xs: xs, ys: ys, pts: [], paths: [] }; }
+  // GUIDES TOOL: tap to place a guide (across or down, as set), drag one to
+  // move it, drag it off the edge or double-tap it to take it away
+  function guideAt(s, touch) {
+    var r = touch ? 10 : 5, hit = -1;
+    if (!TS.prec.guides) return -1;
+    doc.guides.forEach(function (g, i) { var a = g.o === 'h' ? toScreen(v2(0, g.p)) : toScreen(v2(g.p, 0)), b = g.o === 'h' ? toScreen(v2(1, g.p)) : toScreen(v2(g.p, 1)); var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, d = Math.abs((s.x - a.x) * dy - (s.y - a.y) * dx) / L; if (d <= r) hit = i; });
+    return hit;
+  }
+  H.guides = {
+    down: function (e, s, p, touch, dbl) {
+      var i = guideAt(s, touch);
+      if (i >= 0 && TS.prec.glock) { B.toast('Guides are locked'); return; }
+      if (i >= 0 && dbl) { record('Remove Guide'); doc.guides.splice(i, 1); changed(); return; }
+      if (i >= 0) { drag = { kind: 'gd', tool: 'guides', s0: s, i: i, o: doc.guides[i].p }; return; }
+      var q = snapPt(p, null, touch); record('Guide'); TS.prec.guides = 1; doc.guides.push({ o: TS.prec.gnew, p: r2(TS.prec.gnew === 'h' ? q.y : q.x) });
+      drag = { kind: 'gd', tool: 'guides', s0: s, i: doc.guides.length - 1, rec: true, isNew: true }; changed();
+    },
+    move: function (e, s, p, touch) {
+      var d = drag, g = doc.guides[d.i]; if (!g) return; begin(d, 'Move Guide');
+      var q = snapPt(p, null, touch); g.p = r2(g.o === 'h' ? q.y : q.x); ui.snapMk = q.mk; drawUI(); rulersDraw();
+    },
+    up: function (e, s) {
+      var d = drag; drag = null; ui.snapMk = null;
+      var W = stageEl.clientWidth, Hh = stageEl.clientHeight, g = doc.guides[d.i];
+      if (g && d.moved && (s.x < 0 || s.y < 0 || s.x > W || s.y > Hh || (rulersOn() && ((g.o === 'h' && s.y < RW) || (g.o === 'v' && s.x < RW))))) doc.guides.splice(d.i, 1);
+      changed();
+    },
+    hover: function (s, p, touch) { var i = guideAt(s, touch); stageEl.style.cursor = i >= 0 ? (doc.guides[i].o === 'h' ? 'ns-resize' : 'ew-resize') : 'crosshair'; var q = snapPt(p, null, touch); ui.snapMk = q.mk; drawUI(); }
+  };
+  // MEASURE: drag from one point to another; the distance, angle and the
+  // two ways across show on the screen and in the panel
+  var meas = null;
+  H.measure = {
+    down: function (e, s, p, touch) { var q = snapPt(p, null, touch); meas = { a: v2(q.x, q.y), b: v2(q.x, q.y) }; drag = { kind: 'meas', tool: 'measure', s0: s }; drawUI(); },
+    move: function (e, s, p, touch) { var q = snapPt(p, null, touch), b = v2(q.x, q.y); if (e.shiftKey) { var a = meas.a, an = Math.round(Math.atan2(b.y - a.y, b.x - a.x) / (Math.PI / 4)) * Math.PI / 4, L = dist(a, b); b = v2(a.x + Math.cos(an) * L, a.y + Math.sin(an) * L); } meas.b = b; ui.snapMk = q.mk; drawUI(); panelSync(); },
+    up: function () { drag = null; ui.snapMk = null; drawUI(); panelSync(); },
+    hover: function (s, p, touch) { var q = snapPt(p, null, touch); ui.snapMk = q.mk; drawUI(); }
+  };
+  // (a switch that's a tool of its own is turned on by pressing its button, not by its category opening on it)
+  function precPick(t) { var f = PREC_ON[t]; if (!f || TS.prec[f]) return; TS.prec[f] = 1; tsSave(); rulersDraw(); gridDraw(); drawUI(); panelSync(); }
+  function precToggle(f) { TS.prec[f] = TS.prec[f] ? 0 : 1; tsSave(); rulersDraw(); gridDraw(); drawUI(); panelSync(); B.toast((f === 'grid' ? 'Grid' : f === 'guides' ? 'Guides' : 'Rulers') + (TS.prec[f] ? ' shown' : ' hidden')); }
+  function uval(v) { var U = UNITS[TS.prec.units] || UNITS.px; return r2(v * U[0]) + ' ' + U[1]; }
+  // (the switches that are tools of their own turn their feature on when picked)
+  var PREC_ON = { rulers: 'rulers', smartg: 'smart', grid: 'grid', snapgrid: 'snapGrid', snappts: 'snapPts', snapobj: 'snapObj' };
+  ['rulers', 'smartg', 'grid', 'snapgrid', 'snappts', 'snapobj'].forEach(function (t) { H[t] = H.select; });
+  // (what precision draws on the screen sheet: guides across the whole
+  // stage, Smart Guides' lines, the snap mark, a measurement, board names)
+  function precUi() {
+    var out = '', W = stageEl.clientWidth, Hh = stageEl.clientHeight;
+    if (TS.prec.guides) doc.guides.forEach(function (g) {
+      var a = g.o === 'h' ? toScreen(v2(-1e6, g.p)) : toScreen(v2(g.p, -1e6)), b = g.o === 'h' ? toScreen(v2(1e6, g.p)) : toScreen(v2(g.p, 1e6));
+      out += '<line class="vs-guide" x1="' + r2(a.x) + '" y1="' + r2(a.y) + '" x2="' + r2(b.x) + '" y2="' + r2(b.y) + '"/>';
+    });
+    (ui.smart || []).concat(ui.snapMk && ui.snapMk.lines || []).forEach(function (l) { var a = l.o === 'v' ? toScreen(v2(l.v, l.a)) : toScreen(v2(l.a, l.v)), b = l.o === 'v' ? toScreen(v2(l.v, l.b)) : toScreen(v2(l.b, l.v)); out += '<line class="vs-smart" x1="' + r2(a.x) + '" y1="' + r2(a.y) + '" x2="' + r2(b.x) + '" y2="' + r2(b.y) + '"/>'; });
+    if (ui.snapMk) { var m = toScreen(ui.snapMk); out += ui.snapMk.k === 'pt' ? '<rect class="vs-snap" x="' + r2(m.x - 4) + '" y="' + r2(m.y - 4) + '" width="8" height="8"/>' : '<circle class="vs-snap" cx="' + r2(m.x) + '" cy="' + r2(m.y) + '" r="3"/>'; }
+    if (meas && tool === 'measure') {
+      var a2 = toScreen(meas.a), b2 = toScreen(meas.b), mid = v2((a2.x + b2.x) / 2, (a2.y + b2.y) / 2);
+      out += '<line class="vs-meas" x1="' + r2(a2.x) + '" y1="' + r2(a2.y) + '" x2="' + r2(b2.x) + '" y2="' + r2(b2.y) + '"/><circle class="vs-dot" cx="' + r2(a2.x) + '" cy="' + r2(a2.y) + '" r="3"/><circle class="vs-dot" cx="' + r2(b2.x) + '" cy="' + r2(b2.y) + '" r="3"/>' +
+        '<text class="vs-label" x="' + r2(mid.x + 8) + '" y="' + r2(mid.y - 8) + '">' + esc(uval(dist(meas.a, meas.b))) + '</text>';
+    }
+    // (the boards' names, above each, when there's more than one or a board tool is in hand)
+    if (doc.boards.length > 1 || ABT[tool]) doc.boards.forEach(function (b) { var q = toScreen(v2(b.x, b.y)); out += '<text class="vs-abname' + (b.id === doc.ab ? ' on' : '') + '" x="' + r2(q.x) + '" y="' + r2(q.y - 6) + '">' + esc(b.name) + '</text>'; });
+    if (ABT[tool] && tool !== 'abnew') { var A = AB(), hp = handlePts(A); out += '<polygon class="vs-bounds" points="' + polyStr(quad(A)) + '"/>' + HANDLES.map(function (k) { return '<rect class="vs-handle" x="' + r2(hp[k].x - HS) + '" y="' + r2(hp[k].y - HS) + '" width="' + 2 * HS + '" height="' + 2 * HS + '"/>'; }).join(''); }
+    return out;
+  }
+
+  // ---- EFFECTS' TOOLS ----
+  // (the box an effect works in: a path's own, or the group's as drawn)
+  function fxBox(n) { return n.type === 'path' ? dBox(n.d) : boxOf(n.items.map(shownOf)); }
+  function fxTargets() { return picked().filter(function (n) { return editable(n) && (n.type === 'path' || n.type === 'group'); }); }
+  // BLEND TOOL: tap one shape, then another, for the steps between them
+  var blendA = null;
+  function blendGroups() { return picked().filter(function (n) { return n.type === 'group' && n.blnd && editable(n); }); }
+  function makeBlend(list) {
+    var order = stackOrder(list).filter(function (n) { return n.type === 'path'; });
+    if (order.length < 2) { B.toast('A blend needs two or more shapes'); return; }
+    record('Blend'); var g = groupNodes(order, 'Blend'); g.blnd = { steps: TS.vblend.steps, smooth: TS.vblend.mode === 'smooth' ? 1 : 0 }; sel = [g.id]; asel = {}; changed();
+  }
+  H.vblend = {
+    down: function (e, s, p, touch) {
+      var hit = hitLeaf(p, tolDoc(touch));
+      if (!hit || hit.type !== 'path' || !editable(hit) || chain(hit.id).some(function (q) { return q.blnd; })) { blendA = null; H.select.down(e, s, p, touch); return; }
+      if (!blendA || !byId(blendA) || blendA === hit.id) { blendA = hit.id; sel = [hit.id]; asel = {}; selChanged(); B.toast('Now tap the shape to blend it to'); return; }
+      var a = byId(blendA); blendA = null; makeBlend([a, hit]);
+    },
+    move: function (e, s, p) { if (drag) H.select.move(e, s, p); }, up: function (e, s, p, t) { if (drag) H.select.up(e, s, p, t); }, hover: H.select.hover
+  };
+  // WARP and ENVELOPE DISTORT: the effect on what's picked; the envelope's
+  // mesh pulled about point by point
+  function warpNow() { var w = TS.warp; return { k: 'warp', st: w.st, bend: w.bend, hd: w.hd, vd: w.vd, dir: w.dir }; }
+  function fxPicked(k) { return fxTargets().filter(function (n) { return n.efx && n.efx.k === k; }); }
+  function envHit(s, touch) {
+    var r = touch ? 14 : 7, hit = null;
+    fxPicked('env').forEach(function (n) { var b = fxBox(n); if (!b) return; n.efx.m.forEach(function (q, i) { var a = toScreen(v2(b.x + q[0] * b.w, b.y + q[1] * b.h)); if (dist(a, s) <= r && !hit) hit = { id: n.id, i: i, b: b }; }); });
+    return hit;
+  }
+  H.envelope = {
+    down: function (e, s, p, touch) { var h = envHit(s, touch); if (h) { drag = { kind: 'env', tool: 'envelope', s0: s, id: h.id, i: h.i, b: h.b }; return; } H.select.down(e, s, p, touch); },
+    move: function (e, s, p) {
+      var d = drag; if (d.kind !== 'env') { H.select.move(e, s, p); return; }
+      var n = byId(d.id); if (!n || !n.efx) return; begin(d, 'Envelope'); var q = snapPt(p);
+      n.efx.m[d.i] = [r2((q.x - d.b.x) / Math.max(d.b.w, 1e-6) * 1e4) / 1e4, r2((q.y - d.b.y) / Math.max(d.b.h, 1e-6) * 1e4) / 1e4]; renderNode(n); drawUI();
+    },
+    up: function (e, s, p, touch) { var d = drag; if (d.kind !== 'env') { H.select.up(e, s, p, touch); return; } drag = null; changed(); },
+    hover: H.select.hover
+  };
+  H.warp = H.offset = H.repeat = H.pattern = H.transp = H.select;
+  function envUi() {
+    var out = '';
+    fxPicked('env').forEach(function (n) {
+      var b = fxBox(n), R = n.efx.rows, C = n.efx.cols, P2 = n.efx.m.map(function (q) { return toScreen(v2(b.x + q[0] * b.w, b.y + q[1] * b.h)); });
+      for (var j = 0; j <= R; j++) out += '<polyline class="vs-mesh" points="' + polyStr(P2.slice(j * (C + 1), j * (C + 1) + C + 1)) + '"/>';
+      for (var i = 0; i <= C; i++) { var col = []; for (j = 0; j <= R; j++) col.push(P2[j * (C + 1) + i]); out += '<polyline class="vs-mesh" points="' + polyStr(col) + '"/>'; }
+      P2.forEach(function (q) { out += '<rect class="vs-anchor" x="' + r2(q.x - 3.5) + '" y="' + r2(q.y - 3.5) + '" width="7" height="7"/>'; });
+    });
+    if (tool === 'vblend' && blendA && byId(blendA)) out += outlineOf(byId(blendA), 'vs-key');
+    return out;
+  }
+  // (an effect made real: the paths take the shapes drawn)
+  function expandFx(list, label) {
+    list = list.filter(hasFx); if (!list.length) { B.toast('Pick something with an effect first'); return; }
+    record(label || 'Expand'); var ids = [];
+    list.forEach(function (n) { var s2 = fresh(shownOf(n)); s2.name = n.name; var w = where(n.id); w.list[w.i] = s2; ids.push(s2.id); });
+    sel = ids; asel = {}; changed();
+  }
+  function releaseFx(k, label) {
+    var list = picked().filter(editable).filter(function (n) { return k === 'blnd' ? n.blnd : k === 'rep' ? n.rep : n.efx && n.efx.k === k; });
+    if (!list.length) { B.toast('Pick something with that effect first'); return; }
+    record(label); list.forEach(function (n) { if (k === 'fx' || k === 'warp' || k === 'env') delete n.efx; else delete n[k]; }); changed();
+  }
+  function applyWarp() {
+    var list = fxTargets(); if (!list.length) { B.toast('Pick shapes (or groups) to warp'); return; }
+    record('Warp'); list.forEach(function (n) { n.efx = warpNow(); }); changed();
+  }
+  function applyEnv(fromWarp) {
+    var list = fxTargets(); if (!list.length) { B.toast('Pick shapes (or groups) for the envelope'); return; }
+    var R = Math.max(1, Math.min(12, TS.env.rows | 0)), C = Math.max(1, Math.min(12, TS.env.cols | 0));
+    record('Envelope'); list.forEach(function (n) { n.efx = { k: 'env', rows: R, cols: C, m: fromWarp ? envFromWarp(TS.warp.st, TS.warp.bend, R, C) : envGrid(R, C) }; }); changed();
+  }
+  function makeRepeat() {
+    var list = picked().filter(editable); if (!list.length) { B.toast('Pick what to repeat'); return; }
+    var R = TS.repeat; record('Repeat');
+    var g = groupNodes(stackOrder(list), 'Repeat'); g.rep = { k: R.k, n: R.n, r: R.r, rows: R.rows, cols: R.cols, gx: R.gx, gy: R.gy, a: R.a, off: R.off }; sel = [g.id]; asel = {}; changed();
+  }
+  function repGroups() { return picked().filter(function (n) { return n.type === 'group' && n.rep && editable(n); }); }
+  function doOffset() {
+    var list = targets().filter(function (n) { return n.type === 'path'; }); if (!list.length) { B.toast('Pick the paths to offset'); return; }
+    var S = TS.offset, made = [], before = snap(); B.toast('Offsetting…');
+    list.forEach(function (n) {
+      var d = offsetPath(n, S.d, S.join, S.ml); if (!d || !d.length) return;
+      var m = newPath(d, n.name + ' Offset', clone(n.app)); m.opacity = n.opacity; m.blend = n.blend; m.app.forEach(function (it) { if (it.prof) it.prof = null; });
+      var w = where(n.id); w.list.splice(S.d > 0 ? w.i : w.i + 1, 0, m); made.push(m.id);
+    });
+    if (!made.length) { B.toast('Nothing to offset'); return; }
+    hist.push({ s: before, label: 'Offset Path' }); if (hist.length > HMAX) hist.shift(); fut = []; sel = made; asel = {}; changed();
+  }
+  function makeMask(fade) {
+    var list = picked().filter(editable);
+    if (fade) {
+      if (!list.length) { B.toast('Pick what to fade'); return; }
+      var b = boxOf(list); record('Fade');
+      var r = newPath(rectD(b.x, b.y, b.w, b.h), 'Fade', [{ k: 'f', p: { t: 'l', st: [{ t: 0, c: '#ffffff', o: 1 }, { t: 1, c: '#000000', o: 1 }], x1: TS.transp.dir === 'v' ? 0.5 : 0, y1: TS.transp.dir === 'v' ? 0 : 0.5, x2: TS.transp.dir === 'v' ? 0.5 : 1, y2: TS.transp.dir === 'v' ? 1 : 0.5 }, o: 1, on: 1 }]);
+      r.opacity = 1; r.blend = 'normal'; var order = stackOrder(list); insertNode(r, order[order.length - 1]);
+      var g = groupNodes(order.concat([r]), 'Opacity Mask'); g.omask = { inv: 0, clip: 1 }; sel = [g.id]; asel = {}; changed(); return;
+    }
+    if (list.length < 2) { B.toast('Pick the mask (on top) and what it masks, together'); return; }
+    record('Make Opacity Mask'); var g2 = groupNodes(stackOrder(list), 'Opacity Mask'); g2.omask = { inv: 0, clip: 1 }; sel = [g2.id]; asel = {}; changed();
+  }
+  function maskGroups() { return picked().filter(function (n) { return n.type === 'group' && n.omask && editable(n); }); }
+
+
   // ---- COLOURS: what the fill and the stroke are, for the bottom bar, the
   // colour picker ('main' is the fill, 'second' the stroke) and the panels.
   // A change goes to every picked path and becomes the colour new ones take ----
@@ -3469,6 +4262,7 @@
   function pcGet(which) {
     var it = itemNow(which); if (!it || !it.p) return null;
     if (it.p.t === 'c') return it.p.c;
+    if (!isGrad(it.p)) return null;
     var st = it.p.st[Math.max(0, Math.min(it.p.st.length - 1, gstop))]; return st.c;
   }
   function pcCss(which) { var it = itemNow(which); return it && it.p && it.on ? paintCss(it.p) : ''; }
@@ -3487,7 +4281,7 @@
     var k = kOf(which); recordC(label || (k === 'f' ? 'Fill' : 'Stroke'));
     eachItem(k, function (it) {
       if (hex == null) { it.p = null; return; }
-      if (it.p && it.p.t !== 'c' && tool === 'gradient') { var st = it.p.st[Math.max(0, Math.min(it.p.st.length - 1, gstop))]; st.c = hex; lastGrad = clone(it.p); }
+      if (isGrad(it.p) && tool === 'gradient') { var st = it.p.st[Math.max(0, Math.min(it.p.st.length - 1, gstop))]; st.c = hex; lastGrad = clone(it.p); }
       else it.p = { t: 'c', c: hex };
       it.on = 1;
     }, true);
@@ -3548,7 +4342,15 @@
   function keyExtra() {
     var l = picked(), one = l.length === 1 ? l[0] : null;
     return (te ? 'e' : '') + (one && one.type === 'text' ? 'T' + one.kind : '') + (one && one.type === 'path' ? (one.d.length > 1 ? 'm' : '') + (one.rule || '') : '') + (one && one.clip ? 'c' : '') + (l.some(function (n) { return n.type === 'text'; }) ? 't' : '') +
-      (tool === 'scale' ? TS.scale.uni : '') + (tool === 'reflect' ? TS.reflect.axis : '') + (ALIGNT[tool] ? TS.align.to : '') + (tool === 'chedit' && chs ? 'g' + chs.u : '') + (tool === 'vbrush' ? TS.vbrush.kind : '') + (XF[tool] || tool === 'builder' || tool === 'smooth' || tool === 'veraser' ? (xfList().length ? 'p' : '') : '');
+      (tool === 'scale' ? TS.scale.uni : '') + (tool === 'reflect' ? TS.reflect.axis : '') + (ALIGNT[tool] ? TS.align.to : '') + (tool === 'chedit' && chs ? 'g' + chs.u : '') + (tool === 'vbrush' ? TS.vbrush.kind : '') + (XF[tool] || tool === 'builder' || tool === 'smooth' || tool === 'veraser' ? (xfList().length ? 'p' : '') : '') + '|' + keyFx();
+  }
+  // (stage 4: effects on what's picked, the boards, guides, patterns, a measurement)
+  function keyFx() {
+    var l = picked();
+    return l.map(function (n) { return (n.efx ? n.efx.k : '') + (n.blnd ? 'b' + n.blnd.smooth : '') + (n.rep ? 'r' + n.rep.k : '') + (n.omask ? 'm' : '') + (n.iso ? 'i' : '') + n.type[0]; }).join('') +
+      (tool === 'repeat' ? TS.repeat.k : '') + (tool === 'vblend' ? TS.vblend.mode : '') + (tool === 'pattern' ? doc.pats.length + (patItem() ? 'i' : '') + TS.pattern.cur + TS.pattern.to : '') +
+      (ABT[tool] ? doc.ab + doc.boards.length + (tool === 'abarr' ? TS.abarr.layout + doc.boards.map(function (b) { return b.id + Math.round(b.w) + 'x' + Math.round(b.h); }).join() : '') : '') +
+      (tool === 'guides' ? doc.guides.length : '') + (tool === 'measure' && meas ? 'm' : '') + (l.some(function (n) { return n.type === 'image'; }) ? TS.trace.mode : '');
   }
   function anyPicked() { return picked().filter(editable).length > 0; }
   function liveOne(kind) { var l = picked(); return l.length === 1 && l[0].type === 'path' && l[0].live && (!kind || l[0].live.k === kind) && editable(l[0]) ? l[0] : null; }
@@ -3571,7 +4373,7 @@
   }
   function objSettings() {
     var list = picked(), one = list.length === 1 ? list[0] : null;
-    if (!list.length) return hint('Tap an object to pick it · drag round several · <b>Shift</b> adds or takes away') + hint('Artboard ' + Math.round(doc.w) + ' × ' + Math.round(doc.h)) + btn('selectall', 'Select All', '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/>', 'Pick everything (Ctrl/⌘ A)');
+    if (!list.length) return hint('Tap an object to pick it · drag round several · <b>Shift</b> adds or takes away') + hint(esc(AB().name) + ' ' + Math.round(AB().w) + ' × ' + Math.round(AB().h)) + btn('selectall', 'Select All', '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/>', 'Pick everything (Ctrl/⌘ A)');
     var lv = one && one.type === 'path' && one.live;
     var out = (one ? '<label class="ctx-field vec-name"><span>Name</span><input type="text" class="p-field" maxlength="40" data-vk="name" aria-label="Name"></label>' : '<div class="vec-count">' + list.length + ' objects</div>') +
       '<div class="vec-fields">' + num('x', 'X', null, null, 1) + num('y', 'Y', null, null, 1) + num('w', 'W', 0, null, 1) + num('h', 'H', 0, null, 1) + '</div>';
@@ -3586,10 +4388,22 @@
     if (list.length > 1) out += btn('group', 'Group', IC.group, 'Group them (Ctrl/⌘ G)');
     if (list.some(function (n) { return n.type === 'group'; })) out += btn('ungroup', 'Ungroup', IC.ungroup, 'Ungroup (Ctrl/⌘ Shift G)');
     out += btn('dup', 'Duplicate', IC.dup, 'A copy, just below and to the right (Ctrl/⌘ D)') + btn('fwd', 'Bring Forward', IC.up, 'Up one in its layer (Ctrl/⌘ ])') + btn('back', 'Send Backward', IC.down, 'Down one in its layer (Ctrl/⌘ [)');
-    if (list.some(function (n) { return n.type === 'image'; })) out += btn('fitboard', 'Fit to Artboard', ICONS.fit, 'As big as fits on the artboard, in the middle');
+    if (list.some(function (n) { return n.type === 'image'; })) out += btn('fitboard', 'Fit to Artboard', ICONS.fit, 'As big as fits on the artboard, in the middle') + traceSettings();
+    if (list.some(hasFx)) out += btn('fxexpandall', 'Expand Effects', IC.dup, 'Warps, envelopes, blends and repeats made into plain objects');
+    if (list.some(function (n) { return n.omask; })) out += btn('omrelease', 'Release Opacity Mask', IC.ungroup, 'The mask and what it masked, apart again');
     if (one && one.clip) out += btn('clipmask', 'Release Clipping Mask', ICONS.clipmask, 'The clipping path and what it clipped, apart again (Ctrl/⌘ 7)');
     if (one && one.type === 'path' && one.d.length > 1) out += btn('compound', 'Release Compound Path', ICONS.compound, 'Each part a path of its own (Ctrl/⌘ 8)');
     return out + btn('del', 'Delete', IC.trash, 'Delete (Del)');
+  }
+  // IMAGE TRACE (for a picked picture): colours, threshold, how small a speck is kept, how smooth
+  var TRACE_IC = '<rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke-dasharray="2 2" opacity=".55"/><path d="M6.5 16.5l4-5 3 3.5 2-2 2 3.5z"/><circle cx="15.5" cy="8.5" r="1.5"/>';
+  function traceSettings() {
+    var S = TS.trace;
+    return sub('Image Trace') + segc('T.trace.mode', 'Trace mode', [['bw', 'Black & White'], ['grey', 'Greys'], ['colour', 'Colours']]) +
+      (S.mode === 'bw' ? slider('T.trace.th', 'Threshold', 1, 255, 1, 'Darker than this is black') : slider('T.trace.n', 'Colours', 2, 16, 1)) +
+      slider('T.trace.noise', 'Noise', 0, 20, 1, 'Specks smaller than this many pixels across are left out') + slider('T.trace.smooth', 'Smoothness', 0, 100, 1, 'Fewer points, rounder curves') +
+      (S.mode === 'bw' ? '' : chip('T.trace.white', 'Ignore White', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 20L20 4"/>', 'White areas aren’t traced')) +
+      btn('trace', 'Trace', TRACE_IC, 'The picture as filled paths, on top of it');
   }
   function nAnchors() { var c = 0; Object.keys(asel).forEach(function (id) { c += Object.keys(asel[id]).length; }); return c; }
   function anchorSettings(h) {
@@ -3629,7 +4443,7 @@
     },
     solid: function () { return hint('Tap objects to fill them with the fill colour') + colourRow('f', 'Fill') + btn('fillnone', 'No Fill', IC.none, 'No fill (/)') + (anyPicked() ? btn('fillpicked', 'Fill Picked', ICONS.solid, 'The picked objects take the fill') : ''); },
     gradient: function () {
-      var it = gradItem(), g = it && it.p && it.p.t !== 'c' ? it.p : null;
+      var it = gradItem(), g = it && isGrad(it.p) ? it.p : null;
       var out = hint(g ? 'Drag across the object to point the gradient · drag its ends to move them · tap a stop to change its colour' : 'Tap an object to give it a gradient · drag across one to point it') +
         segc('T.gradient.to', 'Gradient on', [['f', 'Fill'], ['s', 'Stroke']]) + segc('gkind', 'Kind', [['l', 'Linear'], ['r', 'Radial']]);
       if (g) out += '<div class="ctx-gbar vec-gbar" data-vgbar data-tip="The stops: tap to add one, drag one along, or off the bar to take it away"><i></i></div>' + colourRow('stop', 'Stop Color') + slider('gso', 'Stop Opacity', 0, 100, 1) + slider('gpos', 'Stop Position', 0, 100, 1) +
@@ -3703,8 +4517,8 @@
   // (every control's value, and how it's set: get, set(v), and the step's name)
   var BK = {
     name: { get: function () { var l = picked(); return l.length === 1 ? l[0].name : ''; }, set: function (v) { var l = picked(); if (l.length === 1 && v.trim()) { l[0].name = v.trim().slice(0, 40); delete l[0].auto; } }, label: 'Rename', text: true },
-    x: { get: function () { var b = bboxPicked(); return b ? b.x : ''; }, set: function (v) { var b = bboxPicked(); if (b) picked().filter(editable).forEach(function (n) { xform(n, [1, 0, 0, 1, v - b.x, 0]); }); }, label: 'Position' },
-    y: { get: function () { var b = bboxPicked(); return b ? b.y : ''; }, set: function (v) { var b = bboxPicked(); if (b) picked().filter(editable).forEach(function (n) { xform(n, [1, 0, 0, 1, 0, v - b.y]); }); }, label: 'Position' },
+    x: { get: function () { var b = bboxPicked(); return b ? b.x - AB().x : ''; }, set: function (v) { var b = bboxPicked(); v = +v + AB().x; if (b) picked().filter(editable).forEach(function (n) { xform(n, [1, 0, 0, 1, v - b.x, 0]); }); }, label: 'Position' },
+    y: { get: function () { var b = bboxPicked(); return b ? b.y - AB().y : ''; }, set: function (v) { var b = bboxPicked(); v = +v + AB().y; if (b) picked().filter(editable).forEach(function (n) { xform(n, [1, 0, 0, 1, 0, v - b.y]); }); }, label: 'Position' },
     w: { get: function () { var b = bboxPicked(); return b ? b.w : ''; }, set: function (v) { var b = bboxPicked(); if (b && b.w > 0 && v > 0) picked().filter(editable).forEach(function (n) { xform(n, [v / b.w, 0, 0, 1, b.x - b.x * v / b.w, 0]); }); }, label: 'Size' },
     h: { get: function () { var b = bboxPicked(); return b ? b.h : ''; }, set: function (v) { var b = bboxPicked(); if (b && b.h > 0 && v > 0) picked().filter(editable).forEach(function (n) { xform(n, [1, 0, 0, v / b.h, 0, b.y - b.y * v / b.h]); }); }, label: 'Size' },
     op: { get: function () { var l = picked(); return Math.round((l.length ? (l[l.length - 1].opacity == null ? 1 : l[l.length - 1].opacity) : doc.def.op) * 100); }, set: function (v) { v = Math.max(0, Math.min(100, v)) / 100; picked().filter(editable).forEach(function (n) { n.opacity = v; }); doc.def.op = v; }, label: 'Opacity', fmt: function (v) { return v + '%'; } },
@@ -3719,12 +4533,12 @@
     dashon: { get: function () { var it = itemNow('s'); return !!(it && it.dash && it.dash.length); }, set: function (v) { eachItem('s', function (it) { it.dash = v ? [Math.max(1, it.w * 3), Math.max(1, it.w * 2)] : null; }, true); }, label: 'Dashes' },
     fop: { get: function () { var it = itemNow('f'); return Math.round((it ? it.o : 1) * 100); }, set: function (v) { eachItem('f', function (it) { it.o = Math.max(0, Math.min(100, v)) / 100; }, true); }, label: 'Fill Opacity', fmt: function (v) { return v + '%'; } },
     sop: { get: function () { var it = itemNow('s'); return Math.round((it ? it.o : 1) * 100); }, set: function (v) { eachItem('s', function (it) { it.o = Math.max(0, Math.min(100, v)) / 100; }, true); }, label: 'Stroke Opacity', fmt: function (v) { return v + '%'; } },
-    gkind: { get: function () { var it = gradItem(); return it && it.p && it.p.t !== 'c' ? it.p.t : TS.gradient.kind; }, set: function (v) { TS.gradient.kind = v; tsSave(); eachGrad(function (g) { if (g.t === v) return; if (v === 'r') { g.t = 'r'; g.cx = 0.5; g.cy = 0.5; g.r = 0.5; } else { g.t = 'l'; g.x1 = 0; g.y1 = 0.5; g.x2 = 1; g.y2 = 0.5; } }); }, label: 'Gradient', text: true },
+    gkind: { get: function () { var it = gradItem(); return it && isGrad(it.p) ? it.p.t : TS.gradient.kind; }, set: function (v) { TS.gradient.kind = v; tsSave(); eachGrad(function (g) { if (g.t === v) return; if (v === 'r') { g.t = 'r'; g.cx = 0.5; g.cy = 0.5; g.r = 0.5; } else { g.t = 'l'; g.x1 = 0; g.y1 = 0.5; g.x2 = 1; g.y2 = 0.5; } }); }, label: 'Gradient', text: true },
     gang: { get: function () { var it = gradItem(); var g = it && it.p; return g && g.t === 'l' ? Math.round(Math.atan2(g.y2 - g.y1, g.x2 - g.x1) * 180 / Math.PI) : 0; }, set: function (v) { var a = v * Math.PI / 180; eachGrad(function (g) { if (g.t !== 'l') return; var cx = (g.x1 + g.x2) / 2, cy = (g.y1 + g.y2) / 2, L = Math.max(0.05, Math.hypot(g.x2 - g.x1, g.y2 - g.y1) / 2); g.x1 = cx - Math.cos(a) * L; g.y1 = cy - Math.sin(a) * L; g.x2 = cx + Math.cos(a) * L; g.y2 = cy + Math.sin(a) * L; }); }, label: 'Gradient Angle', fmt: function (v) { return v + '°'; } },
     gso: { get: function () { var st = stopNow(); return st ? Math.round(st.o * 100) : 100; }, set: function (v) { eachGrad(function (g) { var s = g.st[Math.min(gstop, g.st.length - 1)]; s.o = v / 100; }); }, label: 'Stop Opacity', fmt: function (v) { return v + '%'; } },
     gpos: { get: function () { var st = stopNow(); return st ? Math.round(st.t * 100) : 0; }, set: function (v) { eachGrad(function (g) { var s = g.st[Math.min(gstop, g.st.length - 1)]; s.t = Math.max(0, Math.min(1, v / 100)); g.st.sort(function (a, b) { return a.t - b.t; }); gstop = g.st.indexOf(s); }); }, label: 'Stop Position', fmt: function (v) { return v + '%'; } },
-    ax: { get: function () { var a = oneAnchor(); return a ? a.q.x : ''; }, set: function (v) { var a = oneAnchor(); if (a) { moveAnchor(a.q, v - a.q.x, 0); unlive(a.n); } }, label: 'Move Point' },
-    ay: { get: function () { var a = oneAnchor(); return a ? a.q.y : ''; }, set: function (v) { var a = oneAnchor(); if (a) { moveAnchor(a.q, 0, v - a.q.y); unlive(a.n); } }, label: 'Move Point' },
+    ax: { get: function () { var a = oneAnchor(); return a ? a.q.x - AB().x : ''; }, set: function (v) { var a = oneAnchor(); if (a) { moveAnchor(a.q, +v + AB().x - a.q.x, 0); unlive(a.n); } }, label: 'Move Point' },
+    ay: { get: function () { var a = oneAnchor(); return a ? a.q.y - AB().y : ''; }, set: function (v) { var a = oneAnchor(); if (a) { moveAnchor(a.q, 0, +v + AB().y - a.q.y); unlive(a.n); } }, label: 'Move Point' },
     'wp.t': { get: function () { var it = strokeItemOne(), p = it && it.prof && it.prof[wpick]; return p ? Math.round(p.t * 100) : ''; }, set: function (v) { var it = strokeItemOne(), p = it && it.prof && it.prof[wpick]; if (p) { p.t = Math.max(0, Math.min(1, v / 100)); it.prof.sort(function (a, b) { return a.t - b.t; }); wpick = it.prof.indexOf(p); } }, label: 'Width' },
     'wp.w': { get: function () { var it = strokeItemOne(), p = it && it.prof && it.prof[wpick]; return p ? r2(p.w * it.w) : ''; }, set: function (v) { var it = strokeItemOne(), p = it && it.prof && it.prof[wpick]; if (p && it.w > 0) p.w = Math.max(0, v / it.w); }, label: 'Width' },
     rot: { get: function () { return Math.round(((view.r * 180 / Math.PI) % 360 + 540) % 360 - 180); }, set: function (v) { rotateAt(v * Math.PI / 180, stageEl.clientWidth / 2, stageEl.clientHeight / 2); }, view: true, fmt: function (v) { return v + '°'; } },
@@ -3877,9 +4691,171 @@
     return false;
   }
 
+  // ---- THE PANELS: Effects, Artboards, Guides & Precision ----
+  function effHint(t) { return xfList().length ? hint(t) : hint('Pick something first: tap it, or drag round it'); }
+  function boardList() {
+    return '<div class="vec-alist">' + doc.boards.map(function (b, i) {
+      return '<div class="vec-arow' + (b.id === doc.ab ? ' on' : '') + '"><button type="button" class="vec-aname" data-va="abpick-' + b.id + '" data-tip="Make it the active artboard, and fit it"><span>' + esc(b.name) + '</span><span class="vec-hex">' + Math.round(b.w) + ' × ' + Math.round(b.h) + '</span></button>' +
+        '<button type="button" class="pl-eye" data-va="abup-' + b.id + '" aria-label="Earlier"' + (i ? '' : ' disabled') + '>' + CI(IC.up) + '</button><button type="button" class="pl-eye" data-va="abdn-' + b.id + '" aria-label="Later"' + (i < doc.boards.length - 1 ? '' : ' disabled') + '>' + CI(IC.down) + '</button></div>';
+    }).join('') + '</div>';
+  }
+  function abFields() { return '<div class="vec-fields">' + num('abx', 'X', null, null, 1) + num('aby', 'Y', null, null, 1) + num('abw', 'W', 1, 100000, 1) + num('abh', 'H', 1, 100000, 1) + '</div>'; }
+  function precSwitch(k, label, icon, tip) { return chip('T.prec.' + k, label, icon, tip); }
+  Object.assign(SET, {
+    vblend: function () {
+      var g = blendGroups();
+      return hint(g.length ? 'The picked blend: change its steps here; edit its shapes with Direct Selection' : 'Tap a shape, then another, for the steps between · or pick two or more and Make Blend') +
+        segc('bl.mode', 'Spacing', [['steps', 'Specified Steps'], ['smooth', 'Smooth Color']]) + (TS.vblend.mode === 'steps' || g.length && !g[0].blnd.smooth ? '<div class="vec-fields vec-1col">' + num('bl.steps', 'Steps', 1, 500, 1) + '</div>' : '') +
+        (g.length ? btn('blrelease', 'Release', IC.ungroup, 'Back to the shapes alone') + btn('blexpand', 'Expand', IC.dup, 'The steps become shapes of their own') : btn('blmake', 'Make Blend', ICONS.vblend, 'Blend the picked shapes'));
+    },
+    warp: function () {
+      var w = fxPicked('warp');
+      return effHint(w.length ? 'The picked warp: change it here' : 'Pick shapes or groups, choose a warp, then Warp') + selBox('wp.st', 'Style', WARPS) + segc('wp.dir', 'Bend', [['h', 'Horizontal'], ['v', 'Vertical']]) +
+        slider('wp.bend', 'Bend', -100, 100, 1) + slider('wp.hd', 'Horizontal', -100, 100, 1, 'Horizontal distortion') + slider('wp.vd', 'Vertical', -100, 100, 1, 'Vertical distortion') +
+        (w.length ? btn('fxexpand', 'Expand', IC.dup, 'The warped shapes become plain paths') + btn('wprelease', 'Remove Warp', IC.trash) : btn('wpapply', 'Warp', ICONS.warp, 'Warp what’s picked'));
+    },
+    envelope: function () {
+      var e2 = fxPicked('env');
+      return effHint(e2.length ? 'Drag the mesh’s points to bend what’s inside' : 'Pick shapes or groups, then make an envelope') + '<div class="vec-fields">' + num('T.env.rows', 'Rows', 1, 12, 1) + num('T.env.cols', 'Columns', 1, 12, 1) + '</div>' +
+        btn('envmesh', 'Make with Mesh', ICONS.envelope, 'A mesh of points to pull about') + btn('envwarp', 'Make with Warp', ICONS.warp, 'A mesh shaped by the Warp settings') +
+        (e2.length ? btn('envreset', 'Reset Mesh', IC.reverse) + btn('fxexpand', 'Expand', IC.dup, 'The shapes take the envelope for good') + btn('envrelease', 'Release', IC.trash) : '');
+    },
+    offset: function () { return effHint('A new path round the picked ones, grown out (or in, below 0) by the offset') + slider('T.offset.d', 'Offset', -100, 100, 0.5) + num('T.offset.d', 'Offset', -1000, 1000, 0.5) + segc('T.offset.join', 'Joins', [['miter', 'Miter'], ['round', 'Round'], ['bevel', 'Bevel']]) + slider('T.offset.ml', 'Miter Limit', 1, 20, 0.5) + btn('offsetgo', 'Offset Path', ICONS.offset); },
+    repeat: function () {
+      var g = repGroups(), k = g.length ? g[0].rep.k : TS.repeat.k;
+      var f = k === 'radial' ? num('rp.n', 'Instances', 2, 200, 1) + num('rp.r', 'Radius', 1, 100000, 1) : k === 'grid' ? num('rp.rows', 'Rows', 1, 50, 1) + num('rp.cols', 'Columns', 1, 50, 1) + num('rp.gx', 'Across', -10000, 10000, 1) + num('rp.gy', 'Down', -10000, 10000, 1) : num('rp.a', 'Axis °', -360, 360, 1) + num('rp.off', 'Gap', -10000, 10000, 1);
+      return effHint(g.length ? 'The picked repeat: change it here; edit the original inside it' : 'Pick what to repeat, choose how, then Repeat') + segc('rp.k', 'Repeat', [['radial', 'Radial'], ['grid', 'Grid'], ['mirror', 'Mirror']]) + '<div class="vec-fields">' + f + '</div>' +
+        (g.length ? btn('rpexpand', 'Expand', IC.dup, 'The copies become objects of their own') + btn('rprelease', 'Release', IC.ungroup, 'Just the original again') : btn('rpmake', 'Repeat', ICONS.repeat, 'Repeat what’s picked'));
+    },
+    pattern: function () {
+      var it = patItem(), sw = doc.pats.map(function (pt) { return '<button type="button" class="vec-swatch vec-pat" data-vpat="' + pt.id + '" aria-label="' + esc(pt.name) + '" data-tip="' + esc(pt.name) + ': tap to fill what’s picked" aria-pressed="' + (TS.pattern.cur === pt.id) + '">' + patSwatch(pt, 28) + '</button>'; }).join('');
+      return hint('Make a pattern from the picked art, then tap it to fill shapes with it') + btn('patmake', 'Make Pattern', ICONS.pattern, 'A pattern tile from what’s picked') + segc('T.pattern.to', 'Pattern for', [['f', 'Fill'], ['s', 'Stroke']]) +
+        (doc.pats.length ? sub('Patterns') + '<div class="vec-swatches">' + sw + '</div>' : '') +
+        (it ? sub('The picked pattern') + slider('pt.s', 'Scale', 5, 400, 1) + slider('pt.a', 'Angle', -180, 180, 1) + '<div class="vec-fields">' + num('pt.x', 'Move X', -10000, 10000, 1) + num('pt.y', 'Move Y', -10000, 10000, 1) + '</div>' + slider('pt.gap', 'Spacing', -50, 200, 1, 'Room round each tile') : '') +
+        (doc.pats.length ? btn('patdel', 'Delete Pattern', IC.trash, 'Delete the pattern last picked (what it fills turns grey)') : '');
+    },
+    transp: function () {
+      var g = maskGroups(), grp = picked().filter(function (n) { return n.type === 'group' && editable(n); });
+      return slider('op', 'Opacity', 0, 100, 1) + selBox('blend', 'Blend', BLENDS) + sep + sub('Opacity mask') +
+        (g.length ? chip('om.clip', 'Clip', ICONS.clipmask, 'Outside the mask’s art is hidden') + chip('om.inv', 'Invert Mask', IC.reverse, 'Dark shows and light hides') + btn('omrelease', 'Release Mask', IC.ungroup)
+          : hint('White in the mask (on top) shows, black hides, grey fades') + btn('ommake', 'Make Mask', ICONS.transp, 'The top picked object masks the rest') + segc('T.transp.dir', 'Fade', [['h', 'Left to Right'], ['v', 'Top to Bottom']]) + btn('omfade', 'Fade Out', '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 5v14M12 5v14M16 5v14" opacity=".5"/>', 'A gradient mask fading what’s picked away')) +
+        (grp.length ? sep + chip('iso', 'Isolate Blending', ICONS.blend, 'Blend modes inside the group mix only with each other') : '');
+    },
+    artboard: function () { var A = AB(); return hint('Tap an artboard to make it active · drag it to move it, its handles to size it · drag on the pasteboard for a new one') + '<div class="vec-name">' + esc(A.name) + '</div>' + chip('T.abarr.art', 'Move Artwork', ICONS.move, 'Artwork on an artboard moves with it') + '<div class="vec-zoomrow">' + btn('abfit', 'Fit Artboard', ICONS.fit) + btn('abfitall', 'Fit All', ICONS.fit) + '</div>' + btn('abdup', 'Duplicate Artboard', IC.dup) + (doc.boards.length > 1 ? btn('abdel', 'Delete Artboard', IC.trash, 'Delete the active artboard (what’s on it stays)') : ''); },
+    abnew: function () { return hint('Tap the pasteboard for an artboard the size set here, or drag one out') + selBox('abpreset', 'Size', AB_PRESETS) + '<div class="vec-fields">' + num('T.abnew.w', 'W', 1, 100000, 1) + num('T.abnew.h', 'H', 1, 100000, 1) + '</div>' + segc('abor', 'Orientation', [['p', 'Portrait'], ['l', 'Landscape']]) + btn('abadd', 'Add Artboard', IC.plus, 'Beside the others'); },
+    abresize: function () { return hint('Drag the active artboard’s handles, or set its size from the reference point') + selBox('abrpre', 'Size', AB_PRESETS) + refGridAB() + abFields() + btn('abfitart', 'Fit to Artwork', ICONS.fit, 'The artboard round what’s on it') + (xfList().length ? btn('abfitsel', 'Fit to Picked Art', ICONS.fit, 'The artboard round what’s picked') : ''); },
+    abarr: function () { var R = TS.abarr; return hint('Tap an artboard to go to it; move them up and down the order, then lay them out') + boardList() + selBox('T.abarr.layout', 'Layout', [['grow', 'Grid by Row'], ['gcol', 'Grid by Column'], ['row', 'In a Row'], ['col', 'In a Column']]) + '<div class="vec-fields">' + (R.layout === 'grow' || R.layout === 'gcol' ? num('T.abarr.cols', R.layout === 'gcol' ? 'Rows' : 'Columns', 1, 50, 1) : '') + num('T.abarr.gap', 'Spacing', 0, 10000, 1) + '</div>' + chip('T.abarr.art', 'Move Artwork', ICONS.move, 'Artwork on an artboard moves with it') + btn('abarrgo', 'Rearrange', ICONS.abarr); },
+    abset: function () { return '<label class="ctx-field vec-name"><span>Name</span><input type="text" class="p-field" maxlength="40" data-vk="abname" aria-label="Artboard name"></label>' + abFields() + sub('Background') + segc('abbg', 'Background', [['white', 'White'], ['clear', 'Transparent']]) + hint('Saved PNGs and SVGs take the background') + '<div class="vec-zoomrow">' + btn('abfit', 'Fit Artboard', ICONS.fit) + btn('abfitall', 'Fit All', ICONS.fit) + '</div>' + (doc.boards.length > 1 ? btn('abdel', 'Delete Artboard', IC.trash) : ''); },
+    rulers: function () { return precSwitch('rulers', 'Show Rulers', ICONS.rulers, 'Rulers along the top and left') + segc('T.prec.units', 'Units', [['px', 'px'], ['pt', 'pt'], ['mm', 'mm'], ['in', 'in']]) + hint('Measured from the active artboard’s corner · drag out of a ruler for a guide'); },
+    guides: function () {
+      return hint('Tap for a guide · drag one to move it, off the edge (or double-tap it) to take it away') + segc('T.prec.gnew', 'New guides', [['h', 'Across'], ['v', 'Down']]) + precSwitch('guides', 'Show Guides', ICONS.guides) + precSwitch('glock', 'Lock Guides', '<rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>') +
+        (doc.guides.length ? '<div class="vec-count">' + doc.guides.length + (doc.guides.length === 1 ? ' guide' : ' guides') + '</div>' + btn('gclear', 'Clear Guides', IC.trash) : '');
+    },
+    smartg: function () { return precSwitch('smart', 'Smart Guides', ICONS.smartg, 'Edges and middles line up as you move and draw, with lines to show it') + hint('As things are moved, sized or drawn, they line up with the edges and middles of the others and the artboard'); },
+    grid: function () { return precSwitch('grid', 'Show Grid', ICONS.grid) + num('T.prec.gsize', 'Gridline every', 2, 2000, 1) + num('T.prec.gsub', 'Subdivisions', 1, 20, 1) + precSwitch('gfront', 'Grid in Front', ICONS.grid, 'Over the artwork, not behind it') + precSwitch('snapGrid', 'Snap to Grid', ICONS.snapgrid); },
+    snapgrid: function () { return precSwitch('snapGrid', 'Snap to Grid', ICONS.snapgrid, 'Points, edges and moves keep to the grid') + precSwitch('grid', 'Show Grid', ICONS.grid) + num('T.prec.gsize', 'Gridline every', 2, 2000, 1) + num('T.prec.gsub', 'Subdivisions', 1, 20, 1); },
+    snappts: function () { return precSwitch('snapPts', 'Snap to Points', ICONS.snappts, 'Drawing and dragging catch on anchor points and corners') + hint('Points drawn or dragged near another’s anchor points (or an artboard’s corners) land exactly on them'); },
+    snapobj: function () { return precSwitch('snapObj', 'Snap to Objects', ICONS.snapobj, 'Drawing and dragging catch on other objects’ edges') + hint('Points drawn or dragged near another object’s outline land on it'); },
+    measure: function () {
+      var m = meas;
+      return hint('Drag from one point to another · <b>Shift</b> for steps of 45°') + segc('T.prec.units', 'Units', [['px', 'px'], ['pt', 'pt'], ['mm', 'mm'], ['in', 'in']]) +
+        (m ? '<div class="vec-meas" data-vmeas></div>' + btn('measclear', 'Clear', IC.trash) : '');
+    }
+  });
+  function refGridAB() { return '<div class="vec-refrow"><span>Reference point</span><div class="vec-ref" role="group" aria-label="Reference point">' + ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'].map(function (k) { return '<button type="button" data-vk="T.abresize.ref" data-val="' + k + '" aria-label="' + REFN[k] + '"><i></i></button>'; }).join('') + '</div></div>'; }
+  function measText() { if (!meas) return ''; var a = meas.a, b = meas.b, dx = b.x - a.x, dy = b.y - a.y; return '<span>D</span><b>' + uval(Math.hypot(dx, dy)) + '</b><span>Angle</span><b>' + r2(Math.atan2(-dy, dx) * 180 / Math.PI) + '°</b><span>W</span><b>' + uval(Math.abs(dx)) + '</b><span>H</span><b>' + uval(Math.abs(dy)) + '</b><span>X</span><b>' + uval(a.x - AB().x) + '</b><span>Y</span><b>' + uval(a.y - AB().y) + '</b>'; }
+  // (the artboard's size from the reference point)
+  function abSize(w, h) {
+    var A = AB(), r = TS.abresize.ref, fx = /w/.test(r) ? 0 : /e/.test(r) ? 1 : 0.5, fy = /^n/.test(r) ? 0 : /^s/.test(r) ? 1 : 0.5;
+    var ox = A.x + A.w * fx, oy = A.y + A.h * fy; A.w = Math.max(1, w); A.h = Math.max(1, h); A.x = ox - A.w * fx; A.y = oy - A.h * fy;
+  }
+  function fxField(get, set, label, ownIf) { var o = { get: get, set: set, label: label }; if (ownIf) Object.defineProperty(o, 'own', { get: ownIf }); return o; }
+  // (with nothing of its kind picked, a setting is just the tool's, not an undo step)
+  function noBlend() { return !blendGroups().length; } function noWarp() { return !fxPicked('warp').length; } function noRep() { return !repGroups().length; }
+  function blendSet(f, v) { blendGroups().forEach(function (g) { g.blnd[f] = v; }); }
+  function warpGet(f) { var w = fxPicked('warp'); return w.length ? w[w.length - 1].efx[f] : TS.warp[f]; }
+  function warpSet(f, v) { TS.warp[f] = v; tsSave(); fxPicked('warp').forEach(function (n) { n.efx[f] = v; }); }
+  function repGet(f) { var g = repGroups(); return g.length ? g[g.length - 1].rep[f] : TS.repeat[f]; }
+  function repSet(f, v) { TS.repeat[f] = typeof TS.repeat[f] === 'number' ? +v : v; tsSave(); repGroups().forEach(function (g) { g.rep[f] = TS.repeat[f]; }); }
+  function ptGet(f) { var it = patItem(); return it ? it.p[f] : ''; }
+  function ptSet(f, v) { eachItem(TS.pattern.to === 's' ? 's' : 'f', function (it) { if (it.p && it.p.t === 'p') it.p[f] = v; }, false); }
+  Object.assign(BK, {
+    'bl.mode': fxField(function () { var g = blendGroups(); return g.length ? (g[0].blnd.smooth ? 'smooth' : 'steps') : TS.vblend.mode; }, function (v) { TS.vblend.mode = v; tsSave(); blendSet('smooth', v === 'smooth' ? 1 : 0); }, 'Blend Spacing', noBlend),
+    'bl.steps': fxField(function () { var g = blendGroups(); return g.length ? g[0].blnd.steps : TS.vblend.steps; }, function (v) { v = Math.max(1, Math.min(500, Math.round(+v))); TS.vblend.steps = v; tsSave(); blendSet('steps', v); }, 'Blend Steps', noBlend),
+    'wp.st': fxField(function () { return warpGet('st'); }, function (v) { warpSet('st', v); }, 'Warp', noWarp),
+    'wp.dir': fxField(function () { return warpGet('dir'); }, function (v) { warpSet('dir', v); }, 'Warp', noWarp),
+    'wp.bend': fxField(function () { return warpGet('bend'); }, function (v) { warpSet('bend', +v); }, 'Warp', noWarp),
+    'wp.hd': fxField(function () { return warpGet('hd'); }, function (v) { warpSet('hd', +v); }, 'Warp', noWarp),
+    'wp.vd': fxField(function () { return warpGet('vd'); }, function (v) { warpSet('vd', +v); }, 'Warp', noWarp),
+    'rp.k': fxField(function () { return repGet('k'); }, function (v) { repSet('k', v); }, 'Repeat', noRep),
+    'pt.s': { get: function () { var v = ptGet('s'); return v === '' ? 100 : Math.round(v * 100); }, set: function (v) { ptSet('s', Math.max(0.05, +v / 100)); }, label: 'Pattern', fmt: function (v) { return v + '%'; } },
+    'pt.a': { get: function () { var v = ptGet('a'); return v === '' ? 0 : v; }, set: function (v) { ptSet('a', +v); }, label: 'Pattern', fmt: function (v) { return v + '°'; } },
+    'pt.x': fxField(function () { return ptGet('x'); }, function (v) { ptSet('x', +v); }, 'Pattern'),
+    'pt.y': fxField(function () { return ptGet('y'); }, function (v) { ptSet('y', +v); }, 'Pattern'),
+    'pt.gap': { get: function () { var it = patItem(), pt = it && patById(it.p.id); return pt ? pt.gap : 0; }, set: function (v) { var it = patItem(), pt = it && patById(it.p.id); if (pt) pt.gap = +v; }, label: 'Pattern' },
+    'om.clip': fxField(function () { var g = maskGroups(); return g.length && !!g[0].omask.clip; }, function (v) { maskGroups().forEach(function (g) { g.omask.clip = v ? 1 : 0; }); }, 'Mask'),
+    'om.inv': fxField(function () { var g = maskGroups(); return g.length && !!g[0].omask.inv; }, function (v) { maskGroups().forEach(function (g) { g.omask.inv = v ? 1 : 0; }); }, 'Mask'),
+    iso: fxField(function () { var g = picked().filter(function (n) { return n.type === 'group'; }); return g.length && !!g[0].iso; }, function (v) { picked().forEach(function (n) { if (n.type === 'group' && editable(n)) { if (v) n.iso = 1; else delete n.iso; } }); }, 'Isolate'),
+    abx: fxField(function () { return r2(AB().x); }, function (v) { AB().x = +v; }, 'Artboard'),
+    aby: fxField(function () { return r2(AB().y); }, function (v) { AB().y = +v; }, 'Artboard'),
+    abw: fxField(function () { return r2(AB().w); }, function (v) { abSize(+v, AB().h); }, 'Artboard Size'),
+    abh: fxField(function () { return r2(AB().h); }, function (v) { abSize(AB().w, +v); }, 'Artboard Size'),
+    abname: { get: function () { return AB().name; }, set: function (v) { if (String(v).trim()) AB().name = String(v).trim().slice(0, 40); }, label: 'Rename Artboard', text: true },
+    abbg: { get: function () { return AB().clear ? 'clear' : 'white'; }, set: function (v) { if (v === 'clear') AB().clear = 1; else delete AB().clear; }, label: 'Artboard Background', text: true },
+    abpreset: { get: function () { var S = TS.abnew, m = AB_PRESETS.filter(function (q) { return q[0] === S.w + 'x' + S.h || q[0] === S.h + 'x' + S.w; })[0]; return m ? m[0] : 'custom'; }, set: function (v) { var m = /^(\d+)x(\d+)$/.exec(v); if (m) { TS.abnew.w = +m[1]; TS.abnew.h = +m[2]; tsSave(); } }, own: true, text: true },
+    abor: { get: function () { return TS.abnew.w > TS.abnew.h ? 'l' : 'p'; }, set: function (v) { var S = TS.abnew; if ((v === 'l') !== (S.w > S.h)) { var t = S.w; S.w = S.h; S.h = t; tsSave(); } }, own: true, text: true },
+    abrpre: { get: function () { var A = AB(), m = AB_PRESETS.filter(function (q) { return q[0] === Math.round(A.w) + 'x' + Math.round(A.h); })[0]; return m ? m[0] : 'custom'; }, set: function (v) { var m = /^(\d+)x(\d+)$/.exec(v); if (m) abSize(+m[1], +m[2]); }, label: 'Artboard Size', text: true }
+  });
+  ['n', 'r', 'rows', 'cols', 'gx', 'gy', 'a', 'off'].forEach(function (f) { BK['rp.' + f] = fxField(function () { return repGet(f); }, function (v) { repSet(f, f === 'n' || f === 'rows' || f === 'cols' ? Math.max(1, Math.round(+v)) : +v); }, 'Repeat', noRep); });
+  // (their buttons)
+  function act4(a) {
+    var m;
+    if (a === 'blmake') { makeBlend(picked().filter(editable)); return true; }
+    if (a === 'blrelease') { var bg = blendGroups(); if (!bg.length) return true; record('Release Blend'); bg.forEach(function (g) { delete g.blnd; }); changed(); return true; }
+    if (a === 'blexpand') { expandFx(blendGroups(), 'Expand Blend'); return true; }
+    if (a === 'wpapply') { applyWarp(); return true; }
+    if (a === 'wprelease') { releaseFx('warp', 'Remove Warp'); return true; }
+    if (a === 'fxexpand') { expandFx(fxTargets().filter(function (n) { return n.efx; }), 'Expand'); return true; }
+    if (a === 'envmesh' || a === 'envwarp') { applyEnv(a === 'envwarp'); return true; }
+    if (a === 'envreset') { var ep = fxPicked('env'); record('Reset Mesh'); ep.forEach(function (n) { n.efx.m = envGrid(n.efx.rows, n.efx.cols); }); changed(); return true; }
+    if (a === 'envrelease') { releaseFx('env', 'Release Envelope'); return true; }
+    if (a === 'offsetgo') { doOffset(); return true; }
+    if (a === 'rpmake') { makeRepeat(); return true; }
+    if (a === 'rprelease') { var rg = repGroups(); if (!rg.length) return true; record('Release Repeat'); rg.forEach(function (g) { delete g.rep; }); changed(); return true; }
+    if (a === 'rpexpand') { expandFx(repGroups(), 'Expand Repeat'); return true; }
+    if (a === 'patmake') { makePattern(); return true; }
+    if (a === 'patdel') {
+      var id = TS.pattern.cur && patById(TS.pattern.cur) ? TS.pattern.cur : doc.pats.length ? doc.pats[doc.pats.length - 1].id : null; if (!id) return true;
+      record('Delete Pattern'); doc.pats = doc.pats.filter(function (q) { return q.id !== id; });
+      allLeaves().forEach(function (n) { if (n.app) n.app.forEach(function (it) { if (it.p && it.p.t === 'p' && it.p.id === id) it.p = { t: 'c', c: '#888888' }; }); });
+      changed(); return true;
+    }
+    if (a === 'ommake' || a === 'omfade') { makeMask(a === 'omfade'); return true; }
+    if (a === 'omrelease') { var mg = maskGroups(); if (!mg.length) return true; record('Release Mask'); var ids = []; mg.forEach(function (g) { var w = where(g.id); w.list.splice.apply(w.list, [w.i, 1].concat(g.items)); ids = ids.concat(g.items.map(function (q) { return q.id; })); }); sel = ids; asel = {}; changed(); return true; }
+    if (a === 'abfit') { fit(); return true; } if (a === 'abfitall') { fitAllView(); return true; }
+    if (a === 'abdel') { delBoard(); return true; } if (a === 'abdup') { dupBoard(); return true; }
+    if (a === 'abadd') { var S = TS.abnew, at = boardSlot(S.w, S.h); addBoard(at.x, at.y, S.w, S.h); fit(); return true; }
+    if (a === 'abfitart' || a === 'abfitsel') {
+      var list = a === 'abfitsel' ? xfList() : onBoard(AB()), bb = boxOf(list); if (!bb) { B.toast('There’s nothing to fit it to'); return true; }
+      record('Fit Artboard'); var A = AB(); A.x = bb.x; A.y = bb.y; A.w = Math.max(1, bb.w); A.h = Math.max(1, bb.h); changed(); return true;
+    }
+    if (a === 'abarrgo') { rearrangeBoards(); return true; }
+    if ((m = /^ab(pick|up|dn)-(.+)$/.exec(a))) {
+      var b = boardById(m[2]); if (!b) return true;
+      if (m[1] === 'pick') { fitBoardView(b); panelRefresh(); return true; }
+      var i = doc.boards.indexOf(b), j = i + (m[1] === 'up' ? -1 : 1); if (j < 0 || j >= doc.boards.length) return true;
+      record('Artboard Order'); doc.boards.splice(i, 1); doc.boards.splice(j, 0, b); changed(); return true;
+    }
+    if (a === 'gclear') { record('Clear Guides'); doc.guides = []; changed(); return true; }
+    if (a === 'measclear') { meas = null; drawUI(); panelRefresh(); return true; }
+    if (a === 'fxexpandall') { expandFx(picked().filter(editable), 'Expand Effects'); return true; }
+    if (a === 'trace') { var ims = picked().filter(function (n) { return n.type === 'image' && editable(n); }); if (!ims.length) { B.toast('Pick a picture to trace'); return true; } B.toast('Tracing…'); ims.forEach(imageTrace); return true; }
+    return false;
+  }
+
   function oneAnchor() { var ids = Object.keys(asel); if (ids.length !== 1) return null; var A = Object.keys(asel[ids[0]]); if (A.length !== 1) return null; var n = byId(ids[0]), k = A[0].split(':'); var q = n && n.d[+k[0]] && n.d[+k[0]].pts[+k[1]]; return q ? { q: q, n: n } : null; }
-  function stopNow() { var it = gradItem(); return it && it.p && it.p.t !== 'c' ? it.p.st[Math.min(gstop, it.p.st.length - 1)] : null; }
-  function eachGrad(fn) { var k = TS.gradient.to === 's' ? 's' : 'f'; eachItem(k, function (it) { if (it.p && it.p.t !== 'c') { fn(it.p); lastGrad = clone(it.p); } }, false); }
+  function stopNow() { var it = gradItem(); return it && isGrad(it.p) ? it.p.st[Math.min(gstop, it.p.st.length - 1)] : null; }
+  function eachGrad(fn) { var k = TS.gradient.to === 's' ? 's' : 'f'; eachItem(k, function (it) { if (isGrad(it.p)) { fn(it.p); lastGrad = clone(it.p); } }, false); }
   function cpHsv() { var h = pcGet(TS.cpick.to === 's' ? 'second' : 'main'); if (!h) return hsvNow || [0, 0, 0]; var x = hsvOf(h); if (hsvNow && (!x[1] || !x[2])) x[0] = hsvNow[0]; if (hsvNow && !x[2]) x[1] = hsvNow[1]; hsvNow = x; return x; }
   function cpSet(i, v) { var x = cpHsv().slice(); x[i] = v; hsvNow = x; setColour(TS.cpick.to === 's' ? 'second' : 'main', hexOf(x[0], x[1], x[2]), 'Color'); }
   // (the shape fields: the picked live shape's, or the tool's for the next one)
@@ -3937,13 +4913,15 @@
     });
     var gb = root.querySelector('[data-vgbar]'); if (gb) gbarSync(gb);
     var vc = root.querySelector('[data-vcount]'); if (vc) vc.textContent = anchorCount(picked()) + ' anchor points';
+    var vm = root.querySelector('[data-vmeas]'); if (vm) vm.innerHTML = measText();
+    Array.prototype.forEach.call(root.querySelectorAll('[data-vpat]'), function (b3) { b3.setAttribute('aria-pressed', String(TS.pattern.cur === b3.dataset.vpat)); });
     Array.prototype.forEach.call(root.querySelectorAll('[data-vprof]'), function (b2) { var it = itemNow('s'), want = PROFILES.filter(function (q) { return q[0] === b2.dataset.vprof; })[0][2]; b2.setAttribute('aria-pressed', JSON.stringify(it && it.prof ? it.prof.map(function (q) { return [r2(q.t), r2(q.w)]; }) : null) === JSON.stringify(want ? want.map(function (q) { return [r2(q[0]), r2(q[1])]; }) : null) ? 'true' : 'false'); });
     var dis = !anyPicked() && (tool === 'select' || tool === 'groupsel');
     Array.prototype.forEach.call(root.querySelectorAll('[data-vk="x"], [data-vk="y"], [data-vk="w"], [data-vk="h"]'), function (i) { i.disabled = dis; });
   }
   // THE STOPS BAR: the gradient's colours, a marker for each stop
   function gbarSync(bar) {
-    var it = gradItem(), g = it && it.p && it.p.t !== 'c' ? it.p : null; if (!g) return;
+    var it = gradItem(), g = it && isGrad(it.p) ? it.p : null; if (!g) return;
     bar.firstChild.style.setProperty('--gb', 'linear-gradient(to right,' + g.st.map(function (s) { return rgba(s.c, s.o) + ' ' + r2(s.t * 100) + '%'; }).join(',') + ')');
     var ms = bar.querySelectorAll('b');
     if (ms.length !== g.st.length) { Array.prototype.forEach.call(ms, function (m) { m.remove(); }); g.st.forEach(function () { bar.appendChild(document.createElement('b')); }); ms = bar.querySelectorAll('b'); }
@@ -3951,7 +4929,7 @@
   }
   function gbarDown(e) {
     var bar = e.target.closest('[data-vgbar]'); if (!bar || !on) return;
-    var it = gradItem(); if (!it || !it.p || it.p.t === 'c') return;
+    var it = gradItem(); if (!it || !isGrad(it.p)) return;
     e.preventDefault(); e.stopPropagation();
     var r = bar.getBoundingClientRect(), tAt = function (x) { return Math.max(0, Math.min(1, (x - r.left - 9) / (r.width - 18))); };
     var g = it.p, t = tAt(e.clientX), hit = -1;
@@ -4004,8 +4982,9 @@
   }
   function panelClick(e) {
     if (!on) return;
-    var t = e.target.closest('[data-vtool]'); if (t) { setTool(t.dataset.vtool); return; }
+    var t = e.target.closest('[data-vtool]'); if (t) { setTool(t.dataset.vtool); precPick(t.dataset.vtool); return; }
     var sw = e.target.closest('[data-vsw-c]'); if (sw) { var c = sw.dataset.vswC; setColour(TS.swatches.to === 's' ? 'second' : 'main', c === 'none' ? null : c, 'Swatch'); return; }
+    var vp = e.target.closest('[data-vpat]'); if (vp) { usePattern(vp.dataset.vpat); return; }
     var pf = e.target.closest('[data-vprof]'); if (pf) { var pr = PROFILES.filter(function (q) { return q[0] === pf.dataset.vprof; })[0]; record('Stroke Profile'); eachItem('s', function (it) { it.prof = pr[2] ? pr[2].map(function (q) { return { t: q[0], w: q[1] }; }) : null; }, true); wpick = -1; changed(); return; }
     var b = e.target.closest('[data-vk]');
     if (b && b.tagName === 'BUTTON') {
@@ -4027,7 +5006,7 @@
   }
   // (the panel's and the quick menu's buttons)
   function act(a) {
-    if (act3(a)) return;
+    if (act3(a) || act4(a)) return;
     var list = picked().filter(editable);
     if (a === 'zoomin') { zoomStep(1); return; } if (a === 'zoomout') { zoomStep(-1); return; }
     if (a === 'rotreset') { rotateAt(0, stageEl.clientWidth / 2, stageEl.clientHeight / 2); panelSync(); return; }
@@ -4037,8 +5016,8 @@
     if (a === 'group') { group(); return; } if (a === 'ungroup') { ungroup(); return; } if (a === 'dup') { duplicate(); return; }
     if (a === 'fwd') { arrange(1); return; } if (a === 'back') { arrange(-1); return; } if (a === 'front') { arrange(2); return; } if (a === 'backmost') { arrange(-2); return; }
     if (a === 'fitboard') {
-      var bb = boxOf(list); if (!bb) return; var s = Math.min(doc.w / bb.w, doc.h / bb.h);
-      record('Fit to Artboard'); list.forEach(function (n) { xform(n, [s, 0, 0, s, (doc.w - bb.w * s) / 2 - bb.x * s, (doc.h - bb.h * s) / 2 - bb.y * s]); }); changed(); return;
+      var bb = boxOf(list), A = AB(); if (!bb) return; var s = Math.min(A.w / bb.w, A.h / bb.h);
+      record('Fit to Artboard'); list.forEach(function (n) { xform(n, [s, 0, 0, s, A.x + (A.w - bb.w * s) / 2 - bb.x * s, A.y + (A.h - bb.h * s) / 2 - bb.y * s]); }); changed(); return;
     }
     if (a === 'pick-f' || a === 'pick-s' || a === 'pick-stop') { B.picker(a === 'pick-s' ? 'second' : 'main'); return; }
     if (a === 'penclose') { var sp = penSp(); if (sp && sp.pts.length > 1) { record('Close Path'); sp.closed = true; endPen(); } return; }
@@ -4059,7 +5038,7 @@
     if (a === 'fillnone') { setColour('main', null, 'No Fill'); return; }
     if (a === 'fillpicked') { var f = defItem('f'); record('Fill'); targets().forEach(function (n) { var it = itemOf(n.app, 'f', true); it.p = clone(f && f.p); it.on = 1; }); changed(); return; }
     if (a === 'greverse') { record('Reverse Gradient'); eachGrad(function (g) { g.st.forEach(function (s) { s.t = 1 - s.t; }); g.st.reverse(); }); changed(); return; }
-    if (a === 'gsolid') { record('Solid Color'); eachItem(TS.gradient.to === 's' ? 's' : 'f', function (it) { if (it.p && it.p.t !== 'c') it.p = solidOf(it.p); }, false); changed(); return; }
+    if (a === 'gsolid') { record('Solid Color'); eachItem(TS.gradient.to === 's' ? 's' : 'f', function (it) { if (isGrad(it.p)) it.p = solidOf(it.p); }, false); changed(); return; }
     if (a === 'swadd') { var hx = pcGet(TS.swatches.to === 's' ? 'second' : 'main') || pcGet(TS.swatches.to === 's' ? 'main' : 'second'); if (hx && doc.sw.indexOf(hx) < 0) { record('Add Swatch'); doc.sw.push(hx); changed(); } return; }
     if (a === 'cpnone') { setColour(TS.cpick.to === 's' ? 'second' : 'main', null, 'None'); return; }
     if (a === 'cpmore') { B.picker(TS.cpick.to === 's' ? 'second' : 'main'); return; }
@@ -4110,7 +5089,7 @@
     if (cv && t !== 'curvature') { cv = null; ui.pen = null; }
     if (drag) cancelDrag();
     tool = t; var c = catOf(t); cat = c.id; lastTool[cat] = t;
-    ui.hover = ui.hoverPt = ui.pen = null; wpick = -1;
+    ui.hover = ui.hoverPt = ui.pen = null; wpick = -1; ui.smart = ui.snapMk = null; if (t !== 'vblend') blendA = null;
     if (!ANCHORTOOLS[t] && t !== 'vwidth') asel = {};
     groupSync(); panelRefresh(); drawUI(); bbarSync();
     if (stageEl) stageEl.style.cursor = cursorFor(v2(-99, -99), false);
@@ -4172,6 +5151,9 @@
       else if (one3 && one3.type === 'path' && one3.d.length > 1) it.push(['compound', 'Release Compound Path', ICONS.compound]);
       if (one3 && one3.clip) it.push(['clipmask', 'Release Clipping Mask', ICONS.clipmask]); else if (list.length > 1) it.push(['clipmask', 'Make Clipping Mask', ICONS.clipmask]);
       if (list.some(function (n) { return leaves(n).some(function (q) { return q.type === 'text'; }); })) it.push(['outlines', 'Convert to Outlines', ICONS.outlines]);
+      if (list.some(hasFx)) it.push(['fxexpandall', 'Expand Effects', IC.dup]);
+      if (list.some(function (n) { return n.omask; })) it.push(['omrelease', 'Release Opacity Mask', IC.ungroup]);
+      if (list.some(function (n) { return n.type === 'image'; })) it.push(['trace', 'Image Trace', TRACE_IC]);
       it.push(['front', 'Bring to Front', IC.up], ['fwd', 'Bring Forward', IC.up], ['back', 'Send Backward', IC.down], ['backmost', 'Send to Back', IC.down]);
       if (targets().length) it.push(['swap', 'Swap Fill and Stroke', IC.reverse], ['fillnone', 'No Fill', IC.none], ['strokenone', 'No Stroke', IC.none]);
       it.push(['del', 'Delete', IC.trash]);
@@ -4335,35 +5317,37 @@
   // ---- ARTWORK ACROSS, AND SAVING IT ----
   // (the artwork as pixels, fitted into pw × ph as the artboard fits there,
   // see-through where nothing is)
-  function raster(pw, ph, white) {
+  function raster(pw, ph, white, board) {
     var ims = [], fonts = 0; allLeaves().forEach(function (n) { if (n.type === 'image') { var im = imgFor(n.asset); if (im) ims.push(im.ready); } if (n.type === 'text' && document.fonts) { fonts = 1; ims.push(document.fonts.load(tFont(n, 40)).catch(function () {})); } });
     return Promise.all(ims).then(function () {
       if (fonts) TX.cache.clear();
       var c = document.createElement('canvas'); c.width = pw; c.height = ph;
       var x = c.getContext('2d'); if (white) { x.fillStyle = '#fff'; x.fillRect(0, 0, pw, ph); }
       if (!doc) return c;
-      var s = Math.min(pw / doc.w, ph / doc.h); x.setTransform(s, 0, 0, s, (pw - doc.w * s) / 2, (ph - doc.h * s) / 2);
+      var A = board || AB(), s = Math.min(pw / A.w, ph / A.h); x.setTransform(s, 0, 0, s, (pw - A.w * s) / 2 - A.x * s, (ph - A.h * s) / 2 - A.y * s);
       doc.layers.forEach(function (L) { cDraw(x, L); });
       return c;
     });
   }
   function svgText(list) {
     var used = {}; (list || doc.layers).forEach(function (n) { leaves(n).forEach(function (q) { if (q.type === 'image' && q.visible && assets[q.asset]) used[q.asset] = 1; }); });
-    var b = list ? boxOf(list) : { x: 0, y: 0, w: doc.w, h: doc.h };
+    var A = AB(), b = list ? boxOf(list) : { x: A.x, y: A.y, w: A.w, h: A.h };
     return '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + r2(b.w) + '" height="' + r2(b.h) + '" viewBox="' + r2(b.x) + ' ' + r2(b.y) + ' ' + r2(b.w) + ' ' + r2(b.h) + '">\n' +
       (Object.keys(used).length ? '<defs>' + Object.keys(used).map(symbolOf).join('') + '</defs>\n' : '') +
+      (!list && !A.clear ? '<rect x="' + r2(A.x) + '" y="' + r2(A.y) + '" width="' + r2(A.w) + '" height="' + r2(A.h) + '" fill="#ffffff"/>\n' : '') +
       (list || doc.layers).map(function (n) { return nodeSvg(n, false); }).join('\n') + '\n</svg>\n';
   }
   function exportBlob(type) {
     if (!doc) return Promise.resolve(null);
     if (type === 'svg') return Promise.resolve(new Blob([svgText()], { type: 'image/svg+xml' }));
-    return raster(Math.round(doc.w), Math.round(doc.h), type === 'jpeg').then(function (c) { return new Promise(function (ok) { c.toBlob(ok, type === 'jpeg' ? 'image/jpeg' : 'image/png', 0.93); }); });
+    var A = AB(); return raster(Math.round(A.w), Math.round(A.h), type === 'jpeg' || !A.clear).then(function (c) { return new Promise(function (ok) { c.toBlob(ok, type === 'jpeg' ? 'image/jpeg' : 'image/png', 0.93); }); });
   }
   // KEEPING IT: with the drawing, in the browser and in project files
   function serialize() {
     if (!doc) return null;
     var used = {}; allLeaves().forEach(function (n) { if (n.type === 'image' && assets[n.asset]) used[n.asset] = assets[n.asset]; });
-    return { v: 2, w: doc.w, h: doc.h, n: doc.n, cur: doc.cur, layers: clone(doc.layers), def: clone(doc.def), sw: doc.sw.slice(), view: { x: view.x, y: view.y, k: view.k, r: view.r, fit: view.fit }, sel: sel.slice(), tool: tool, assets: used };
+    var A = AB();
+    return { v: 3, w: A.w, h: A.h, boards: clone(doc.boards), ab: doc.ab, guides: clone(doc.guides), pats: clone(doc.pats), n: doc.n, cur: doc.cur, layers: clone(doc.layers), def: clone(doc.def), sw: doc.sw.slice(), view: { x: view.x, y: view.y, k: view.k, r: view.r, fit: view.fit }, sel: sel.slice(), tool: tool, assets: used };
   }
   function nm(v, d) { v = +v; return isFinite(v) ? v : d; }
   var ENUM = { cap: ['butt', 'round', 'square'], join: ['miter', 'round', 'bevel'] };
@@ -4375,7 +5359,38 @@
       if (st.length < 2) return null;
       return p.t === 'r' ? { t: 'r', st: st, cx: nm(p.cx, 0.5), cy: nm(p.cy, 0.5), r: Math.max(0.001, nm(p.r, 0.5)) } : { t: 'l', st: st, x1: nm(p.x1, 0), y1: nm(p.y1, 0.5), x2: nm(p.x2, 1), y2: nm(p.y2, 0.5) };
     }
+    if (p.t === 'p' && patIds[p.id]) return { t: 'p', id: p.id, s: clampN(nm(p.s, 1), 0.01, 100), a: clampN(nm(p.a, 0), -360, 360), x: clampN(nm(p.x, 0), -1e5, 1e5), y: clampN(nm(p.y, 0), -1e5, 1e5) };
     return null;
+  }
+  function clampN(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  // (the artboards, guides and patterns, checked)
+  function sBoards(a, W0, H0) {
+    var ids = {}, out = (Array.isArray(a) ? a : []).slice(0, 100).map(function (b) {
+      if (!b || typeof b !== 'object') return null; var x = nm(b.x, NaN), y = nm(b.y, NaN), w = nm(b.w, NaN), h = nm(b.h, NaN);
+      if (![x, y, w, h].every(isFinite) || w < 1 || h < 1 || Math.abs(x) > 1e6 || Math.abs(y) > 1e6) return null;
+      var id = String(b.id || '').replace(/[^\w-]/g, '').slice(0, 40); if (!id || ids[id]) id = newBoardId(); ids[id] = 1;
+      var o = { id: id, name: String(b.name || '').slice(0, 40) || 'Artboard', x: x, y: y, w: Math.min(w, 100000), h: Math.min(h, 100000) }; if (b.clear) o.clear = 1; return o;
+    }).filter(Boolean);
+    return out.length ? out : [{ id: 'B1', name: 'Artboard 1', x: 0, y: 0, w: W0, h: H0 }];
+  }
+  function sGuides(a) { return (Array.isArray(a) ? a : []).slice(0, 500).filter(function (g) { return g && (g.o === 'h' || g.o === 'v') && isFinite(nm(g.p, NaN)) && Math.abs(nm(g.p, 0)) < 1e7; }).map(function (g) { return { o: g.o, p: nm(g.p, 0) }; }); }
+  function sPat(q) {
+    if (!q || typeof q !== 'object' || !Array.isArray(q.items)) return null;
+    var items = q.items.slice(0, 2000).map(function (n) { return sNode(n, 1, false); }).filter(Boolean); if (!items.length) return null;
+    return { id: String(q.id || '').replace(/[^\w-]/g, '').slice(0, 40) || 'P' + uid(''), name: String(q.name || 'Pattern').slice(0, 40), items: items, gap: clampN(nm(q.gap, 0), -1000, 10000) };
+  }
+  // (a live effect, checked: a warp's style and amounts, an envelope's mesh; a repeat's and a blend's settings)
+  function sFx(f) {
+    if (!f || typeof f !== 'object') return null;
+    if (f.k === 'warp') return WARPS.some(function (w) { return w[0] === f.st; }) ? { k: 'warp', st: f.st, bend: clampN(nm(f.bend, 50), -100, 100), hd: clampN(nm(f.hd, 0), -100, 100), vd: clampN(nm(f.vd, 0), -100, 100), dir: f.dir === 'v' ? 'v' : 'h' } : null;
+    if (f.k !== 'env') return null;
+    var R = Math.round(nm(f.rows, 0)), C = Math.round(nm(f.cols, 0)); if (!(R >= 1 && R <= 12 && C >= 1 && C <= 12) || !Array.isArray(f.m) || f.m.length !== (R + 1) * (C + 1)) return null;
+    var m = f.m.map(function (q) { return Array.isArray(q) ? [nm(q[0], NaN), nm(q[1], NaN)] : [NaN, NaN]; });
+    return m.every(function (q) { return isFinite(q[0]) && isFinite(q[1]) && Math.abs(q[0]) < 1e4 && Math.abs(q[1]) < 1e4; }) ? { k: 'env', rows: R, cols: C, m: m } : null;
+  }
+  function sRep(r) {
+    if (!r || typeof r !== 'object' || ['radial', 'grid', 'mirror'].indexOf(r.k) < 0) return null;
+    return { k: r.k, n: clampN(Math.round(nm(r.n, 8)), 2, 200), r: clampN(nm(r.r, 120), 1, 1e5), rows: clampN(Math.round(nm(r.rows, 3)), 1, 50), cols: clampN(Math.round(nm(r.cols, 3)), 1, 50), gx: clampN(nm(r.gx, 20), -1e4, 1e4), gy: clampN(nm(r.gy, 20), -1e4, 1e4), a: clampN(nm(r.a, 90), -360, 360), off: clampN(nm(r.off, 0), -1e4, 1e4) };
   }
   function sApp(app) {
     if (!Array.isArray(app)) return defApp();
@@ -4411,7 +5426,11 @@
     if (type === 'layer' || type === 'group') {
       base.open = n.open !== false; base.name = base.name || (type === 'layer' ? 'Layer' : 'Group');
       base.items = (Array.isArray(n.items) ? n.items : []).slice(0, 20000).map(function (q) { return sNode(q, depth + 1, false); }).filter(Boolean);
-      if (type === 'group') { base.opacity = Math.max(0, Math.min(1, nm(n.opacity, 1))); base.blend = BLENDS.some(function (b) { return b[0] === n.blend; }) ? n.blend : 'normal'; if (n.clip && base.items.length > 1 && base.items[base.items.length - 1].type === 'path') base.clip = true; }
+      if (type === 'group') {
+        base.opacity = Math.max(0, Math.min(1, nm(n.opacity, 1))); base.blend = BLENDS.some(function (b) { return b[0] === n.blend; }) ? n.blend : 'normal'; if (n.clip && base.items.length > 1 && base.items[base.items.length - 1].type === 'path') base.clip = true;
+        var gf = sFx(n.efx); if (gf) base.efx = gf; var gr = sRep(n.rep); if (gr) base.rep = gr; if (n.blnd && typeof n.blnd === 'object') base.blnd = { steps: clampN(Math.round(nm(n.blnd.steps, 4)), 1, 500), smooth: n.blnd.smooth ? 1 : 0 };
+        if (n.omask && typeof n.omask === 'object' && base.items.length > 1) base.omask = { inv: n.omask.inv ? 1 : 0, clip: n.omask.clip ? 1 : 0 }; if (n.iso) base.iso = 1;
+      }
       return base;
     }
     base.opacity = Math.max(0, Math.min(1, nm(n.opacity, 1))); base.blend = BLENDS.some(function (b) { return b[0] === n.blend; }) ? n.blend : 'normal';
@@ -4440,23 +5459,27 @@
       if (n.rule === 'evenodd') base.rule = 'evenodd';
       base.app = sApp(n.app); base.name = base.name || 'Path';
       var L = sLive(n.live); if (L) base.live = L;
+      var pf = sFx(n.efx); if (pf) base.efx = pf;
       return base;
     }
     return null;
   }
   function load(d) {
     if (te) { te = null; try { ta.blur(); } catch (x) {} }
-    hist = []; fut = []; sel = []; asel = {}; imgs = {}; assets = {}; pen = null; cv = null; drag = null; clip = null; chs = null; tref = null; dq = null; bld = null; keyId = null; TX.cache.clear();
+    hist = []; fut = []; sel = []; asel = {}; imgs = {}; assets = {}; pen = null; cv = null; drag = null; clip = null; chs = null; tref = null; dq = null; bld = null; keyId = null; TX.cache.clear(); SHOWN.clear(); meas = null; blendA = null; snapCache = null;
     if (defsEl) defsEl.innerHTML = '';
     if (!d || !Array.isArray(d.layers) || !(d.w > 0) || !(d.h > 0)) { doc = null; view.fit = true; if (on) leave(); return; }
     var as = d.assets && typeof d.assets === 'object' ? d.assets : {};
     Object.keys(as).forEach(function (id) { var a = as[id]; if (a && typeof a.src === 'string' && /^data:image\//.test(a.src) && /^[\w-]+$/.test(id)) assets[id] = { src: a.src, w: Math.max(1, nm(a.w, 1)), h: Math.max(1, nm(a.h, 1)) }; });
-    doc = { v: 2, w: Math.max(1, nm(d.w, 1024)), h: Math.max(1, nm(d.h, 768)), n: d.n | 0 || 1, cur: String(d.cur || ''),
+    var W0 = Math.max(1, nm(d.w, 1024)), H0 = Math.max(1, nm(d.h, 768));
+    // (patterns first, so fills can name them; a pattern's own art has none)
+    patIds = {}; var pats = (Array.isArray(d.pats) ? d.pats : []).slice(0, 200).map(sPat).filter(Boolean); pats.forEach(function (q) { if (patIds[q.id]) q.id = 'P' + uid(''); patIds[q.id] = 1; });
+    doc = { v: 3, w: W0, h: H0, n: d.n | 0 || 1, cur: String(d.cur || ''), boards: sBoards(d.boards, W0, H0), ab: String(d.ab || ''), guides: sGuides(d.guides), pats: pats,
       layers: d.layers.slice(0, 500).map(function (L) { return sNode(L, 0, true); }).filter(Boolean),
       def: { app: d.def && d.def.app ? sApp(d.def.app) : defApp(), op: Math.max(0, Math.min(1, nm(d.def && d.def.op, 1))), blend: d.def && BLENDS.some(function (b) { return b[0] === d.def.blend; }) ? d.def.blend : 'normal' },
       sw: (Array.isArray(d.sw) ? d.sw : []).filter(function (c) { return HEX.test(c); }).slice(0, 200) };
-    if (!doc.layers.length) doc.layers = blank(doc.w, doc.h).layers;
-    curLayer();
+    if (!doc.layers.length) doc.layers = blank(W0, H0).layers;
+    curLayer(); AB();
     sel = (Array.isArray(d.sel) ? d.sel : []).filter(function (id) { return !!byId(id); });
     if (d.view && isFinite(d.view.k) && d.view.k > 0) { view.x = nm(d.view.x, 0); view.y = nm(d.view.y, 0); view.k = d.view.k; view.r = nm(d.view.r, 0); view.fit = !!d.view.fit; } else view.fit = true;
     lastSize = null;
@@ -4465,12 +5488,12 @@
     if (on) { relayout(); changed(false); }
   }
   function blank(w, h) {
-    return { v: 2, w: w, h: h, n: 1, cur: 'L1', layers: [{ id: 'L1', type: 'layer', name: 'Layer 1', visible: true, locked: false, open: true, items: [] }], def: { app: defApp(), op: 1, blend: 'normal' }, sw: [] };
+    return { v: 3, w: w, h: h, boards: [{ id: 'B1', name: 'Artboard 1', x: 0, y: 0, w: w, h: h }], ab: 'B1', guides: [], pats: [], n: 1, cur: 'L1', layers: [{ id: 'L1', type: 'layer', name: 'Layer 1', visible: true, locked: false, open: true, items: [] }], def: { app: defApp(), op: 1, blend: 'normal' }, sw: [] };
   }
   // (a picture in: on the current layer; its own size if it fits, otherwise fitted)
   function placeImage(src, w, h, name, fitAll) {
-    var a = addAsset(src, w, h), k = fitAll ? Math.min(doc.w / w, doc.h / h) : Math.min(1, doc.w * 0.9 / w, doc.h * 0.9 / h);
-    return { id: uid('o'), type: 'image', name: name, asset: a, x: (doc.w - w * k) / 2, y: (doc.h - h * k) / 2, w: w * k, h: h * k, fx: 0, fy: 0, opacity: 1, blend: 'normal', visible: true, locked: false };
+    var A = AB(), a = addAsset(src, w, h), k = fitAll ? Math.min(A.w / w, A.h / h) : Math.min(1, A.w * 0.9 / w, A.h * 0.9 / h);
+    return { id: uid('o'), type: 'image', name: name, asset: a, x: A.x + (A.w - w * k) / 2, y: A.y + (A.h - h * k) / 2, w: w * k, h: h * k, fx: 0, fy: 0, opacity: 1, blend: 'normal', visible: true, locked: false };
   }
   function addImageFile(file) {
     clearTimeout(pasteTimer);
@@ -4534,6 +5557,10 @@
     if (mod && e.code === 'Digit8') { e.preventDefault(); compoundToggle(); return true; }
     if (mod && e.code === 'Digit7') { e.preventDefault(); clipToggle(); return true; }
     if (mod && e.shiftKey && k === 'o') { e.preventDefault(); outlines(); return true; }
+    // (the grid, guides and rulers shown or hidden)
+    if (mod && (e.code === 'Quote' || k === "'")) { e.preventDefault(); precToggle('grid'); return true; }
+    if (mod && (e.code === 'Semicolon' || k === ';')) { e.preventDefault(); precToggle('guides'); return true; }
+    if (mod && !e.shiftKey && k === 'r') { e.preventDefault(); precToggle('rulers'); return true; }
     if (mod || e.altKey) return false;
     if (k === ' ') { e.preventDefault(); if (!spaceDown) { spaceDown = true; stageEl.style.cursor = 'grab'; } return true; }
     if (k === 'escape') {
@@ -4543,12 +5570,15 @@
       if (pen) { endPen(); return true; } if (cv) { cv = null; ui.pen = null; changed(); return true; }
       if (te) { endEdit(); return true; }
       if (chs) { chs = null; drawUI(); panelRefresh(); return true; }
+      if (blendA) { blendA = null; drawUI(); return true; }
+      if (meas && tool === 'measure') { meas = null; drawUI(); panelRefresh(); return true; }
       if (sel.length || Object.keys(asel).length) setSel([]); return true;
     }
     if (k === 'enter') { if (pen) { endPen(); return true; } if (cv) { cv = null; ui.pen = null; changed(); return true; } return false; }
     if (k === 'delete' || k === 'backspace') {
       e.preventDefault();
       if (pen) { var sp = penSp(); if (sp && sp.pts.length > 1) { record('Remove Point'); sp.pts.pop(); changed(); } else endPen(); return true; }
+      if (ABT[tool] && tool !== 'abnew' && !picked().length) { delBoard(); return true; }
       if (nAnchors() && ANCHORTOOLS[tool]) delAnchors(); else deleteSel(); return true;
     }
     if (/^arrow/.test(k)) { e.preventDefault(); var d = e.shiftKey ? 10 : 1; nudge(k === 'arrowleft' ? -d : k === 'arrowright' ? d : 0, k === 'arrowup' ? -d : k === 'arrowdown' ? d : 0); return true; }
@@ -4570,11 +5600,19 @@
   function init(bridge) {
     B = bridge;
     stageEl = document.createElement('div'); stageEl.className = 'vec-stage'; stageEl.hidden = true;
-    stageEl.innerHTML = '<div class="vec-world"><div class="vec-board"></div></div><svg class="vec-ui" aria-hidden="true"></svg>';
-    worldEl = stageEl.querySelector('.vec-world'); boardEl = stageEl.querySelector('.vec-board'); uiEl = stageEl.querySelector('.vec-ui');
+    stageEl.innerHTML = '<div class="vec-world"><div class="vec-boards"></div><div class="vec-gridel" hidden></div></div><svg class="vec-ui" aria-hidden="true"></svg>';
+    worldEl = stageEl.querySelector('.vec-world'); boardsEl = stageEl.querySelector('.vec-boards'); gridEl = stageEl.querySelector('.vec-gridel'); uiEl = stageEl.querySelector('.vec-ui');
     artEl = document.createElementNS(SVGNS, 'svg'); artEl.setAttribute('class', 'vec-art'); artEl.setAttribute('aria-hidden', 'true');
     defsEl = document.createElementNS(SVGNS, 'defs'); artRoot = document.createElementNS(SVGNS, 'g'); artEl.appendChild(defsEl); artEl.appendChild(artRoot); worldEl.appendChild(artEl);
     B.stage.appendChild(stageEl);
+    // (the rulers: strips along the top and the left, and the corner where they meet; drag out of one for a guide)
+    rulerH = document.createElement('canvas'); rulerH.className = 'vec-ruler vec-ruler-h';
+    rulerV = document.createElement('canvas'); rulerV.className = 'vec-ruler vec-ruler-v';
+    rulerC = document.createElement('div'); rulerC.className = 'vec-ruler vec-ruler-c';
+    [rulerH, rulerV, rulerC].forEach(function (r) { r.hidden = true; r.setAttribute('aria-hidden', 'true'); stageEl.appendChild(r); });
+    rulerH.addEventListener('pointerdown', rulerDown); rulerV.addEventListener('pointerdown', rulerDown);
+    rulerC.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    document.addEventListener('paint:theme', function () { if (on) rulersDraw(); });
     stageEl.addEventListener('pointerdown', down); stageEl.addEventListener('pointermove', move);
     stageEl.addEventListener('pointerup', up); stageEl.addEventListener('pointercancel', up);
     stageEl.addEventListener('wheel', wheel, { passive: false });

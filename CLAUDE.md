@@ -33,7 +33,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the Paint / Vector switch's height; the phone's tool settings strip starts under it).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the Paint / Vector switch's height; the phone's tool settings strip starts under it), `--ruler` (Vector's rulers).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -429,7 +429,7 @@ When building or changing anything visual:
   one undo step). Each side keeps its own layers, undo, view, selection
   and tool. **`vector.js`** (`window.PaintVector`, `PV` in `paint.js`) owns
   Vector's side, in this order: THE TOOLS (`CATS`, the left bar's
-  categories in the spec's order, only those whose tools are all real;
+  categories in the spec's order, all fourteen now real;
   `TOOLS`, each tool's name, key and tip; `ICONS`; `TS`, each tool's own
   settings, kept as `paint-vec-tools`), GEOMETRY (a path's `d` is a list
   of subpaths `{ pts, closed }`, each point an anchor with its handles
@@ -446,10 +446,11 @@ When building or changing anything visual:
   `unlive` when its points are edited), HOW IT LOOKS (`n.app`, fills and
   strokes stacked from the bottom: `{ k: 'f'|'s', p, o, on }`, strokes with
   `w`, `cap`, `join`, `ml`, `dash`, `prof`; a paint `p` is null (none),
-  `{ t: 'c', c }` or a gradient `{ t: 'l'|'r', st: [{ t, c, o }], ... }` in
-  fractions of the object's box; `itemOf(app, k)` is the one the colours
-  change, the top one unless Fills & Strokes focused another; `prof`, a
-  width profile `[{ t, w }]`, is drawn as a filled outline, `outlineD`;
+  `{ t: 'c', c }`, a gradient `{ t: 'l'|'r', st: [{ t, c, o }], ... }` in
+  fractions of the object's box (`isGrad(p)`), or a pattern `{ t: 'p', id,
+  s, a, x, y }`; `itemOf(app, k)` is the one the colours change, the top
+  one unless Fills & Strokes focused another; `prof`, a width profile
+  `[{ t, w }]`, is drawn as a filled outline, `outlineD`;
   `doc.def` is what new objects take, and every colour, width or opacity
   set goes to what's picked and to it), DRAWING IT (`nodeSvg` for the
   screen and saving, pictures as `<use>` of a `<symbol>` in `defsEl`;
@@ -572,6 +573,57 @@ When building or changing anything visual:
   a brush's circle, what's being drawn), in the editing blue (`--edit`).
   Saved and checked by `sNode` (`text`, `clip`, `rule`, `mt`, `live.m`,
   `sMat`, `sD`).
+- **Vector's Effects, Artboards and Guides & Precision** (`vector.js`).
+  **Artboards**: `doc.boards` (`{ id, name, x, y, w, h, clear }`, in the
+  artwork's own space; the pasteboard runs on past them) and `doc.ab`, the
+  active one: `AB()` is what Fit, saving and exporting (`raster`, `svgText`,
+  `exportBlob`; `clear` boards save see-through), the rulers, the X and Y
+  fields (from its corner) and aligning to the artboard go by. They're drawn
+  as `.vec-board`s in `.vec-boards`, and the art's SVG covers `boardsBox()`.
+  The Artboard tools (`ABT`) share `H.artboard`: tap a board to make it
+  active, drag it (what's on it too, `onBoard`, with Move Artwork,
+  `TS.abarr.art`), its handles to size it, the pasteboard for a new one
+  (Create Artboard: a tap makes one the size set, `AB_PRESETS`);
+  `addBoard`, `dupBoard` (with its art), `delBoard` (never the last),
+  `rearrangeBoards` (grid by row or column, a row or a column, a gap),
+  `abSize` (from `TS.abresize.ref`). Board drags round to whole pixels.
+  **Guides & Precision** (`TS.prec`, kept as the tools' settings):
+  rulers (`rulerH`/`rulerV` canvases, `--ruler` wide, `rulersDraw` from
+  `applyView` and `changed`, in `UNITS`; drag out of one for a guide,
+  `rulerDown`, back onto it to take it away), guides (`doc.guides`,
+  `{ o: 'h'|'v', p }`; the Guides tool, `H.guides`), the grid
+  (`.vec-gridel`, CSS lines a screen pixel wide, `gridDraw`, behind or in
+  front of the art), and snapping: `snapPt(p, excl, touch)` (to anchor
+  points, then outlines, then each way on its own to guides, Smart Guides'
+  edges and middles, the grid) and `snapBox(box, dx, dy, excl)` (a moved
+  box's edges and middle), from `snapTargets` (kept per `ver`). Shapes, the
+  Pen, Curvature and the text tools snap where they're placed (`snapsAt`,
+  in `down`/`move`/`up`); Selection's and the Move tool's moves, sizing
+  and dragged anchors (`grabAnchor`) snap too; what lined up is drawn by
+  `precUi` (`ui.smart`, `ui.snapMk`, `--snap`; guides in `--guide`). The
+  switches that are tools of their own (`PREC_ON`) turn on when their
+  button is pressed (`precPick`), never by a category opening on them;
+  `precToggle` (Ctrl/⌘ R, ', ;). Measure (`meas`, `measText`).
+  **Live effects** never change the objects: what's drawn, hit and boxed
+  is a stand-in from `shownOf(n)` (kept in `SHOWN` by the node's JSON), so
+  `nodeSvg`, `cDraw`, `nodeBox`, `hitLeaf` and `outlineOf` all go through
+  it (`hasFx`). `n.efx` on a path or group is a warp (`{ k: 'warp', st,
+  bend, hd, vd, dir }`, `WARPS`, `warpMap`) or an envelope mesh (`{ k:
+  'env', rows, cols, m }`, `envMap`, Catmull-Rom across the mesh; dragged
+  with `H.envelope`); not `fx`, which is a picture's flip. A group's `blnd`
+  (`{ steps, smooth }`, `blendItems`, `matchPaths`, `blendApp`) or `rep`
+  (radial, grid or mirror, `repeatItems`) makes its steps or copies.
+  Expand (`expandFx`) makes the stand-in real. Patterns are `doc.pats`
+  (`{ id, name, items, gap }`; `patDef` in SVG, `patCanvas` on a canvas).
+  An opacity mask is a group with `omask` (`{ inv, clip }`; its top item is
+  the mask, `maskSvg`/`maskDraw`); `iso` isolates a group's blending.
+  Offset Path (`offsetPath`) and Image Trace (`imageTrace`, `TS.trace`,
+  from a picked picture's settings or Quick Options) go through the same
+  `traceMask`, `rdp`, `ringToSp` and booleans as the Blob Brush. Effects'
+  settings change what's picked when something of their kind is (an undo
+  step), the tool's own otherwise (`fxField`'s `ownIf`). Checked on load
+  by `sBoards`, `sGuides`, `sPat` (before the layers, so fills can name
+  them, `patIds`), `sFx`, `sRep`, and `sPaint` for patterns.
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
