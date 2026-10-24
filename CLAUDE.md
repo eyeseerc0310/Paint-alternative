@@ -435,9 +435,10 @@ When building or changing anything visual:
   of subpaths `{ pts, closed }`, each point an anchor with its handles
   `{ x, y, ix, iy, ox, oy, s }` (s smooth; `a`: kept curving through its
   neighbours, the Curvature tool's, `reflowAuto`); `seg`/`bez`/`splitBez`/
-  `insertAt`, `flat`/`measure`, `nearest`, `inside` (non-zero), `dBox`,
+  `insertAt`, `flat`/`measure`, `nearest`, `inside` (non-zero, or a
+  compound path's `rule: 'evenodd'`), `dBox`,
   `fitCurves` (Schneider), `rdp`), THE DOCUMENT (`doc.layers`, top last:
-  `layer` nodes hold sublayers, `group`s, `path`s and `image`s, each with
+  `layer` nodes hold sublayers, `group`s, `path`s, `image`s and `text`, each with
   `id`, `name`, `visible`, `locked`; `walk`/`where`/`chain`; `topPick`, what
   the Selection tool picks, the outermost group in its layer; `editable`;
   `xform(n, matrix)`; LIVE SHAPES, `n.live`, what a shape was made from,
@@ -494,6 +495,83 @@ When building or changing anything visual:
   `docInfo`/`applyInfo` and the project file carry `mode` and `vector`
   (`PV.serialize`, `vecLoad`); New Picture starts Vector blank again; the
   gallery keeps a drawing whose painting is blank if Vector has art.
+- **Vector's Drawing, Shape Operations, Transform, Typography and Align &
+  Arrange** (`vector.js`). A tool that's an action (`TOOLS[t].action`: the
+  Pathfinder ops, Compound Path, Clipping Mask, Convert to Outlines, the
+  four arrange steps, Group/Ungroup, Fit, Actual Size) runs from `ACTIONS`
+  (`runAction`) on what's picked and leaves the tool in hand as it was; a
+  category opens on its first real tool. **Matrices**: `mMul`, `mAbout`,
+  `mRot`/`mScale`/`mShear`/`mRefl`, `homog`/`hmap` (projective). `xform`
+  takes any affine matrix: a path's points; a live shape's settings follow
+  where they can (`liveFit`), otherwise it keeps `live.m` (`genLive` makes
+  its points); a picture or words that can't stay upright keep `mt`
+  (drawn as `transform="matrix()"`, read back with `nodeQuad`). `xformS`
+  also sizes strokes when Scale Strokes (`TS.xf.strokes`) is on.
+  **Shape operations** share one planar arrangement (`planar`): shapes
+  flattened to rings (`pathRings`, a point knows if it was an anchor and a
+  smooth one), crossings found in a grid, edges cut, half-edges joined into
+  cycles (positive area: a face; negative: a piece's outside), each cycle
+  told which shapes it's inside from a point just left of it (`inShape`,
+  each shape's own fill rule). `arrExtract(A, keep)` gives the rings
+  between kept and dropped cycles; `arrFaces` gives faces with their holes;
+  `ringToSp` fits curves again between anchors and crossings (`fitCurves`,
+  smooth anchors keep one tangent), `cleanSp` drops corners in straight
+  lines. `OPS` (union, intersect, minus, exclude) and Divide (`pathfinder`,
+  its pieces grouped, each the colour of the top shape it was in), Shape
+  Builder (`bldPrep` keyed by `ver`, the count `changed()` keeps; `buildApply`
+  joins the dragged faces and leaves the rest divided; Alt or Take Away
+  drops them), the Blob Brush and the Vector Eraser all use it. Compound
+  Path (`compoundToggle`, Ctrl/⌘ 8) joins paths into one with `rule:
+  'evenodd'`, the bottom one's look; Clipping Mask (`clipToggle`, Ctrl/⌘ 7)
+  makes a `group` with `clip`: its top item is a path that isn't drawn but
+  clips the rest (`clipPath` in `nodeSvg`, `clip()` in `cDraw`, and
+  `hitLeaf` only finds what shows through, the clipping path by its edge);
+  `pruneEmpty` tidies groups left empty. **Drawing**: Pencil and Vector
+  Brush (`H.pencil`, `drawCommit`: the pointer's points, coalesced events
+  too, fitted with `smoothErr`; starting at a picked path's end carries it
+  on; the brush's width profile from its kind, a calligraphic nib's angle
+  and the Pencil's pressure, `brushProf`); Blob Brush and Vector Eraser
+  (`H.blob`: what the brush covered traced from a canvas, `strokeArea`;
+  the blob joins the touching shapes of its colour, `blobLike`; the eraser
+  cuts filled shapes (separate pieces, `splitRings`) and cuts lines exactly
+  where they cross its edge, `cutByArea`/`subCurve`); Smooth (`smoothAt`,
+  the anchors near the pointer fitted again from dense, averaged samples).
+  **Transform** (`XF`): a drag from copies taken as it starts (`xfStart`,
+  `xfShow`, `xfMove`, `xfUp`; Alt moves a copy), from `xfOrigin` (a tapped
+  point, `tref`, or the panel's reference point, `TS.xf.ref`); the panel's
+  numbers apply with `xfApply` (and Copy). Free Transform has the box's
+  handles, a round handle (`knobPt`) and, like Selection, turning just
+  outside a corner (`rotZone`, the `ROTC` cursor); Ctrl/⌘ or Side handles:
+  Slant on a side handle shears. Distort (`dq`, kept while `ver` says
+  nothing else changed) maps paths from the old corners to the new
+  (`homog`); pictures and words don't distort. **Typography**: a `text`
+  node has `kind` (`point` from `x`, `y`; `area` inside `area`, a closed
+  path; `path` along `pd` from `off`, `flip`), `vert`, `txt`, `font` (paint's
+  `FONTS`, through the bridge's `fonts`/`ensureFonts`), `size`, `weight`,
+  `italic`, `lead`, `track` (per mille), `align`, `app`, and `ch`, letters
+  with a look of their own by index into `txt` (`dx`, `dy`, `r`, `s`, `c`;
+  `shiftCh` keeps them on their letters as words are typed). `textLayout`
+  (kept in `TX.cache`, laid out again when a web font arrives, `relayText`)
+  gives each letter's place, turn and advance, and the caret's places;
+  `textSvg` draws one `<text>` with a position (and turn) for each letter,
+  letters of their own one by one; `textDraw` on a canvas; `textBox`,
+  `glyphAt`, `caretAt`, `textXform` (point text grows in size, an area's
+  shape is sized and the words flow again, text on a path goes with it).
+  Typing goes into a hidden textarea at the caret (`ta`, `te` the edit:
+  `startEdit`/`endEdit`, one undo step, nothing typed leaves nothing;
+  `placeTa`; the stage's `mousedown` is cancelled while typing so a tap
+  keeps the focus), so selecting, copying and a phone's keyboard are the
+  browser's own. Character Editing (`chs`, `chHandles`) moves, turns and
+  sizes one letter about its middle (`chMid`). Convert to Outlines
+  (`outlines`) traces each letter big (`glyphD`, kept in `GLY`) and fits it
+  with curves. **Align & Arrange** (`ALIGNT`): to the selection, the key
+  object (`keyId`, a tap on one of the picked) or the artboard
+  (`TS.align.to`); `alignDo`, `distDo`, `spaceDo` (a set gap round the key
+  object). On the screen: `uiExtra` (the origin, the round handle,
+  Distort's corners, the caret and picked letters, Shape Builder's parts,
+  a brush's circle, what's being drawn), in the editing blue (`--edit`).
+  Saved and checked by `sNode` (`text`, `clip`, `rule`, `mt`, `live.m`,
+  `sMat`, `sD`).
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
