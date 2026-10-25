@@ -1887,7 +1887,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   :root { --mode-h: 32px; }
   .paint .mode-switch button { padding: 0 10px 0 var(--s-2); }
   /* (the tool settings' strip runs along the top here: it starts under the switch) */
-  .paint-ctx { top: calc(var(--s-2) + var(--mode-h) + var(--s-1)); }
+  :root:has(.mode-switch:not([hidden])) .paint-ctx { top: calc(var(--s-2) + var(--mode-h) + var(--s-1)); }
 }
 
 /* Vector mode: the painting's own parts step out of sight (kept as they

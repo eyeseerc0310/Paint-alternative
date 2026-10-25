@@ -7193,7 +7193,8 @@
       otherPopovers();
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
-        (PV ? '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
+        (PV ? '<button type="button" role="menuitemcheckbox" aria-checked="' + (wsMode === 'vector') + '" data-setting="vector">' + modeEl.querySelector('[data-mode="vector"] svg').outerHTML + 'Vector mode (preview)<span class="settings-check" aria-hidden="true">' + (wsMode === 'vector' ? '✓' : '') + '</span></button>' +
+          '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
       settingsBox.hidden = false;
       hb('settings').setAttribute('aria-expanded', 'true');
       placeDrop(settingsBox, hb('settings'));
@@ -7215,6 +7216,7 @@
       if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
       else if (b.dataset.setting === 'gestures') gestureSheet();
       else if (b.dataset.setting === 'flip') flipUI();
+      else if (b.dataset.setting === 'vector') askMode(wsMode === 'vector' ? 'paint' : 'vector');
       else if (b.dataset.setting === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); }
       else helpSheet();
     });
@@ -7466,7 +7468,7 @@
         group('Layers', [['Pick more layers', 'Swipe a layer right'], ['Pick all between', '⇧ click'], ['Pick one more (or one less)', CMD + 'click'], ['Pick just one again', 'Tap a layer'], ['Let the picked ones go', 'Esc']]) +
         group('Brush & colour', [['Smaller brush', '['], ['Bigger brush', ']'], ['Swap colours', 'X'], ['Pick a colour', MAC ? '⌥ click' : 'Alt click'], ['Effects', 'A']]) +
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
-        (PV ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Vector Brush', 'B'], ['Blob Brush', '⇧ B'], ['Vector Eraser', '⇧ E'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Shape Builder', '⇧ M'], ['Free Transform', 'E'], ['Scale', 'S'], ['Rotate', 'R'], ['Reflect', 'O'], ['Text', 'T'], ['Character Editing', '⇧ T'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Blend', 'W'], ['Warp', '⇧ R'], ['Artboard', '⇧ O'], ['Rotate View', '⇧ H'], ['Hand', 'H'], ['Zoom', 'Z']]) +
+        (PV && wsMode === 'vector' ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Vector Brush', 'B'], ['Blob Brush', '⇧ B'], ['Vector Eraser', '⇧ E'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Shape Builder', '⇧ M'], ['Free Transform', 'E'], ['Scale', 'S'], ['Rotate', 'R'], ['Reflect', 'O'], ['Text', 'T'], ['Character Editing', '⇧ T'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Blend', 'W'], ['Warp', '⇧ R'], ['Artboard', '⇧ O'], ['Rotate View', '⇧ H'], ['Hand', 'H'], ['Zoom', 'Z']]) +
           group('Vector editing', [['Group', CMD + 'G'], ['Ungroup', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'G'], ['Join picked paths', CMD + 'J'], ['Duplicate', CMD + 'D'], ['Copy, cut, paste', CMD + 'C'], ['Bring forward', CMD + ']'], ['Send backward', CMD + '['], ['Bring to front', (MAC ? '⇧⌘' : 'Ctrl Shift ') + ']'], ['Send to back', (MAC ? '⇧⌘' : 'Ctrl Shift ') + '['], ['Compound path', CMD + '8'], ['Clipping mask', CMD + '7'], ['Convert to outlines', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'O'], ['Turn (Selection)', 'Drag outside a corner'], ['Swap fill and stroke', 'X'], ['Default fill and stroke', 'D'], ['No fill', '/'], ['Finish a path', MAC ? '↩' : 'Enter'], ['Nudge (by 10)', '← ↑ (⇧)'], ['Fit to screen', '0'], ['Actual size', CMD + '1'], ['Show or hide rulers', CMD + 'R'], ['Show or hide the grid', CMD + '\''], ['Show or hide guides', CMD + ';'], ['Delete the artboard (Artboard tools)', MAC ? '⌫' : 'Delete']]) : '') +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
@@ -8264,8 +8266,8 @@
     document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
     // ---- PAINT AND VECTOR: two workspaces in one drawing (Vector's is in
-    // vector.js). The switch at the top of the picture's space (.mode-switch)
-    // changes which shows: the painting is only hidden while Vector's is out,
+    // vector.js). Settings' Vector mode (preview) changes which shows (the
+    // switch at the top of the picture's space, .mode-switch, is hidden for now): the painting is only hidden while Vector's is out,
     // never changed, and each keeps its own layers, undo, view and
     // selection. Artwork goes across only as a copy, and only when asked
     // (askMode: every time, unless Settings says not to, modeAsk) ----
@@ -8361,7 +8363,9 @@
       var want = m === 'vector' && v ? 'vector' : 'paint';
       if (want !== wsMode) setMode(want, false); else if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); }
     }
-    if (PV) modeSync(); else if (modeEl) modeEl.hidden = true;
+    // (while Vector mode is still being made, the switch stays out of sight:
+    // Settings' Vector mode (preview) goes in and out)
+    if (PV) modeSync(); if (modeEl) modeEl.hidden = true;
 
     setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first
