@@ -411,10 +411,14 @@ When building or changing anything visual:
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
   choice, for testing.
-- **Paint and Vector** are two workspaces in one drawing. The switch
+- **Paint and Vector** are two workspaces in one drawing. **For now Vector
+  mode is a preview, reached only from Settings' Vector mode (preview)**
+  (`data-setting="vector"`, a check while it's in use): the switch
   (`.mode-switch`, a radio group in a frosted capsule at the top middle of
-  `.paint-centre`, over the picture's space; picked side `--seg-on`) calls
-  `askMode(m)`: when the side being left has art (`thumbOf().blank`,
+  `.paint-centre`, over the picture's space; picked side `--seg-on`) is kept
+  but hidden (`modeEl.hidden`), and the phone's tool strip only steps down
+  for it while it shows; the help sheet lists Vector's keys only in Vector
+  mode. Either way in calls `askMode(m)`: when the side being left has art (`thumbOf().blank`,
   `PV.isEmpty()`) and `modeAsk` is on (`paint-mode-ask`; the dialog's
   Don't ask again, and Settings' Ask to bring artwork across), a sheet
   offers Cancel, Switch Without Copying and Bring Artwork; otherwise it
