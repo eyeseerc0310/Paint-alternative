@@ -698,3 +698,20 @@ When building or changing anything visual:
 - Much of the existing CSS predates this rule and has repeated values. Don't
   refactor it unless asked. Move things onto shared tokens and styles as you
   touch them, and keep unrelated changes out of a task.
+
+## Testing
+
+The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
+Chromium: `tests/run.sh` for everything, or `brushes`, `vector`, `regress
+[names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
+they see and are compared with the same suite run on the reference
+(`origin/main`, or `REF=`); a line starting with `~` varies between runs and
+isn't compared. The layout lock (`layout-lock.js`, its states in
+`layout-steps.js`) compares every element's box. Vector's checks
+(`tests/vector/`, sharing `vt.js`) and the bristle brushes' (`tests/brushes/`)
+pass or fail by themselves, ending `ALL OK`. Tests open the app as
+`http://127.0.0.1:8123/index.html` through `lib.js`'s `chromium`, which sends
+that to whichever copy is being tested. Run the regressions and the lock
+before merging anything on the paint side, add a check to `tests/` with each
+new feature, and fix a suite a change breaks rather than leaving it to crash
+part-way (a suite that stops early tests nothing after that point).

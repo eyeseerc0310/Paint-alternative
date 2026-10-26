@@ -1,0 +1,40 @@
+// The states the layout lock opens, one each: a function that opens it on a
+// fresh page (and may return the selector of what it opened).
+const clickT = async (p, sel) => { const e = await p.$(sel); if (!e) throw new Error('no ' + sel); await e.click(); };
+const byLabel = (p, l) => p.evaluate(l => { const e = [...document.querySelectorAll('button')].find(b => b.offsetParent && ((b.getAttribute('aria-label') || '').startsWith(l) || b.textContent.trim() === l)); if (!e) return false; e.click(); return true; }, l);
+const STEPS = {
+  base: async p => null,
+  hdr: async p => { await clickT(p, '.hdr-fold'); return '.site-header'; },
+  brushlist: async p => { await clickT(p, '[data-ctx="brushes"]'); return '.ctx-list, .paint-ctx'; },
+  studio: async p => { await clickT(p, '[data-ctx="bstudio"]'); return '.paint-studio'; },
+  picker: async p => { await clickT(p, '.paint-current'); return '.paint-colorpanel'; },
+  effects: async p => { await clickT(p, '[data-act="adjust"]'); return '.paint-adjust'; },
+  layers: async p => { await clickT(p, '.pl-layersbtn'); return '.paint-layerpanel'; },
+  layermenu: async p => { await clickT(p, '.pl-layersbtn'); await p.waitForTimeout(300); await clickT(p, '.pl-row .pl-more'); return '.paint-lmenu'; },
+  shapes: async p => { await clickT(p, '.paint-shapebtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
+  select: async p => { await clickT(p, '.paint-selbtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
+  blend: async p => { await clickT(p, '.paint-blendbtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
+  sym: async p => { await clickT(p, '.paint-mirror'); return '.paint-drop:not([hidden]), .paint-ctx'; },
+  text: async p => { await clickT(p, '[data-tool="text"]'); return '.paint-ctx'; },
+  font: async p => { await clickT(p, '[data-tool="text"]'); await p.waitForTimeout(300); await p.evaluate(() => { const b = [...document.querySelectorAll('.paint-ctx [aria-haspopup]')].find(b => b.offsetParent); b && b.click(); }); return '.paint-fontmenu, .ctx-list, .paint-ctx'; },
+  gradient: async p => { await clickT(p, '[data-tool="gradient"]'); return '.paint-ctx'; },
+  eraser: async p => { await clickT(p, '[data-tool="eraser"]'); return '.paint-ctx'; },
+  fill: async p => { await clickT(p, '[data-tool="fill"]'); return '.paint-ctx'; },
+  pen: async p => { await clickT(p, '[data-tool="pen"]'); return '.paint-ctx'; },
+  move: async p => { await clickT(p, '[data-tool="move"]'); return '.paint-ctx'; },
+  settings: async p => { await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); return '.paint-drop:not([hidden])'; },
+  history: async p => { await p.evaluate(() => document.querySelector('[data-hb="history"]').click()); return '.paint-drop:not([hidden])'; },
+  image: async p => { await p.evaluate(() => document.querySelector('[data-hb="image"]').click()); return '.paint-drop:not([hidden])'; },
+  save: async p => { await p.evaluate(() => document.querySelector('[data-act="save"], [data-hb="save"]').click()); return '.paint-savemenu, .paint-drop:not([hidden])'; },
+  newpic: async p => { await p.evaluate(() => document.querySelector('[data-hb="new"]').click()); return '.pa-sheet'; },
+  help: async p => { await p.evaluate(() => document.querySelector('[data-hb="help"]').click()); return '.pa-sheet'; },
+  gallery: async p => { await p.evaluate(() => document.querySelector('[data-hb="gallery"]').click()); return '.pa-sheet'; },
+  status: async p => { await clickT(p, '.doc-status'); return '.paint-drop:not([hidden]), .doc-status'; },
+  selection: async p => { await clickT(p, '.paint-selbtn'); await p.waitForTimeout(200); const r = await (await p.$('.paint-world')).boundingBox(); await p.mouse.move(r.x + r.width * .3, r.y + r.height * .3); await p.mouse.down(); await p.mouse.move(r.x + r.width * .6, r.y + r.height * .35, { steps: 5 }); await p.mouse.move(r.x + r.width * .55, r.y + r.height * .65, { steps: 5 }); await p.mouse.move(r.x + r.width * .3, r.y + r.height * .3, { steps: 5 }); await p.mouse.up(); return null; },
+  picktab: async p => { await clickT(p, '.paint-current'); await p.waitForTimeout(300); await p.evaluate(() => { const b = document.querySelector('[data-pc-mode="rgb"]'); b && b.click(); }); return '.paint-colorpanel'; },
+  fxopen: async p => { await clickT(p, '[data-act="adjust"]'); await p.waitForTimeout(300); await p.evaluate(() => { const b = [...document.querySelectorAll('.paint-adjust button')].find(b => /Levels/.test(b.textContent)); b && b.click(); }); return '.paint-adjust'; },
+  gestures: async p => { await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(300); await p.evaluate(() => { const b = [...document.querySelectorAll('.paint-drop:not([hidden]) button')].find(b => /Gesture/i.test(b.textContent)); b && b.click(); }); return '.pa-sheet'; },
+  wand: async p => { await p.keyboard.press('w'); return '.paint-ctx'; },
+  hover: async p => { const r = await (await p.$('[data-tool="eraser"]')).boundingBox(); await p.mouse.move(r.x + r.width / 2, r.y + r.height / 2); return '.paint-left'; },
+};
+module.exports = STEPS;
