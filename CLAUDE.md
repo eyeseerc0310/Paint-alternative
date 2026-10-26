@@ -307,6 +307,38 @@ When building or changing anything visual:
   A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
   works on a cutout works on it. Use `selTool(t)` to ask "is this
   selecting?", and `setTool(selKind)` to bring the tool up.
+- **Selections in the history:** making, adding to, changing (Feather,
+  Expand, Invert Selection, Select All, the layer menu's Select) and letting
+  go of a selection (Deselect, Commit, Return, Esc, a click outside) are
+  steps of their own (`selOnly`, `selLog(was, label)` after the change, with
+  `was` from `selSnap()` before it), in order with the painting's; undo and
+  redo swap the selection (`selRestore`) and never change the picture. A
+  snapshot is the selection at rest (a turned or distorted one as the mask
+  it covers); only what the person made counts (`sel.auto`, `sel.text` and
+  `sel.thing` are the tools' own). A Move step (`lift`, `liftMany`) keeps
+  the selection as it was in `selAt`, so undoing it puts the outline back
+  with the pixels. Before undo, redo or a History jump, anything picked up
+  is put down and the selection stays (`selSettle`). Selection steps don't
+  count towards the memory limit of steps (`heavySteps`); their masks have
+  a cap of their own (`selBytes`). Switching layers
+  (a row, a thumbnail, picking more or letting them go) only changes the
+  current layer: what's picked up is put down on its own layer
+  (`selSettle`), the selection stays, and nothing is selected for you, the
+  Move tool included (it picks the layer up when it's pressed on the
+  picture).
+- **Adding to a selection:** Shift held as a box, circle, cutout or wand
+  selection starts adds it to what's selected (never a move, even inside
+  it); without Shift a new one replaces it. What's there is kept as a mask
+  the picture's size (`selAddStart`, `selAdd`; its outline shows while the
+  new part is drawn, `drawAddBase`), and the new part is added to it when
+  it's finished (`selAddFinish`): one mask selection round all of it
+  (`maskSel`), so painting, moving, Effects and the rest treat it as one,
+  with `sel.edges`, the outline of every part (`edgeLoops`: the mask's edges
+  joined into loops, steps smoothed to within 0.6 of a pixel, as fractions of
+  the box; drawn by `edgePath`), so separate parts each have their own and
+  overlapping ones join; no blue wash. Undo takes away the part added last.
+  With the circle, Shift still makes it round, unless that Shift started an
+  added part (let go and pressed again, it does).
 - **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
   selection's actions stand in a card of their own just under the left
   toolbar (the top menu's gap below it, `--menu-stack-gap`), built like it
@@ -702,13 +734,14 @@ When building or changing anything visual:
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and
 isn't compared. The layout lock (`layout-lock.js`, its states in
 `layout-steps.js`) compares every element's box. Vector's checks
-(`tests/vector/`, sharing `vt.js`) and the bristle brushes' (`tests/brushes/`)
+(`tests/vector/`, sharing `vt.js`), the bristle brushes' (`tests/brushes/`) and
+selecting's (`tests/selection/`)
 pass or fail by themselves, ending `ALL OK`. Tests open the app as
 `http://127.0.0.1:8123/index.html` through `lib.js`'s `chromium`, which sends
 that to whichever copy is being tested. Run the regressions and the lock

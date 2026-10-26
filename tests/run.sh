@@ -5,6 +5,7 @@
 #   tests/run.sh lock [modes]       the layout lock (modes like desk-light,phone-dark)
 #   tests/run.sh vector [names]     Vector mode's checks
 #   tests/run.sh brushes            the bristle brushes' checks
+#   tests/run.sh selection          selecting: layers, undo and redo, Shift to add
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
 # save goes in tests/.out.
@@ -69,6 +70,10 @@ brushes() {
   check "brushes/bristle-light-1400" "$OUT/brushes" "$T/brushes/bristle.js" light 1400 900
   check "brushes/bristle-dark-375" "$OUT/brushes" "$T/brushes/bristle.js" dark 375 812
 }
+selection() {
+  check "selection/selection-light-1400" "$OUT/selection" "$T/selection/selection.js" light 1400 900
+  check "selection/selection-dark-1024" "$OUT/selection" "$T/selection/selection.js" dark 1024 768
+}
 
 serve "$APP_PORT" "$ROOT"
 what=${1:-all}; [ $# -gt 0 ] && shift
@@ -77,8 +82,9 @@ case $what in
   lock) lock "$@" ;;
   vector) vector "$@" ;;
   brushes) brushes ;;
-  all) brushes; vector; regress; lock ;;
-  *) echo "run.sh [all|regress|lock|vector|brushes] [names]"; exit 2 ;;
+  selection) selection ;;
+  all) brushes; selection; vector; regress; lock ;;
+  *) echo "run.sh [all|regress|lock|vector|brushes|selection] [names]"; exit 2 ;;
 esac
 if [ ${#FAILED[@]} -gt 0 ]; then echo; echo "not passing: ${FAILED[*]}"; exit 1; fi
 echo; echo "all passing"

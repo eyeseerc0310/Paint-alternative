@@ -46,8 +46,9 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   await p.keyboard.press('b'); await p.mouse.move(...await at(0.1, 0.9)); await p.mouse.down(); await p.mouse.move(...await at(0.15, 0.9), { steps: 4 }); await p.mouse.up();
   console.log('brush paints again:', await top(0.12, 0.9) > 0);
   // undo walks it all back
-  for (let i = 0; i < 4; i++) await p.keyboard.press('Control+z');
-  await p.waitForTimeout(150);
+  // (as many undos as it takes: selecting and letting go are steps too)
+  let n = 0; while (n < 12 && !(await top(0.3, 0.3))) { await p.keyboard.press('Control+z'); await p.waitForTimeout(80); n++; }
+  await p.waitForTimeout(150); console.log('~ undos it took', n);
   console.log('after undo: (0.3,0.3)', await top(0.3, 0.3), '(0.4,0.6)', await top(0.4, 0.6));
   console.log('errors', errs);
   await b.close();
