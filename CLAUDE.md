@@ -731,6 +731,12 @@ When building or changing anything visual:
   refactor it unless asked. Move things onto shared tokens and styles as you
   touch them, and keep unrelated changes out of a task.
 
+## Finishing a task
+
+Once a change is merged and the Pages deploy has finished, the reply to the
+owner ends with the link to the live app:
+https://eyeseerc0310.github.io/Paint-alternative/
+
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
