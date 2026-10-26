@@ -219,6 +219,12 @@ When building or changing anything visual:
   only the tail each frame; the redraw is never clipped (clipping changes
   the edges' anti-aliasing and shows seams). A dab is a short drag. Their
   Studio sections are Pressure (and Tapered Ends for Rough Round).
+  A QuickShape (a stroke held still, snapped to a line, rectangle or
+  ellipse, `shapeGeo`/`shapePts`) being sized is drawn at most once a frame
+  (`redrawShape` only asks); for a bristle brush, what was last drawn
+  exactly (`shapeDraw`, kept in `shapeShot`) is shown stretched to the new
+  size (`shapeShow`) and drawn exactly again once the pointer rests or lets
+  go (`shapeFlush` in `end0`), so what's laid down is always exact.
 - **Drawings:** the one in hand is the autosave (`docInfo`/`applyInfo`) and
   has a gallery id (`gid`). Before another is opened or started, `archive()`
   keeps it in the gallery, so anything that replaces the whole drawing should
