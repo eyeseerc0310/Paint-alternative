@@ -6210,7 +6210,7 @@
           if (!smoothing) { var l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) pts.push(q); return; }
           addSmoothed(q);
         });
-        renderSoon(); return;
+        if (!down.shape) renderSoon(); return;
       }
       if (t === 'brush') {
         // (spray: droplets along the way, and more while it's held still)
@@ -6308,32 +6308,81 @@
       }
       return null;
     }
-    function shapePts(sh, k) {
-      var out = [], step = Math.max(1, st.size * 0.25), i;
-      // (with Shift held, an ellipse is a circle and a rectangle a square, as
-      // round as it is on average; let go and it's as it was)
-      sh = Object.create(sh);
-      if (shiftHeld && sh.kind !== 'line') sh.rx = sh.ry = (sh.rx + sh.ry) / 2;
+    // (where a snapped shape is at size k: with Shift held, an ellipse is a
+    // circle and a rectangle a square, as round as it is on average, and a
+    // line keeps to steps of 15°; let go and it's as it was)
+    function shapeGeo(sh, k) {
+      var g = { kind: sh.kind, cx: sh.cx, cy: sh.cy, rx: sh.rx * k, ry: sh.ry * k, a0: sh.a0, a: sh.a, b: sh.b };
+      if (shiftHeld && sh.kind !== 'line') g.rx = g.ry = (sh.rx + sh.ry) / 2 * k;
       if (shiftHeld && sh.kind === 'line') {
         var an = Math.round(Math.atan2(sh.b.y - sh.a.y, sh.b.x - sh.a.x) / (Math.PI / 12)) * (Math.PI / 12), ln = Math.hypot(sh.b.x - sh.a.x, sh.b.y - sh.a.y);
-        sh.b = { x: sh.a.x + Math.cos(an) * ln, y: sh.a.y + Math.sin(an) * ln };
+        g.b = { x: sh.a.x + Math.cos(an) * ln, y: sh.a.y + Math.sin(an) * ln };
       }
-      if (sh.kind === 'line') { out = along(sh.a, sh.b, step); out.push({ x: sh.b.x, y: sh.b.y }); }
-      else if (sh.kind === 'rect') {
-        var c = [{ x: sh.cx - sh.rx * k, y: sh.cy - sh.ry * k }, { x: sh.cx + sh.rx * k, y: sh.cy - sh.ry * k }, { x: sh.cx + sh.rx * k, y: sh.cy + sh.ry * k }, { x: sh.cx - sh.rx * k, y: sh.cy + sh.ry * k }];
+      return g;
+    }
+    function shapePts(sh, k) {
+      var out = [], step = Math.max(1, st.size * 0.25), i, g = shapeGeo(sh, k);
+      if (g.kind === 'line') { out = along(g.a, g.b, step); out.push({ x: g.b.x, y: g.b.y }); }
+      else if (g.kind === 'rect') {
+        var c = [{ x: g.cx - g.rx, y: g.cy - g.ry }, { x: g.cx + g.rx, y: g.cy - g.ry }, { x: g.cx + g.rx, y: g.cy + g.ry }, { x: g.cx - g.rx, y: g.cy + g.ry }];
         for (i = 0; i < 4; i++) out = out.concat(along(c[i], c[(i + 1) % 4], step));
         out.push(c[0], along(c[0], c[1], step)[1] || c[1]);
       } else {
-        var N = Math.max(48, Math.round(Math.PI * (sh.rx + sh.ry) * k / step));
-        for (i = 0; i <= N + 1; i++) { var t = sh.a0 + i / N * Math.PI * 2; out.push({ x: sh.cx + Math.cos(t) * sh.rx * k, y: sh.cy + Math.sin(t) * sh.ry * k }); }
+        var N = Math.max(48, Math.round(Math.PI * (g.rx + g.ry) / step));
+        for (i = 0; i <= N + 1; i++) { var t = g.a0 + i / N * Math.PI * 2; out.push({ x: g.cx + Math.cos(t) * g.rx, y: g.cy + Math.sin(t) * g.ry }); }
       }
       var pr = down.shapePr; out.forEach(function (q) { q.pr = pr; });
       return out;
     }
+    // A SNAPPED SHAPE BEING SIZED is drawn at most once a frame, however many
+    // pointer events come in (redrawShape just asks for it). A bristle brush's
+    // shape costs far too much to draw again each frame, so while it's sized
+    // what was last drawn exactly (shapeShot) is shown stretched to the new
+    // size (shapeShow), and it's drawn exactly again once the pointer rests,
+    // and before it's laid down (shapeFlush).
+    var shapeQueued = false, shapeShot = null, shapeRestT = 0;
     function redrawShape(k) {
+      down.shapeK = k;
+      if (shapeQueued) return;
+      shapeQueued = true;
+      requestAnimationFrame(function () { if (!shapeQueued) return; shapeQueued = false; if (down && down.shape) shapeShow(down.shapeK); });
+    }
+    function shapeDraw(k) {
+      clearTimeout(shapeRestT); shapeQueued = false; down.shapeK = k; down.shapeDirty = false;
       pts = shapePts(down.shape, k); down.S = null; down.n = 0; down.total = 0;
       octx.clearRect(0, 0, W, H); if (st.tool === 'eraser') eraseFromSheet(null);
       renderStroke();
+      down.shot = null;
+      if (down.cfg.br && !down.sym.length && !(active && active.isMask)) {
+        var c = shapeShot || (shapeShot = document.createElement('canvas'));
+        if (c.width !== ov.width || c.height !== ov.height) { c.width = ov.width; c.height = ov.height; }
+        var cx = c.getContext('2d'); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, c.width, c.height); cx.drawImage(ov, 0, 0);
+        down.shot = shapeGeo(down.shape, k);
+      }
+    }
+    function shapeShow(k) {
+      var o = down.shot, g = shapeGeo(down.shape, k), m = null;
+      if (o && g.kind === 'line') {
+        var ux = o.b.x - o.a.x, uy = o.b.y - o.a.y, vx = g.b.x - g.a.x, vy = g.b.y - g.a.y, uu = ux * ux + uy * uy;
+        // (the line turns and stretches about its start, which stays put)
+        if (uu > 1e-6) { var ca = (ux * vx + uy * vy) / uu, sa = (ux * vy - uy * vx) / uu; m = [ca, sa, -sa, ca, g.a.x - ca * g.a.x + sa * g.a.y, g.a.y - sa * g.a.x - ca * g.a.y]; }
+      } else if (o && o.rx > 1e-6 && o.ry > 1e-6) {
+        var fx = g.rx / o.rx, fy = g.ry / o.ry;
+        m = [fx, 0, 0, fy, g.cx - fx * g.cx, g.cy - fy * g.cy];
+      }
+      if (!m) { shapeDraw(k); return; }
+      octx.save(); octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, ov.width, ov.height);
+      base(octx); octx.transform(m[0], m[1], m[2], m[3], m[4], m[5]); octx.scale(1 / R, 1 / R);
+      octx.drawImage(shapeShot, 0, 0);
+      octx.restore();
+      maskOv([[0, 0, ov.width, ov.height]]);
+      down.shapeDirty = true;
+      clearTimeout(shapeRestT);
+      shapeRestT = setTimeout(function () { if (down && down.shape && down.shapeDirty) shapeDraw(down.shapeK); }, 160);
+    }
+    function shapeFlush() {
+      clearTimeout(shapeRestT);
+      if (shapeQueued || down.shapeDirty) shapeDraw(down.shapeK);
     }
     function quickShape() {
       var sh = recognise(pts); if (!sh) return;
@@ -6342,7 +6391,7 @@
       // (a perfect shape doesn't taper: its ends meet cleanly)
       down.cfg = brushCfg(kind(), st.size, st.tool === 'eraser' ? '#fff' : st.color); down.cfg.tin = down.cfg.tout = down.cfg.live = 0;
       down.shape = sh; sh.hold = down.holdAt; sh.k = 1;
-      redrawShape(1);
+      shapeDraw(1);
       toast(sh.name + ': keep holding to adjust');
     }
     // (Shift pressed or let go while a snapped shape is held: it changes there and then)
@@ -6379,7 +6428,7 @@
       }
       // (a smoothed line catches up with where the pointer was let go)
 
-      if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
+      if (down.shape) { rsQueued = false; shapeFlush(); } else if (rsQueued) renderStroke(); // (the last frame, before it's laid down)
       clearInterval(sprayTimer);
       if (selMode === 'scale' || selMode === 'rotate' || selMode === 'distort' || selMode === 'qrot') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); autosave(); return; }
       if (selMode === 'lasso') {
