@@ -11,6 +11,7 @@ or a copy found by `require('playwright')`), Python 3 (it serves the app) and gi
 ```
 tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
+tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -36,6 +37,14 @@ with `all passing`, or lists what isn't, and exits non-zero.
   pressure, a mouse and dabs; undo and redo; their Studio sections; a QuickShape
   circle is sized without long stalls and comes out the same let go mid-drag or
   after a rest. Run at desktop size in light and at phone size in dark.
+- `selection/selection.js`: selecting. Making, replacing and letting go of a
+  selection are undone and redone exactly, never changing the picture;
+  Shift adds box, cutout, circle and wand parts (outlined separately, joined
+  where they overlap, painted and moved as one, the last one taken away by
+  undo); switching layers keeps the selection and selects nothing new (each
+  selection tool and Move); a moved selection's outline goes back with undo;
+  Shift still makes a circle round. Run at desktop size in light and iPad size
+  in dark.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and

@@ -28,7 +28,7 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   await p.screenshot({ path: 'out/sym-turned.png' });
   // horizontal and quadrant, centred again via the menu
   await open(); await p.click('[data-ctx="symreset"]');
-  await p.click('[data-hb="new"]'); await p.click('[data-pre="wide"]'); await p.click('[data-ns-act="create"]'); await p.waitForTimeout(200);
+  await p.click('[data-hb="new"]'); await p.click('[data-pre="wide"]'); await p.click('[data-ns-act="create"]'); await p.waitForTimeout(600);
   await pick('y'); await stroke(0.3, 0.2, 0.31, 0.2);
   console.log('horizontal copy:', await ink(0.3, 0.8), '| no left-right copy:', !(await ink(0.7, 0.2)));
   await pick('xy'); await stroke(0.25, 0.25, 0.26, 0.25);

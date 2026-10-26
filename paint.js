@@ -949,7 +949,12 @@
     function limit() { return Math.max(4, Math.min(LIMIT, Math.floor(160e6 / (ov.width * ov.height * 4)))); }
     // (what could be redone is kept with the step, so a stroke that's called
     // off at once, like the first finger of a two-finger tap, gives it back)
-    function push(e) { boxStale(e); endFillAnim(); gradGone = null; if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > limit()) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
+    // (a step that's only a selection costs little: the limit counts the
+    // others, with a ceiling on all of them, and on the memory the
+    // selections' masks take)
+    function push(e) { boxStale(e); endFillAnim(); gradGone = null; if (!e.label) e.label = TOOL_NAMES[st.tool] || 'Edit'; var prev = undo[undo.length - 1]; if (prev) delete prev.redoWas; e.redoWas = redo; undo.push(e); while (undo.length > 1 && (heavySteps() > limit() || undo.length > 200 || selBytes() > 300e6)) { undo.shift(); trimmed = true; } redo = []; buttons(); autosave(); }
+    function heavySteps() { var n = 0; for (var i = 0; i < undo.length; i++) if (!undo[i].selOnly) n++; return n; }
+    function selBytes() { var n = 0, seen = []; for (var i = 0; i < undo.length; i++) { var m = undo[i].sel && undo[i].sel.mask; if (m && seen.indexOf(m) < 0) { seen.push(m); n += m.width * m.height * 8; } } return n; }
     // (a text layer's words are kept with its pixels; any other change to
     // its pixels makes it plain paint: undo brings the words back)
     function remember(label, quiet) {
@@ -961,13 +966,21 @@
     function docState() { return { doc: true, pw: ov.width, ph: ov.height, list: layers.slice(), active: active, props: props() }; }
     function rememberDoc(label) { if (grad) gradDone(); var e = docState(); e.label = label; push(e); }
     function capture(e) {
-      if (e.parts) return { parts: e.parts.map(capture), label: e.label }; // (a step that changed a layer and the list, like Merge Down)
+      if (e.selOnly) return { selOnly: true, sel: selSnap(), label: e.label };
+      if (e.parts) { var cp = { parts: e.parts.map(capture), label: e.label }; if ('selAt' in e) cp.selAt = selSnap(); return cp; } // (a step that changed a layer and the list, like Merge Down)
       var c = e.doc ? docState() : e.L ? { L: e.L, data: snapOf(e.L), bg: e.L.bg, text: e.L.text, name: e.L.name } : { list: layers.slice(), active: active, props: props() };
-      c.label = e.label; if (e.pen) c.pen = e.pen; if (e.grad) c.grad = e.grad; return c;
+      c.label = e.label; if (e.pen) c.pen = e.pen; if (e.grad) c.grad = e.grad; if ('selAt' in e) c.selAt = selSnap(); return c;
     }
+    // (selAt: a step that moved what's selected, Move, brings the selection
+    // back to where it was with the pixels)
     function apply(e) {
+      if (e.selOnly) { selRestore(e.sel); return; }
+      if ('selAt' in e) { apply0(e); selRestore(e.selAt); return; }
+      apply0(e);
+    }
+    function apply0(e) {
       boxStale(e);
-      if (e.parts) { e.parts.forEach(apply); viewsSoon(); return; }
+      if (e.parts) { e.parts.forEach(apply0); viewsSoon(); return; }
       if (e.L) { if (e.L.isMask) { e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); maskAlpha(e.L.owner); viewsSoon(); renderLayers(); return; }
         if (e.bg != null) e.L.bg = e.bg; if ('text' in e) e.L.text = e.text || null; if (e.name) e.L.name = e.name; e.L.ctx.save(); e.L.ctx.setTransform(1, 0, 0, 1, 0, 0); e.L.ctx.putImageData(e.data, 0, 0); e.L.ctx.restore(); viewsSoon(); renderLayers(); }
       else {
@@ -990,7 +1003,7 @@
       // brings it back), and one brought back by undo gives way)
       if (grad && !whole) { if (gradUndo()) return; var fu = grad.fromUndo; if (!fu) gradGone = gradKeep(); gradCancel(); if (!fu) { buttons(); return; } }
       else if (grad) gradDone();
-      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!undo.length) return;
+      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) selSettle(); if (!undo.length) return;
       gradGone = null;
       var e = undo.pop(); redo.push(capture(e)); apply(e); if (e.pen && !whole) penRestore(e.pen); if (e.grad && !whole) gradRestore(e.grad, true); fxAfter(fx); buttons(); autosave();
     }
@@ -1003,7 +1016,7 @@
       if (grad && !whole) { if (gradRedo()) return; if (!grad.fromUndo) return; gradCancel(); }
       else if (grad) gradDone();
       if (gradGone && !whole) { var gg = gradGone; gradGone = null; gradRestore(gg, false); return; }
-      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) commitSelection(); if (!redo.length) return;
+      var fx = fxStays(); if (adj && !fx) adjustDone(); if (textBox) commitText(); if (sel && (lifted() || sel.text)) selSettle(); if (!redo.length) return;
       var e = redo.pop(); undo.push(capture(e)); apply(e); fxAfter(fx); buttons(); autosave();
     }
     // (Effects open with nothing set, after Done: it stays open through undo
@@ -3036,7 +3049,7 @@
       return Math.hypot(p.x - lasso[0].x, p.y - lasso[0].y) * view.k <= (touch ? 18 : 10);
     }
     function drawLasso(hover) {
-      uiSheet();
+      uiSheet(); drawAddBase();
       if (!lasso.length) return;
       var k = view.k, closing = hover && nearStart(hover, false);
       uctx.save(); uctx.lineWidth = 1.2 / k; uctx.setLineDash([5 / k, 4 / k]);
@@ -3057,15 +3070,25 @@
       }
       uctx.restore();
     }
+    // (the selection as it was when a cutout started, and if it's being added to)
+    var lassoWas = null;
     function finishLasso() {
       var xs = lasso.map(function (q) { return q.x; }), ys = lasso.map(function (q) { return q.y; });
       var x0 = Math.max(0, Math.min.apply(null, xs)), y0 = Math.max(0, Math.min.apply(null, ys));
       var x1 = Math.min(W, Math.max.apply(null, xs)), y1 = Math.min(H, Math.max.apply(null, ys));
       sel = lasso.length > 2 && x1 - x0 > 3 && y1 - y0 > 3 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0, float: null, poly: lasso.map(function (q) { return { x: q.x - x0, y: q.y - y0 }; }) } : null;
+      if (selAdd) sel = selAddFinish(sel);
       lassoOn = false; lassoHover = null; lasso = []; stage.classList.remove('closing'); toastEl.classList.remove('on');
       selbar.hidden = !sel; selMode = null; down = null; drawSel();
+      var lw = lassoWas; lassoWas = null;
+      if (lw) selLog(lw.s, lw.add ? 'Add to Selection' : sel ? 'Select' : 'Deselect');
     }
-    function cancelLasso() { lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); uiSheet(); drawSel(); }
+    // (called off: the selection as it was before it started)
+    function cancelLasso() {
+      lassoOn = false; lassoHover = null; lasso = []; if (selMode === 'lasso') selMode = null; sctx.clearRect(0, 0, W, H); uiSheet();
+      var lw = lassoWas; lassoWas = null; selAdd = null;
+      if (lw) selRestore(lw.s); else drawSel();
+    }
     function selTool(t) { return selKindOf(t) || t === 'move'; }
     // THE SELECTION TOOL: one button, four ways to select (picked in the
     // tool panel, and remembered): a cutout (the first time), a box, a circle
@@ -3414,13 +3437,13 @@
     // take first; undone past the first, it goes back down where it was
     // (and, for Distort, its corners, and what's picked up as it was: locking
     // the corners again works the pixels into a box of their own)
-    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null, quad: sel.quad ? sel.quad.slice() : null, float: sel.float, fl: sel.more ? sel.more.map(function (it) { return it.f; }) : null, mask: sel.mask, maskData: sel.maskData, softMask: sel.softMask }; }
+    function selGeo() { return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0, poly: sel.poly || null, quad: sel.quad ? sel.quad.slice() : null, float: sel.float, fl: sel.more ? sel.more.map(function (it) { return it.f; }) : null, mask: sel.mask, maskData: sel.maskData, softMask: sel.softMask, edges: sel.edges || null }; }
     function sameQuad(a, b) { if (!a || !b) return a === b; for (var i = 0; i < 4; i++) if (a[i].x !== b[i].x || a[i].y !== b[i].y) return false; return true; }
     function selRecord() { if (!sel) return; if (!sel.hist) sel.hist = []; sel.hist.push(selGeo()); sel.fut = []; histButtons(); }
     // (a press that changed nothing isn't a step)
     function selTrim() { var g = sel && sel.hist && sel.hist[sel.hist.length - 1]; if (g && g.x === sel.x && g.y === sel.y && g.w === sel.w && g.h === sel.h && g.rot === (sel.rot || 0) && sameQuad(g.quad, sel.quad || null) && g.float === sel.float) { sel.hist.pop(); histButtons(); } }
     function selPut(g) {
-      sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; sel.quad = g.quad; sel.softMask = g.softMask;
+      sel.x = g.x; sel.y = g.y; sel.w = g.w; sel.h = g.h; sel.rot = g.rot; sel.poly = g.poly; sel.quad = g.quad; sel.softMask = g.softMask; sel.edges = g.edges;
       if (g.float !== sel.float) { sel.float = g.float; sel.fboxOf = null; }
       if (g.fl && sel.more) sel.more.forEach(function (it, i) { if (g.fl[i] !== undefined) it.f = g.fl[i]; });
       if (g.mask !== sel.mask) { sel.mask = g.mask; sel.maskData = g.maskData; sel.tint = null; }
@@ -3429,6 +3452,151 @@
     function selSteps() { return !!(sel && (lifted() || (sel.hist && sel.hist.length) || (sel.fut && sel.fut.length) || (sel.text && sel.lifted))); }
     function selUndo() { if (!selSteps() || !sel.hist || !sel.hist.length) return false; sel.fut.push(selGeo()); selPut(sel.hist.pop()); histButtons(); return true; }
     function selRedo() { if (!selSteps() || !sel.fut || !sel.fut.length) return false; sel.hist.push(selGeo()); selPut(sel.fut.pop()); histButtons(); return true; }
+    // SELECTIONS IN THE HISTORY: making, adding to, changing and letting go of
+    // a selection are steps like any other (selOnly), in order with the
+    // painting's, and undoing one changes only the selection, never the
+    // picture. A step keeps the selection as it was (selSnap: where it is and
+    // its shape, at rest; null for none), and undo and redo swap it with the
+    // one there now. Only what the person made counts: a layer picked up by
+    // Move, a picture added and words moved are the tools' own.
+    function selSnap() {
+      if (!sel || sel.thing || sel.text || sel.auto || !(sel.w > 0 && sel.h > 0)) return null;
+      // (a turned or distorted one is kept as the shape it covers)
+      if (sel.rot || sel.quad) return maskSel(selectionDocumentMask(), null);
+      return { x: sel.x, y: sel.y, w: sel.w, h: sel.h, poly: sel.poly ? sel.poly.map(function (q) { return { x: q.x, y: q.y }; }) : null, oval: sel.oval || false,
+        mask: sel.mask || null, maskData: sel.maskData || null, softMask: sel.softMask || false, edges: sel.edges || null, whole: sel.whole || false };
+    }
+    function sameSnap(a, b) {
+      if (!a || !b) return a === b;
+      return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.mask === b.mask && a.edges === b.edges && JSON.stringify(a.poly) === JSON.stringify(b.poly);
+    }
+    // (the selection becomes s, as a fresh one at rest; what's picked up is
+    // put down where it is first)
+    function selRestore(s) {
+      if (lifted()) commitSelection();
+      if (sel) clearSel();
+      if (s) { sel = { float: null }; for (var k in s) sel[k] = k === 'poly' && s.poly ? s.poly.map(function (q) { return { x: q.x, y: q.y }; }) : s[k]; }
+      selbar.hidden = !sel; drawSel(); histButtons();
+    }
+    // (a step, if the selection changed since `was`)
+    function selLog(was, label) { if (sameSnap(was, selSnap())) return; push({ selOnly: true, sel: was, label: label }); }
+    // (anything picked up is put down where it is, and the selection stays,
+    // at rest; one a tool made for itself goes)
+    function selSettle() {
+      if (!sel) return;
+      if (sel.auto || sel.text || sel.thing) { commitSelection(); return; }
+      if (lifted() || sel.rot || sel.quad) { var s = selSnap(); commitSelection(); selRestore(s); }
+    }
+    // ADDING TO A SELECTION (Shift held as a new one starts): what's selected
+    // already is kept as a mask the picture's size (selAdd.full; it's shown
+    // with its outline while the new part is drawn), and when the new part is
+    // finished it's added to that, and the two become one selection: a mask
+    // round all of it (maskSel), with the outline of every part (edges), so
+    // separate parts each have their own and overlapping ones join up
+    var selAdd = null;
+    function selAddStart() {
+      var orig = selSnap(); selSettle();
+      var full = selectionDocumentMask();
+      selAdd = { orig: orig, full: full, shown: maskSel(full, orig && [orig.x, orig.y, orig.x + orig.w, orig.y + orig.h]) };
+      clearSel();
+    }
+    // (s: the new part, a box, a cutout's outline, a circle or a wand's mask;
+    // none, and the selection is as it was)
+    function selAddFinish(s) {
+      var A = selAdd; selAdd = null;
+      if (!A) return s;
+      if (!s || !(s.w > 0 && s.h > 0)) return A.orig ? selFrom(A.orig) : null;
+      var c = A.full.getContext('2d'); c.save(); base(c); c.fillStyle = '#000';
+      if (s.mask) c.drawImage(s.mask, s.x, s.y, s.w, s.h);
+      else { c.beginPath(); if (s.poly) { s.poly.forEach(function (q, i) { c[i ? 'lineTo' : 'moveTo'](s.x + q.x, s.y + q.y); }); c.closePath(); } else c.rect(s.x, s.y, s.w, s.h); c.fill(); }
+      c.restore();
+      var b0 = A.shown, box = [s.x, s.y, s.x + s.w, s.y + s.h];
+      if (b0) box = [Math.min(box[0], b0.x), Math.min(box[1], b0.y), Math.max(box[2], b0.x + b0.w), Math.max(box[3], b0.y + b0.h)];
+      return selFrom(maskSel(A.full, box));
+    }
+    function selFrom(s) { if (!s) return null; var o = { float: null }; for (var k in s) o[k] = s[k]; if (o.poly) o.poly = o.poly.map(function (q) { return { x: q.x, y: q.y }; }); return o; }
+    // (a selection from a mask the picture's size: cropped to what's in it,
+    // within box (picture units) if given, with its outline; null if empty)
+    function maskSel(full, box) {
+      var X0 = 0, Y0 = 0, X1 = full.width, Y1 = full.height;
+      if (box) { X0 = Math.max(0, Math.floor(box[0] * R) - 1); Y0 = Math.max(0, Math.floor(box[1] * R) - 1); X1 = Math.min(full.width, Math.ceil(box[2] * R) + 1); Y1 = Math.min(full.height, Math.ceil(box[3] * R) + 1); }
+      if (X1 <= X0 || Y1 <= Y0) return null;
+      var d = full.getContext('2d').getImageData(X0, Y0, X1 - X0, Y1 - Y0).data, w = X1 - X0, h = Y1 - Y0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (var y = 0, i = 3; y < h; y++) for (var x = 0; x < w; x++, i += 4) if (d[i]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      if (x1 < 0) return null;
+      var mw = x1 - x0 + 1, mh = y1 - y0 + 1, m = document.createElement('canvas'); m.width = mw; m.height = mh;
+      var mx = m.getContext('2d'); mx.drawImage(full, X0 + x0, Y0 + y0, mw, mh, 0, 0, mw, mh);
+      var md = mx.getImageData(0, 0, mw, mh).data;
+      return { x: (X0 + x0) / R, y: (Y0 + y0) / R, w: mw / R, h: mh / R, poly: null, oval: false, mask: m, maskData: md, softMask: false, edges: edgeLoops(md, mw, mh), whole: false };
+    }
+    // THE OUTLINE OF A MASK: the edges between pixels in it and out of it
+    // (half solid or more), joined into closed loops going round each part
+    // and each hole, straight runs as one line, steps smoothed to within a
+    // pixel; as fractions of the mask's box, so it's drawn wherever the box
+    // goes and however big
+    function edgeLoops(md, w, h) {
+      var W1 = w + 1, inn = function (x, y) { return x >= 0 && y >= 0 && x < w && y < h && md[(y * w + x) * 4 + 3] >= 128; };
+      var nx = new Int32Array(W1 * (h + 1)).fill(-1), nx2 = new Int32Array(W1 * (h + 1)).fill(-1), n = 0;
+      var add = function (a, b) { if (nx[a] < 0) nx[a] = b; else nx2[a] = b; n++; };
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        if (!inn(x, y)) continue;
+        var tl = y * W1 + x, tr = tl + 1, bl = tl + W1, br = bl + 1;
+        if (!inn(x, y - 1)) add(tl, tr); if (!inn(x + 1, y)) add(tr, br);
+        if (!inn(x, y + 1)) add(br, bl); if (!inn(x - 1, y)) add(bl, tl);
+      }
+      var loops = [], take = function (a) { var b = nx[a]; if (b >= 0) { nx[a] = nx2[a]; nx2[a] = -1; } return b; };
+      for (var s = 0; s < nx.length && n > 0; s++) {
+        while (nx[s] >= 0) {
+          var pts = [], v = s, guard = 0;
+          do { pts.push(v % W1, (v / W1) | 0); var u = take(v); n--; v = u; } while (v >= 0 && v !== s && ++guard < 4e6);
+          var P = simplifyLoop(pts), out = new Float32Array(P.length);
+          for (var j = 0; j < P.length; j += 2) { out[j] = P[j] / w; out[j + 1] = P[j + 1] / h; }
+          if (out.length >= 6) loops.push(out);
+        }
+      }
+      return loops;
+    }
+    // (corners only, then the staircase of a slanting or curved edge drawn
+    // as the line it stands for, never more than 0.6 of a pixel off)
+    function simplifyLoop(p) {
+      var c = [], m = p.length / 2, i, j;
+      for (i = 0; i < m; i++) {
+        var a = (i + m - 1) % m, b = (i + 1) % m;
+        if ((p[2 * i] - p[2 * a]) * (p[2 * b + 1] - p[2 * i + 1]) - (p[2 * i + 1] - p[2 * a + 1]) * (p[2 * b] - p[2 * i]) !== 0) c.push(p[2 * i], p[2 * i + 1]);
+      }
+      if (c.length < 8) return c;
+      var k = c.length / 2, far = 0, fd = -1;
+      for (i = 1; i < k; i++) { var dd = (c[2 * i] - c[0]) * (c[2 * i] - c[0]) + (c[2 * i + 1] - c[1]) * (c[2 * i + 1] - c[1]); if (dd > fd) { fd = dd; far = i; } }
+      var keep = new Uint8Array(k); keep[0] = keep[far] = 1;
+      var rdp = function (s0, e0) {
+        var stack = [s0, e0];
+        while (stack.length) {
+          var e1 = stack.pop(), s1 = stack.pop(), ax = c[2 * s1], ay = c[2 * s1 + 1], bx = c[2 * (e1 % k)], by = c[2 * (e1 % k) + 1], L = Math.hypot(bx - ax, by - ay) || 1, md2 = 0, mi = -1;
+          for (j = s1 + 1; j < e1; j++) { var dv = Math.abs((bx - ax) * (ay - c[2 * j + 1]) - (ax - c[2 * j]) * (by - ay)) / L; if (dv > md2) { md2 = dv; mi = j; } }
+          if (mi >= 0 && md2 > 0.6) { keep[mi] = 1; stack.push(s1, mi, mi, e1); }
+        }
+      };
+      rdp(0, far); rdp(far, k);
+      var o = []; for (i = 0; i < k; i++) if (keep[i]) o.push(c[2 * i], c[2 * i + 1]);
+      return o;
+    }
+    // (an outline of loops, as fractions of the box x, y, w, h, onto a path;
+    // map takes each point if it goes through a distortion)
+    function edgePath(c, E, x, y, w, h, map) {
+      c.beginPath();
+      E.forEach(function (L) {
+        for (var i = 0; i < L.length; i += 2) { var q = { x: x + L[i] * w, y: y + L[i + 1] * h }; if (map) q = map(q); c[i ? 'lineTo' : 'moveTo'](q.x, q.y); }
+        c.closePath();
+      });
+    }
+    // (while a part is added: what's selected already, its outline)
+    function drawAddBase() {
+      var b = selAdd && selAdd.shown; if (!b || !b.edges) return;
+      uctx.save(); uctx.lineWidth = 1 / view.k; uctx.setLineDash([5 / view.k, 4 / view.k]);
+      edgePath(uctx, b.edges, b.x, b.y, b.w, b.h); uctx.strokeStyle = '#000'; uctx.stroke();
+      uctx.lineDashOffset = 4.5 / view.k; uctx.strokeStyle = '#fff'; uctx.stroke();
+      uctx.restore();
+    }
     // SCALE: the size of what's selected, as a percentage of its own size (a
     // picture added: the picture's own size; anything else: the size it was
     // when it was selected). A size typed in is laid on at once, about the
@@ -3524,6 +3692,7 @@
         var mb = bake(sel.mask), mx = mb.getContext('2d'), id = mx.getImageData(0, 0, mb.width, mb.height);
         if (!sel.softMask) for (var i = 3; i < id.data.length; i += 4) id.data[i] = id.data[i] > 100 ? 255 : 0;
         mx.putImageData(id, 0, 0); mask = mb; md = id.data;
+        if (sel.edges) sel.edges = edgeLoops(md, mb.width, mb.height); // (a selection of parts: its outline, as it now is)
       }
       if (sel.more) sel.more.forEach(function (it) { if (it.f) { var b = bake(it.f); if (sel.float === it.f) sel.float = b; it.f = b; } });
       else sel.float = bake(sel.float);
@@ -3542,7 +3711,7 @@
         var items = sel.items || picks().filter(function (L) { return !L.text; }).map(function (L) { return { L: L, m: null }; });
         if (items.length > 1 || (items.length && items[0].L !== active) || items.some(function (it) { return it.L.text; })) { liftMany(items, keep); return; }
       }
-      remember('Move');
+      var was = selSnap(); remember('Move'); undo[undo.length - 1].selAt = was;
       sel.float = liftFrom(active, null, keep); viewsSoon();
       // (a picture just added: what comes up is the picture at its own size,
       // so making it bigger again loses nothing)
@@ -3577,7 +3746,7 @@
     // what's above and below still is), and a text layer's words are moved,
     // sized and turned with them, so they stay words. One step to undo.
     function liftMany(items, keep) {
-      push({ parts: items.map(function (it) { return { L: it.L, data: snapOf(it.L), bg: it.L.bg, text: it.L.text, name: it.L.name }; }), label: 'Move Layers' });
+      push({ parts: items.map(function (it) { return { L: it.L, data: snapOf(it.L), bg: it.L.bg, text: it.L.text, name: it.L.name }; }), label: 'Move Layers', selAt: selSnap() });
       sel.more = items.map(function (it) {
         if (it.L.text) { var T = it.L.text; return { L: it.L, T0: T, ox: T.x - sel.x, oy: T.y - sel.y, w0: sel.w, h0: sel.h, r0: sel.rot || 0 }; }
         return { L: it.L, f: liftFrom(it.L, it.m, keep) };
@@ -3613,8 +3782,9 @@
       if (!sel) { if (!lasso.length) uiSheet(); return; }
       if (sel.text && sel.lifted) placeTextSel();
       if (sel.more) drawMore(); else if (sel.float) putFloat(sctx, null, true);
-      // a wand selection shows as a light blue wash over what's picked (on the picture)
-      if (sel.mask && !sel.thing) {
+      // a wand selection shows as a light blue wash over what's picked (on the
+      // picture); one made of parts, by the outline of each
+      if (sel.mask && !sel.thing && !sel.edges) {
         sctx.save(); sctx.globalAlpha = 0.35;
         if (sel.quad) warpShow(sctx, sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6')));
         else { if (sel.rot) { var m0 = selMid(); sctx.translate(m0.x, m0.y); sctx.rotate(sel.rot); sctx.translate(-m0.x, -m0.y); } sctx.drawImage(sel.tint || (sel.tint = tinted(sel.mask, '#2f7fd6')), sel.x, sel.y, sel.w, sel.h); }
@@ -3625,7 +3795,7 @@
     // the outline, handles and Smart Guides' lines, on the stage's sheet
     // (drawn again whenever the view moves, so they stay on what's picked)
     function drawSelUi() {
-      uiSheet();
+      uiSheet(); drawAddBase();
       if (!sel) return;
       if (sel.thing) { if (snap && snap.lines.length) drawSnapLines(); return; }
       if (sel.quad) { drawQuadSel(); if (snap && snap.lines.length) drawSnapLines(); return; }
@@ -3633,7 +3803,7 @@
       var turned = !!sel.rot;
       if (turned) { var m0 = selMid(); uctx.save(); uctx.translate(m0.x, m0.y); uctx.rotate(sel.rot); uctx.translate(-m0.x, -m0.y); }
       uctx.save(); uctx.lineWidth = 1 / view.k;
-      var edge = function () { if (sel.poly) outline(uctx, sel.x, sel.y, 1); else { uctx.beginPath(); uctx.rect(sel.x, sel.y, sel.w, sel.h); } uctx.stroke(); };
+      var edge = function () { if (sel.edges) edgePath(uctx, sel.edges, sel.x, sel.y, sel.w, sel.h); else if (sel.poly) outline(uctx, sel.x, sel.y, 1); else { uctx.beginPath(); uctx.rect(sel.x, sel.y, sel.w, sel.h); } uctx.stroke(); };
       uctx.setLineDash([5 / view.k, 4 / view.k]); uctx.strokeStyle = '#000'; edge();
       uctx.lineDashOffset = 4.5 / view.k; uctx.strokeStyle = '#fff'; edge();
       // little squares on the corners: drag one to make it bigger or smaller
@@ -3657,7 +3827,7 @@
     function drawQuadSel() {
       uctx.save(); uctx.lineWidth = 1 / view.k;
       var pts = sel.poly ? sel.poly.map(function (q) { return selWorld({ x: sel.x + q.x, y: sel.y + q.y }); }) : quadAbs();
-      var edge = function () { uctx.beginPath(); pts.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); uctx.closePath(); uctx.stroke(); };
+      var edge = function () { if (sel.edges) edgePath(uctx, sel.edges, sel.x, sel.y, sel.w, sel.h, selWorld); else { uctx.beginPath(); pts.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); uctx.closePath(); } uctx.stroke(); };
       uctx.setLineDash([5 / view.k, 4 / view.k]); uctx.strokeStyle = '#000'; edge();
       uctx.lineDashOffset = 4.5 / view.k; uctx.strokeStyle = '#fff'; edge();
       if (sel.poly) { uctx.setLineDash([2 / view.k, 3 / view.k]); uctx.lineDashOffset = 0; uctx.strokeStyle = 'rgba(255, 255, 255, .7)'; var Q = quadAbs(); uctx.beginPath(); Q.forEach(function (q, i) { uctx[i ? 'lineTo' : 'moveTo'](q.x, q.y); }); uctx.closePath(); uctx.stroke(); }
@@ -3926,7 +4096,10 @@
       }
       drawSel(); autosave();
     }
-    function selectAll() { if (textBox) commitText(); commitSelection(); need(); sel = { x: 0, y: 0, w: W, h: H, float: null }; selbar.hidden = false; drawSel(); }
+    function selectAll() { if (textBox) commitText(); var was = selSnap(); commitSelection(); need(); sel = { x: 0, y: 0, w: W, h: H, float: null }; selbar.hidden = false; drawSel(); selLog(was, 'Select All'); }
+    // (letting go of the selection, by Deselect, Commit, Return or Esc: what's
+    // picked up is put down, and it's a step, so undo brings the selection back)
+    function deselect(label) { var was = selSnap(); commitSelection(); selLog(was, label || 'Deselect'); }
     // COPY: what's selected, as it would be laid down (moved, sized, turned
     // or distorted; on every picked layer), kept here and put on the system
     // clipboard as a PNG; nothing on the picture changes. PASTE puts it on a
@@ -4021,11 +4194,11 @@
       if (a === 'paste') { pasteAny(); return; }
       if (!sel) return;
       if (a === 'copy') { copySel(); return; }
-      if (a === 'deselect') { commitSelection(); return; }
+      if (a === 'deselect') { deselect(); return; }
       if (a === 'region-invert') { changeSelectionMask('invert', 0); return; }
       if (sel.text && a === 'delete') { var TL = sel.text; clearSel(); active = TL; layerAct('delete'); return; }
       if (sel.text && a !== 'rot90' && a !== 'done') return;
-      if (a === 'done') { commitSelection(); return; }
+      if (a === 'done') { deselect(lifted() ? 'Commit' : 'Deselect'); return; }
       if (a === 'invert') { invertSel(); return; }
       if (a === 'rot90' && sel.quad) { lift(); selRecord(); sel.quad = quadTurn(sel.quad.slice(), quadMid(), Math.PI / 2); drawSel(); autosave(); return; }
       if (a === 'rot90') { lift(); selRecord(); var r9 = (sel.rot || 0) + Math.PI / 2; sel.rot = Math.abs(Math.atan2(Math.sin(r9), Math.cos(r9))) < 1e-6 ? 0 : Math.atan2(Math.sin(r9), Math.cos(r9)); drawSel(); return; }
@@ -4034,7 +4207,7 @@
         if (!roomFor()) return;
         var wasDown = !sel.float; lift(); // (not called lifted: that would hide lifted(), which Delete uses)
         var mv = wasDown ? undo.pop() : null; rememberLayers('Cut to Layer');
-        if (mv) { var ls = undo.pop(); delete mv.redoWas; push({ parts: [mv, ls], label: 'Cut to Layer' }); }
+        if (mv) { var ls = undo.pop(); delete mv.redoWas; var cw = { parts: [mv, ls], label: 'Cut to Layer' }; if ('selAt' in mv) cw.selAt = mv.selAt; push(cw); }
         var L = makeLayer('Cutout', false); putFloat(L.ctx);
         layers.splice(layers.indexOf(active) + 1, 0, L); L.group = active.group; active = L;
         clearSel(); mount(); return;
@@ -4365,7 +4538,7 @@
       mount(); layerPanel(true); autosave();
     }
     function layerOption(a, L) {
-      if (a === 'm-deselect') { if (sel) commitSelection(); active = L; also = []; renderLayers(); layerPanel(true); if (st.tool === 'move') movePick(); return; }
+      if (a === 'm-deselect') { selSettle(); active = L; also = []; renderLayers(); layerPanel(true); return; }
       if (/^m-/.test(a)) { multiOption(a); return; }
       if (/mask$|^editlayer$/.test(a)) { if (adj) adjustDone(); if (textBox) commitText(); maskOption(a, L); return; }
       if (a === 'select') { layerPanel(false); selectLayer(L); return; }
@@ -4408,13 +4581,13 @@
     }
     document.addEventListener('pointerdown', function (e) { if (!lmenu.hidden && !e.target.closest('.paint-lmenu, [data-layer-more]')) lmenu.hidden = true; }, true);
     function selectLayer(L) {
-      if (adj) adjustDone(); if (textBox) commitText(); commitSelection();
+      if (adj) adjustDone(); if (textBox) commitText(); var was = selSnap(); commitSelection();
       active = L; renderLayers();
       // (the Select tool comes up, so a drag moves it rather than painting;
       // for words, Move, so they stay words)
-      if (L.text) { setTool('move'); return; }
+      if (L.text) { setTool('move'); selLog(was, 'Deselect'); return; }
       if (!selTool(st.tool)) setTool(selKind);
-      layerSel(L);
+      layerSel(L); selLog(was, 'Select Layer');
     }
     function layerSel(L) {
       var w = L.cv.width, h = L.cv.height, d = L.ctx.getImageData(0, 0, w, h).data, minX = w, minY = h, maxX = -1, maxY = -1, on = new Uint8Array(w * h);
@@ -4432,8 +4605,10 @@
     }
     // (picking more layers, or letting one go: Ls are the layers of a row,
     // one, or a group's; all picked already, and they're let go)
+    // (picking layers, like switching to one, leaves the selection as it is:
+    // what's picked up is put down, and nothing new is selected)
     function pickToggle(Ls) {
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      if (adj) adjustDone(); if (textBox) commitText(); selSettle();
       tidyAlso(); focusG = null;
       var P = picks(), off = Ls.every(function (L) { return P.indexOf(L) >= 0; });
       if (off) {
@@ -4446,15 +4621,14 @@
         if (Ls.length === 1 && Ls[0].editMask) Ls[0].editMask = false;
       }
       renderLayers(); layerPanel(true);
-      if (st.tool === 'move') movePick();
     }
     function pickRun(L) {
       if (!active) { pickToggle([L]); return; }
       var a = layers.indexOf(active), b = layers.indexOf(L), lo = Math.min(a, b), hi = Math.max(a, b), run = [];
       for (var k = lo; k <= hi; k++) if (layers[k] !== active) run.push(layers[k]);
-      if (sel) commitSelection(); focusG = null;
+      selSettle(); focusG = null;
       run.forEach(function (M) { if (also.indexOf(M) < 0) also.push(M); });
-      renderLayers(); layerPanel(true); if (st.tool === 'move') movePick();
+      renderLayers(); layerPanel(true);
     }
     // (a click with Shift or Ctrl/⌘ held picks rather than switches)
     function pickKeys(e, L) {
@@ -4514,9 +4688,10 @@
       return D;
     }
     function multiOption(a) {
-      if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      if (adj) adjustDone(); if (textBox) commitText();
+      if (a === 'm-deselect') { selSettle(); also = []; renderLayers(); layerPanel(true); return; }
+      if (sel) commitSelection();
       var P = picks(); if (!P.length) return;
-      if (a === 'm-deselect') { also = []; renderLayers(); layerPanel(true); if (st.tool === 'move') movePick(); return; }
       if (a === 'm-hide') { var show = !P.some(function (L) { return L.visible; }); rememberLayers(show ? 'Show Layers' : 'Hide Layers'); P.forEach(function (L) { L.visible = show; }); }
       else if (a === 'm-lock') { var on = !P.every(function (L) { return L.alphaLock; }); rememberLayers(on ? 'Alpha Lock' : 'Alpha Lock Off'); P.forEach(function (L) { L.alphaLock = on; }); }
       else if (a === 'm-delete') {
@@ -6010,7 +6185,7 @@
       stage.classList.remove('moving');
       if (selMode === 'lasso') { if (lassoOn) { lasso.pop(); selMode = null; down = null; drawLasso(lassoHover); } else { down = null; cancelLasso(); } return; }
       if (selMode === 'scale' || selMode === 'rotate' || selMode === 'distort' || selMode === 'qrot') { refitMask(); selTrim(); selMode = null; down = null; selbar.classList.remove('away'); drawSel(); return; }
-      if (selMode === 'new') { selMode = null; down = null; clearSel(); return; }
+      if (selMode === 'new') { var nw = down.selWas; selMode = null; down = null; clearSel(); selAdd = null; selRestore(nw); return; }
       if (selMode === 'move') { selTrim(); snapEnd(); selMode = null; down = null; stage.classList.remove('moving'); drawSel(); return; }
       if (down.pick) { pickEnd(true); return; }
       if (down.grad) { var dg = down; down = null; if (dg.grad.k === 'new') gradCancel(); else { gradPut(dg.gradSnap); gradShow(); } return; }
@@ -6086,11 +6261,20 @@
           down = { id: e.pointerId, start: p, last: p, poly: true };
           drawLasso(null); return;
         }
-        if (inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); selRecord(); stage.classList.add('moving'); }
-        else if (t === 'wand') { commitSelection(); wandAt(p); selbar.hidden = !sel; drawSel(); return; }
-        else if (t === 'lasso') { commitSelection(); selMode = 'lasso'; p.corner = true; lasso = [p]; }
-        else { commitSelection(); selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null, oval: t === 'circle' }; }
-        down = { id: e.pointerId, start: p, last: p };
+        // (Shift as it starts: a new part added to what's selected, never a
+        // move; otherwise inside the selection moves it, and outside starts
+        // a new one in its place. Either way the selection as it was is kept
+        // for the step this makes)
+        var adding = e.shiftKey && !!sel && !sel.thing && !sel.text && !sel.auto, was = null;
+        if (!adding && inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); selRecord(); stage.classList.add('moving'); }
+        else {
+          was = selSnap();
+          if (adding) selAddStart(); else commitSelection();
+          if (t === 'wand') { wandAt(p); if (adding) sel = selAddFinish(sel); selbar.hidden = !sel; drawSel(); selLog(was, adding ? 'Add to Selection' : 'Magic Wand'); return; }
+          if (t === 'lasso') { lassoWas = { s: was, add: adding }; selMode = 'lasso'; p.corner = true; lasso = [p]; drawLasso(null); }
+          else { selMode = 'new'; sel = { x: p.x, y: p.y, w: 0, h: 0, ax: p.x, ay: p.y, float: null, oval: t === 'circle' }; }
+        }
+        down = { id: e.pointerId, start: p, last: p, selWas: was, adding: adding };
         return;
       }
       if (t === 'fill') { if (fillDrop(p)) plopAt(e.clientX, e.clientY, st.color); useColor(); return; }
@@ -6190,7 +6374,10 @@
         if (selMode === 'move') { sel.x = p.x - selOff.x; sel.y = p.y - selOff.y; snapMove(); }
         else {
           var bw = Math.abs(p.x - sel.ax), bh = Math.abs(p.y - sel.ay);
-          if (sel.oval && e.shiftKey) bw = bh = Math.max(bw, bh); // (Shift: a circle)
+          // (Shift: a circle; when Shift started an added part, once it's
+          // been let go and pressed again)
+          if (!e.shiftKey) down.shiftUp = true;
+          if (sel.oval && e.shiftKey && (!down.adding || down.shiftUp)) bw = bh = Math.max(bw, bh);
           sel.x = p.x < sel.ax ? sel.ax - bw : sel.ax; sel.y = p.y < sel.ay ? sel.ay - bh : sel.ay; sel.w = bw; sel.h = bh;
           if (sel.oval) sel.poly = ovalPoly(bw, bh); // (then it's a shape like a cutout's: everything works on it the same)
         }
@@ -6445,9 +6632,13 @@
         finishLasso(); return;
       }
       if (selTool(t)) {
-        if (selMode === 'new' && (sel.w < 3 || sel.h < 3)) sel = null;
+        var made = selMode === 'new', dn = down;
+        if (made && sel && (sel.w < 3 || sel.h < 3)) sel = null;
+        if (made && selAdd) sel = selAddFinish(sel);
         if (selMode === 'move') { selTrim(); snapEnd(); }
-        stage.classList.remove('moving'); selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave(); return;
+        stage.classList.remove('moving'); selbar.hidden = !sel; selMode = null; down = null; drawSel(); autosave();
+        if (made) selLog(dn.selWas, dn.adding ? 'Add to Selection' : sel ? 'Select' : 'Deselect');
+        return;
       }
       down = null; autosave();
       if (t === 'smudge' || t === 'blur' || t === 'tone') { carry = []; return; }
@@ -6737,11 +6928,11 @@
       var gf = e.target.closest('[data-gfold]'); if (gf) { var G2 = groupOf(gf.dataset.gfold); if (G2) { G2.open = !G2.open; renderLayers(); layerPanel(true); autosave(); } return; }
       var gn = e.target.closest('[data-gname]'); if (gn) { var G3 = groupOf(gn.dataset.gname); if (!G3) return; if ((e.shiftKey || e.metaKey || e.ctrlKey) && membersOf(G3).length) { pickToggle(membersOf(G3)); return; } if (focusG === G3) { renameGroup(G3); return; } focusG = G3; renderLayers(); layerPanel(true); return; }
       var gm = e.target.closest('[data-gmore]'); if (gm) { e.stopPropagation(); var G4 = groupOf(gm.dataset.gmore); if (!G4) return; if (!lmenu.hidden && lmenu.dataset.g === gm.dataset.gmore) { lmenu.hidden = true; return; } var rg = gm.getBoundingClientRect(); groupMenu(G4, rg.right, rg.bottom + 4, true, rg.top - 4); return; }
-      var mt = e.target.closest('[data-mthumb]'); if (mt) { if (sel) commitSelection(); editMaskOf(layers[+mt.dataset.mthumb], true); layerPanel(true); return; }
-      var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (pickKeys(e, L5)) return; if (also.length || L5 !== active) { if (sel) commitSelection(); also = []; } editMaskOf(L5, false); if (st.tool === 'move') movePick(); layerPanel(true); } return; }
+      var mt = e.target.closest('[data-mthumb]'); if (mt) { selSettle(); editMaskOf(layers[+mt.dataset.mthumb], true); layerPanel(true); return; }
+      var lt = e.target.closest('[data-thumb]'); if (lt) { var L5 = layers[+lt.dataset.thumb]; if (L5) { if (pickKeys(e, L5)) return; if (also.length || L5 !== active) { selSettle(); also = []; } editMaskOf(L5, false); layerPanel(true); } return; }
       var le = e.target.closest('[data-layer-eye]'); if (le) { var L = layers[+le.dataset.layerEye]; L.visible = !L.visible; mount(); layerPanel(true); autosave(); return; }
       var ln = e.target.closest('[data-layer]');
-      if (ln) { var L2 = layers[+ln.dataset.layer]; if (pickKeys(e, L2)) return; if (L2 === active && !focusG && !also.length) { rename(+ln.dataset.layer); return; } if (sel) commitSelection(); active = L2; also = []; focusG = null; renderLayers(); if (st.tool === 'move') movePick(); layerPanel(true); return; }
+      if (ln) { var L2 = layers[+ln.dataset.layer]; if (pickKeys(e, L2)) return; if (L2 === active && !focusG && !also.length) { rename(+ln.dataset.layer); return; } selSettle(); active = L2; also = []; focusG = null; renderLayers(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
       var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
       var aa = e.target.closest('[data-adj-act]');
@@ -7751,7 +7942,7 @@
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
       var n = +b.dataset.hist, total = undo.length + redo.length;
-      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) commitSelection(); if (pen) cancelPen(); if (grad) gradDone();
+      if (adj) adjustDone(); if (textBox) commitText(); if (lifted()) selSettle(); if (pen) cancelPen(); if (grad) gradDone();
       n = Math.min(n, undo.length + redo.length); if (undo.length + redo.length !== total) n = undo.length; // (finishing something made a new step)
       while (undo.length > n) doUndo(true);
       while (undo.length < n && redo.length) doRedo(true);
@@ -8105,16 +8296,17 @@
       if (kind === 'invert') for (i = 0; i < alpha.length; i++) alpha[i] = 255 - alpha[i];
       else if (kind === 'feather') { var r = Math.max(1, Math.round(amount * R / 2)); for (var n = 0; n < 3; n++) alpha = selectionAlphaFilter(alpha, w, h, r, true, false); }
       else alpha = selectionAlphaFilter(alpha, w, h, Math.max(1, Math.round(Math.abs(amount) * R)), false, amount > 0);
-      var old = sel, history = old.hist ? old.hist.slice() : [], undoShape = selGeo();
+      var old = sel, was = selSnap();
       // Put transformed content down before changing the area, so it is never lost.
-      if (lifted()) { commitSelection(); history = []; } else history.push(undoShape);
+      if (lifted()) commitSelection();
       var x0 = w, y0 = h, x1 = -1, y1 = -1;
       for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { i = y * w + x; var a = Math.round(alpha[i]); image.data[i * 4 + 3] = a; if (a) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } }
-      if (x1 < 0) { clearSel(); return; }
+      if (x1 < 0) { clearSel(); selLog(was, 'Deselect'); return; }
       c.putImageData(image, 0, 0); var crop = document.createElement('canvas'); crop.width = x1 - x0 + 1; crop.height = y1 - y0 + 1;
       var cc = crop.getContext('2d'); cc.drawImage(canvas, x0, y0, crop.width, crop.height, 0, 0, crop.width, crop.height);
-      sel = { x: x0 / R, y: y0 / R, w: crop.width / R, h: crop.height / R, float: null, mask: crop, maskData: cc.getImageData(0, 0, crop.width, crop.height).data, softMask: kind === 'feather' || old.softMask, hist: history, fut: [] };
+      sel = { x: x0 / R, y: y0 / R, w: crop.width / R, h: crop.height / R, float: null, mask: crop, maskData: cc.getImageData(0, 0, crop.width, crop.height).data, softMask: kind === 'feather' || old.softMask };
       selbar.hidden = false; drawSel(); histButtons(); autosave();
+      selLog(was, kind === 'invert' ? 'Invert Selection' : kind === 'feather' ? 'Feather' : amount > 0 ? 'Expand Selection' : 'Contract Selection');
     }
 
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxToolId = 'brush', ctxView = ctxView || 'tool';
@@ -8737,7 +8929,7 @@
         if (k === 'escape' && !saveMenu.hidden) { savePanel(false); return; }
         if (k === 'escape' && adj) { adjustCancel(); return; }
         if (k === 'escape' && !bsBox.hidden) { studio(false); return; }
-        if (k === 'escape') { openMenu(null); layerPanel(false); if (sel) commitSelection(); return; }
+        if (k === 'escape') { openMenu(null); layerPanel(false); if (down && selMode === 'new') cancelStroke(); else if (sel) deselect(); return; }
         if ((k === 'delete' || k === 'backspace') && sel) { e.preventDefault(); selAction('delete'); return; }
         if (k === 'enter' && sel) {
           // (Return commits, as the Commit button does, wherever the focus is,
