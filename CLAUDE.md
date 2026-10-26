@@ -204,6 +204,21 @@ When building or changing anything visual:
   made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
   Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how
   a brush behaves.
+- **Bristle brushes** (Dry Brush, Flat Bristle, Rough Round: `drybrush`,
+  `flatbristle`, `roughround`; their look in `BRISTLE`): the head is a set of
+  stable bristles (`bristleSet`, seeded, so a stroke draws the same every
+  time) carried along the stroke by `bristleHead` (its axis lags and turns
+  the short way, so doubling back keeps each bristle's place; width from
+  pressure, contact from pressure or `mouse`, speed from the samples'
+  timestamps `t`, which `resample` and the pointer handlers carry). Each
+  bristle's contact and paint come from smooth noise along the stroke and
+  across the head (`wander`/`wander2`, read through `wv`/`wv2`), never per
+  point, and it's drawn as one trail (`bristleStroke`) in stretches of `BC`
+  samples, segments batched by alpha and width. `bristleFrame` (from
+  `renderStroke`) draws settled stretches once onto `doneSheet` and redraws
+  only the tail each frame; the redraw is never clipped (clipping changes
+  the edges' anti-aliasing and shows seams). A dab is a short drag. Their
+  Studio sections are Pressure (and Tapered Ends for Rough Round).
 - **Drawings:** the one in hand is the autosave (`docInfo`/`applyInfo`) and
   has a gallery id (`gid`). Before another is opened or started, `archive()`
   keeps it in the gallery, so anything that replaces the whole drawing should

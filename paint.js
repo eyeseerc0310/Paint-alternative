@@ -50,7 +50,7 @@
 // layer, so a stroke's opacity stays even.
 (function () {
   var SWATCHES = ['#141414', '#ffffff', '#8a8a8a', '#d6332f', '#f08a24', '#f5d33a', '#3fa34d', '#2f7fd6', '#7b4bc9', '#e36aa6', '#8b5a2b', '#1f3d5c'];
-  var BRUSHES = [['round', 'Round'], ['feather', 'Feather'], ['marker', 'Marker'], ['pencil', 'Pencil'], ['spray', 'Spray'], ['calligraphy', 'Calligraphy'], ['highlighter', 'Highlighter']];
+  var BRUSHES = [['round', 'Round'], ['feather', 'Feather'], ['marker', 'Marker'], ['pencil', 'Pencil'], ['spray', 'Spray'], ['calligraphy', 'Calligraphy'], ['highlighter', 'Highlighter'], ['drybrush', 'Dry Brush'], ['flatbristle', 'Flat Bristle'], ['roughround', 'Rough Round']];
   var SHAPES = [['rect', 'Rectangle'], ['rounded', 'Rounded'], ['ellipse', 'Ellipse'], ['triangle', 'Triangle'], ['star', 'Star'], ['arrow', 'Arrow']];
   var TONES = [['dodge', 'Lighten'], ['burn', 'Darken']];
   var BLENDS = [['normal', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['darken', 'Darken'], ['lighten', 'Lighten'], ['color-dodge', 'Colour Dodge'],
@@ -1049,6 +1049,9 @@
       highlighter: { psize: 65, curve: 0, angle: 77, grain: 0 },
       calligraphy: { psize: 65, curve: 0, angle: -45, grain: 0 },
       spray: {},
+      drybrush: { psize: 60, curve: 0 },
+      flatbristle: { psize: 70, curve: 0 },
+      roughround: { psize: 85, curve: 0, tin: 100, tout: 100 },
       eraser: { psize: 85, curve: 0 },
       stamp: { tip: 'dot', spacing: 25, scatter: 0, jsize: 0, jopacity: 0, jangle: 0, psize: 85, popacity: 0, curve: 0, tin: 100, tout: 100, grain: 0 }
     };
@@ -1086,6 +1089,12 @@
       else if (k === 'calligraphy') { c.len = Math.max(4, sz * 1.5); c.thick = Math.max(1, sz * 0.09); c.ang = -Math.PI / 4; }
       else if (k === 'feather') { c.w = Math.max(3, sz) * 1.35; c.blur = Math.max(3, sz) * 0.85; }
       else if (k === 'stamp') { c.w = sz; c.tin = sz * 1.5; c.tout = sz * 1.2; c.step = Math.max(0.5, sz * 0.05); c.sp = Math.max(0.5, sz * S.spacing / 100); }
+      else if (BRISTLE[k]) {
+        // (bristles: how many for the width, sampled finely enough for their breaks; the speed is read on the screen)
+        var Bk = c.br = BRISTLE[k]; c.w = sz; c.M = Math.max(Bk.min, Math.min(Bk.max, Math.round(sz * Bk.per))); c.zk = view.k;
+        c.step = Bk.fine ? Math.max(0.4, Math.min(sz * 0.02, 1.2 + sz * 0.008)) : Math.max(0.5, Math.min(sz * 0.04, 2 + sz * 0.012));
+        if (k === 'roughround') { c.tin = sz * 0.9; c.tout = sz * 0.85; }
+      }
       if (S.angle != null) c.ang = S.angle * Math.PI / 180;
       if (S.tin != null) { c.tin *= S.tin / 100; c.tout *= S.tout / 100; }
       if (c.len) { c.step = Math.max(0.5, c.thick * 0.4); c.reach = c.len / 2 + c.thick + 1; }
@@ -1096,13 +1105,15 @@
       // an Apple Pencil's pressure still thickens and thins it)
       if (taperOn === false) c.tin = c.tout = 0;
       c.live = c.tout; // (how far back from the tip it still changes)
+      // (bristles reach out past the line, and near the tip they lift raggedly, or split into streaks)
+      if (c.br) { c.reach = sz * 0.8 + 3; c.live = Math.max(c.tout, sz * Math.max(c.br.end, c.br.tail ? 0.7 : 0) + c.step * 2); }
       return c;
     }
     // the curve through the points (Catmull-Rom), sampled every `step`: each
     // sample with its distance along the stroke (d), pressure (pr) and which
     // way is "across" it (nx, ny). S.seg[i] is where input point i starts.
     function resample(P, step, prev, prevN) {
-      var out = [{ x: P[0].x, y: P[0].y, pr: P[0].pr, d: 0 }], d = 0, seg = [0], i0 = 0, k0 = 0;
+      var out = [{ x: P[0].x, y: P[0].y, pr: P[0].pr, t: P[0].t, d: 0 }], d = 0, seg = [0], i0 = 0, k0 = 0;
       // (from last time's curve: the pieces whose four points were all there
       // already are exactly the same, so they're kept as they were)
       if (prev && prev.seg && prevN >= 4 && P.length >= prevN) {
@@ -1117,7 +1128,7 @@
           var x = 0.5 * (2 * p1.x + (p2.x - p0.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (3 * p1.x - p0.x - 3 * p2.x + p3.x) * t3);
           var y = 0.5 * (2 * p1.y + (p2.y - p0.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (3 * p1.y - p0.y - 3 * p2.y + p3.y) * t3);
           var l = out[out.length - 1]; d += Math.hypot(x - l.x, y - l.y);
-          out.push({ x: x, y: y, pr: p1.pr == null ? null : p1.pr + (p2.pr - p1.pr) * t, d: d });
+          out.push({ x: x, y: y, pr: p1.pr == null ? null : p1.pr + (p2.pr - p1.pr) * t, t: p1.t == null || p2.t == null ? null : p1.t + (p2.t - p1.t) * t, d: d });
         }
         seg.push(out.length - 1);
       }
@@ -1294,6 +1305,8 @@
         rep(c, function (x) { ribbon(x, S, wp, box); });
       } else if (k === 'stamp') {
         rep(c, function (x) { stamps(x, S, cfg, box, total); });
+      } else if (cfg.br) {
+        rep(c, function (x) { bristleStroke(x, S, cfg, box, total); });
       } else if (cfg.len) {
         rep(c, function (x) { chisel(x, S, cfg, box); });
       } else if (k === 'feather') {
@@ -1381,6 +1394,212 @@
         c.save(); c.globalAlpha *= al; c.translate(x, y); c.rotate(ang); c.drawImage(tip, -w / 2, -w / 2, w, w); c.restore();
       }
     }
+    // BRISTLE BRUSHES (Dry Brush, Flat Bristle, Rough Round) are painted by
+    // their bristles, not by stamps. Each bristle has its own place in the
+    // brush's head for the whole stroke (bristleSet) and leaves a trail of
+    // its own: the head travels along the stroke, turning to face its way a
+    // little behind it (bristleHead: at a corner the bristles pivot and fan,
+    // and going back and forth they keep their places), and its bristles
+    // spread, flatten and part with pressure. Where a bristle leaves paint,
+    // and how much, changes smoothly along its own length and from one
+    // bristle to the next (noise along the stroke, never per dab), with the
+    // paint running out, the speed and, for the dry brush, the paper's
+    // tooth. All of it comes from the samples up to that point (and the
+    // stroke's length, near its end), so any part of a stroke drawn again
+    // comes out the same.
+    // (per kind: bristles per unit of width and the fewest and most, their
+    // thickness as a share of the gap between them, how far (in widths) the
+    // head takes to turn, its narrowest (light pressure), the mouse's
+    // pressure, how long the paint lasts (in widths) and how little is left;
+    // contact: cut (how hard it is to touch), how much light pressure, speed,
+    // the edges and drying out take away, how much it wanders along a
+    // bristle (na over nl widths, nb over ns widths); band: how much the
+    // paint varies in bands across the head; bend: bristles wandering
+    // sideways; rag: the edges wandering; start / end: how raggedly they
+    // land and lift; tail: a round brush's tip splitting into streaks)
+    var BRISTLE = {
+      flatbristle: { per: 1.05, min: 16, max: 150, th: [1.9, 3.3], lag: 1.1, wmin: 0.8, mouse: 0.82, last: 34, left: 0.74, soft: 0.2,
+        cut: 0.2, light: 0.55, fast: 0.2, edge: 0.32, dry: 0.3, na: 0.32, nl: 2.6, nb: 0.22, ns: 0.4, band: 0.42, bend: 0.02, bl: 1.8, rag: 0.035, start: 0.1, end: 0.26 },
+      drybrush: { per: 1.25, min: 18, max: 170, th: [1.2, 2.3], lag: 0.8, wmin: 0.72, mouse: 0.75, last: 10, left: 0.5, soft: 0.12, fine: 1,
+        cut: 0.42, light: 0.6, fast: 0.2, edge: 0.15, dry: 0.45, na: 0.5, nl: 2.2, nb: 0.36, ns: 0.3, band: 0.3, bend: 0.016, bl: 2.6, rag: 0.05, start: 0.2, end: 0.5, tooth: 0.34 },
+      roughround: { per: 1.0, min: 14, max: 150, th: [2.3, 3.6], lag: 0.5, wmin: 0.3, mouse: 0.75, last: 20, left: 0.72, soft: 0.2,
+        cut: 0.22, light: 0.45, fast: 0.18, edge: 0.6, dry: 0.3, na: 0.3, nl: 2.2, nb: 0.24, ns: 0.45, band: 0.38, bend: 0.05, bl: 1.4, rag: 0.06, start: 0.06, end: 0.2, sep: 0.75, tail: 0.5 }
+    };
+    // (values that wander smoothly between 0 and 1: along a line, its own
+    // for each seed, and over a plane; from a quick integer hash, since a
+    // stroke asks for a great many)
+    function hsh(a, b) { var h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1); h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+    function wander(seed, x) { var i = Math.floor(x), f = x - i, s = seed * 977 | 0; f = f * f * (3 - 2 * f); var a = hsh(s, i), b = hsh(s, i + 1); return a + (b - a) * f; }
+    function wander2(x, y) { var i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j; fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); var a = hsh(i, j), b = hsh(i + 1, j), c = hsh(i, j + 1), d = hsh(i + 1, j + 1); return a + (b - a) * fx + (c - a + (d - c - b + a) * fx) * fy; }
+    // (the paper's tooth, in the picture's own units: fine bumps and some bigger)
+    function tooth(x, y) { return wander2(x / 2.6, y / 2.6) * 0.55 + wander2(x / 8 + 40, y / 8 + 40) * 0.45; }
+    // THE BRISTLES of a brush: where each sits across the head (a, -1 to 1)
+    // and along it (al), how thick, how loaded with paint, how long (a
+    // shorter one needs more pressure to touch), its seed, the bunch it
+    // falls into when they part, and where it lands and lifts at the ends
+    var bristleSets = {};
+    function bristleSet(k, M) {
+      var key = k + M; if (bristleSets[key]) return bristleSets[key];
+      var salt = k === 'drybrush' ? 31 : k === 'flatbristle' ? 57 : 83, B = BRISTLE[k];
+      var r = function (j, n) { return rnd(j + 1.37, n * 7.13 + salt); };
+      var S = { n: M, a: new Float32Array(M), al: new Float32Array(M), w: new Float32Array(M), load: new Float32Array(M), len: new Float32Array(M), seed: new Float32Array(M), cl: new Float32Array(M), s0: new Float32Array(M), e0: new Float32Array(M) };
+      var K = k === 'drybrush' ? Math.max(4, Math.min(16, Math.round(M / 9))) : Math.max(3, Math.min(9, Math.round(M / 16)));
+      var cen = []; for (var q = 0; q < K; q++) cen.push(-1 + 2 * (q + 0.5 + (r(q, 40) - 0.5) * 0.55) / K);
+      for (var j = 0; j < M; j++) {
+        var a, al, g = Math.sqrt(-2 * Math.log(r(j, 8) * 0.98 + 0.01)) * Math.cos(Math.PI * 2 * r(j, 9));
+        if (k === 'flatbristle') { a = -1 + 2 * (j + 0.5 + (r(j, 1) - 0.5) * 0.9) / M; al = (r(j, 2) - 0.5) * 0.08; }
+        else if (k === 'drybrush') {
+          // (stiff bristles, gone into bunches, with a few strays)
+          var ci = Math.min(K - 1, Math.floor(r(j, 1) * K));
+          a = r(j, 3) < 0.07 ? -1 + 2 * r(j, 4) : cen[ci] + g * (0.28 + 0.4 * r(ci, 41)) / K;
+          al = (r(j, 2) - 0.5) * 0.16;
+        } else {
+          // (a round head: the bristles evenly over a disc, seen across the stroke)
+          var rr = Math.sqrt((j + 0.5) / M), ph = j * 2.39996 + (r(j, 1) - 0.5) * 0.6;
+          a = rr * Math.sin(ph); al = rr * Math.cos(ph) * 0.5;
+        }
+        S.a[j] = Math.max(-1.04, Math.min(1.04, a)); S.al[j] = al;
+        S.w[j] = B.th[0] + (B.th[1] - B.th[0]) * r(j, 3.5);
+        var ld = 0.62 + 0.38 * r(j, 5);
+        if (k === 'flatbristle') { if (r(j, 6) < 0.09) ld *= 0.55; if (Math.abs(S.a[j]) > 0.86) ld = Math.max(ld, 0.95); }
+        if (k === 'roughround' && r(j, 6) < 0.07) ld *= 0.6;
+        S.load[j] = ld;
+        S.len[j] = k === 'drybrush' ? 0.6 + 0.25 * r(Math.floor(r(j, 1) * K), 42) + 0.15 * r(j, 7) : 0.84 + 0.16 * r(j, 7);
+        S.seed[j] = j * 1.618 + salt;
+        // (the bunch it parts into: the nearest of a few across the head)
+        var best = 0; for (q = 1; q < K; q++) if (Math.abs(cen[q] - S.a[j]) < Math.abs(cen[best] - S.a[j])) best = q;
+        S.cl[j] = cen[best];
+        S.s0[j] = r(j, 10) * B.start; S.e0[j] = Math.pow(r(j, 11), 1.6) * B.end;
+      }
+      return (bristleSets[key] = S);
+    }
+    // THE HEAD along the stroke: which way it faces (the line across it,
+    // turning a little behind the stroke's way, by its shortest turn, so a
+    // stroke that doubles back keeps its bristles where they were), the
+    // speed (on the screen), how wide pressure makes it, and how hard it presses
+    function bristleHead(S, cfg, total) {
+      var n = S.length, B = cfg.br, W = cfg.w, L = Math.max(0.5, B.lag * W), T = cfg.set;
+      var H = { ax: new Float64Array(n), fast: new Float32Array(n), pw: new Float32Array(n), pc: new Float32Array(n), env: null };
+      var a = Math.atan2(S[0].ny, S[0].nx), v = null;
+      // (a round brush's width: pressure, and its ends, which narrow but don't come to a point)
+      if (cfg.kind === 'roughround') {
+        H.env = new Float32Array(n);
+        var full = Math.min(1, total / (W * 2)), wf = function (s) {
+          var f = prF(s.pr, T.psize, T.curve), u = cfg.tin ? Math.min(1, s.d / cfg.tin) : 1, w2 = cfg.tout ? Math.min(1, Math.max(0, total - s.d) / cfg.tout) : 1;
+          return f * (1 - full * 0.62 * (1 - u) * (1 - u)) * (1 - full * 0.7 * (1 - w2) * (1 - w2));
+        };
+      }
+      for (var i = 0; i < n; i++) {
+        var s = S[i], tg = Math.atan2(s.ny, s.nx);
+        if (i) {
+          var q = S[i - 1], dd = s.d - q.d, df = tg - a; df -= Math.PI * Math.round(df / Math.PI);
+          a += df * (1 - Math.exp(-dd / L));
+          if (s.t != null && q.t != null && s.t > q.t) { var dt = s.t - q.t, inst = dd / dt; v = v == null ? inst : v + (inst - v) * Math.min(1, dt / 70); }
+        }
+        H.ax[i] = a;
+        H.fast[i] = v == null ? 0.1 : Math.max(0, Math.min(1, (v * (cfg.zk || 1) - 0.5) / 2.6));
+        H.pw[i] = prF(s.pr, T.psize, T.curve);
+        H.pc[i] = s.pr == null ? B.mouse : Math.pow(Math.min(1, s.pr * 1.2), Math.pow(2, -(T.curve || 0) / 50));
+        if (H.env) H.env[i] = wf(s);
+      }
+      return H;
+    }
+    // a bristle stroke: each bristle's trail, a stretch of BC samples at a
+    // time (so a stretch drawn again is drawn the same), its pieces gathered
+    // by how much paint and how thick, each lot drawn as one path with flat
+    // ends (so no paint doubles up where pieces meet). cfg.c0 / cfg.c1, when
+    // set, are the stretches to draw (bristleFrame draws a stroke in two parts)
+    var QA = 20, BC = 32, BN = BC + 1;
+    // (a bristle's own wandering values, read along it: the hashes at the
+    // ends of the stretch it's in are kept until it moves into the next, so
+    // they're worked out once a stretch, not once a sample; the same as
+    // wander and wander2 give)
+    var wvI = new Float64Array(6), wvA = new Float64Array(6), wvB = new Float64Array(6), wvC = new Float64Array(6), wvD = new Float64Array(6);
+    function wv(ch, seed, x) { var i = Math.floor(x), f = x - i; if (i !== wvI[ch]) { wvI[ch] = i; wvA[ch] = hsh(seed, i); wvB[ch] = hsh(seed, i + 1); } f = f * f * (3 - 2 * f); return wvA[ch] + (wvB[ch] - wvA[ch]) * f; }
+    function wv2(ch, xi, fx, y) {
+      var j = Math.floor(y), fy = y - j; if (j !== wvI[ch]) { wvI[ch] = j; wvA[ch] = hsh(xi, j); wvB[ch] = hsh(xi + 1, j); wvC[ch] = hsh(xi, j + 1); wvD[ch] = hsh(xi + 1, j + 1); }
+      fy = fy * fy * (3 - 2 * fy); var a = wvA[ch], b = wvB[ch], c = wvC[ch], d = wvD[ch]; return a + (b - a) * fx + (c - a + (d - c - b + a) * fx) * fy;
+    }
+    function bristleStroke(c, S, cfg, box, total) {
+      var k = cfg.kind, B = cfg.br, W = cfg.w, n = S.length, Bs = bristleSet(k, cfg.M), M = Bs.n, tot = total;
+      // (a dab: the brush pressed down drags a little as it lifts, every bristle down at once)
+      if (n === 1) { if (cfg.c0) return; var s0 = S[0], dl = Math.max(1, W * 0.45); S = resample([{ x: s0.x - dl * 0.25, y: s0.y - dl * 0.43, pr: s0.pr, t: s0.t }, { x: s0.x + dl * 0.25, y: s0.y + dl * 0.43, pr: s0.pr, t: s0.t }], cfg.step); n = S.length; total = S[n - 1].d; tot = Infinity; box = null; }
+      var H = bristleHead(S, cfg, total), unit = Math.max(0.05, W / M * 0.45), round = k === 'roughround', sp0 = k === 'drybrush' ? 0.9 : 0.95, sp1 = k === 'drybrush' ? 0.16 : 0.07;
+      // (the scales things wander over, in the picture's units)
+      var sc = Math.min(1, tot / (W * 1.5)), Lsep = 1.3 * W + 1, Lb = B.bl * W + 1, Ln = B.nl * W + 1, Ls = B.ns * W + 1, Lband = W * 1.6 + 1, R1 = 0.5 * W + 1, R2 = 0.12 * W + 1;
+      c.lineCap = 'butt'; c.lineJoin = 'bevel';
+      // (what's the same for every bristle at a sample: worked out once a stretch)
+      var X0 = new Float64Array(BN), Y0 = new Float64Array(BN), CA = new Float64Array(BN), SA = new Float64Array(BN), D = new Float64Array(BN), HW = new Float32Array(BN), PN = new Float32Array(BN),
+        PC = new Float32Array(BN), FS = new Float32Array(BN), WF = new Float32Array(BN), RP = new Float32Array(BN), RN = new Float32Array(BN), LF = new Float64Array(BN), TL = new Float32Array(BN);
+      var xs = new Float64Array(BN), ys = new Float64Array(BN), al = new Float32Array(BN), ws = new Float32Array(BN);
+      var c0 = cfg.c0 ? cfg.c0 * BC : 0, c1 = cfg.c1 != null ? cfg.c1 * BC : Infinity;
+      for (var i0 = c0; i0 < n - 1 && i0 < c1; i0 += BC) {
+        var i1 = Math.min(n - 1, i0 + BC), show = !box, cnt = i1 - i0, m;
+        for (var t = i0; !show && t <= i1; t++) if (near(S[t], box)) show = true;
+        if (!show) continue;
+        for (m = 0; m <= cnt; m++) {
+          var s = S[i0 + m], d = s.d, i = i0 + m;
+          D[m] = d; X0[m] = s.x; Y0[m] = s.y; CA[m] = Math.cos(H.ax[i]); SA[m] = Math.sin(H.ax[i]); PC[m] = H.pc[i]; FS[m] = H.fast[i];
+          // (how wide the head is here, and how much paint is left on it)
+          HW[m] = W / 2 * (H.env ? H.env[i] : B.wmin + (1 - B.wmin) * H.pw[i]); WF[m] = 0.75 + 0.35 * H.pw[i];
+          PN[m] = B.left + (1 - B.left) * Math.exp(-d / (B.last * W));
+          // (each edge wandering in and out, on its own)
+          RP[m] = (wander(7.7, d / R1) * 0.5 + wander(5.1, d / R2) * 0.5 - 0.5) * 2 * B.rag; RN[m] = (wander(3.3, d / R1) * 0.5 + wander(2.9, d / R2) * 0.5 - 0.5) * 2 * B.rag;
+          // (a round brush's tip, splitting into streaks as it lifts)
+          LF[m] = tot - d; TL[m] = B.tail && LF[m] < W * 0.7 ? (1 - LF[m] / (W * 0.7)) * B.tail : 0;
+        }
+        var lots = {}, keys = [];
+        for (var j = 0; j < M; j++) {
+          var a0 = Bs.a[j], ed = Math.abs(a0), ed2 = ed * ed, sd = Bs.seed[j], cl = Bs.cl[j], aln = Bs.al[j], load = Bs.load[j], bw = Bs.w[j] * 2 / M;
+          var from = tot === Infinity ? 0 : Bs.s0[j] * W * sc, to = Bs.e0[j] * W * sc, edge = ed > 0.7 ? (ed - 0.7) / 0.3 : 0;
+          var base = Bs.len[j] - B.cut - edge * edge * B.edge, lightK = B.light * (1 + edge), sepK = round ? B.sep * (0.35 + 0.65 * ed) * 2 : 0, bandX = a0 * 5.5 + 9, bandO = sd * 0.002;
+          var bxi = Math.floor(bandX), bfx = bandX - bxi, kSep = (cl * 13 + 5) * 977 | 0, kBend = (sd + 101) * 977 | 0, kN = sd * 977 | 0, kS = (sd + 37) * 977 | 0;
+          bfx = bfx * bfx * (3 - 2 * bfx); wvI.fill(NaN);
+          for (m = 0; m <= cnt; m++) {
+            var dm = D[m], pc = PC[m], hw = HW[m], a = a0;
+            // (where it sits: spread a little more by pressure, parted into
+            // bunches by a light touch, wandering a little, the edges more)
+            if (round) { var lt = 1 - pc; a += (cl - a) * sepK * lt * lt * wv(0, kSep, dm / Lsep); }
+            else a *= sp0 + sp1 * pc;
+            a += (wv(1, kBend, dm / Lb) - 0.5) * 2 * B.bend * (1 + FS[m]);
+            a *= 1 + (a0 > 0 ? RP[m] : RN[m]) * ed2;
+            var along = aln * hw, x = X0[m] + CA[m] * a * hw - SA[m] * along, y = Y0[m] + SA[m] * a * hw + CA[m] * along;
+            xs[m] = x; ys[m] = y; ws[m] = bw * hw * WF[m];
+            // (whether it touches: each bristle lands, and lifts, a little
+            // before or after the others; then its length and the pressure,
+            // wandering along it, less at the edges, when fast, as the paint
+            // runs out, and on the paper's tooth for the dry brush)
+            var v = 0;
+            if (dm >= from && LF[m] >= to) {
+              var cc = base - lightK * (1 - pc) - FS[m] * B.fast - (1 - PN[m]) * B.dry + (wv(2, kN, dm / Ln) - 0.5) * B.na + (wv(3, kS, dm / Ls) - 0.5) * B.nb;
+              if (TL[m]) cc -= TL[m] * (0.4 + ed);
+              if (B.tooth) cc += (tooth(x, y) - 0.5) * B.tooth;
+              var on = cc / B.soft + 0.5;
+              // (and how much paint: its load, in bands across the head that
+              // drift along the stroke, a little more for a firmer press)
+              if (on > 0) { v = (on > 1 ? 1 : on) * load * PN[m] * (0.82 + 0.18 * pc) * (1 - B.band + B.band * 2 * wv2(4, bxi, bfx, dm / Lband + bandO)); if (v > 1) v = 1; }
+            }
+            al[m] = v;
+          }
+          var cur = -1, path = null;
+          for (m = 1; m <= cnt; m++) {
+            if (!al[m - 1] || !al[m]) { cur = -1; continue; }
+            var q = Math.round((al[m - 1] + al[m]) / 2 * QA); if (!q) { cur = -1; continue; }
+            // (a piece next to a break narrows, so the bristle's mark ends softly)
+            var wd = (ws[m - 1] + ws[m]) / 2; if ((m > 1 && !al[m - 2]) || (m < cnt && !al[m + 1])) wd *= 0.55;
+            var wq = Math.max(1, Math.round(wd / unit)), key = q * 4096 + wq;
+            if (key !== cur) {
+              path = lots[key]; if (!path) { path = lots[key] = new Path2D(); keys.push(key); }
+              path.moveTo(xs[m - 1], ys[m - 1]); cur = key;
+            }
+            path.lineTo(xs[m], ys[m]);
+          }
+        }
+        keys.sort(function (x, y) { return x - y; });
+        for (var u = 0; u < keys.length; u++) { var kk = keys[u]; c.globalAlpha = Math.floor(kk / 4096) / QA; c.lineWidth = (kk % 4096) * unit; c.stroke(lots[kk]); }
+      }
+      c.globalAlpha = 1;
+    }
     // the redraw area, in units and in sheet pixels: everything within reach
     // of the samples that changed (old and new), copied for any symmetry
     function changedFrom(prev, S, P, prevTotal, total, cfg, prevN) {
@@ -1420,6 +1639,7 @@
       var S = resample(P, cfg.step, prev, down.n), total = S[S.length - 1].d;
       var d0 = prev ? changedFrom(prev, S, P, down.total, total, cfg, down.n) : 0;
       if (down.total < (cfg.w || 0) * 2.5) d0 = 0; // (while it's that short, all of it changes as it grows)
+      if (cfg.br) { bristleFrame(S, total, d0, prev, cfg); return; }
       var box = boxOf(S, d0, cfg.reach, prevTail ? boxOf(prevTail, d0, cfg.reach, [Infinity, Infinity, -Infinity, -Infinity]) : [Infinity, Infinity, -Infinity, -Infinity]);
       var rects = box[2] > box[0] ? deviceRects(box, down.sym) : [];
       if (rects.length) { if (down.sym.length) markNearSym(S, box, rects, cfg.reach, down.sym); else markNear(S, box, cfg.reach); }
@@ -1441,6 +1661,42 @@
       base(octx);
       maskOv(rects); // (inside the redraw area only, so edges aren't masked twice)
       if (st.tool === 'eraser') eraseFromSheet(rects);
+      octx.restore();
+    }
+    // A BRISTLE STROKE, a frame at a time: its lines cost far more to draw
+    // than a plain line's, so the stretches that can't change any more (all
+    // of them before d0) are drawn just once, in order, onto a sheet of
+    // their own (down.done: how many), and only the rest, up to the tip, is
+    // drawn again each frame, on the spare sheet. The two are laid together
+    // where the last frame's tip and this one's reach: paint of one colour
+    // laid over paint adds up the same either way, so it comes out as if the
+    // whole stroke were drawn in one go.
+    var doneSheet = null;
+    function bristleFrame(S, total, d0, prev, cfg) {
+      var n = S.length, keep = 0, sym = down.sym;
+      if (d0 > 0) while ((keep + 1) * BC < n - 1 && S[(keep + 1) * BC].d < d0) keep++;
+      var sheet = doneSheet || (doneSheet = document.createElement('canvas'));
+      if (sheet.width !== ov.width || sheet.height !== ov.height) { sheet.width = ov.width; sheet.height = ov.height; down.done = null; }
+      var dx = sheet.getContext('2d');
+      // (a new stroke, or one changed further back than what's kept: start the sheet again)
+      if (!prev || down.done == null || keep < down.done) { dx.setTransform(1, 0, 0, 1, 0, 0); dx.clearRect(0, 0, sheet.width, sheet.height); down.done = 0; }
+      var from = Math.min(n - 1, down.done * BC);
+      if (keep > down.done) { base(dx); cfg.c0 = down.done; cfg.c1 = keep; strokeOn(dx, S, cfg, down, R, null, null); down.done = keep; }
+      // (where to show it again: from the first stretch not settled last time,
+      // on this frame's samples and the last frame's, which is also all the
+      // spare sheet needs clearing of)
+      var b0 = [Infinity, Infinity, -Infinity, -Infinity], dFrom = S[from].d - 1e-9;
+      boxOf(S, dFrom, cfg.reach, b0); if (prev) boxOf(prev, dFrom, cfg.reach, b0);
+      down.S = S; down.total = total; down.n = down.raw && !down.shape ? Math.min(pts.length, down.settled) : pts.length;
+      var rects = b0[2] > b0[0] ? deviceRects(b0, sym) : []; if (!rects.length) return;
+      var sc = drawSpare && drawSpare.width === ov.width && drawSpare.height === ov.height ? drawSpare : (drawSpare = document.createElement('canvas'));
+      if (sc.width !== ov.width || sc.height !== ov.height) { sc.width = ov.width; sc.height = ov.height; }
+      var sx = sc.getContext('2d'); sx.setTransform(1, 0, 0, 1, 0, 0);
+      if (!prev) sx.clearRect(0, 0, sc.width, sc.height); else rects.forEach(function (r) { sx.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); });
+      base(sx); cfg.c0 = keep; cfg.c1 = null; strokeOn(sx, S, cfg, down, R, null, null); cfg.c0 = null;
+      octx.save(); octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects);
+      rects.forEach(function (r) { var w = r[2] - r[0], h = r[3] - r[1]; octx.clearRect(r[0], r[1], w, h); octx.drawImage(sheet, r[0], r[1], w, h, r[0], r[1], w, h); octx.drawImage(sc, r[0], r[1], w, h, r[0], r[1], w, h); });
+      base(octx); maskOv(rects);
       octx.restore();
     }
     // THE ERASER works through the same engine: its stroke is drawn on the
@@ -5411,8 +5667,8 @@
     var BS_SECS = [
       ['tip', 'Tip', ['stamp']],
       ['jitter', 'Jitter', ['stamp']],
-      ['pressure', 'Pressure', ['round', 'pencil', 'marker', 'highlighter', 'calligraphy', 'stamp']],
-      ['taper', 'Tapered Ends', ['round', 'pencil', 'stamp']],
+      ['pressure', 'Pressure', ['round', 'pencil', 'marker', 'highlighter', 'calligraphy', 'stamp', 'drybrush', 'flatbristle', 'roughround']],
+      ['taper', 'Tapered Ends', ['round', 'pencil', 'stamp', 'roughround']],
       ['nib', 'Nib', ['marker', 'highlighter', 'calligraphy']],
       ['grain', 'Paper Grain', ['round', 'pencil', 'feather', 'marker', 'highlighter', 'calligraphy', 'stamp']]
     ];
@@ -5615,7 +5871,7 @@
       var c = parseInt(st.color.slice(1), 16), textL = lumOf(+m[0], +m[1], +m[2]), dark = textL > 0.5;
       var col = Math.abs(lumOf(c >> 16 & 255, c >> 8 & 255, c & 255) - (dark ? 0.1 : 0.97)) < 0.22 ? '#' + [m[0], m[1], m[2]].map(function (v) { return (+v | 256).toString(16).slice(1); }).join('') : st.color;
       Array.prototype.forEach.call(host.querySelectorAll('[data-prev]'), function (cv) {
-        var k = cv.dataset.prev, bk = baseOf(k), sz = bk === 'spray' ? 3 : bk === 'highlighter' ? 4 : bk === 'stamp' ? 6 : 5, P = [];
+        var k = cv.dataset.prev, bk = baseOf(k), sz = bk === 'spray' ? 3 : bk === 'highlighter' ? 4 : bk === 'stamp' ? 6 : BRISTLE[bk] ? 8 : 5, P = [];
         for (var i = 0; i <= 16; i++) { var t = i / 16; P.push({ x: 6 + 34 * t, y: 10 + Math.sin(t * Math.PI * 2) * 3.2 }); }
         drawPreview(cv, k, sz, col, P, 46, 20, 1, dark);
       });
@@ -5847,6 +6103,7 @@
       pts = [p];
       octx.clearRect(0, 0, W, H);
       if (t === 'smudge' || t === 'blur' || t === 'tone') { dabs(p, p, true); return; }
+      p.t = e.timeStamp; // (when: a bristle brush feels the speed)
       if (t === 'eraser') { p.pr = smoothPr(e.pressure); eraseStart(); renderStroke(); return; }
       if (t === 'brush') {
         p.pr = smoothPr(e.pressure);
@@ -5947,7 +6204,7 @@
       }
       if (t === 'eraser' || (t === 'brush' && baseOf(kind()) !== 'spray')) {
         evs.forEach(function (ev) {
-          var q = assist(pos(ev)); q.pr = smoothPr(ev.pressure);
+          var q = assist(pos(ev)); q.pr = smoothPr(ev.pressure); q.t = ev.timeStamp;
           if (down.shape) { var sc = ev.shiftKey !== shiftHeld; shiftHeld = ev.shiftKey; shapeFollow(q, sc); return; }
           holdStill(q);
           if (!smoothing) { var l = pts[pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) > 0.6 / view.k) pts.push(q); return; }
@@ -5989,15 +6246,15 @@
     // trails, and nothing moves when it's let go. (Smoothing sets how far
     // either side is averaged: up to 64 screen pixels.)
     function addSmoothed(q) {
-      var raw = down.raw || (down.raw = [{ x: pts[0].x, y: pts[0].y, pr: pts[0].pr, s: 0 }]), last = raw[raw.length - 1];
+      var raw = down.raw || (down.raw = [{ x: pts[0].x, y: pts[0].y, pr: pts[0].pr, t: pts[0].t, s: 0 }]), last = raw[raw.length - 1];
       var step = Math.hypot(q.x - last.x, q.y - last.y); if (step <= 0.6 / view.k) return;
       var prevEnd = last.s, end = prevEnd + step, Wd = smoothing / 100 * 64 / view.k;
-      raw.push({ x: q.x, y: q.y, pr: q.pr, s: end });
+      raw.push({ x: q.x, y: q.y, pr: q.pr, t: q.t, s: end });
       // (only the points whose stretch either side reached past the old end can change)
       var i = pts.length; while (i > 0 && raw[i - 1].s > prevEnd - Wd) i--;
       for (; i < raw.length; i++) {
         var si = raw[i].s, h = Math.min(Wd, si, end - si);
-        if (h < 1e-6) { pts[i] = { x: raw[i].x, y: raw[i].y, pr: raw[i].pr }; continue; }
+        if (h < 1e-6) { pts[i] = { x: raw[i].x, y: raw[i].y, pr: raw[i].pr, t: raw[i].t }; continue; }
         var lo = i; while (lo > 0 && raw[lo - 1].s >= si - h) lo--;
         var sx = 0, sy = 0, sw = 0, sp = 0, spw = 0;
         for (var j = lo; j < raw.length && raw[j].s <= si + h; j++) {
@@ -6005,7 +6262,7 @@
           sx += raw[j].x * w; sy += raw[j].y * w; sw += w;
           if (raw[j].pr != null) { sp += raw[j].pr * w; spw += w; }
         }
-        pts[i] = { x: sx / sw, y: sy / sw, pr: spw ? sp / spw : raw[i].pr };
+        pts[i] = { x: sx / sw, y: sy / sw, pr: spw ? sp / spw : raw[i].pr, t: raw[i].t };
       }
       // (settled: far enough back that nothing still to come reaches them)
       var k = pts.length; while (k > 0 && raw[k - 1].s > end - Wd) k--;
