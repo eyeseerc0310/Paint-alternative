@@ -6259,6 +6259,27 @@
       cv.style.opacity = lk.alpha; cv.style.mixBlendMode = (!flat && lk.mode) || '';
     }
     function hidePreview() { clearTimeout(prevTimer); prev.classList.remove('on'); }
+    // (the same card for Photo mode's mask brush: a soft round dab o.d screen
+    // pixels across, its feather and flow, in the mask's red, or for the
+    // eraser what it leaves, as a checkerboard; held while its slider is, and
+    // gone a moment after it's let go of, o null)
+    function discPreview(o) {
+      if (!o) { clearTimeout(prevTimer); prevTimer = setTimeout(hidePreview, 700); return; }
+      var cv = prev.firstChild, dpr = Math.min(window.devicePixelRatio || 1, 2), fit2 = Math.min(1, Math.min(stage.clientWidth, stage.clientHeight) * 0.8 / Math.max(1, o.d));
+      var d = Math.max(2, o.d * fit2), box = Math.max(d, 28), r = d / 2;
+      cv.width = Math.round(box * dpr); cv.height = Math.round(box * dpr); cv.style.width = cv.style.height = box + 'px';
+      var x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, box, box);
+      var g = x.createRadialGradient(box / 2, box / 2, r * (1 - o.feather) * 0.999, box / 2, box / 2, r);
+      g.addColorStop(0, o.erase ? 'rgba(0,0,0,' + o.flow + ')' : 'rgba(255,41,31,' + (0.25 + 0.6 * o.flow) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.beginPath(); x.arc(box / 2, box / 2, r, 0, Math.PI * 2); x.fill();
+      if (o.erase) {
+        var t = document.createElement('canvas'); t.width = t.height = 10;
+        var tx = t.getContext('2d'); tx.fillStyle = '#fff'; tx.fillRect(0, 0, 10, 10); tx.fillStyle = '#dcdcdc'; tx.fillRect(0, 0, 5, 5); tx.fillRect(5, 5, 5, 5);
+        x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = x.createPattern(t, 'repeat'); x.fillRect(0, 0, cv.width, cv.height); x.restore();
+      }
+      cv.style.opacity = 1; cv.style.mixBlendMode = '';
+      prev.classList.add('on'); clearTimeout(prevTimer);
+    }
     // it stays up while a slider is held, and goes once it's let go. The
     // letting go is heard anywhere on the page, not just on the slider: the
     // pointer often ends up off it (above all when it's pulled right down to
@@ -7959,8 +7980,10 @@
       otherPopovers();
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
-        (PV ? '<button type="button" role="menuitemcheckbox" aria-checked="' + (wsMode === 'vector') + '" data-setting="vector">' + modeEl.querySelector('[data-mode="vector"] svg').outerHTML + 'Vector mode (preview)<span class="settings-check" aria-hidden="true">' + (wsMode === 'vector' ? '✓' : '') + '</span></button>' +
-          (PH ? '<button type="button" role="menuitemcheckbox" aria-checked="' + (wsMode === 'photo') + '" data-setting="photo">' + modeEl.querySelector('[data-mode="photo"] svg').outerHTML + 'Photo mode (preview)<span class="settings-check" aria-hidden="true">' + (wsMode === 'photo' ? '✓' : '') + '</span></button>' : '') +
+        (PV ? ['paint', 'vector', 'photo'].filter(modeOk).map(function (m) {
+          // (the workspaces, one of them ticked: the one in use)
+          return '<button type="button" role="menuitemradio" aria-checked="' + (wsMode === m) + '" data-setting="' + m + '">' + modeEl.querySelector('[data-mode="' + m + '"] svg').outerHTML + MODE_NAME[m] + ' mode<span class="settings-check" aria-hidden="true">' + (wsMode === m ? '✓' : '') + '</span></button>';
+        }).join('') +
           '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
       settingsBox.hidden = false;
       hb('settings').setAttribute('aria-expanded', 'true');
@@ -7983,8 +8006,7 @@
       if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
       else if (b.dataset.setting === 'gestures') gestureSheet();
       else if (b.dataset.setting === 'flip') flipUI();
-      else if (b.dataset.setting === 'vector') askMode(wsMode === 'vector' ? 'paint' : 'vector');
-      else if (b.dataset.setting === 'photo') askMode(wsMode === 'photo' ? 'paint' : 'photo');
+      else if (/^(paint|vector|photo)$/.test(b.dataset.setting)) askMode(b.dataset.setting);
       else if (b.dataset.setting === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); }
       else helpSheet();
     });
@@ -9053,7 +9075,7 @@
     document.addEventListener('pointerdown', function (e) { if (!ctxList.hidden && !e.target.closest('.ctx-list, [data-ctx="brushes"], [data-ctx="fonts"]')) ctxClose(); }, true);
 
     // ---- PAINT AND VECTOR: two workspaces in one drawing (Vector's is in
-    // vector.js). Settings' Vector mode (preview) changes which shows (the
+    // vector.js). Settings' Paint, Vector and Photo mode changes which shows (the
     // switch at the top of the picture's space, .mode-switch, is hidden for now): the painting is only hidden while Vector's is out,
     // never changed, and each keeps its own layers, undo, view and
     // selection. Artwork goes across only as a copy, and only when asked
@@ -9079,7 +9101,7 @@
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       openPicker: function () { header.querySelector('.paint-open input').click(); },
-      openSheet: openSheet, closeSheet: closeSheet, download: download,
+      openSheet: openSheet, closeSheet: closeSheet, download: download, discPreview: discPreview,
       decoders: window.PaintDecoders || null
     });
     function modeSync() {
@@ -9189,7 +9211,7 @@
       else if (wsMode === 'photo') phGo.then(function () { if (wsMode === 'photo') { PH.enter(null); ctxFor = null; ctxRender(); } });
     }
     // (while Vector mode is still being made, the switch stays out of sight:
-    // Settings' Vector mode (preview) goes in and out)
+    // Settings' Paint, Vector and Photo mode goes in and out)
     if (PV) modeSync(); if (modeEl) modeEl.hidden = true;
 
     setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();

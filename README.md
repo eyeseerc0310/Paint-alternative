@@ -98,7 +98,7 @@ uploaded.
 - **History:** see every step and jump back to any of them
 - **Keyboard shortcuts:** press **?** to see them all
 - **Save** as PNG or JPEG, or **Share** straight to Messages, Photos, Mail…
-- **Photo mode (preview, from Settings):** a photo editor in the manner of
+- **Photo mode (from Settings, beside Paint and Vector mode):** a photo editor in the manner of
   Lightroom. Open a JPEG, PNG, WebP (or HEIC where the browser can) and edit
   it without ever changing the photo itself: Light (exposure, contrast,
   highlights, shadows, whites, blacks, brightness, a tone curve), Colour

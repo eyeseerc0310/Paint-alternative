@@ -24,7 +24,7 @@
     sharpen: 0, sRadius: 10, sDetail: 25, sMask: 0, nr: 0, nrColor: 0,
     distort: 0, lensVig: 0, caR: 0, caB: 0, vert: 0, horiz: 0, scale: 100,
     angle: 0, rot: 0, flipH: false, flipV: false, crop: null, asp: 'orig', aspT: false,
-    masks: null
+    masks: null, preset: null
   };
   var SECS = [
     { id: 'light', name: 'Light', rows: [['exposure', 'Exposure', -100, 100, 'ev'], ['contrast', 'Contrast'], ['highlights', 'Highlights'], ['shadows', 'Shadows'], ['whites', 'Whites'], ['blacks', 'Blacks'], ['brightness', 'Brightness']], curve: true },
@@ -76,6 +76,35 @@
     ['classicfilm', 'Classic Film', { contrast: 10, highlights: -14, shadows: 8, temp: 6, saturation: -12, grain: 26, grainSize: 30, curve: [[0, 20], [60, 52], [128, 132], [200, 210], [255, 242]], grade: { sh: [200, 14, 0], mid: [35, 8, 0], hi: [48, 16, 0], all: [0, 0, 0], blend: 55, bal: 0 } }]
   ];
   var presetBase = null, presetPick = null, thumbs = {}, thumbRev = -1;
+  // A PRESET IS A LAYER OF ITS OWN over the settings set by hand (doc.v),
+  // named by doc.v.preset: what's shown and saved is eff(v), each slider the
+  // hand's value plus what the preset moves it by (its value less where the
+  // slider starts), the preset's curve after the hand's, its colour mixer
+  // added band by band, its colour grading where the hand's has none. So
+  // Original (no preset) takes off only the preset, another preset takes its
+  // place, and nothing set by hand, before or after, is lost.
+  function presetOf(id) { for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i][0] === id) return PRESETS[i]; return null; }
+  function scalarK(k) { return typeof DEF[k] === 'number' && !!rowOf(k); }
+  function rangeOf(k) { var r = rowOf(k); return [r && r[2] != null ? r[2] : -100, r && r[3] != null ? r[3] : 100]; }
+  function offOf(v, k) { var q = v.preset && presetOf(v.preset); return q && typeof q[2][k] === 'number' ? q[2][k] - DEF[k] : 0; }
+  function eff(v) {
+    var q = v.preset && presetOf(v.preset); if (!q) return v;
+    var e = copyV(v), pv = q[2];
+    for (var k in pv) {
+      if (scalarK(k)) { var rg = rangeOf(k); e[k] = Math.max(rg[0], Math.min(rg[1], v[k] + pv[k] - DEF[k])); }
+      else if (k === 'curve') e.pcurve = pv.curve;
+      else if (k === 'hsl') { e.hsl = e.hsl || {}; for (var b in pv.hsl) { var m = e.hsl[b] || [0, 0, 0]; e.hsl[b] = m.map(function (x, i) { return Math.max(-100, Math.min(100, x + pv.hsl[b][i])); }); } }
+      else if (k === 'grade') e.grade = gradeMix(v.grade, pv.grade);
+    }
+    return e;
+  }
+  // (colour grading: each of the four the hand's where it tints, the preset's otherwise)
+  function gradeMix(m, p) {
+    if (!m) return copyV(p);
+    var o = copyV(m); GRADES.forEach(function (g) { var a = m[g[0]]; if (!a || (!a[1] && !a[2])) o[g[0]] = p[g[0]].slice(); });
+    if (m.blend === 50 && !m.bal) { o.blend = p.blend; o.bal = p.bal; }
+    return o;
+  }
 
   // ---- THE GRAPHICS CHIP. The photo is a texture (with its smaller
   // copies, so a zoomed-out view and the soft copies read cleanly); once
@@ -262,13 +291,15 @@
   // THE TONE TABLE: Paint's tone sums (shadows, highlights, whites, blacks,
   // contrast), then brightness, then the curve, 1,024 steps of it
   function toneTable(v) {
-    var key = [v.contrast, v.highlights, v.shadows, v.whites, v.blacks, v.brightness, JSON.stringify(v.curve)].join('|');
+    var key = [v.contrast, v.highlights, v.shadows, v.whites, v.blacks, v.brightness, JSON.stringify(v.curve), JSON.stringify(v.pcurve || null)].join('|');
     var tn = { sh: v.shadows / 100, hi: v.highlights / 100, wh: v.whites / 100, bl: v.blacks / 100, co: v.contrast / 100 }, br = v.brightness / 100;
-    var cl = v.curve ? FX.curveLut(v.curve, 1024) : null, o = new Float32Array(1024);
+    var cl = v.curve ? FX.curveLut(v.curve, 1024) : null, pl = v.pcurve ? FX.curveLut(v.pcurve, 1024) : null, o = new Float32Array(1024);
+    var through = function (L, x) { var f = Math.max(0, Math.min(1, x)) * 1023, i0 = Math.min(1022, Math.floor(f)), t = f - i0; return (L[i0] * (1 - t) + L[i0 + 1] * t) / 255; };
     for (var i = 0; i < 1024; i++) {
       var x = FX.toneAt(i / 1023, tn);
       if (br) x = Math.pow(Math.max(0, Math.min(1, x)), Math.pow(2, -br * 0.9));
-      if (cl) { var f = Math.max(0, Math.min(1, x)) * 1023, i0 = Math.min(1022, Math.floor(f)), t = f - i0; x = (cl[i0] * (1 - t) + cl[i0 + 1] * t) / 255; }
+      if (cl) x = through(cl, x);
+      if (pl) x = through(pl, x); // (the preset's curve, after the hand's)
       o[i] = Math.max(0, Math.min(1, x));
     }
     return { key: key, data: o };
@@ -302,6 +333,7 @@
   // (a 3 x 3 by rows, as the graphics chip takes it: by columns)
   function cm(m) { return new Float32Array([m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]]); }
   function develop(v, out, o, s, lod, neutral, full) {
+    v = eff(v);
     var p = P.dev, tb = toneTable(v), G = geo(v, full);
     if (T.lutKey !== tb.key) { gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1024, 1, gl.RED, gl.FLOAT, tb.data); T.lutKey = tb.key; }
     var t = v.temp / 100, ti = v.tint / 100, kr = Math.pow(2, 0.8 * t + 0.15 * ti), kg = Math.pow(2, -0.6 * ti), kb = Math.pow(2, -0.8 * t + 0.15 * ti), ln = 0.2126 * kr + 0.7152 * kg + 0.0722 * kb;
@@ -546,7 +578,7 @@
   // are in the photo's own units (q: across the long side 0 to 1), so they
   // stay on what they cover through a crop, a turn or a straightening; the
   // brush's strokes are kept as points and painted again when needed ----
-  var mPick = null, mFresh = null, mdrag = null, mHover = null, muiEl = null, onScreen = false, BRC = {};
+  var mSlide = false, mPick = null, mFresh = null, mdrag = null, mHover = null, muiEl = null, onScreen = false, BRC = {};
   var mOver = (function () { try { return localStorage.getItem('paint-pho-overlay') !== '0'; } catch (e) { return true; } })();
   var BRS = (function () { var d = { size: 12, feather: 50, flow: 60, erase: false }; try { var q = JSON.parse(localStorage.getItem('paint-pho-brush') || 'null'); if (q) for (var k in d) if (typeof q[k] === typeof d[k]) d[k] = q[k]; } catch (e) {} return d; })();
   var MADJ = [['ex', 'Exposure'], ['co', 'Contrast'], ['hi', 'Highlights'], ['sh', 'Shadows'], ['te', 'Temperature'], ['ti', 'Tint'], ['sa', 'Saturation'], ['cl', 'Clarity']];
@@ -564,9 +596,14 @@
       else if (m.kind === 'radial') { mk[i] = 2; mg.set([g.cx, g.cy, g.rx, g.ry], i * 4); mh.set([g.ang, g.fe / 100, 0, inv], i * 4); }
       else { mk[i] = 3; mh.set([0, 0, 0, inv], i * 4); }
       ma.set([a.ex / 100 * 4, a.co / 100, a.hi / 100, a.sh / 100], i * 4); mb.set([a.te / 100, a.ti / 100, a.sa / 100, a.cl / 100], i * 4);
-      if (onScreen && cat === 'masks' && m.id === mPick && (mOver || mdrag)) shw = i;
+      if (onScreen && cat === 'masks' && m.id === mPick && mOver && !mSlide) shw = i;
     });
-    for (var i = 0; i < 4; i++) bind(p, 'u_br' + i, 4 + i, ms[i] && ms[i].kind === 'brush' ? brushTex(ms[i]) : dummyTex());
+    // (the brush's paint is made and sent up on a unit nothing reads, unit 8,
+    // before any is bound: binding it on the unit in use would put it in the
+    // place of the tone table, and the whole photo would come out black)
+    gl.activeTexture(gl.TEXTURE8);
+    var tx = []; for (var j = 0; j < 4; j++) tx[j] = ms[j] && ms[j].kind === 'brush' ? brushTex(ms[j]) : dummyTex();
+    for (var i = 0; i < 4; i++) bind(p, 'u_br' + i, 4 + i, tx[i]);
     gl.uniform1i(U(p, 'u_nm'), neutral ? 0 : ms.length); gl.uniform1i(U(p, 'u_show'), shw);
     gl.uniform1iv(U(p, 'u_mk'), mk); gl.uniform4fv(U(p, 'u_mg'), mg); gl.uniform4fv(U(p, 'u_mh'), mh); gl.uniform4fv(U(p, 'u_ma'), ma); gl.uniform4fv(U(p, 'u_mb'), mb);
     gl.uniform2f(U(p, 'u_asp'), aq.x, aq.y);
@@ -630,11 +667,15 @@
     return out;
   }
   function maskDown(p, e) {
-    var m = pickedMask(); if (!m || !img) return false;
+    if (!img || !doc) return false;
+    var pin = null, PR = e.pointerType === 'mouse' ? 10 : 18;
+    (doc.v.masks || []).forEach(function (q) { if (q.id === mPick || !q.on) return; var c = pinOf(q); if (c && Math.hypot(c.x - p.x, c.y - p.y) < PR) pin = q; });
+    if (pin) { mPick = pin.id; mFresh = null; mHover = null; changed(true); return true; }
+    var m = pickedMask(); if (!m) return false;
     if (m.kind === 'brush') {
       record('Brush');
       var q = toQ(p), st = { s: BRS.size / 100, f: BRS.feather / 100, fl: BRS.flow / 100, er: BRS.erase || !!e.altKey, p: [rq(q.x), rq(q.y)] };
-      m.g.st.push(st); mdrag = { kind: 'brush', m: m, st: st, carry: -1 }; brushPaint(st, st.p[0], st.p[1], st.p[0], st.p[1]); draw(); return true;
+      m.g.st.push(st); mdrag = { kind: 'brush', m: m, st: st, carry: -1, touch: e.pointerType === 'touch' }; mHover = p; brushPaint(st, st.p[0], st.p[1], st.p[0], st.p[1]); draw(); return true;
     }
     var R = e.pointerType === 'mouse' ? 12 : 22, hit = null;
     if (mFresh === m.id) { mdrag = { kind: 'draw', m: m, p0: p, q0: toQ(p), g0: copyV(m.g), rec: false }; return true; } // (a new one: the first drag draws it)
@@ -662,18 +703,39 @@
     else if (d.kind === 'lmove') { g.x0 = g0.x0 + dx; g.y0 = g0.y0 + dy; g.x1 = g0.x1 + dx; g.y1 = g0.y1 + dy; }
     else if (d.kind === 'rc') { g.cx = g0.cx + dx; g.cy = g0.cy + dy; }
     else { var c = Math.cos(g.ang), sn = Math.sin(g.ang), ox = q.x - g.cx, oy = q.y - g.cy; if (d.kind === 'rx') g.rx = Math.max(0.005, Math.abs(c * ox + sn * oy)); else g.ry = Math.max(0.005, Math.abs(-sn * ox + c * oy)); }
-    quick = true; draw();
+    draw(); // (at full detail: only the sliders work at half)
   }
   function maskUp() {
     var d = mdrag; mdrag = null; if (!d) return;
-    if (d.kind === 'brush' || d.rec) { if (d.kind === 'draw') mFresh = null; quick = false; draw(); B.autosave(); histButtons(); thumbsSoon(); }
+    if (d.kind === 'brush' || d.rec) { if (d.kind === 'draw') mFresh = null; draw(); B.autosave(); histButtons(); thumbsSoon(); }
     else draw();
+    if (d.kind === 'brush' && d.touch) { mHover = null; mSync(); } // (a finger leaves no circle behind; a mouse or a hovering Pencil keeps it)
   }
   function maskHover(p) { var m = pickedMask(); var was = mHover; mHover = m && m.kind === 'brush' ? p : null; if (was || mHover) mSync(); }
+  // (the brush's size slider: Paint's own preview, in the middle of the
+  // picture, the size it really paints at this zoom, feather and all)
+  var peekHeld = false;
+  function brushPeek(held) {
+    if (!B.discPreview) return;
+    if (!held) { if (peekHeld) B.discPreview(null); peekHeld = false; return; }
+    peekHeld = true;
+    var c = qScr(aspQ().x / 2, aspQ().y / 2), e = qScr(aspQ().x / 2 + BRS.size / 100, aspQ().y / 2);
+    B.discPreview({ d: Math.hypot(e.x - c.x, e.y - c.y), feather: BRS.feather / 100, flow: BRS.flow / 100, erase: BRS.erase });
+  }
+  // (where each mask's pin goes: what a press there picks)
+  function pinOf(m) {
+    var g = m.g;
+    if (m.kind === 'linear') return qScr((g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2);
+    if (m.kind === 'radial') return qScr(g.cx, g.cy);
+    var n = 0, x = 0, y = 0; g.st.forEach(function (st) { if (st.er) return; for (var i = 0; i < st.p.length; i += 2) { x += st.p[i]; y += st.p[i + 1]; n++; } });
+    return n ? qScr(x / n, y / n) : null;
+  }
   // ON THE SCREEN: the picked mask's lines and handles, or the brush's circle
   function mSync() {
     if (!muiEl) return;
     var m = on && img && cat === 'masks' && !before ? pickedMask() : null, h = '';
+    // (the other masks' pins: a tap on one picks it)
+    if (on && img && cat === 'masks' && !before) (doc.v.masks || []).forEach(function (q) { if (q.id === mPick || !q.on) return; var c = pinOf(q); if (c) h += '<circle class="pin" cx="' + c.x + '" cy="' + c.y + '" r="6"/>'; });
     if (m && m.kind === 'linear') {
       var g = m.g, a = qScr(g.x0, g.y0), b = qScr(g.x1, g.y1), dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, px = -dy / l * 3000, py = dx / l * 3000, mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       [a, mid, b].forEach(function (c, i) { h += '<line x1="' + (c.x - px) + '" y1="' + (c.y - py) + '" x2="' + (c.x + px) + '" y2="' + (c.y + py) + '"' + (i === 1 ? ' class="dash"' : '') + '/>'; });
@@ -686,8 +748,9 @@
       mHandles(m).forEach(function (q) { h += '<circle cx="' + q[1].x + '" cy="' + q[1].y + '" r="' + (q[0] === 'rc' ? 5 : 6) + '"/>'; });
     } else if (m && m.kind === 'brush' && mHover) {
       var q0 = toQ(mHover), e0 = qScr(q0.x, q0.y), e1 = qScr(q0.x + BRS.size / 200, q0.y), rr = Math.hypot(e1.x - e0.x, e1.y - e0.y);
-      h += '<circle class="brush" cx="' + mHover.x + '" cy="' + mHover.y + '" r="' + rr + '"/>';
-      if (BRS.feather > 0) h += '<circle class="brush dash" cx="' + mHover.x + '" cy="' + mHover.y + '" r="' + rr * (1 - BRS.feather / 100) + '"/>';
+      // (Paint's ring: dark inside a light edge, the size it paints; the feather's inner edge dashed)
+      h += '<circle class="ring-o" cx="' + mHover.x + '" cy="' + mHover.y + '" r="' + (rr + 1) + '"/><circle class="ring" cx="' + mHover.x + '" cy="' + mHover.y + '" r="' + rr + '"/>';
+      if (BRS.feather > 0) h += '<circle class="ring dash" cx="' + mHover.x + '" cy="' + mHover.y + '" r="' + rr * (1 - BRS.feather / 100) + '"/>';
     }
     muiEl.innerHTML = h;
   }
@@ -781,6 +844,15 @@
     var W = c.w * f.w, H = c.h * f.h, w = W, h = w / R; if (h > H) { h = H; w = h * R; }
     return { x: c.x + (c.w - w / f.w) / 2, y: c.y + (c.h - h / f.h) / 2, w: w / f.w, h: h / f.h };
   }
+  // (a shape picked: the largest crop of it, in the middle of the whole frame,
+  // worked out from the frame each time, never from the crop there was, so
+  // picking shapes in any order always gives the same crop for each, and
+  // Original the whole frame again; Free keeps the crop as it is)
+  function aspCrop(v) {
+    if (v.asp === 'free') return cropOf(v);
+    if (v.asp === 'orig' && !v.aspT) return null;
+    return fitAsp({ x: 0, y: 0, w: 1, h: 1 }, aspOf(v), frameOf(v));
+  }
   function setCrop(c) { doc.v.crop = c && (c.x > 1e-4 || c.y > 1e-4 || c.w < 0.9999 || c.h < 0.9999) ? { x: c.x, y: c.y, w: c.w, h: c.h } : null; }
   function cropSync() {
     if (!cropEl) return;
@@ -844,8 +916,9 @@
     setCrop(n); fit(); changed(true);
   }
   function presetsHTML() {
-    return '<div class="pho-presets" role="radiogroup" aria-label="Presets">' + PRESETS.map(function (q) {
-      return '<button type="button" class="pho-preset" role="radio" data-pp="' + q[0] + '" aria-checked="' + (presetPick === q[0]) + '"><canvas aria-hidden="true"></canvas><span>' + q[1] + '</span></button>';
+    var now = doc.v.preset || 'original';
+    return '<div class="pho-presets" role="radiogroup" aria-label="Presets">' + [['original', 'Original']].concat(PRESETS).map(function (q) {
+      return '<button type="button" class="pho-preset" role="radio" data-pp="' + q[0] + '" aria-checked="' + (now === q[0]) + '"><canvas aria-hidden="true"></canvas><span>' + q[1] + '</span></button>';
     }).join('') + '</div><div class="pa-acts pho-acts"><button type="button" data-pa="pcancel"' + (presetPick ? '' : ' disabled') + '>Cancel</button><button type="button" class="pho-done" data-pa="pdone"' + (presetPick ? '' : ' disabled') + '>Done</button></div>';
   }
   // (the panel's values from the settings)
@@ -853,6 +926,7 @@
     var v = doc.v;
     if (k.slice(0, 2) === 'm_') { var pm = pickedMask(); return !pm ? 0 : k === 'm_fe' ? pm.g.fe : pm.a[k.slice(2)]; }
     if (k.slice(0, 2) === 'b_') return BRS[k.slice(2)];
+    v = eff(v);
     if (k === 'mxH' || k === 'mxS' || k === 'mxL') { var q = (v.hsl && v.hsl[band]) || [0, 0, 0]; return q[{ mxH: 0, mxS: 1, mxL: 2 }[k]]; }
     if (k === 'gH' || k === 'gS' || k === 'gL') { var g = (v.grade && v.grade[gradeAt]) || [0, 0, 0]; return g[{ gH: 0, gS: 1, gL: 2 }[k]]; }
     if (k === 'gBlend') return v.grade && v.grade.blend != null ? v.grade.blend : 50;
@@ -863,14 +937,17 @@
     var v = doc.v;
     if (k.slice(0, 2) === 'm_') { var pm = pickedMask(); if (pm) { if (k === 'm_fe') pm.g.fe = x; else pm.a[k.slice(2)] = x; } return; }
     if (k.slice(0, 2) === 'b_') { BRS[k.slice(2)] = x; try { localStorage.setItem('paint-pho-brush', JSON.stringify(BRS)); } catch (e) {} return; }
-    if (k === 'mxH' || k === 'mxS' || k === 'mxL') { v.hsl = v.hsl || {}; var q = v.hsl[band] = (v.hsl[band] || [0, 0, 0]).slice(); q[{ mxH: 0, mxS: 1, mxL: 2 }[k]] = x; if (!q[0] && !q[1] && !q[2]) delete v.hsl[band]; if (!Object.keys(v.hsl).length) v.hsl = null; return; }
+    var pq = v.preset && presetOf(v.preset), pv = pq ? pq[2] : {};
+    if (k === 'mxH' || k === 'mxS' || k === 'mxL') { var ix = { mxH: 0, mxS: 1, mxL: 2 }[k], po = pv.hsl && pv.hsl[band] ? pv.hsl[band][ix] : 0; v.hsl = v.hsl || {}; var q = v.hsl[band] = (v.hsl[band] || [0, 0, 0]).slice(); q[ix] = x - po; if (!q[0] && !q[1] && !q[2]) delete v.hsl[band]; if (!Object.keys(v.hsl).length) v.hsl = null; return; }
     if (k === 'gH' || k === 'gS' || k === 'gL' || k === 'gBlend' || k === 'gBal') {
+      // (the grading seen, the preset's included, becomes the hand's, then changes)
+      if (pv.grade) v.grade = gradeMix(v.grade, pv.grade);
       var g = v.grade = v.grade || { sh: [0, 0, 0], mid: [0, 0, 0], hi: [0, 0, 0], all: [0, 0, 0], blend: 50, bal: 0 };
       if (k === 'gBlend') g.blend = x; else if (k === 'gBal') g.bal = x; else { var a = g[gradeAt] = (g[gradeAt] || [0, 0, 0]).slice(); a[{ gH: 0, gS: 1, gL: 2 }[k]] = x; }
       if (GRADES.every(function (q) { return !g[q[0]][1] && !g[q[0]][2]; }) && g.blend === 50 && !g.bal) v.grade = null;
       return;
     }
-    v[k] = x;
+    v[k] = scalarK(k) ? x - offOf(v, k) : x;
   }
   function panelSync() {
     var el = B.ctxTool; if (!doc || !img) return;
@@ -880,7 +957,7 @@
     // (the hue slider's track: the colour wheel; the mixer's: the band's colour)
     var gh = el.querySelector('[data-pk="gH"]'); if (gh) gh.style.setProperty('--track', 'linear-gradient(to right, #e5483a, #e9c92f, #4cae4f, #36b9c4, #3d6fe0, #d64fae, #e5483a)');
     marks(); curveDraw(); if (cat === 'presets') thumbsDraw(); if (cat === 'crop') marksCrop(); if (cat === 'masks') marksMasks();
-    Array.prototype.forEach.call(el.querySelectorAll('[data-pp]'), function (b) { b.setAttribute('aria-checked', b.dataset.pp === presetPick ? 'true' : 'false'); });
+    Array.prototype.forEach.call(el.querySelectorAll('[data-pp]'), function (b) { b.setAttribute('aria-checked', b.dataset.pp === (doc.v.preset || 'original') ? 'true' : 'false'); });
   }
   // (a section that's been changed shows a dot, and its reset button)
   var SEC_KEYS = { light: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks', 'brightness', 'curve'], colour: ['temp', 'tint', 'vibrance', 'saturation', 'hsl', 'grade'],
@@ -888,7 +965,8 @@
     optics: ['distort', 'lensVig', 'caR', 'caB', 'vert', 'horiz', 'scale'] };
   function marks() {
     if (!doc) return;
-    Array.prototype.forEach.call(B.ctxTool.querySelectorAll('[data-psec]'), function (s) { s.classList.toggle('changed', SEC_KEYS[s.dataset.psec].some(function (k) { return !isDef(doc.v, k); })); });
+    var E = eff(doc.v);
+    Array.prototype.forEach.call(B.ctxTool.querySelectorAll('[data-psec]'), function (s) { s.classList.toggle('changed', SEC_KEYS[s.dataset.psec].some(function (k) { return !isDef(E, k); })); });
   }
   var panelKey = null;
   function panelRefresh() { if (!on) return; B.ctxRefresh(); }
@@ -905,15 +983,18 @@
   function panelInput(e) {
     if (!on || !doc) return;
     var i = e.target.closest('[data-pk]'); if (!i) return;
-    if (/^b_/.test(i.dataset.pk)) { setK(i.dataset.pk, +i.value); i.previousElementSibling.textContent = show(i.dataset.pk, +i.value); return; }
+    if (/^b_/.test(i.dataset.pk)) { setK(i.dataset.pk, +i.value); i.previousElementSibling.textContent = show(i.dataset.pk, +i.value); brushPeek(true); return; }
     if (!dragging) { record(labelOf(i.dataset.pk)); dragging = true; }
+    // (a mask's own setting: its red steps aside, so what it does shows)
+    mSlide = /^m_/.test(i.dataset.pk) && i.dataset.pk !== 'm_fe';
     quick = true; setK(i.dataset.pk, +i.value); i.previousElementSibling.textContent = show(i.dataset.pk, +i.value);
     if (presetPick) { presetBase = null; presetPick = null; }
     marks(); draw();
   }
   function panelChange(e) {
     if (!on || !doc || !e.target.closest('[data-pk]')) return;
-    dragging = false; quick = false; draw(); histButtons(); B.autosave(); thumbsSoon();
+    if (/^b_/.test(e.target.closest('[data-pk]').dataset.pk)) { brushPeek(false); return; }
+    dragging = false; quick = false; mSlide = false; draw(); histButtons(); B.autosave(); thumbsSoon();
   }
   function labelOf(k) { if (/^m_/.test(k)) return 'Mask'; var r = rowOf(k); return r ? r[1] : { mxH: 'Colour Mixer', mxS: 'Colour Mixer', mxL: 'Colour Mixer', gH: 'Colour Grading', gS: 'Colour Grading', gL: 'Colour Grading', gBlend: 'Colour Grading', gBal: 'Colour Grading' }[k] || 'Edit'; }
   function panelClick(e) {
@@ -925,13 +1006,13 @@
     var bd = t.closest('[data-band]'); if (bd) { band = bd.dataset.band; panelSync(); return; }
     var gr = t.closest('[data-grade]'); if (gr) { gradeAt = gr.dataset.grade; panelSync(); return; }
     var pp = t.closest('[data-pp]'); if (pp) { presetTry(pp.dataset.pp); return; }
-    var as = t.closest('[data-pasp]'); if (as && doc) { if (doc.v.asp !== as.dataset.pasp) { record('Crop Shape'); doc.v.asp = as.dataset.pasp; setCrop(fitAsp(cropOf(doc.v), aspOf(doc.v), frameOf(doc.v))); draw(); changed(true); } return; }
+    var as = t.closest('[data-pasp]'); if (as && doc) { if (doc.v.asp !== as.dataset.pasp) { record('Crop Shape'); doc.v.asp = as.dataset.pasp; setCrop(aspCrop(doc.v)); draw(); changed(true); } return; }
     var a = t.closest('[data-pa]'); if (!a) return;
     if (a.dataset.pa === 'open') B.openPicker();
     else if (a.dataset.pa === 'reset' && doc && anySet(doc.v)) { record('Reset All'); doc.v = fresh(); changed(true); }
     else if (a.dataset.pa === 'pcancel') presetCancel();
     else if (/^(rotl|rotr|fliph|flipv)$/.test(a.dataset.pa) && doc) turn(a.dataset.pa);
-    else if (a.dataset.pa === 'swap' && doc) { record('Crop Shape'); doc.v.aspT = !doc.v.aspT; if (doc.v.asp === 'free') doc.v.asp = 'orig'; setCrop(fitAsp(cropOf(doc.v), aspOf(doc.v), frameOf(doc.v))); draw(); changed(true); }
+    else if (a.dataset.pa === 'swap' && doc) { record('Crop Shape'); doc.v.aspT = !doc.v.aspT; if (doc.v.asp === 'free') doc.v.asp = 'orig'; setCrop(aspCrop(doc.v)); draw(); changed(true); }
     else if (a.dataset.pa === 'cropreset' && doc) { record('Reset Crop'); ['crop', 'angle', 'rot', 'flipH', 'flipV', 'asp', 'aspT'].forEach(function (k) { doc.v[k] = copyV({ x: DEF[k] }).x; }); fit(); changed(true); }
     else if (a.dataset.pa === 'cropdone' || a.dataset.pa === 'mdone') pickCat('edit');
     else if (/^m/.test(a.dataset.pa) && doc) maskAct(a.dataset.pa, a.closest('[data-mid]'), a);
@@ -942,6 +1023,7 @@
     if (!on || !doc) return;
     var row = e.target.closest('[data-pk-row]'); if (!row) return;
     var k = row.dataset.pkRow, d = k === 'gBlend' ? 50 : k in DEF ? DEF[k] : 0;
+    if (scalarK(k)) { if (doc.v[k] === d) return; record(labelOf(k)); doc.v[k] = d; changed(true); return; }
     if (+getK(k) === d) return;
     record(labelOf(k)); setK(k, d); changed(true);
   }
@@ -993,19 +1075,15 @@
     c.addEventListener('pointermove', mv); c.addEventListener('pointerup', upc); c.addEventListener('pointercancel', upc);
   }
 
-  // ---- PRESETS: a tap tries one (on top of the settings as they were when
-  // the presets were opened, so trying another never adds to the last);
-  // Done keeps it as one step, Cancel (or leaving) puts things back ----
-  function presetVals(id, base) {
-    var q = PRESETS.filter(function (x) { return x[0] === id; })[0], v = copyV(base || fresh()), pv = q ? q[2] : {};
-    for (var k in pv) v[k] = copyV({ x: pv[k] }).x;
-    return v;
-  }
+  // ---- PRESETS: a tap tries one (it only changes which preset lies over
+  // what's set by hand, so trying another never adds to the last, and
+  // Original takes it off); Done keeps it as one step, Cancel (or leaving)
+  // puts back the one there was ----
+  function presetVals(id, base) { var v = copyV(base || fresh()); v.preset = id === 'original' ? null : id; return v; }
   function presetTry(id) {
-    if (!doc) return;
+    if (!doc || (id !== 'original' && !presetOf(id))) return;
     if (!presetPick) presetBase = copyV(doc.v);
-    if (presetPick === id) { presetCancel(); return; }
-    presetPick = id; doc.v = presetVals(id, presetBase); draw(); panelSync();
+    presetPick = id; doc.v.preset = id === 'original' ? null : id; draw(); panelSync();
     var acts = B.ctxTool.querySelectorAll('[data-pa="pcancel"], [data-pa="pdone"]'); Array.prototype.forEach.call(acts, function (b) { b.disabled = false; });
   }
   function presetCancel() {
@@ -1014,9 +1092,11 @@
   }
   function presetDone() {
     if (!presetPick) return;
-    var name = PRESETS.filter(function (x) { return x[0] === presetPick; })[0][1], now = copyV(doc.v);
-    doc.v = presetBase; record('Preset: ' + name); doc.v = now; presetBase = null; presetPick = null;
-    B.toast(name + ' kept: every setting can still be changed'); cat = 'edit'; groupSync(); changed(true);
+    var id = doc.v.preset, was = presetBase.preset, name = id ? presetOf(id)[1] : 'Original', now = copyV(doc.v);
+    if (id !== was) { doc.v = presetBase; record(id ? 'Preset: ' + name : 'No Preset'); doc.v = now; }
+    presetBase = null; presetPick = null;
+    if (id !== was) B.toast(id ? name + ' kept: every setting can still be changed' : 'The preset is off: what you set yourself is kept');
+    cat = 'edit'; groupSync(); changed(true);
   }
   // (each preset's look, on a small copy of this photo: worked out once a
   // photo and kept; drawn as the panel shows them)
@@ -1168,13 +1248,14 @@
       if (k === 'hsl') { if (v.hsl && typeof v.hsl === 'object') { o.hsl = {}; BANDS.forEach(function (b) { var q = v.hsl[b[0]]; if (Array.isArray(q) && q.length === 3) o.hsl[b[0]] = q.map(function (x) { return Math.max(-100, Math.min(100, +x || 0)); }); }); if (!Object.keys(o.hsl).length) o.hsl = null; } continue; }
       if (k === 'grade') { if (v.grade && typeof v.grade === 'object') { var g = v.grade, ok3 = function (q) { return Array.isArray(q) && q.length === 3 ? [Math.max(0, Math.min(360, +q[0] || 0)), Math.max(0, Math.min(100, +q[1] || 0)), Math.max(-100, Math.min(100, +q[2] || 0))] : [0, 0, 0]; }; o.grade = { sh: ok3(g.sh), mid: ok3(g.mid), hi: ok3(g.hi), all: ok3(g.all), blend: Math.max(0, Math.min(100, g.blend != null ? +g.blend : 50)), bal: Math.max(-100, Math.min(100, +g.bal || 0)) }; } continue; }
       if (k === 'masks') { o.masks = checkMasks(v.masks); continue; }
+      if (k === 'preset') { o.preset = typeof v.preset === 'string' && presetOf(v.preset) ? v.preset : null; continue; }
       if (k === 'flipH' || k === 'flipV' || k === 'aspT') { o[k] = v[k] === true; continue; }
       if (k === 'rot') { o.rot = (Math.round(+v.rot) || 0) & 3; continue; }
       if (k === 'asp') { o.asp = ASPECTS.some(function (q) { return q[0] === v.asp; }) ? v.asp : 'orig'; continue; }
       if (k === 'crop') { var c = v.crop; if (c && [c.x, c.y, c.w, c.h].every(function (x) { return typeof x === 'number' && isFinite(x); }) && c.w > 0.005 && c.h > 0.005 && c.x >= 0 && c.y >= 0 && c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001) o.crop = { x: c.x, y: c.y, w: c.w, h: c.h }; continue; }
       if (k === 'angle') { if (typeof v.angle === 'number' && isFinite(v.angle)) o.angle = Math.max(-45, Math.min(45, Math.round(v.angle * 10) / 10)); continue; }
-      var r = rowOf(k), lo = r && r[2] != null ? r[2] : -100, hi = r && r[3] != null ? r[3] : 100;
-      if (typeof v[k] === 'number' && isFinite(v[k])) o[k] = Math.max(lo, Math.min(hi, Math.round(+v[k])));
+      var r = rowOf(k), lo = r && r[2] != null ? r[2] : -100, hi = r && r[3] != null ? r[3] : 100, sp = hi - lo;
+      if (typeof v[k] === 'number' && isFinite(v[k])) o[k] = Math.max(lo - sp, Math.min(hi + sp, Math.round(+v[k])));
     }
     return o;
   }
@@ -1239,7 +1320,10 @@
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-pcat]'); if (b) pickCat(b.dataset.pcat); });
     B.ctxTool.addEventListener('click', panelClick); B.ctxTool.addEventListener('input', panelInput); B.ctxTool.addEventListener('change', panelChange);
-    B.ctxTool.addEventListener('dblclick', panelDbl); B.ctxTool.addEventListener('pointerdown', curveDown);
+    B.ctxTool.addEventListener('dblclick', panelDbl);
+    // (the brush preview goes once its slider is let go of, wherever the pointer is then: Safari can send the release elsewhere)
+    ['pointerup', 'pointercancel', 'blur'].forEach(function (t) { window.addEventListener(t, function () { if (peekHeld) brushPeek(false); }, true); });
+    B.ctxTool.addEventListener('pointerdown', curveDown);
     document.addEventListener('paint:theme', function () { if (on) curveDraw(); });
     // (while Photo mode shows: undo, redo and the zoom are Photo's)
     document.addEventListener('click', function (e) {
@@ -1256,6 +1340,6 @@
     panelHTML: panelHTML, panelSync: panelSync, openFile: openFile, saveSheet: saveSheet, exportBlob: exportBlob, raster: rasterFull,
     histButtons: histButtons, relayout: relayout, isOn: function () { return on; }, kindOf: kindOf,
     // (for the tests: the settings, the stage's state)
-    state: function () { return { v: doc ? copyV(doc.v) : null, w: img ? img.w : 0, h: img ? img.h : 0, view: { x: view.x, y: view.y, k: view.k }, before: before, quick: quick, hist: hist.length, fut: fut.length, preset: presetPick, cat: cat, gl: !!gl }; }
+    state: function () { return { v: doc ? copyV(doc.v) : null, e: doc ? copyV(eff(doc.v)) : null, w: img ? img.w : 0, h: img ? img.h : 0, view: { x: view.x, y: view.y, k: view.k }, before: before, quick: quick, hist: hist.length, fut: fut.length, preset: presetPick, cat: cat, gl: !!gl, mask: mPick, mSlide: mSlide, mOver: mOver, ring: muiEl ? muiEl.querySelectorAll('circle.ring').length : 0 }; }
   };
 })();

@@ -104,6 +104,9 @@ photo() {
   check "photo/masks-light-1400" "$OUT/photo" "$T/photo/masks.js" light 1400 900
   check "photo/masks-dark-1024-touch" "$OUT/photo" "$T/photo/masks.js" dark 1024 768 touch
   check "photo/masks-light-390-touch" "$OUT/photo" "$T/photo/masks.js" light 390 844 touch
+  check "photo/maskedit-light-1400" "$OUT/photo" "$T/photo/maskedit.js" light 1400 900
+  check "photo/maskedit-dark-1024-touch" "$OUT/photo" "$T/photo/maskedit.js" dark 1024 768 touch
+  check "photo/maskedit-light-390-touch" "$OUT/photo" "$T/photo/maskedit.js" light 390 844 touch
 }
 
 serve "$APP_PORT" "$ROOT"

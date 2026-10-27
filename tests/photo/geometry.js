@@ -121,6 +121,21 @@ const touch = process.argv.includes('touch');
   await tapEl('[data-pa="cropreset"]');
   const rv = (await S()).v;
   L.ok(!rv.crop && rv.angle === 0 && rv.rot === 0 && !rv.flipH && !rv.flipV && rv.asp === 'orig', 'Reset puts the crop, the angle and the turns back');
+  // ---- SHAPES, round and round: each always the same crop, Original the whole frame ----
+  const shapes = ['1:1', '4:5', '3:2', '16:9', 'orig'], seen = {};
+  let same = true, k0 = (await S()).view.k;
+  for (let round = 0; round < 3; round++) for (const a of shapes) {
+    await tapEl('[data-pasp="' + a + '"]');
+    const c = JSON.stringify((await S()).v.crop), b2 = await cropBox();
+    if (round === 0) seen[a] = [c, b2.w.toFixed(1), b2.h.toFixed(1)]; else if (seen[a][0] !== c || seen[a][1] !== b2.w.toFixed(1) || seen[a][2] !== b2.h.toFixed(1)) same = false;
+  }
+  L.ok(same, 'going round the shapes three times: each gives the very same crop every time ' + JSON.stringify(seen));
+  L.ok((await S()).v.crop === null && (await saved()).join('x') === '600x400' && Math.abs((await S()).view.k - k0) < 1e-9, 'Original: the whole frame again, at its full size, the view unmoved');
+  const sq = JSON.parse(seen['1:1'][0]);
+  L.ok(Math.abs(sq.w * 600 - 400) < 1 && Math.abs(sq.h - 1) < 1e-9 && Math.abs(sq.x - (1 - sq.w) / 2) < 1e-9, 'a square is the largest there is, in the middle of the whole frame ' + JSON.stringify(sq));
+  await tapEl('[data-pasp="16:9"]'); await tapEl('[data-pasp="1:1"]');
+  L.ok(JSON.stringify((await S()).v.crop) === seen['1:1'][0], 'the square after the widest is the same square, not a smaller one');
+  await tapEl('[data-pasp="orig"]');
   await tapEl('[data-pa="cropdone"]');
   L.ok((await S()).cat === 'edit' && await p.$eval('.pho-crop', e => e.hidden), 'Done goes back to the sliders, the crop’s marks gone');
   L.ok((await saved()).join('x') === '600x400', 'the photo whole again');

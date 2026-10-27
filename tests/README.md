@@ -70,7 +70,8 @@ with `all passing`, or lists what isn't, and exits non-zero.
   works the same; Esc takes it all back; and the selection stays through
   every Effects slider. `gpu`/`cpu` pick the graphics chip or the worker for
   the other effects; `touch` and `safari` as in the text tool's.
-- `photo/photo.js`: Photo mode, from Settings, on `fixtures/scene.png`. Formats it
+- `photo/photo.js`: Photo mode, from Settings (Paint, Vector and Photo mode,
+  the one in use ticked), on `fixtures/scene.png`. Formats it
   can't open (a RAW file, a HEIC in Chromium) say so; a photo with nothing set
   saves exactly as it came; every slider changes it as one undo step and, put
   back (a double-click on its name), gives the very same screen again, and the
@@ -99,6 +100,16 @@ with `all passing`, or lists what isn't, and exits non-zero.
   eraser takes it back; undo and redo all the way give the very same photo;
   hidden, the masks change nothing; saved and loaded they come back the same;
   four at most; Done clears their lines.
+- `photo/maskedit.js`: Photo mode's masks, painted and edited. A first mask, a
+  brush, painted with nothing set leaves the photo exactly as it was (it once
+  went black: the brush's paint was bound in the tone table's place); Show
+  the mask lays the red over the photo; painting is at full detail; a mask's
+  slider held hides the red and shows what it does, at half detail, and let
+  go of brings both back (or not, with Show the mask off); the size slider
+  shows Paint's brush preview at the size it paints, and the ring over the
+  photo grows with the zoom; Done keeps every mask; back in Masks each is
+  picked from the list or its pin, painted on again and adjusted; undo takes
+  back one change.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and

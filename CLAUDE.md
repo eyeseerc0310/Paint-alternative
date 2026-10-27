@@ -500,9 +500,10 @@ When building or changing anything visual:
   and the other effects start again from it. Results carry the ask's `id`,
   so an older one is dropped. Done, Esc and closing finish it first
   (`casFinish`).
-- **Paint and Vector** are two workspaces in one drawing. **For now Vector
-  mode is a preview, reached only from Settings' Vector mode (preview)**
-  (`data-setting="vector"`, a check while it's in use): the switch
+- **Paint and Vector** are two workspaces in one drawing (with Photo, three).
+  **They're reached from Settings: Paint mode, Vector mode and Photo mode**
+  (`data-setting` the mode, `menuitemradio`s, the one in use ticked; picking
+  it again does nothing): the switch
   (`.mode-switch`, a radio group in a frosted capsule at the top middle of
   `.paint-centre`, over the picture's space; picked side `--seg-on`) is kept
   but hidden (`modeEl.hidden`), and the phone's tool strip only steps down
@@ -718,7 +719,7 @@ When building or changing anything visual:
   by `sBoards`, `sGuides`, `sPat` (before the layers, so fills can name
   them, `patIds`), `sFx`, `sRep`, and `sPaint` for patterns.
 - **Photo mode** (`photo.js`, `window.PaintPhoto`, `PH` in `paint.js`) is the
-  third workspace, a preview reached from Settings' Photo mode (preview)
+  third workspace, reached from Settings' Photo mode
   (`data-setting="photo"`; `photo-mode` on `:root`; `setMode`/`askMode` take
   `paint`, `vector` or `photo`, `MODE_NAME`, `modeOk`, `sideHas`). The photo as
   it came is never changed: `doc.blob` is the file (kept in the autosave and,
@@ -757,16 +758,38 @@ When building or changing anything visual:
   `toScr` go between the stage and the photo through the same geometry as
   the shader; the picked mask's lines and handles are `.pho-mui` (`mSync`,
   `mHandles`), its red overlay `u_show` (on the screen only, `onScreen`).
-  A new linear or radial mask is drawn by the first drag (`mFresh`). Only what's in view is drawn (`drawNow`), at
+  A new linear or radial mask is drawn by the first drag (`mFresh`). The
+  brushes' textures are made and sent up on unit 8 (`maskUniforms`), never on
+  the unit in use: once, the first brush mask's paint was bound in the tone
+  table's place and the photo went black. The red shows only with Show the
+  mask on (`mOver`) and steps aside while a mask's own slider is held
+  (`mSlide`); painting and moving a mask's shape stay at full detail, only
+  sliders work at half. The other masks have pins (`pinOf`): a tap picks
+  one. The brush's size slider shows Paint's own brush preview through the
+  bridge (`discPreview`, `brushPeek`), and over the photo the brush is
+  Paint's ring (`circle.ring`), the size it paints at the zoom. Done keeps
+  every mask; they're part of `doc.v`, so back in Masks each is there to
+  pick, paint, move and adjust. Crop shapes are worked out from the whole
+  frame each time (`aspCrop`: the largest of the shape in its middle), so
+  they never shrink one after another, and Original is the whole frame. Only what's in view is drawn (`drawNow`), at
   half the detail while a slider moves (`quick`, cleared on `change`).
   Pressed and held still (or `\` held), the photo shows as it came
   (`before`, the `Original` pill); its pointer handlers stop propagation,
   so the painting's never see them. The panel (`panelHTML`, `panelSync`;
   `data-pk` sliders through `getK`/`setK`, a double-click on a name resets
   it) has the left bar's categories, Edit (sections that fold like
-  Effects') and Presets (`PRESETS`, 15, each tried on top of what was set
-  when they opened, `presetBase`, so they never add up; thumbnails from
-  `render`; Cancel, Done as one step). On phones the panel is the strip
+  Effects') and Presets (Original, then `PRESETS`, 15). A preset is a layer
+  of its own over what's set by hand: `doc.v` is the hand's settings and
+  `doc.v.preset` the preset's id; everything drawn, saved and shown on the
+  sliders is `eff(v)` (each slider the hand's value plus the preset's
+  offset from where the slider starts, `offOf`; its curve after the hand's,
+  `pcurve`; its mixer added band by band; its grading where the hand's has
+  none, `gradeMix`), and a slider moved sets the hand's value so the slider
+  shows where it's put (`setK`); a double-click puts the hand's value back.
+  So Original takes only the preset off, another takes its place, and what
+  was set by hand, before or after, stays. Trying them changes only
+  `v.preset` (`presetTry`, thumbnails from `render`); Cancel puts back what
+  was there when they opened (`presetBase`), Done is one step. On phones the panel is the strip
   along the top, kept to part of the height, and the photo is fitted into
   the room under it (`free`). Saving (`saveSheet`, `exportBlob`): the full
   size from the photo as it came (`render` into a texture), JPEG with its
