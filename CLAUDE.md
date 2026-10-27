@@ -168,6 +168,12 @@ When building or changing anything visual:
   from where they start) are laid out letter by letter (`glyphsOf`) and,
   while typed, drawn on the overlay (`textPreview`); keep new text styles
   in `drawText`/`layoutText` so the box, Move and saving all follow.
+  Every text setting (font, size, B I U, capitals, shadow, alignment,
+  letter spacing, line height, outline, fill, curve) is in the tool's
+  panel (`CTX.text`), nothing floats beside the words: a press on the panel
+  keeps the typing's focus, a change goes through `afterTextChange`, and
+  the words' blur only lays them down when the focus left the panel, the
+  font list and the bottom bar.
 - **Masks and groups:** a layer's look on screen and when saved comes from
   `viewOf(L)` (its paint, through its mask `L.mask`, through what it's
   clipped to) and `flattenInto` (groups as one). While a mask is picked

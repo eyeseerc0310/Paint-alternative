@@ -14,31 +14,29 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   // type
   await p.mouse.click(...await at(0.2, 0.3)); await p.waitForTimeout(200);
   await p.keyboard.type('Hello there');
-  console.log('Aa button shown:', !!(await p.$('.paint-textbtn')));
-  await p.click('.paint-textbtn'); await p.waitForTimeout(300);
-  console.log('panel open:', await p.$eval('.paint-textpanel', e => !e.hidden), 'font shown:', await p.$eval('.tp-font span', e => e.textContent));
-  await p.fill('[data-tp="sizen"]', '90');
-  await p.click('[data-tpt="bold"]');
-  await p.$eval('[data-tp="spacing"]', e => { e.value = 120; e.dispatchEvent(new Event('input', { bubbles: true })); });
-  await p.click('.paint-swatches button:nth-child(4)');
-  // (the test's swatch strip is outside the panel: a press there closes it)
-  if (await p.$eval('.paint-textpanel', e => e.hidden)) await p.click('.paint-textbtn');
-  await p.click('[data-tpt="shadow"]');
-  await p.$eval('[data-tp="outline"]', e => { e.value = 4; e.dispatchEvent(new Event('input', { bubbles: true })); });
-  await p.click('[data-tpa="fonts"]'); await p.waitForTimeout(200);
+  // (its settings are in the tool's panel: no Aa button, no panel of its own)
+  console.log('no Aa button:', !(await p.$('.paint-textbtn')), '| settings in the panel:', !!(await p.$('.paint-ctx [data-ctx="tspacing"]')), '| font shown:', await p.$eval('.paint-ctx [data-ctxfont]', e => e.textContent));
+  const set = (k, v) => p.$eval('.paint-ctx [data-ctx="' + k + '"]', (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  await set('tsize', 90);
+  await p.click('.paint-ctx [data-ctx-t="bold"]');
+  await set('tspacing', 120);
+  // (the test's swatch strip isn't the app's: clicked without taking the focus from the words)
+  await p.$eval('.paint-swatches button:nth-child(4)', e => e.click());
+  await p.click('.paint-ctx [data-ctx-t="shadow"]');
+  await set('toutline', 4);
+  await p.click('.paint-ctx [data-ctx="fonts"]'); await p.waitForTimeout(200);
   await p.screenshot({ path: 'out/textpanel.png' });
-  await p.click('[data-tpa="fonts"]');
+  await p.click('.paint-ctx [data-ctx="fonts"]'); await p.waitForTimeout(100);
   const still = await p.$eval('.paint-text', e => ({ text: e.innerText, font: e.style.fontFamily, size: e.style.fontSize, ls: e.style.letterSpacing, color: e.style.color }));
   console.log('still typing after changes:', JSON.stringify(still));
   // second line, centred
   await p.click('.paint-text'); await p.keyboard.press('End'); await p.keyboard.press('Shift+Enter'); await p.keyboard.type('second line');
-  if (await p.$eval('.paint-textpanel', e => e.hidden)) await p.click('.paint-textbtn');
-  await p.click('[data-tpal="center"]');
+  await p.click('.paint-ctx [data-ctx-al="center"]');
   await p.waitForTimeout(150);
   await p.screenshot({ path: 'out/text-before.png', clip: { x: 140, y: 150, width: 1120, height: 600 } });
-  await p.click('[data-tpa="done"]'); await p.waitForTimeout(300);
+  await p.keyboard.press('Enter'); await p.waitForTimeout(300);
   await p.screenshot({ path: 'out/text-after.png', clip: { x: 140, y: 150, width: 1120, height: 600 } });
-  console.log('text box gone:', !(await p.$('.paint-text')), 'panel hidden:', await p.$eval('.paint-textpanel', e => e.hidden));
+  console.log('text box gone:', !(await p.$('.paint-text')));
   // a quick plain one with a built-in font, then undo
   console.log('errors', errs);
   await b.close();

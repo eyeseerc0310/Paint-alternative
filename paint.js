@@ -2626,7 +2626,7 @@
     // text tool to type, or move, size and turn them with Move. Drag before
     // typing to make a box the words wrap inside. Merging it into a layer
     // below (or Turn into Image, in its ••• menu) makes it plain paint.
-    var textBox = null, textAt = null, textBtn = null, tpEl = null, textW = 0, textRot = 0, textLayer = null, textPath = null;
+    var textBox = null, textAt = null, textW = 0, textRot = 0, textLayer = null, textPath = null;
     // (fill: one colour, a blend from the main colour to the second, a
     // rainbow, or the two colours letter by letter; arc bends the lines
     // round a circle, up or down)
@@ -2648,7 +2648,7 @@
       textBox.style.transform = (r ? 'rotate(' + r + 'rad) ' : '') + (textW ? '' : tx.align === 'center' ? 'translateX(-50%)' : tx.align === 'right' ? 'translateX(-100%)' : '');
       textBox.style.webkitTextStroke = tx.outline ? (tx.outline * tx.size / 100 * 2 * k) + 'px ' + st.color2 : '';
       textBox.style.textShadow = tx.shadow ? '0 ' + tx.size * 0.06 * k + 'px ' + tx.size * 0.12 * k + 'px rgba(0,0,0,.45)' : '';
-      placeTextBtn(); textPreview();
+      textPreview();
     }
     function styleTextBox() {
       if (!textBox) return;
@@ -2657,13 +2657,6 @@
       b.fontWeight = tx.bold ? '700' : '400'; b.fontStyle = tx.italic ? 'italic' : 'normal';
       b.textDecoration = tx.underline ? 'underline' : 'none'; b.textTransform = tx.caps ? 'uppercase' : 'none'; b.textAlign = tx.align;
       placeTextBox();
-    }
-    function placeTextBtn() {
-      if (!textBtn || !textBox) return;
-      var x = textBox.offsetLeft + textBox.offsetWidth * (tx.align === 'center' ? 0.5 : tx.align === 'right' ? 0 : 1) + 10, y = textBox.offsetTop - 6;
-      textBtn.style.left = Math.round(Math.max(4, Math.min(stage.clientWidth - 40, x))) + 'px';
-      textBtn.style.top = Math.round(Math.max(4, Math.min(stage.clientHeight - 40, y))) + 'px';
-      if (tpEl && !tpEl.hidden) placeTextPanel();
     }
     // (where to type: p is the top left of a box w wide, or, with no box,
     // the start of the line; L is a text layer whose words are being changed)
@@ -2683,13 +2676,6 @@
       textBox.className = 'paint-text' + (textW ? ' boxed' : ''); textBox.contentEditable = 'true'; textBox.spellcheck = false;
       if (L) textBox.textContent = L.text.str;
       stage.appendChild(textBox);
-      textBtn = document.createElement('button');
-      textBtn.type = 'button'; textBtn.className = 'paint-textbtn'; textBtn.setAttribute('aria-label', 'Text options'); textBtn.title = 'Text options: font, size, spacing and more';
-      textBtn.innerHTML = '<span>Aa</span>';
-      stage.appendChild(textBtn);
-      // (pressing it mustn't take the typing away from the words)
-      textBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); });
-      textBtn.addEventListener('click', function (e) { e.stopPropagation(); textPanel(!tpEl || tpEl.hidden); });
       styleTextBox();
       setTimeout(function () {
         if (!textBox) return;
@@ -2697,28 +2683,25 @@
         // (changing words: the caret goes at the end of them)
         if (L && window.getSelection) { var rg = document.createRange(); rg.selectNodeContents(textBox); rg.collapse(false); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }
       }, 0);
-      textBox.addEventListener('input', function () { placeTextBtn(); textPreview(); });
+      textBox.addEventListener('input', function () { textPreview(); });
       textBox.addEventListener('keydown', function (e) {
         if (e.isComposing || e.keyCode === 229) return; // (an input method choosing its characters)
-        // (Esc closes the options first, then lets the words go)
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (tpEl && !tpEl.hidden) textPanel(false); else cancelText(); }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelText(); }
         else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
       });
       textBox.addEventListener('blur', function () {
         setTimeout(function () {
           var a = document.activeElement;
-          // (still typing if the focus went to the text options, the font
-          // list, the colours or the opacity: those change the words)
-          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-textpanel, .paint-fontmenu, .paint-bottom, .paint-ctx'))) commitText();
+          // (still typing if the focus went to the text tool's settings, the
+          // font list, the colours or the opacity: those change the words)
+          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-fontmenu, .paint-bottom, .paint-ctx, .ctx-list'))) commitText();
         }, 0);
       });
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     function cancelText() {
       if (textBox) { textBox.remove(); textBox = null; octx.clearRect(0, 0, W, H); }
-      if (textBtn) { textBtn.remove(); textBtn = null; }
       if (textLayer) { textLayer.editing = false; styleLayer(textLayer); textLayer = null; }
-      textPanel(false);
     }
     // the words being typed, as they'd be laid down
     function curText() {
@@ -2959,82 +2942,7 @@
       if (L !== active) { active = L; renderLayers(); }
       startText({ x: L.text.x, y: L.text.y }, L.text.w, L);
     }
-    // the options panel (it floats beside the Aa button)
-    function textPanel(open) {
-      if (!open) { if (tpEl) tpEl.hidden = true; if (textBtn) textBtn.setAttribute('aria-expanded', 'false'); return; }
-      if (!textBox) return;
-      if (!tpEl) buildTextPanel();
-      syncTextPanel(); tpEl.hidden = false; textBtn.setAttribute('aria-expanded', 'true'); placeTextPanel();
-    }
-    function placeTextPanel() {
-      var r = textBtn.getBoundingClientRect(), w = tpEl.offsetWidth, h = tpEl.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight;
-      // (on a phone it sits along the bottom of the screen, clear of the words)
-      if (vw <= 600) { tpEl.style.left = Math.round((vw - w) / 2) + 'px'; tpEl.style.top = Math.round(vh - h - 8) + 'px'; keepOnScreen(tpEl); return; }
-      var x = r.right + 10; if (x + w > vw - 8) x = r.left - w - 10; if (x < 8) x = Math.max(8, (vw - w) / 2);
-      tpEl.style.left = Math.round(x) + 'px'; tpEl.style.top = Math.round(Math.max(8, Math.min(vh - h - 8, r.top - 20))) + 'px';
-      keepOnScreen(tpEl);
-    }
-    var ICON = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
-    function buildTextPanel() {
-      tpEl = document.createElement('div'); tpEl.className = 'paint-textpanel'; tpEl.hidden = true; tpEl.setAttribute('role', 'dialog'); tpEl.setAttribute('aria-label', 'Text options');
-      var range = function (key, label, min, max, step) { return '<label class="tp-row"><span>' + label + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-tp="' + key + '"><output data-tpo="' + key + '"></output></label>'; };
-      tpEl.innerHTML = '<div class="tp-head"><span>Text</span><button type="button" class="tp-done" data-tpa="done">Done</button></div>' +
-        '<button type="button" class="tp-font" data-tpa="fonts" aria-expanded="false"><span></span>' + ICON('<path d="M7 10l5 5 5-5"/>') + '</button>' +
-        '<div class="tp-fonts" hidden>' + fontList('data-tpfont') + '</div>' +
-        '<label class="tp-row tp-size"><span>Size</span><input type="range" min="8" max="400" step="1" data-tp="size"><input type="number" min="4" max="2000" data-tp="sizen" aria-label="Size"></label>' +
-        '<div class="tp-styles">' +
-          '<button type="button" data-tpt="bold" title="Bold" aria-label="Bold"><b>B</b></button>' +
-          '<button type="button" data-tpt="italic" title="Italic" aria-label="Italic"><i>I</i></button>' +
-          '<button type="button" data-tpt="underline" title="Underline" aria-label="Underline"><u>U</u></button>' +
-          '<button type="button" data-tpt="caps" title="All capitals" aria-label="All capitals"><span>AA</span></button>' +
-          '<button type="button" data-tpt="shadow" title="Shadow" aria-label="Shadow"><span class="tp-sh">S</span></button>' +
-        '</div>' +
-        '<div class="pa-tabs tp-align" role="group" aria-label="Alignment">' +
-          '<button type="button" data-tpal="left" aria-label="Align left">' + ICON('<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>') + '</button>' +
-          '<button type="button" data-tpal="center" aria-label="Centre">' + ICON('<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>') + '</button>' +
-          '<button type="button" data-tpal="right" aria-label="Align right">' + ICON('<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>') + '</button>' +
-        '</div>' +
-        range('spacing', 'Letter spacing', -150, 600, 5) + range('lh', 'Line height', 0.7, 3, 0.05) + range('outline', 'Outline', 0, 15, 0.5) +
-        '<div class="tp-note">The outline uses your second colour.</div>';
-      document.body.appendChild(tpEl);
-      draggable(tpEl, '.tp-head', 'text');
-      // (buttons keep the typing where it is; sliders and the number take
-      // the focus only while they're used)
-      tpEl.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) e.preventDefault(); });
-      tpEl.addEventListener('click', function (e) {
-        var b;
-        if ((b = e.target.closest('[data-tpa="done"]'))) { commitText(); return; }
-        if ((b = e.target.closest('[data-tpa="fonts"]'))) { var l = tpEl.querySelector('.tp-fonts'); l.hidden = !l.hidden; b.setAttribute('aria-expanded', !l.hidden); if (!l.hidden) { var on = l.querySelector('[aria-checked="true"]'); if (on) on.scrollIntoView({ block: 'center' }); } placeTextPanel(); return; }
-        if ((b = e.target.closest('[data-tpfont]'))) { st.font = b.dataset.tpfont; loadFont(st.font); afterTextChange(); return; }
-        if ((b = e.target.closest('[data-tpt]'))) { tx[b.dataset.tpt] = !tx[b.dataset.tpt]; afterTextChange(); return; }
-        if ((b = e.target.closest('[data-tpal]'))) { tx.align = b.dataset.tpal; afterTextChange(); return; }
-      });
-      tpEl.addEventListener('input', function (e) {
-        var i = e.target.closest('[data-tp]'); if (!i) return;
-        var k = i.dataset.tp;
-        if (k === 'sizen') { var v = Math.round(+i.value); if (v >= 4 && v <= 2000) tx.size = v; }
-        else tx[k] = +i.value;
-        afterTextChange(k === 'sizen');
-      });
-      tpEl.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); textPanel(false); if (textBox) textBox.focus({ preventScroll: true }); } else if (e.key === 'Enter' && e.target.dataset.tp === 'sizen') { e.preventDefault(); textBox && textBox.focus({ preventScroll: true }); } });
-    }
-    function afterTextChange(typing) { styleTextBox(); syncTextPanel(typing); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
-    function syncTextPanel(typingSize) {
-      if (!tpEl) return;
-      tpEl.querySelector('.tp-font span').textContent = fontName(st.font);
-      tpEl.querySelector('.tp-font span').style.fontFamily = st.font;
-      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpfont]'), function (b) { b.setAttribute('aria-checked', b.dataset.tpfont === st.font ? 'true' : 'false'); });
-      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpt]'), function (b) { b.setAttribute('aria-pressed', tx[b.dataset.tpt] ? 'true' : 'false'); });
-      Array.prototype.forEach.call(tpEl.querySelectorAll('[data-tpal]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.tpal ? 'true' : 'false'); });
-      tpEl.querySelector('[data-tp="size"]').value = Math.min(400, tx.size);
-      if (!typingSize) tpEl.querySelector('[data-tp="sizen"]').value = tx.size;
-      tpEl.querySelector('[data-tp="spacing"]').value = tx.spacing; tpEl.querySelector('[data-tpo="spacing"]').textContent = tx.spacing;
-      tpEl.querySelector('[data-tp="lh"]').value = tx.lh; tpEl.querySelector('[data-tpo="lh"]').textContent = tx.lh.toFixed(2);
-      tpEl.querySelector('[data-tp="outline"]').value = tx.outline; tpEl.querySelector('[data-tpo="outline"]').textContent = tx.outline;
-    }
-    document.addEventListener('pointerdown', function (e) {
-      if (tpEl && !tpEl.hidden && !e.target.closest('.paint-textpanel, .paint-textbtn, .paint-text, .paint-bottom, .paint-fontmenu')) textPanel(false);
-    }, true);
+    function afterTextChange() { styleTextBox(); if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync(); }
 
     // ---- select and move: a box round part of the layer; drag it to move it ----
     var sel = null, selMode = null, selOff = null, lasso = [];
@@ -7769,7 +7677,6 @@
       if (!saveMenu.hidden) dropUnder(saveMenu, $('[data-act="save"]'));
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       placeSelectionPopover();
-      if (tpEl && !tpEl.hidden && textBtn) placeTextPanel();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
       if (ctxEl) { dockPanels(); keepOnScreen(ctxEl, ctxBox()); dockSync(false); }
     }
@@ -8449,12 +8356,14 @@
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Fill"><button type="button" role="tab" data-ctx-fill="0">Outline</button><button type="button" role="tab" data-ctx-fill="1">Filled</button></div>' + hint('<b>Shift</b>: perfect shape');
       },
       text: function () {
+        var tslider = function (k, label, min, max, step, tip) { return '<label class="ctx-slider" data-tip="' + tip + '"><span>' + label + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-ctx="' + k + '" aria-label="' + label + '"><output></output></label>'; };
         return '<button type="button" class="ctx-btn" data-ctx="fonts" aria-haspopup="menu" aria-expanded="false" data-tip="Font"><span data-ctxfont></span>' + CHEV + '</button>' +
-          '<label class="ctx-field" data-tip="Text size"><span>Size</span><input type="number" class="p-field ctx-num" min="4" max="2000" data-ctx="tsize" aria-label="Text size"></label>' + sep +
+          '<label class="ctx-slider ctx-tsize" data-tip="Text size"><span>Size</span><input type="range" min="8" max="400" step="1" data-ctx="tsizer" aria-label="Text size"><input type="number" class="p-field ctx-num" min="4" max="2000" data-ctx="tsize" aria-label="Text size in pixels"></label>' + sep +
           '<div class="pa-tabs ctx-seg" role="group" aria-label="Style">' +
-            '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button></div>' + sep +
+            '<button type="button" data-ctx-t="bold" aria-label="Bold" data-tip="Bold"><b>B</b></button><button type="button" data-ctx-t="italic" aria-label="Italic" data-tip="Italic"><i style="font-family: Georgia, serif">I</i></button><button type="button" data-ctx-t="underline" aria-label="Underline" data-tip="Underline"><u>U</u></button><button type="button" data-ctx-t="caps" aria-label="All capitals" data-tip="All capitals"><span>AA</span></button><button type="button" data-ctx-t="shadow" aria-label="Shadow" data-tip="Shadow"><span class="ctx-tsh">S</span></button></div>' + sep +
           '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Alignment">' + ['left', 'center', 'right'].map(function (a) { return '<button type="button" role="tab" data-ctx-al="' + a + '" aria-label="Align ' + a + '" data-tip="Align ' + a + '">' + CI(a === 'left' ? '<path d="M4 6.5h16M4 10.5h10M4 14.5h16M4 18.5h10"/>' : a === 'center' ? '<path d="M4 6.5h16M7 10.5h10M4 14.5h16M7 18.5h10"/>' : '<path d="M4 6.5h16M10 10.5h10M4 14.5h16M10 18.5h10"/>') + '</button>'; }).join('') + '</div>' + sep +
-          '<button type="button" class="ctx-btn" data-ctx="tmore" data-tip="Spacing, line height, capitals, outline and shadow (while typing)">More</button>' + sep +
+          tslider('tspacing', 'Letter Spacing', -150, 600, 5, 'The space between letters') + tslider('tlh', 'Line Height', 0.7, 3, 0.05, 'The space between lines') +
+          tslider('toutline', 'Outline', 0, 15, 0.5, 'An outline round the letters, in your second colour') + sep +
           '<div class="pa-tabs ctx-seg ctx-seg-fit" role="tablist" aria-label="Fill">' + TFILLS.map(function (f) { return '<button type="button" role="tab" data-ctx-tf="' + f[0] + '" data-tip="' + f[2] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
           '<label class="ctx-slider" data-tpath-off data-tip="Curve: bend the words into an arch (to the right) or a dip (to the left)"><span>Curve</span><input type="range" min="-100" max="100" step="1" data-ctx="tarc" aria-label="Curve"><output>0</output></label>' +
           '<div data-tpath-on>' + hint('The words follow the path') + '</div>' +
@@ -8614,6 +8523,10 @@
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-fill]'), function (b) { b.setAttribute('aria-selected', (b.dataset.ctxFill === '1') === !!st.solid ? 'true' : 'false'); });
       var fn = q('[data-ctxfont]'); if (fn) { fn.textContent = fontName(st.font); fn.style.fontFamily = st.font; }
       var ts = q('[data-ctx="tsize"]'); if (ts && document.activeElement !== ts) ts.value = tx.size;
+      var tsr = q('[data-ctx="tsizer"]'); if (tsr) tsr.value = Math.min(400, tx.size);
+      [['tspacing', 'spacing', function (v) { return v; }], ['tlh', 'lh', function (v) { return v.toFixed(2); }], ['toutline', 'outline', function (v) { return v; }]].forEach(function (r) {
+        var i = q('[data-ctx="' + r[0] + '"]'); if (i) { i.value = tx[r[1]]; i.nextElementSibling.textContent = r[2](tx[r[1]]); }
+      });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-t]'), function (b) { b.setAttribute('aria-selected', tx[b.dataset.ctxT] ? 'true' : 'false'); });
       Array.prototype.forEach.call(ctxTool.querySelectorAll('[data-ctx-al]'), function (b) { b.setAttribute('aria-selected', tx.align === b.dataset.ctxAl ? 'true' : 'false'); });
       var tm = q('[data-ctx="tmore"]'); if (tm) tm.disabled = !textBox;
@@ -8695,7 +8608,11 @@
       }
       bar.addEventListener('pointermove', mv); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
     });
-    ctxEl.addEventListener('change', function () { gradRun = false; });
+    ctxEl.addEventListener('change', function (e) {
+      gradRun = false;
+      // (a text setting let go of while typing: the typing carries on)
+      if (textBox && e.target.type === 'range' && /^t(sizer|spacing|lh|outline|arc)$/.test(e.target.dataset.ctx || '')) textBox.focus({ preventScroll: true });
+    });
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     var ctxReady = false;
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
@@ -8706,7 +8623,9 @@
       else if (k === 'gridsize') { gridSize = gridFromSlider(+e.target.value); storeIt('paint-grid-size', gridSize); gridDraw(); ctxSync(); }
       else if (k === 'gridalpha') { gridAlpha = Math.max(0.1, Math.min(1, +e.target.value / 100)); storeIt('paint-grid-alpha', gridAlpha); gridDraw(); ctxSync(); }
       else if (k === 'gstopo') gradOpacity(+e.target.value / 100);
-      else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(true); } }
+      else if (k === 'tsize') { var v = Math.round(+e.target.value); if (v >= 4 && v <= 2000) { tx.size = v; if (textBox) afterTextChange(); else ctxSync(); } }
+      else if (k === 'tsizer') { tx.size = Math.round(+e.target.value); if (textBox) afterTextChange(); else ctxSync(); }
+      else if (k === 'tspacing' || k === 'tlh' || k === 'toutline') { tx[{ tspacing: 'spacing', tlh: 'lh', toutline: 'outline' }[k]] = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
       else if (k === 'tarc') { tx.arc = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
     });
     ctxEl.addEventListener('keydown', function (e) { if (e.target.dataset.ctx === 'tsize') { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (textBox) textBox.focus({ preventScroll: true }); } } });
@@ -8753,7 +8672,6 @@
       if (k === 'swap') { var c1 = st.color; setColor(st.color2); setColor2(c1); return; }
       if (k === 'all') { selectAll(); return; }
       if (k === 'paste') { pasteAny(); return; }
-      if (k === 'tmore') { if (textBox) textPanel(!tpEl || tpEl.hidden); return; }
       if (b.dataset.ctxTone) { st.tone = b.dataset.ctxTone; ctxSync(); return; }
       if (b.dataset.ctxSel) { chooseTool(b.dataset.ctxSel, false); return; }
       if (b.dataset.ctxShape) { var sk = b.dataset.ctxShape; if (sk === 'line') { if (st.tool !== 'line') setTool('line'); return; } st.shape = sk; storeIt('paint-shape', sk); if (st.tool !== 'shape') setTool('shape'); else ctxSync(); return; }
