@@ -2617,9 +2617,9 @@
     }
 
     // ---- TEXT: type where you tap; it's laid onto the layer when you're
-    // done. While typing, an Aa button sits by the words: it opens the text
-    // options (font, size, bold / italic / underline / capitals, alignment,
-    // letter spacing, line height, outline and shadow), which show live ----
+    // done. The text tool's panel has all its settings (font, size, bold /
+    // italic / underline / capitals, shadow, alignment, letter spacing, line
+    // height, outline, fill and curve), which change the words live ----
     // TEXT LAYERS: the words go on a layer of their own, which keeps them
     // (L.text: the words, where they are, their box and how they look) and
     // is drawn from them, so they can be changed again: tap them with the
@@ -2627,6 +2627,61 @@
     // typing to make a box the words wrap inside. Merging it into a layer
     // below (or Turn into Image, in its ••• menu) makes it plain paint.
     var textBox = null, textAt = null, textW = 0, textRot = 0, textLayer = null, textPath = null;
+    // WHERE THE WORDS STAY OPEN: the text tool's settings, the font list, the
+    // bottom bar's colours and opacity and the colour picker all change the
+    // words being typed, so a press there never lays them down. It's where
+    // the press was that says so, not where the focus went: Safari (and so
+    // the iPad) gives a pressed button or slider no focus, it goes to the page.
+    var TEXT_KEEP = '.paint-text, .paint-ctx, .ctx-list, .paint-fontmenu, .paint-bottom, .paint-colorpanel';
+    var textPress = null, textHad = false; // (what the last press landed on, and whether the words had the focus as it began)
+    var textHi = null; // (the letters highlighted in the words, kept while the focus is away from them)
+    function textKept(el) { return !!(el && el.closest && el.closest(TEXT_KEEP)); }
+    document.addEventListener('pointerdown', function (e) {
+      if (!textBox) return;
+      var a = document.activeElement;
+      textPress = e.target; textHad = a === textBox || !!(a && a.dataset && a.dataset.ctx === 'tsize');
+      // (a press anywhere else while the focus is already off the words lays
+      // them down, as their blur would; a press on the picture deals with the
+      // words itself, in the stage's own handler)
+      if (!textKept(e.target) && !stage.contains(e.target) && a !== textBox) commitText();
+    }, true);
+    document.addEventListener('selectionchange', function () {
+      if (!textBox) return;
+      var s = getSelection(), inBox = s.rangeCount && textBox.contains(s.anchorNode) && textBox.contains(s.focusNode);
+      if (inBox) textHi = s.getRangeAt(0).cloneRange();
+      textHiShow(!inBox);
+    });
+    // (while the page's own highlight is somewhere else, as during a slider's
+    // drag in Safari, the letters kept are still shown highlighted, in the
+    // system's highlight colour, by the CSS Custom Highlight API)
+    function textHiShow(on) {
+      if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+      if (on && textBox && textHi && !textHi.collapsed && textBox.contains(textHi.startContainer)) CSS.highlights.set('paint-text-kept', new Highlight(textHi));
+      else CSS.highlights.delete('paint-text-kept');
+    }
+    // (the words take the focus back, with the same letters highlighted)
+    function textFocus() {
+      if (!textBox) return;
+      if (document.activeElement !== textBox) textBox.focus({ preventScroll: true });
+      var s = getSelection(), r = s.rangeCount ? s.getRangeAt(0) : null, h = textHi;
+      if (!h || !textBox.contains(h.startContainer) || !textBox.contains(h.endContainer)) return;
+      if (r && r.startContainer === h.startContainer && r.startOffset === h.startOffset && r.endContainer === h.endContainer && r.endOffset === h.endOffset) return;
+      s.removeAllRanges(); s.addRange(h.cloneRange());
+    }
+    // (a button pressed or a slider let go of where the words stay open,
+    // having had the focus when the press began: they get it back, so the
+    // typing and the highlight carry on; a field keeps the focus it took,
+    // and once it's done with, by Return, the words take it back)
+    function textBack(e) {
+      if (!textBox || !textHad || !textKept(e.target) || textBox.contains(e.target)) return;
+      var a = document.activeElement;
+      if (e.type === 'change' && e.target.type !== 'range') { setTimeout(function () { var b = document.activeElement; if (!b || b === document.body) textFocus(); }, 0); return; }
+      if (a && a !== textBox && a !== document.body && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range') return;
+      if (e.type === 'click' ? !e.target.closest('button') : e.target.type !== 'range') return;
+      textFocus();
+    }
+    document.addEventListener('click', textBack);
+    document.addEventListener('change', textBack);
     // (fill: one colour, a blend from the main colour to the second, a
     // rainbow, or the two colours letter by letter; arc bends the lines
     // round a circle, up or down)
@@ -2663,6 +2718,7 @@
     // (path: words along a pen path, its points from where they start)
     function startText(p, w, L, path) {
       ensureFonts();
+      textHi = null; textPress = null;
       textAt = { x: p.x, y: p.y }; textW = w || 0; textLayer = L || null; textRot = L ? L.text.rot || 0 : 0; textPath = L ? L.text.path || null : path || null;
       if (L) {
         // (its words come back as they were, in their font, size and colour)
@@ -2691,16 +2747,19 @@
       });
       textBox.addEventListener('blur', function () {
         setTimeout(function () {
+          if (!textBox) return;
           var a = document.activeElement;
-          // (still typing if the focus went to the text tool's settings, the
-          // font list, the colours or the opacity: those change the words)
-          if (textBox && a !== textBox && !(a && a.closest && a.closest('.paint-fontmenu, .paint-bottom, .paint-ctx, .ctx-list'))) commitText();
+          // (still typing if the focus went where the words stay open, or
+          // nowhere after a press there)
+          if (a === textBox || textKept(a)) return;
+          if ((!a || a === document.body) && textKept(textPress)) return;
+          commitText();
         }, 0);
       });
       if (typeof ctxEl !== 'undefined' && ctxEl) ctxSync();
     }
     function cancelText() {
-      if (textBox) { textBox.remove(); textBox = null; octx.clearRect(0, 0, W, H); }
+      if (textBox) { textBox.remove(); textBox = null; textHi = null; textHiShow(false); octx.clearRect(0, 0, W, H); }
       if (textLayer) { textLayer.editing = false; styleLayer(textLayer); textLayer = null; }
     }
     // the words being typed, as they'd be laid down
@@ -8610,8 +8669,6 @@
     });
     ctxEl.addEventListener('change', function (e) {
       gradRun = false;
-      // (a text setting let go of while typing: the typing carries on)
-      if (textBox && e.target.type === 'range' && /^t(sizer|spacing|lh|outline|arc)$/.test(e.target.dataset.ctx || '')) textBox.focus({ preventScroll: true });
     });
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
     var ctxReady = false;
@@ -8628,8 +8685,13 @@
       else if (k === 'tspacing' || k === 'tlh' || k === 'toutline') { tx[{ tspacing: 'spacing', tlh: 'lh', toutline: 'outline' }[k]] = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
       else if (k === 'tarc') { tx.arc = +e.target.value; if (textBox) afterTextChange(); else ctxSync(); }
     });
-    ctxEl.addEventListener('keydown', function (e) { if (e.target.dataset.ctx === 'tsize') { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); if (textBox) textBox.focus({ preventScroll: true }); } } });
-    ctxEl.addEventListener('pointerdown', function (e) { if (anyMenu()) openMenu(null); if (textBox && e.target.closest('button')) e.preventDefault(); }); // (so the words being typed keep the caret)
+    ctxEl.addEventListener('keydown', function (e) { if (e.target.dataset.ctx === 'tsize') { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); textFocus(); } } });
+    ctxEl.addEventListener('pointerdown', function (e) { if (anyMenu()) openMenu(null); });
+    // (a button pressed while typing takes neither the focus nor the
+    // highlight from the words: mousedown, which every browser, Safari too,
+    // moves the focus and the highlight on, and which follows a tap as well)
+    function textKeepCaret(e) { if (textBox && e.target.closest('button')) e.preventDefault(); }
+    ctxEl.addEventListener('mousedown', textKeepCaret); ctxList.addEventListener('mousedown', textKeepCaret);
     ctxEl.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b || !ctxEl.contains(b)) return;
       if (b.classList.contains('ctx-min')) { ctxMin(!ctxEl.classList.contains('min')); return; }

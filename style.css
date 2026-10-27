@@ -468,7 +468,9 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   position: relative; flex: 1 1 auto; align-self: stretch; min-width: 0; min-height: 0;
   /* (a quiet well with a fine grid of dots, like a sheet of dotted paper) */
   background: radial-gradient(circle, var(--stage-dot) 1px, transparent 1.3px) 0 0 / 22px 22px, var(--stage);
-  border-radius: var(--r-stage); overflow: hidden;
+  /* (clipped, never scrolled: words typed past its edge would otherwise
+     scroll it to keep the caret in view, sliding the picture sideways) */
+  border-radius: var(--r-stage); overflow: hidden; overflow: clip;
   box-shadow: inset 0 0 0 .5px var(--line), inset 0 2px 8px rgba(0, 0, 0, .05);
   touch-action: none; -webkit-user-select: none; user-select: none;
   cursor: crosshair;
@@ -565,6 +567,9 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
    on the picture as they're typed, and the box only takes the typing) */
 .paint-text.fancy { color: transparent !important; -webkit-text-stroke: 0 !important; text-shadow: none !important; }
 .paint-text.curved { outline-color: transparent; caret-color: transparent !important; }
+/* (the letters highlighted in the words, kept while the page's own highlight
+   is elsewhere: in the system's highlight colour, as the real one) */
+::highlight(paint-text-kept) { background-color: Highlight; color: HighlightText; }
 
 /* ---------- Pop-overs: menus, panels, tooltips ---------- */
 .paint-brushes, .paint-adjust, .paint-savemenu, .paint-layerpanel, .paint-lmenu, .paint-colorpanel {
@@ -1238,6 +1243,12 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .ctx-hint { flex: 1 1 160px; min-width: 0; white-space: normal; line-height: 1.35; } /* (a long hint wraps rather than running off the edge) */
   .ctx-slider { padding: 0 var(--s-1); }
   .ctx-slider input[type="range"] { width: 88px; }
+  /* (a row with a long name, or a number beside it, stays inside the strip:
+     the slider gives up what doesn't fit, so it never runs under the strip's
+     lock and fold buttons) */
+  .ctx-tool > .ctx-slider { max-width: 100%; min-width: 0; white-space: nowrap; }
+  .ctx-tool > .ctx-slider input[type="range"] { flex: 0 100 88px; min-width: 40px; } /* (it gives up its room first) */
+  .ctx-tool > .ctx-slider > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* (and past that, its name, whole in its tip) */
   .ctx-field { height: 28px; }
   .paint-scale { top: auto; bottom: var(--s-2); } /* (the tool settings run along the top here) */
   .ctx-field > span:first-child { display: none; }

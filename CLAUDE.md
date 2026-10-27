@@ -170,10 +170,22 @@ When building or changing anything visual:
   in `drawText`/`layoutText` so the box, Move and saving all follow.
   Every text setting (font, size, B I U, capitals, shadow, alignment,
   letter spacing, line height, outline, fill, curve) is in the tool's
-  panel (`CTX.text`), nothing floats beside the words: a press on the panel
-  keeps the typing's focus, a change goes through `afterTextChange`, and
-  the words' blur only lays them down when the focus left the panel, the
-  font list and the bottom bar.
+  panel (`CTX.text`), nothing floats beside the words, and a change goes
+  through `afterTextChange`. Where the words stay open (`TEXT_KEEP`: the
+  panel, the font list, the bottom bar, the colour picker) is decided by
+  where the press was (`textPress`), never only by where the focus went:
+  Safari, and so the iPad, gives a pressed button or slider no focus. Their
+  buttons keep the focus and the highlight by stopping `mousedown`
+  (`textKeepCaret`; `pointerdown` doesn't stop Safari); the highlight is kept
+  as `textHi` (from `selectionchange`) and shown with the CSS Custom
+  Highlight API while the page's own is elsewhere (`textHiShow`); a button
+  pressed, a slider let go of or a field finished there gives the words the
+  focus back with it (`textBack`, `textFocus`). A press anywhere else lays
+  them down (their blur, or the capture `pointerdown` when they'd lost the
+  focus already), as does a tap on the picture. The settings apply to the
+  whole of the words (a text layer has one look); the dashed box is
+  `.paint-text`'s outline. The stage is `overflow: clip`, so a caret past
+  its edge can't scroll the picture sideways.
 - **Masks and groups:** a layer's look on screen and when saved comes from
   `viewOf(L)` (its paint, through its mask `L.mask`, through what it's
   clipped to) and `flattenInto` (groups as one). While a mask is picked
@@ -746,14 +758,14 @@ https://eyeseerc0310.github.io/Paint-alternative/
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and
 isn't compared. The layout lock (`layout-lock.js`, its states in
 `layout-steps.js`) compares every element's box. Vector's checks
-(`tests/vector/`, sharing `vt.js`), the bristle brushes' (`tests/brushes/`) and
-selecting's (`tests/selection/`)
+(`tests/vector/`, sharing `vt.js`), the bristle brushes' (`tests/brushes/`),
+selecting's (`tests/selection/`) and the text tool's (`tests/text/`)
 pass or fail by themselves, ending `ALL OK`. Tests open the app as
 `http://127.0.0.1:8123/index.html` through `lib.js`'s `chromium`, which sends
 that to whichever copy is being tested. Run the regressions and the lock
