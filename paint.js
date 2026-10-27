@@ -4852,7 +4852,8 @@
     // ---- EFFECTS: everything that changes the look of the picked layer
     // (only inside the selection, if there is one), in sections that fold:
     // Light, Levels, Curves, Hue & Saturation, White Balance, Gradient Map,
-    // Detail, Pixelate, Blur and Finish. It's shown live, and kept with DONE ----
+    // Detail, Pixelate, Blur, Finish and Content-Aware Scale. It's shown live,
+    // and kept with DONE ----
     // (each slider: key, name, lowest; they all go up to 100, and start at 0)
     var FX = [
       ['light', 'Light', [['exposure', 'Exposure', -100], ['brilliance', 'Brilliance', -100], ['contrast', 'Contrast', -100], ['highlights', 'Highlights', -100], ['shadows', 'Shadows', -100], ['whites', 'Whites', -100], ['blacks', 'Blacks', -100]]],
@@ -4864,11 +4865,14 @@
       ['detail', 'Detail', [['sharpen', 'Sharpen', 0], ['clarity', 'Clarity', -100], ['grain', 'Grain', 0]]],
       ['pixel', 'Pixelate', [['pixelate', 'Block Size', 0]]],
       ['blur', 'Blur'],
-      ['finish', 'Finish', [['vignette', 'Vignette', -100], ['fade', 'Fade', 0]]]
+      ['finish', 'Finish', [['vignette', 'Vignette', -100], ['fade', 'Fade', 0]]],
+      // (the selection's width, in per cent of what it is, by seam carving:
+      // only with a selection; key, name, lowest, start, highest)
+      ['cas', 'Content-Aware Scale', [['cas', 'Width', 25, 100, 200]]]
     ];
     // (what each section holds, to tell when it's been changed, and to put it back)
     var FX_KEYS = { light: FX[0][2].map(function (a) { return a[0]; }), levels: ['lb', 'lg', 'lw', 'ob', 'ow'], curves: ['curve'], hsl: FX[3][2].map(function (a) { return a[0]; }),
-      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], blur: ['gblur', 'mblur', 'mangle'], finish: ['vignette', 'fade'] };
+      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], blur: ['gblur', 'mblur', 'mangle'], finish: ['vignette', 'fade'], cas: ['cas'] };
     // GRADIENT MAP: the picture's light and dark, recoloured along a gradient
     // (dark at the start, light at the end); "Your Colours" runs from the
     // second colour to the main one
@@ -4942,6 +4946,7 @@
       if (k === 'gmap') return !!v.gmap;
       if (k === 'gms' || k === 'gmr' || k === 'mangle') return false; // (a way, or an angle, alone changes nothing)
       if (k in LV) return v[k] != null && v[k] !== LV[k];
+      if (k === 'cas') return v.cas != null && v.cas !== 100;
       return !!v[k];
     }
     // (hue: the colour turned round the colour wheel, keeping its brightness;
@@ -4971,6 +4976,7 @@
     // (tracks: the coloured slider tracks too, which only change with Hue)
     function fxMarks(tracks) {
       if (tracks) fxTracks();
+      casSync();
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) { sec.classList.toggle('changed', !!adj && FX_KEYS[sec.dataset.fx].some(fxOn)); });
       var on = adj && adj.v.gmap || '';
       Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
@@ -4981,6 +4987,7 @@
     }
     function fxReset(f) {
       if (!adj) return;
+      if (f === 'cas') { var ci = adjBox.querySelector('[data-adj="cas"]'); ci.value = 100; ci.previousElementSibling.textContent = 100; if (adj.cas) casInput(100, true); delete adj.v.cas; fxMarks(); return; }
       FX_KEYS[f].forEach(function (k) { delete adj.v[k]; });
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec[data-fx="' + f + '"] input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       if (f === 'levels') syncLevels(); if (f === 'curves') drawCurve();
@@ -5314,6 +5321,300 @@
       var x0 = W2, y0 = H2, x1 = -1, y1 = -1;
       for (var y = 0, k = 3; y < H2; y++) for (var x = 0; x < W2; x++, k += 4) if (m[k]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
       return x1 < 0 ? { x0: 0, y0: 0, x1: 0, y1: 0 } : { x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 };
+    }
+
+    // CONTENT-AWARE SCALE: seam carving. A seam is a path of one pixel a row,
+    // top to bottom, each step straight down or one to the side; the one
+    // whose taking out changes the picture least (forward energy: how
+    // different the pixels that come together would be) goes, again and
+    // again, until the content is as narrow as wanted; to widen it, the seams
+    // that would go first are doubled instead. Pixels outside the selection
+    // (mk) cost so much that the seams keep inside it where they can. It
+    // stands alone, so it runs in a worker as it is. px: RGBA, w x h; mk: the
+    // selection, 0-255 a pixel, or null; tw: the width wanted. (budget: about
+    // how many pixel steps it may take; past that, several seams that don't
+    // touch go in one pass)
+    function casCarve(px, mk, w, h, tw, budget) {
+      tw = Math.max(1, Math.round(tw));
+      // (how light each pixel is, and how solid, softened a little (three
+      // passes of a 3 x 3 box), so fine grain and noise cost next to
+      // nothing while real edges keep their cost)
+      var I = function (p, n) {
+        var o = new Float32Array(n), t = new Float32Array(n), cw0 = n / h, i, k, x, y, r;
+        for (i = 0, k = 0; i < n; i++, k += 4) { var a = p[k + 3]; o[i] = (0.299 * p[k] + 0.587 * p[k + 1] + 0.114 * p[k + 2]) * a / 255 + a * 0.3; }
+        for (r = 0; r < 3; r++) {
+          for (y = 0; y < h; y++) for (x = 0, i = y * cw0; x < cw0; x++, i++) t[i] = (o[x > 0 ? i - 1 : i] + o[i] + o[x < cw0 - 1 ? i + 1 : i]) / 3;
+          for (y = 0; y < h; y++) for (x = 0, i = y * cw0; x < cw0; x++, i++) o[i] = (t[y > 0 ? i - cw0 : i] + t[i] + t[y < h - 1 ? i + cw0 : i]) / 3;
+        }
+        return o;
+      };
+      // the seams: k of them, the cheapest first, as the columns (of px)
+      // each takes out of each row (rem, k a row); idx is what's left
+      var seams = function (p, m, cw0, k) {
+        var n = cw0 * h, In = I(p, n), Pn = new Float32Array(n), idx = new Int32Array(n), M = new Float32Array(n), D = new Int8Array(n);
+        var rem = new Int32Array(h * k), rc = new Int32Array(h), mark = new Uint8Array(n), path = new Int32Array(h), x, y, i;
+        for (y = 0; y < h; y++) for (x = 0; x < cw0; x++) { i = y * cw0 + x; idx[i] = x; Pn[i] = m ? (255 - m[i]) * 400 : 0; }
+        var cw = cw0, done = 0, passes = Math.min(k, Math.max(16, Math.floor((budget || 2e8) / Math.max(1, n * 6))));
+        var marked = [], acc = [];
+        while (done < k) {
+          // the cheapest way down to each pixel: what taking it out would
+          // bring together (forward energy), plus how much is going on there
+          // (the change across it and down it), so a seam doesn't cut
+          // through the middle of a flat shape just because its sides match
+          for (y = 0; y < h; y++) {
+            var o = y * cw0, u = o - cw0, dn = y < h - 1 ? o + cw0 : o, up = y ? u : o;
+            for (x = 0; x < cw; x++) {
+              var c = o + x, L = In[x > 0 ? c - 1 : c], Rr = In[x < cw - 1 ? c + 1 : c], cu = Math.abs(Rr - L);
+              var en = cu + Math.abs(In[dn + x] - In[up + x]) + Pn[c];
+              if (!y) { M[c] = en; D[c] = 0; continue; }
+              var U = In[u + x], best = M[u + x] + cu, d = 0, t;
+              if (x > 0 && (t = M[u + x - 1] + cu + Math.abs(U - L)) < best) { best = t; d = -1; }
+              if (x < cw - 1 && (t = M[u + x + 1] + cu + Math.abs(U - Rr)) < best) { best = t; d = 1; }
+              M[c] = best + en - cu; D[c] = d;
+            }
+          }
+          // this pass's seams: from the cheapest ends at the foot, each
+          // taking the cheapest way up that no seam before it has taken
+          // (stepping aside to a free neighbour where its own way is taken)
+          var want = Math.max(1, Math.ceil((k - done) / Math.max(1, passes--))), last = (h - 1) * cw0, ends = [];
+          if (want === 1) { var bx = 0; for (x = 1; x < cw; x++) if (M[last + x] < M[last + bx]) bx = x; ends.push(bx); }
+          else { for (x = 0; x < cw; x++) ends.push(x); ends.sort(function (a, b) { return M[last + a] - M[last + b]; }); }
+          acc.length = 0;
+          for (var e = 0; e < ends.length && acc.length < want; e++) {
+            var px0 = ends[e], ok = !mark[last + px0];
+            for (y = h - 1; ok && y >= 0; y--) {
+              path[y] = px0; if (!y) break;
+              var r1 = (y - 1) * cw0, nx = px0 + D[y * cw0 + px0];
+              if (mark[r1 + nx]) {
+                nx = -1;
+                for (var dx = -1; dx <= 1; dx++) { var cx = px0 + dx; if (cx >= 0 && cx < cw && !mark[r1 + cx] && (nx < 0 || M[r1 + cx] < M[r1 + nx])) nx = cx; }
+                if (nx < 0) ok = false;
+              }
+              px0 = nx;
+            }
+            if (!ok) continue;
+            for (y = 0; y < h; y++) { mark[y * cw0 + path[y]] = 1; marked.push(y * cw0 + path[y]); }
+            acc.push(Int32Array.from(path));
+          }
+          for (i = 0; i < marked.length; i++) mark[marked[i]] = 0; marked.length = 0;
+          // out they come, row by row
+          var cut = new Int32Array(acc.length);
+          for (y = 0; y < h; y++) {
+            for (i = 0; i < acc.length; i++) cut[i] = acc[i][y];
+            cut.sort();
+            var row = y * cw0, wr = cut[0], ci = 0;
+            for (x = cut[0]; x < cw; x++) {
+              if (ci < cut.length && x === cut[ci]) { rem[y * k + rc[y]++] = idx[row + x]; ci++; continue; }
+              In[row + wr] = In[row + x]; Pn[row + wr] = Pn[row + x]; idx[row + wr] = idx[row + x]; wr++;
+            }
+          }
+          cw -= acc.length; done += acc.length;
+        }
+        return { idx: idx, rem: rem, cw: cw };
+      };
+      if (tw <= w) {
+        // narrower: what's left, in order
+        var S = seams(px, mk, w, w - tw), out = new Uint8ClampedArray(tw * h * 4);
+        for (var y1 = 0; y1 < h; y1++) for (var x1 = 0; x1 < tw; x1++) { var s = (y1 * w + S.idx[y1 * w + x1]) * 4, d1 = (y1 * tw + x1) * 4; out[d1] = px[s]; out[d1 + 1] = px[s + 1]; out[d1 + 2] = px[s + 2]; out[d1 + 3] = px[s + 3]; }
+        return out;
+      }
+      // wider: the seams that would go first are doubled, half the width at
+      // most at a time (so no seam is doubled twice in one go)
+      var cur = px, cm = mk, cw = w;
+      while (cw < tw) {
+        var add = Math.min(tw - cw, Math.max(1, Math.floor(cw / 2))), T = seams(cur, cm, cw, add), nw = cw + add;
+        var nx = new Uint8ClampedArray(nw * h * 4), nm = cm ? new Uint8Array(nw * h) : null, dup = new Uint8Array(cw);
+        for (var y2 = 0; y2 < h; y2++) {
+          dup.fill(0); for (var j = 0; j < add; j++) dup[T.rem[y2 * add + j]] = 1;
+          for (var x2 = 0, w2 = 0; x2 < cw; x2++) {
+            var a = (y2 * cw + x2) * 4, b = (y2 * nw + w2) * 4;
+            nx[b] = cur[a]; nx[b + 1] = cur[a + 1]; nx[b + 2] = cur[a + 2]; nx[b + 3] = cur[a + 3]; if (nm) nm[y2 * nw + w2] = cm[y2 * cw + x2]; w2++;
+            if (!dup[x2]) continue;
+            // (the new pixel: halfway to its neighbour, weighted by how solid each is)
+            var q = (y2 * cw + Math.min(cw - 1, x2 + 1)) * 4, aa = cur[a + 3], qa = cur[q + 3], ta = aa + qa; b += 4;
+            for (var ch = 0; ch < 3; ch++) nx[b + ch] = ta ? (cur[a + ch] * aa + cur[q + ch] * qa) / ta : 0;
+            nx[b + 3] = ta / 2; if (nm) nm[y2 * nw + w2] = (cm[y2 * cw + x2] + cm[y2 * cw + Math.min(cw - 1, x2 + 1)]) / 2; w2++;
+          }
+        }
+        cur = nx; cm = nm; cw = nw;
+      }
+      return cur;
+    }
+    // (its workers: one for the quick look while the slider moves, one for
+    // the full size, each working only the newest ask; a full size that's
+    // been overtaken is stopped, not waited for)
+    var casWs = {};
+    function casWorker(kind) {
+      if (casWs[kind] || typeof Worker === 'undefined' || typeof Blob === 'undefined') return casWs[kind] || null;
+      try {
+        var code = casCarve.toString() + '\nonmessage = function (e) { var d = e.data, o = casCarve(d.px, d.mk, d.w, d.h, d.tw, d.budget); postMessage({ id: d.id, out: o, tw: d.tw }, [o.buffer]); };';
+        var w = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+        w.onmessage = function (e) { w.busy = null; casBack(kind, e.data); if (w.want) { var j = w.want; w.want = null; casPost(kind, j); } };
+        w.onerror = function () { casWs[kind] = null; };
+        casWs[kind] = w;
+      } catch (x) { casWs[kind] = null; }
+      return casWs[kind];
+    }
+    function casPost(kind, job) {
+      var w = casWorker(kind);
+      if (!w) { var o = casCarve(job.px, job.mk, job.w, job.h, job.tw, job.budget); casBack(kind, { id: job.id, out: o, tw: job.tw }); return; }
+      if (w.busy) {
+        if (kind === 'prev') { w.want = job; return; } // (the newest look, once this one's done)
+        w.terminate(); casWs[kind] = null; w = casWorker(kind); if (!w) { casPost(kind, job); return; }
+      }
+      // (copies go: the originals are kept for the next ask)
+      var px = new Uint8ClampedArray(job.px), mk = job.mk ? new Uint8Array(job.mk) : null;
+      w.busy = job.id; w.postMessage({ id: job.id, px: px, mk: mk, w: job.w, h: job.h, tw: job.tw, budget: job.budget }, mk ? [px.buffer, mk.buffer] : [px.buffer]);
+    }
+    // THE SELECTION, READY TO CARVE: the layer as it was before any of this
+    // (orig: kept for undo, and to put back exactly at 100%), the box round
+    // the selection, its pixels (made see-through outside the selection, so
+    // nothing from outside comes in), the selection a pixel at a time, and a
+    // smaller copy of both for the quick look
+    function casPrep() {
+      if (adj.cas) return adj.cas;
+      var cv = adj.L.cv, W2 = cv.width, H2 = cv.height;
+      if (!adj.orig) adj.orig = adj.src ? new ImageData(new Uint8ClampedArray(adj.src.data), W2, H2) : adj.L.ctx.getImageData(0, 0, W2, H2);
+      var m = adj.mask || selPixels(), b = maskBox(m, W2, H2), bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+      if (bw < 2 || bh < 1) return null;
+      var px = new Uint8ClampedArray(bw * bh * 4), mk = new Uint8Array(bw * bh), o = adj.orig.data;
+      for (var y = 0; y < bh; y++) for (var x = 0; x < bw; x++) {
+        var s = ((b.y0 + y) * W2 + b.x0 + x) * 4, d = (y * bw + x) * 4, a = m[s + 3];
+        px[d] = o[s]; px[d + 1] = o[s + 1]; px[d + 2] = o[s + 2]; px[d + 3] = o[s + 3] * a / 255; mk[y * bw + x] = a;
+      }
+      // (the box as it was, and the selection in it, as canvases: drawn
+      // from, by the canvas itself, for the quick look; raw: the layer is
+      // still as it was, nothing written to it yet, so it's drawn from directly)
+      var raw = !adj.src, ocv = document.createElement('canvas'), mcv = document.createElement('canvas');
+      ocv.width = mcv.width = bw; ocv.height = mcv.height = bh;
+      if (raw) ocv.getContext('2d').drawImage(cv, b.x0, b.y0, bw, bh, 0, 0, bw, bh); else ocv.getContext('2d').putImageData(adj.orig, -b.x0, -b.y0, b.x0, b.y0, bw, bh);
+      mcv.getContext('2d').putImageData(new ImageData(m, W2, H2), -b.x0, -b.y0, b.x0, b.y0, bw, bh);
+      // (the quick look's copy: no more than about 60,000 pixels)
+      var q = Math.min(1, Math.sqrt(6e4 / (bw * bh))), sw = Math.max(2, Math.round(bw * q)), sh = Math.max(1, Math.round(bh * q));
+      var tc = document.createElement('canvas'); tc.width = sw; tc.height = sh; var tx2 = tc.getContext('2d', { willReadFrequently: true });
+      tx2.imageSmoothingQuality = 'high'; tx2.drawImage(mcv, 0, 0, sw, sh);
+      var sm = tx2.getImageData(0, 0, sw, sh).data, smk = new Uint8Array(sw * sh); for (var i = 0; i < sw * sh; i++) smk[i] = sm[i * 4 + 3];
+      tx2.globalCompositeOperation = 'source-in'; tx2.drawImage(ocv, 0, 0, sw, sh);
+      var spx = tx2.getImageData(0, 0, sw, sh).data;
+      adj.cas = { b: b, bw: bw, bh: bh, px: px, mk: mk, sw: sw, sh: sh, spx: spx, smk: smk, id: 0, full: 100, raw: raw, ocv: ocv, mcv: mcv };
+      return adj.cas;
+    }
+    // (a selection to scale, and Effects working inside it)
+    function casOk() { return !!sel && (!adj || adj.selOn); }
+    // THE SLIDER MOVED (full: let go of, or a key's step): the quick
+    // look now, worked on the smaller copy and shown stretched to size, and
+    // the full size once it's let go of; always from the pixels as they were,
+    // never from the last look, and 100% puts them back exactly
+    function casInput(v, full) {
+      adj.v.cas = v; fxMarks();
+      clearTimeout(adj.casT);
+      if (!casOk()) return;
+      var C = casPrep(); if (!C) return;
+      var id = ++C.id;
+      if (v === 100) { C.full = 100; casPut(null, true); return; }
+      if (!full) {
+        casPost('prev', { id: id, px: C.spx, mk: C.smk, w: C.sw, h: C.sh, tw: Math.max(1, Math.round(C.sw * v / 100)), budget: 6e6 });
+        return;
+      }
+      if (C.full === v && !C.pend) return;
+      C.pend = v; casPost('full', { id: id, px: C.px, mk: C.mk, w: C.bw, h: C.bh, tw: Math.max(1, Math.round(C.bw * v / 100)), budget: 2e8 });
+    }
+    function casBack(kind, d) {
+      var C = adj && adj.cas; if (!C || d.id !== C.id) return; // (an older ask, or Effects closed: dropped)
+      if (kind === 'prev') { casQuick(d.out, d.tw); return; }
+      C.pend = null; C.full = adj.v.cas; casPut({ px: d.out, tw: d.tw }, true);
+    }
+    // (the quick look, worked small, shown on a stand-in canvas in the
+    // layer's place, no more detailed than the screen shows it (as the other
+    // effects' quick looks are), so a big selection doesn't hold up each
+    // frame; the layer itself is only written with the full size. A layer
+    // seen through a mask or a clip has the quick look laid in it instead)
+    function casQuick(o, tw) {
+      var C = adj.cas, L = adj.L, b = C.b, bw = C.bw, bh = C.bh, W2 = L.cv.width, H2 = L.cv.height;
+      if (!C.scv) {
+        C.scv = document.createElement('canvas');
+        var q = usesView(L) ? 1 : Math.min(1, view.k * (window.devicePixelRatio || 1) / R, Math.sqrt(1.5e6 / (W2 * H2)));
+        C.q = q; C.tcv = document.createElement('canvas'); C.tcv.width = Math.max(1, Math.ceil(bw * q)); C.tcv.height = Math.max(1, Math.ceil(bh * q));
+        if (q < 1) {
+          // (the stand-in: the layer as it was, small, and the selection's box drawn on it each time)
+          var pv = C.pv = document.createElement('canvas'); pv.width = Math.max(1, Math.round(W2 * q)); pv.height = Math.max(1, Math.round(H2 * q));
+          pv.className = 'paint-fxprev'; pv.style.width = L.cv.style.width; pv.style.height = L.cv.style.height;
+          var ob = L.cv; if (!C.raw) { ob = document.createElement('canvas'); ob.width = W2; ob.height = H2; ob.getContext('2d').putImageData(adj.orig, 0, 0); }
+          var px2 = pv.getContext('2d'); px2.imageSmoothingQuality = 'high'; px2.drawImage(ob, 0, 0, pv.width, pv.height);
+        }
+      }
+      C.scv.width = tw; C.scv.height = C.sh; C.scv.getContext('2d').putImageData(new ImageData(o, tw, C.sh), 0, 0);
+      var q2 = C.q, tW = C.tcv.width, tH = C.tcv.height, ftw = bw * adj.v.cas / 100, t = C.tcv.getContext('2d');
+      t.globalCompositeOperation = 'source-over'; t.clearRect(0, 0, tW, tH); t.imageSmoothingQuality = 'high';
+      t.drawImage(C.scv, (bw - ftw) / 2 * q2, 0, ftw * q2, tH);
+      if (L.bg) { t.globalCompositeOperation = 'destination-over'; t.fillStyle = '#fff'; t.fillRect(0, 0, tW, tH); }
+      t.globalCompositeOperation = 'destination-in'; t.drawImage(C.mcv, 0, 0, tW, tH); t.globalCompositeOperation = 'source-over';
+      casHide();
+      var to = C.pv ? C.pv.getContext('2d') : L.ctx;
+      to.save(); to.setTransform(q2, 0, 0, q2, 0, 0); to.beginPath(); to.rect(b.x0, b.y0, bw, bh); to.clip();
+      to.globalCompositeOperation = 'copy'; to.drawImage(C.ocv, b.x0, b.y0);
+      to.globalCompositeOperation = 'destination-out'; to.drawImage(C.mcv, b.x0, b.y0);
+      to.globalCompositeOperation = 'source-over'; to.drawImage(C.tcv, b.x0, b.y0, bw, bh); to.restore();
+      if (C.pv) casPvShow(true); else if (usesView(L)) viewOf(L);
+    }
+    function casPvShow(on) {
+      var C = adj && adj.cas, pv = C && C.pv, L = adj && adj.L; if (!pv) return;
+      if (on && pv.previousSibling !== L.cv) {
+        if (!adj.hidSet) { adj.hid = L.cv.style.visibility; adj.hidSet = true; }
+        pv.style.opacity = L.cv.style.opacity; pv.style.mixBlendMode = L.cv.style.mixBlendMode; pv.style.visibility = adj.hid;
+        L.cv.parentNode.insertBefore(pv, L.cv.nextSibling); L.cv.style.visibility = 'hidden';
+      } else if (!on && pv.parentNode) { pv.parentNode.removeChild(pv); L.cv.style.visibility = adj.hid || ''; }
+    }
+    // (whatever stood in for the layer is put away while the selection changes)
+    function casHide() {
+      if (adj.mode === 'gl' && fxG && fxG.cv && fxG.cv.parentNode) fxGLShow(false);
+      if (adj.mode === 'worker') { adj.sid = ++fxSid; adj.busy = false; adj.want = null; clearTimeout(adj.settle); fxPrevShow(false); }
+    }
+    // THE CARVED SELECTION, LAID IN: centred in the box round it, inside the
+    // selection only (a soft edge mixes, weighted by how solid each is); what
+    // it no longer covers is see-through, or the paper's white on the
+    // Background; outside the selection nothing changes. Kept (full), the
+    // layer is all as it was but that, and the other effects start again from it
+    function casPut(r, full) {
+      var C = adj.cas, L = adj.L, b = C.b, bw = C.bw, bh = C.bh, W2 = L.cv.width, o = adj.orig.data, c = L.ctx;
+      casHide(); casPvShow(false); C.raw = false;
+      c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+      if (full) c.putImageData(adj.orig, 0, 0);
+      if (r) {
+        var out = new ImageData(bw, bh), od = out.data, off = Math.round((bw - r.tw) / 2), p = r.px, tw = r.tw, wh = L.bg;
+        for (var y = 0; y < bh; y++) for (var x = 0; x < bw; x++) {
+          var d = (y * bw + x) * 4, s = ((b.y0 + y) * W2 + b.x0 + x) * 4, m = C.mk[y * bw + x] / 255, cx = x - off;
+          var cr = 0, cg = 0, cb = 0, ca = 0;
+          if (cx >= 0 && cx < tw) { var k = (y * tw + cx) * 4; cr = p[k]; cg = p[k + 1]; cb = p[k + 2]; ca = p[k + 3]; }
+          if (wh && ca < 255) { var f = ca / 255; cr = cr * f + 255 * (1 - f); cg = cg * f + 255 * (1 - f); cb = cb * f + 255 * (1 - f); ca = 255; }
+          if (m >= 1) { od[d] = cr; od[d + 1] = cg; od[d + 2] = cb; od[d + 3] = ca; continue; }
+          var oa = o[s + 3] * (1 - m), na = ca * m, ta = oa + na;
+          od[d + 3] = ta; if (ta) { od[d] = (o[s] * oa + cr * na) / ta; od[d + 1] = (o[s + 1] * oa + cg * na) / ta; od[d + 2] = (o[s + 2] * oa + cb * na) / ta; }
+        }
+        c.putImageData(out, b.x0, b.y0);
+      } else c.putImageData(adj.orig, 0, 0, b.x0, b.y0, bw, bh);
+      c.restore();
+      if (usesView(L)) viewOf(L);
+      if (!full) return;
+      // (the other effects work from the layer as it now is)
+      if (adj.mode === 'gl') fxGLFree();
+      if (adj.mode === 'worker') { adj.prev = null; }
+      adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = adj.bs = adj.bkey = null; adj.ready = false;
+      if (Object.keys(adj.v).some(function (k) { return k !== 'cas' && fxOn(k); })) adjustQueue(); else adj.shown = adj.ver;
+    }
+    // (Effects finishing while the full size is still on its way: it's worked here and now)
+    function casFinish() {
+      var C = adj && adj.cas; if (!C || adj.v.cas == null || C.full === adj.v.cas) return;
+      clearTimeout(adj.casT); C.id++;
+      if (adj.v.cas === 100) { C.full = 100; casPut(null, true); return; }
+      var tw = Math.max(1, Math.round(C.bw * adj.v.cas / 100));
+      C.full = adj.v.cas; C.pend = null; casPut({ px: casCarve(C.px, C.mk, C.bw, C.bh, tw, 2e8), tw: tw }, true);
+    }
+    // (the slider only works with a selection to scale: greyed out without one)
+    function casSync() {
+      var on = casOk(), i = adjBox.querySelector('[data-adj="cas"]'), row = i.closest('.pa-row');
+      i.disabled = !on;
+      row.setAttribute('data-tip', on ? 'The selection’s width: what matters keeps its shape, the plainest parts give way' : 'Select something first: Content-Aware Scale works on a selection');
     }
 
     // THE WORKER: the live look worked out off the main thread (only the
@@ -5669,7 +5970,7 @@
     }
     function adjustClose(keepOpen) {
       if (adj) {
-        clearTimeout(adj.prepT);
+        clearTimeout(adj.prepT); clearTimeout(adj.casT); casPvShow(false);
         if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
         if (adj.mode === 'worker' && fxW) { clearTimeout(adj.settle); fxPrevShow(false); fxW.postMessage({ t: 'end' }); } // (the worker lets its copies go)
       }
@@ -5681,11 +5982,11 @@
     function adjustKeep() {
       var before;
       if (adj.mode === 'gl') {
-        before = adj.L.ctx.getImageData(0, 0, adj.gw, adj.gh); // (the layer itself was never touched: it's as it was)
+        before = adj.orig || adj.L.ctx.getImageData(0, 0, adj.gw, adj.gh); // (the layer itself was never touched, but by Content-Aware Scale: it's as it was)
         var out = null; try { out = fxGLDraw(fxParams(), true); } catch (x) { out = null; }
         if (!out) { fxGLShow(false); fxGLFree(); adj.mode = 'cpu'; fxSource(); adjustRender(); } else adjustPut(out);
       } else {
-        before = adj.src;
+        before = adj.orig || adj.src;
         if (adj.shown !== adj.ver || adj.queued) adjustRender(); // (unless the full-size look is already the one wanted)
       }
       push({ L: adj.L, data: before, text: adj.L.text, label: 'Effects' }); if (adj.L.text) { adj.L.text = null; renderLayers(); }
@@ -5698,6 +5999,7 @@
     // CLOSING (another tool, undo, saving...): what's set is kept, and the panel goes
     function adjustDone(keepOpen) {
       if (!adj) { if (!keepOpen && !adjBox.hidden) adjustClose(); return; }
+      casFinish();
       if (adjChanged()) {
         fxPrepare();
         if (!keepOpen && adj.mode === 'worker' && !adj.finishing && adj.shown !== adj.ver) {
@@ -5708,7 +6010,8 @@
           ctxAside(); dockSync(ctxReady); adjustWait(); return;
         }
         adjustKeep();
-      } else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src);
+      } else if (adj.orig) adjustPut(adj.orig);
+      else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src);
       adjustClose(keepOpen);
     }
     // DONE: what's set is kept (one step, to undo) and the sliders go back
@@ -5716,6 +6019,7 @@
     // on the picture as it now is. Done with nothing set closes the panel.
     function adjustApply() {
       if (!adj || adj.finishing) return;
+      casFinish();
       if (!adjChanged()) { adjustDone(); return; }
       fxPrepare();
       if (adj.mode === 'worker' && adj.shown !== adj.ver) { if (!adj.applying) { adj.applying = true; adjBox.dataset.finishing = '1'; adjustWait(); } return; }
@@ -5731,12 +6035,13 @@
       if (adj.mode === 'gl') { fxGLShow(false); fxGLFree(); }
       if (adj.mode === 'worker') { clearTimeout(adj.settle); fxPrevShow(false); adj.prev = null; adj.busy = false; adj.want = null; }
       adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = adj.bs = adj.bkey = null; adj.ready = false; adj.queued = false;
+      casPvShow(false); adj.orig = adj.cas = null; clearTimeout(adj.casT); // (Content-Aware Scale starts again from the layer as it now is)
       adj.selOn = adj.selOn && !!sel; adj.v = {}; adj.ver++; adj.shown = adj.ver;
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       fxMarks(true); fxShown('levels'); fxShown('curves');
       adj.prepT = setTimeout(function () { if (adj) fxPrepare(); }, 420);
     }
-    function adjustCancel() { if (!adj) return; if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src); adjustClose(); }
+    function adjustCancel() { if (!adj) return; clearTimeout(adj.casT); if (adj.orig) adjustPut(adj.orig); else if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src); adjustClose(); }
     function adjustQueue(hue) { adj.ver++; fxMarks(hue); if (adj.queued) return; adj.queued = true; requestAnimationFrame(function () { if (adj && adj.queued) adjustLive(); }); }
     // THE LIVE LOOK, once a frame at most: drawn by the graphics chip, or
     // asked of the worker (the newest settings only), or worked out here
@@ -5797,12 +6102,19 @@
     });
     adjBox.addEventListener('input', function (e) {
       var i = e.target.closest('[data-adj]'); if (!i || !adj || adj.applying) return;
-      adj.v[i.dataset.adj] = +i.value; i.previousElementSibling.textContent = i.value; adjustQueue(i.dataset.adj === 'hue');
+      i.previousElementSibling.textContent = i.value;
+      if (i.dataset.adj === 'cas') { casInput(+i.value, false); return; }
+      adj.v[i.dataset.adj] = +i.value; adjustQueue(i.dataset.adj === 'hue');
     });
+    // (Content-Aware Scale let go of: the full size, now)
+    adjBox.addEventListener('change', function (e) { var i = e.target.closest('[data-adj="cas"]'); if (i && adj && !adj.applying) casInput(+i.value, true); });
     // double-click (or double-tap) a slider's name to put it back to 0
     adjBox.addEventListener('dblclick', function (e) {
       var row = e.target.closest('[data-adj-row]'); if (!row || !adj) return;
-      var i = row.querySelector('input'); i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; adj.v[i.dataset.adj] = +i.value; adjustQueue(i.dataset.adj === 'hue');
+      var i = row.querySelector('input'); if (i.disabled) return;
+      i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value;
+      if (i.dataset.adj === 'cas') { casInput(100, true); return; }
+      adj.v[i.dataset.adj] = +i.value; adjustQueue(i.dataset.adj === 'hue');
     });
 
     // ---- THE BRUSH STUDIO: the brush in hand's settings, with a stroke of
@@ -8671,6 +8983,7 @@
       gradRun = false;
     });
     new MutationObserver(ctxShow).observe(selbar, { attributes: true, attributeFilter: ['hidden', 'class'] });
+    new MutationObserver(function () { if (!adjBox.hidden) casSync(); }).observe(selbar, { attributes: true, attributeFilter: ['hidden'] }); // (a selection made or let go of: Content-Aware Scale greys out or comes back)
     var ctxReady = false;
     try { if (localStorage.getItem('paint-ctx-min') === 'true') ctxMin(true); } catch (x) {}
     ctxLock(ctxLocked); dockSync(false); dockPanels(); ctxReady = true;

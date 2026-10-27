@@ -481,7 +481,24 @@ When building or changing anything visual:
   or Reset All takes back what's set. Nothing heavy happens on opening
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
-  choice, for testing.
+  choice, for testing. **Content-Aware Scale** (the last section, `cas`, a
+  width from 25% to 200%, greyed out without a selection, `casSync`) is
+  seam carving (`casCarve`, which stands alone, so it's copied into its
+  workers): forward energy plus the change across and down, on a softened
+  copy (so grain costs little and edges a lot), pixels outside the
+  selection made costly; several seams a pass that step aside rather than
+  cross, within a budget of passes; wider by doubling the seams that would
+  go first, half the width at most a round. `casPrep` keeps the layer as it
+  was (`adj.orig`, what undo brings back and 100% restores exactly) and the
+  selection's box, its pixels and a ~60,000-pixel copy. While the slider
+  moves, the copy is carved (`casPost('prev')`) and shown on a stand-in the
+  screen's size (`casQuick`, `casPvShow`); let go of (`change`), the full
+  size is carved in the other worker (an overtaken one is stopped) and laid
+  in, centred in the box, inside the selection only, see-through (or the
+  paper's white on the Background) where it no longer reaches (`casPut`),
+  and the other effects start again from it. Results carry the ask's `id`,
+  so an older one is dropped. Done, Esc and closing finish it first
+  (`casFinish`).
 - **Paint and Vector** are two workspaces in one drawing. **For now Vector
   mode is a preview, reached only from Settings' Vector mode (preview)**
   (`data-setting="vector"`, a check while it's in use): the switch
@@ -758,14 +775,15 @@ https://eyeseerc0310.github.io/Paint-alternative/
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and
 isn't compared. The layout lock (`layout-lock.js`, its states in
 `layout-steps.js`) compares every element's box. Vector's checks
 (`tests/vector/`, sharing `vt.js`), the bristle brushes' (`tests/brushes/`),
-selecting's (`tests/selection/`) and the text tool's (`tests/text/`)
+selecting's (`tests/selection/`), the text tool's (`tests/text/`) and
+Effects' (`tests/effects/`)
 pass or fail by themselves, ending `ALL OK`. Tests open the app as
 `http://127.0.0.1:8123/index.html` through `lib.js`'s `chromium`, which sends
 that to whichever copy is being tested. Run the regressions and the lock

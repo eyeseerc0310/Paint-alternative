@@ -13,6 +13,7 @@ tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
+tests/run.sh effects            # Effects: Content-Aware Scale, the selection kept
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -57,6 +58,17 @@ with `all passing`, or lists what isn't, and exits non-zero.
   iPad) does: a pressed button or slider takes no focus, and a press nothing
   stopped clears the highlight. Run with a mouse and by touch, at desktop,
   iPad and phone sizes, light and dark.
+- `effects/cas.js`: Content-Aware Scale, in Effects, on `fixtures/scene.png` (a
+  red circle and a blue square on a grainy sky). Greyed out without a
+  selection; with one, a live look while the slider moves and the full size
+  once it's let go of; the circle keeps its width as the selection narrows
+  and widens while the sky gives way; what the selection no longer covers is
+  see-through; outside the selection nothing changes; 100% puts the pixels
+  back exactly; the same width gives the same result, and quick changes end
+  on the last; Done is one undo step, redo puts it back; a circle selection
+  works the same; Esc takes it all back; and the selection stays through
+  every Effects slider. `gpu`/`cpu` pick the graphics chip or the worker for
+  the other effects; `touch` and `safari` as in the text tool's.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and
