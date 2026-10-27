@@ -12,6 +12,7 @@ or a copy found by `require('playwright')`), Python 3 (it serves the app) and gi
 tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
+tests/run.sh text               # the text tool: its settings, the highlight, the box
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -45,6 +46,17 @@ with `all passing`, or lists what isn't, and exits non-zero.
   selection tool and Move); a moved selection's outline goes back with undo;
   Shift still makes a circle round. Run at desktop size in light and iPad size
   in dark.
+- `text/text.js`: the text tool. With words being typed and some of their
+  letters highlighted, every setting in its panel (the style buttons,
+  alignment, the sliders dragged or tapped, the size typed, a font from the
+  list, the fills, a colour from the picker) changes them at once, leaves them
+  open with the same letters highlighted and gives the focus back, and the
+  dashed box stays round them as they grow; the picture never slides as they
+  run past its edge; a tap on the picture lays them down as a layer, a tap on
+  them opens them again with their look. `safari` acts as Safari (and so the
+  iPad) does: a pressed button or slider takes no focus, and a press nothing
+  stopped clears the highlight. Run with a mouse and by touch, at desktop,
+  iPad and phone sizes, light and dark.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and
