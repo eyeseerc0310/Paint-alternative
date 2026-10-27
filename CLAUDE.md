@@ -2,7 +2,8 @@
 
 A browser painting app (plain HTML/CSS/JS, no build step), published with
 GitHub Pages from `main`. The app is `index.html`, `style.css` and `paint.js`,
-with Vector mode in `vector.js` (loaded before `paint.js`);
+with Vector mode in `vector.js` and Photo mode in `photo.js` (both loaded
+before `paint.js`, after `fx-shared.js`, the tone sums they share);
 `sw.js`, `manifest.webmanifest` and `icons/` make it installable and offline.
 
 ## Design: use one shared design system
@@ -716,6 +717,66 @@ When building or changing anything visual:
   step), the tool's own otherwise (`fxField`'s `ownIf`). Checked on load
   by `sBoards`, `sGuides`, `sPat` (before the layers, so fills can name
   them, `patIds`), `sFx`, `sRep`, and `sPaint` for patterns.
+- **Photo mode** (`photo.js`, `window.PaintPhoto`, `PH` in `paint.js`) is the
+  third workspace, a preview reached from Settings' Photo mode (preview)
+  (`data-setting="photo"`; `photo-mode` on `:root`; `setMode`/`askMode` take
+  `paint`, `vector` or `photo`, `MODE_NAME`, `modeOk`, `sideHas`). The photo as
+  it came is never changed: `doc.blob` is the file (kept in the autosave and,
+  as a data URL, in the project file, `photoFrom`), `doc.v` the settings
+  (`DEF`: each slider's key; `curve` points, `hsl` per band, `grade`), and
+  undo is a stack of snapshots (`record` once per drag, `putBack`). The look
+  is worked out on the graphics chip (WebGL 2; `glInit`): the photo a
+  texture with its smaller copies, a ~1,024-pixel linear working copy and
+  two blurs of it made once (`upload`, `blurOf`), then one pass, `DEV`, in
+  floating point: white balance and exposure in linear light, dehaze, a
+  highlight shoulder only once the light is pushed up (with nothing set the
+  photo comes out exactly as it went in), noise reduction, texture,
+  clarity, sharpening, the tone table (`toneTable`: `PaintFX.toneAt`, the
+  very sums Paint's Effects use, then brightness and `PaintFX.curveLut`),
+  the colour mixer, vibrance and saturation (Paint's formula), colour
+  grading, vignette, grain. Geometry comes first, worked backwards for each
+  pixel (`geo`: `u_A` from the place in what the crop keeps, through the
+  straightening, filled so no corner shows, `fillZoom`, and Scale; `u_P` the
+  perspective; the lens, `u_k`, and the colour fringes, red and blue read a
+  touch further in or out; `u_B` the quarter turns, `rot`, and flips, which
+  turn the frame, `frameOf`); the saved photo is `outSize`. Crop &
+  Straighten is the left bar's third category (`cropping`, `cropHTML`): the
+  whole frame shows, `.pho-crop` lit over a dimmed rest (`cropSync`); its
+  corners and sides (`cropHit`, `cropSize`, keeping the shape, `aspOf`,
+  `ASPECTS`, `aspT` the other way round) and inside are dragged, one step
+  each; `turn` goes round or flips the crop with the frame. **Masks** (the
+  fourth category, `masksHTML`; `doc.v.masks`, four at most, `checkMasks`):
+  each `{ id, kind, name, on, inv, a, g }`, `a` its own settings (`MADJ`,
+  added up across masks by how much of each a place takes, `maskW` in
+  `DEV`), `g` its shape in the photo's own units (`q`: across the long
+  side, `aspQ`), so it stays on what it covers through any crop or turn:
+  linear `x0..y1` (full before, none past), radial `cx, cy, rx, ry, ang, fe`,
+  brush `st`, strokes kept as points (`s` size, `f` feather, `fl` flow, `er`
+  erase) and painted again onto a canvas 1,024 across when they change
+  (`brushTex`, `brushRedraw`, `stampSeg`; `brushKey` says when). `toSrc`/
+  `toScr` go between the stage and the photo through the same geometry as
+  the shader; the picked mask's lines and handles are `.pho-mui` (`mSync`,
+  `mHandles`), its red overlay `u_show` (on the screen only, `onScreen`).
+  A new linear or radial mask is drawn by the first drag (`mFresh`). Only what's in view is drawn (`drawNow`), at
+  half the detail while a slider moves (`quick`, cleared on `change`).
+  Pressed and held still (or `\` held), the photo shows as it came
+  (`before`, the `Original` pill); its pointer handlers stop propagation,
+  so the painting's never see them. The panel (`panelHTML`, `panelSync`;
+  `data-pk` sliders through `getK`/`setK`, a double-click on a name resets
+  it) has the left bar's categories, Edit (sections that fold like
+  Effects') and Presets (`PRESETS`, 15, each tried on top of what was set
+  when they opened, `presetBase`, so they never add up; thumbnails from
+  `render`; Cancel, Done as one step). On phones the panel is the strip
+  along the top, kept to part of the height, and the photo is fitted into
+  the room under it (`free`). Saving (`saveSheet`, `exportBlob`): the full
+  size from the photo as it came (`render` into a texture), JPEG with its
+  quality (and the original's EXIF, orientation set to 1, `withExif`),
+  PNG, WebP, or TIFF (`tiff`, written here), at full or another size.
+  Formats a browser can't show natively are named (`kindOf`) and go to
+  decoders on the bridge (`decoders.raw`, `decoders.tiff`) when there are
+  any; otherwise a toast says what can't be opened. Bring to Paint:
+  `PH.raster()` on a new layer "Photo"; from Paint or Vector into Photo the
+  flat copy becomes the photo (undo brings the last one back).
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until
   the drawing is back (`opened()`, called when `restore` is done).
 - **Focus mode** animates: `focusMode` measures where the picture's space
@@ -775,15 +836,15 @@ https://eyeseerc0310.github.io/Paint-alternative/
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `photo`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and
 isn't compared. The layout lock (`layout-lock.js`, its states in
 `layout-steps.js`) compares every element's box. Vector's checks
 (`tests/vector/`, sharing `vt.js`), the bristle brushes' (`tests/brushes/`),
-selecting's (`tests/selection/`), the text tool's (`tests/text/`) and
-Effects' (`tests/effects/`)
+selecting's (`tests/selection/`), the text tool's (`tests/text/`),
+Effects' (`tests/effects/`) and Photo mode's (`tests/photo/`)
 pass or fail by themselves, ending `ALL OK`. Tests open the app as
 `http://127.0.0.1:8123/index.html` through `lib.js`'s `chromium`, which sends
 that to whichever copy is being tested. Run the regressions and the lock

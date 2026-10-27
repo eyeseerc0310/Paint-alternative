@@ -726,8 +726,8 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .pa-acts { display: flex; gap: 6px; margin-top: var(--s-3); }
 .paint .pa-acts button { flex: 1; width: auto; height: var(--ctl); border-radius: var(--r-pill); font-size: var(--fs-ui); color: var(--menu-link); background: var(--hover); }
 @media (hover: hover) { .paint .pa-acts button:hover { background: color-mix(in srgb, var(--text) 12%, transparent); } }
-.paint .pa-acts button[data-adj-act="done"] { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: var(--accent-glow); }
-@media (hover: hover) { .paint .pa-acts button[data-adj-act="done"]:hover { background: var(--accent-hover); } }
+.paint .pa-acts button[data-adj-act="done"], .paint .pa-acts button.pho-done:not(:disabled) { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: var(--accent-glow); }
+@media (hover: hover) { .paint .pa-acts button[data-adj-act="done"]:hover, .paint .pa-acts button.pho-done:not(:disabled):hover { background: var(--accent-hover); } }
 
 /* SAVE: PNG or JPEG */
 .paint-savemenu {
@@ -1903,6 +1903,94 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vector-mode .selection-slot, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),
 .vector-mode .paint-selx, .vector-mode .paint-seldist, .vector-mode .paint-scale { display: none !important; }
 .paint-savemenu button[hidden] { display: none; }
+
+/* ---- PHOTO MODE: its stage over the picture's space (the photo drawn by
+   the graphics chip on .pho-cv), its two categories where the painting's
+   tools were, and its panel built from the same sections, rows and chips
+   as Effects ---- */
+.pho-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+.pho-stage.pho-moving { cursor: grabbing; }
+.pho-stage[hidden], .pho-cv[hidden], .pho-empty[hidden] { display: none; }
+.pho-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* (pressed and held: the photo as it came, and it says so) */
+.pho-stage.pho-before::after { content: "Original"; position: absolute; top: var(--s-3); left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: var(--r-pill);
+  font-size: var(--fs-xs); font-weight: 600; color: var(--text); background: var(--menu-bg); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-float); pointer-events: none; }
+.pho-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3); padding: var(--s-4); text-align: center; cursor: default; }
+.pho-empty p { margin: 0; font-size: var(--fs-ui); color: var(--muted); }
+.pho-empty .pho-open { height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
+@media (hover: hover) { .pho-empty .pho-open:hover { background: var(--accent-hover); } }
+.photo-mode .paint-stage > :not(.pho-stage) { visibility: hidden !important; }
+.pho-group[hidden] { display: none; }
+.photo-mode .paint-left .paint-toolgroups { position: relative; }
+.photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pl-view) { visibility: hidden; }
+.paint-left .paint-toolgroups > .pho-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
+.paint-left .paint-toolgroups > .pho-group::before { display: none; }
+.photo-mode .selection-slot, .photo-mode .paint-adjust, .photo-mode .paint-layerpanel, .photo-mode .paint-colorpanel,
+.photo-mode .paint-selx, .photo-mode .paint-seldist, .photo-mode .paint-scale { display: none !important; }
+/* the crop: what it keeps lit, the rest dimmed (by its own shadow), thirds
+   and corner marks in white, as on any photo */
+.pho-crop { position: absolute; box-shadow: 0 0 0 100vmax rgb(0 0 0 / .5); outline: 1px solid rgb(255 255 255 / .9); pointer-events: none;
+  background: linear-gradient(to right, transparent calc(33.333% - .5px), rgb(255 255 255 / .45) calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.667% - .5px), rgb(255 255 255 / .45) calc(66.667% - .5px) calc(66.667% + .5px), transparent calc(66.667% + .5px)),
+    linear-gradient(to bottom, transparent calc(33.333% - .5px), rgb(255 255 255 / .45) calc(33.333% - .5px) calc(33.333% + .5px), transparent calc(33.333% + .5px) calc(66.667% - .5px), rgb(255 255 255 / .45) calc(66.667% - .5px) calc(66.667% + .5px), transparent calc(66.667% + .5px)); }
+.pho-crop[hidden] { display: none; }
+.pho-ch { position: absolute; width: 16px; height: 16px; border: 3px solid #fff; }
+.pho-ch.tl { left: -3px; top: -3px; border-right: 0; border-bottom: 0; }
+.pho-ch.tr { right: -3px; top: -3px; border-left: 0; border-bottom: 0; }
+.pho-ch.bl { left: -3px; bottom: -3px; border-right: 0; border-top: 0; }
+.pho-ch.br { right: -3px; bottom: -3px; border-left: 0; border-top: 0; }
+.pho-asp { flex-wrap: wrap; row-gap: 2px; }
+.paint .pho-asp button { flex: 1 1 30%; }
+.pho-turns { display: flex; gap: var(--s-1); margin: var(--s-2) 0; }
+/* the masks: the picked one's lines and handles over the photo (white, with
+   a dark edge so they show on any photo), and the panel's list */
+.pho-mui { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.pho-mui line, .pho-mui polyline { fill: none; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
+.pho-mui .dash { stroke-dasharray: 5 4; }
+.pho-mui circle { fill: #fff; stroke: rgb(0 0 0 / .55); stroke-width: 1; }
+.pho-mui circle.brush { fill: none; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
+.pho-madd { display: flex; gap: var(--s-1); }
+.paint .pho-madd .ctx-btn { flex: 1; justify-content: center; }
+.pho-mlist { display: flex; flex-direction: column; gap: 2px; margin: var(--s-2) 0; }
+.pho-mrow { display: flex; align-items: center; gap: 2px; border-radius: var(--r-xs); }
+.paint .pho-mname { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s-2); height: var(--row); padding: 0 var(--s-2); border-radius: var(--r-xs); font-size: var(--fs-ui); color: var(--menu-link); background: none; }
+.pho-mname span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pho-mname svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
+.paint .pho-mname[aria-selected="true"] { background: var(--chip); color: var(--chip-text); box-shadow: var(--chip-shadow); }
+@media (hover: hover) { .paint .pho-mname:not([aria-selected="true"]):hover { background: var(--hover); } }
+.paint .pho-mrow .ctx-btn[aria-pressed="false"] { opacity: var(--disabled); }
+.pho-switch { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin: var(--s-1) 0 var(--s-2); font-size: var(--fs-ui); color: var(--muted); cursor: pointer; }
+.pho-switch input { width: 18px; height: 18px; margin: 0; accent-color: var(--control); }
+.pho-bseg { margin-bottom: var(--s-1) !important; }
+/* (phones: the panel is the strip along the top, as for the painting, kept
+   to a part of the height and scrolling past that; the photo is fitted
+   into the room under it, PaintPhoto's free()) */
+@media (max-width: 560px) {
+  .photo-mode .paint-ctx:not(.min) { right: 6px; align-items: flex-start; max-height: min(46vh, 400px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .photo-mode .paint-ctx .ctx-tool { flex-direction: column; flex-wrap: nowrap; align-items: stretch; flex: 1; min-width: 0; }
+  .photo-mode .pho-acts { position: static; }
+}
+/* (the two colours aren't Photo's: out of sight, keeping their room) */
+.photo-mode .paint-bottom .paint-pair { visibility: hidden; }
+/* the panel */
+.pho-sub { margin: var(--s-3) 0 var(--s-1); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.pho-curve .cv-graph { display: block; width: 100%; }
+.pho-bands { display: flex; justify-content: space-between; gap: 2px; margin-bottom: var(--s-2); }
+.paint .pho-bands button { flex: none; width: 22px; height: 22px; padding: 0; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 .5px var(--swatch-edge); }
+.paint .pho-bands button[aria-checked="true"] { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3.5px var(--text); }
+.pho-gtabs { margin-bottom: var(--s-2); }
+.paint .pho-gtabs button { font-size: var(--fs-xs); }
+.pho-presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-1); }
+.paint .pho-preset { width: auto; height: auto; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px 4px var(--s-1); border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 400; color: var(--menu-link); }
+.pho-preset canvas { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r-xs); background: var(--hover); box-shadow: inset 0 0 0 .5px var(--line); }
+.pho-preset span { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paint .pho-preset[aria-checked="true"] { background: var(--chip); box-shadow: var(--chip-shadow); color: var(--chip-text); }
+.pho-acts { position: sticky; bottom: 0; z-index: 1; padding: var(--s-2) 0 var(--s-1); background: var(--menu-solid); }
+.pho-hint { padding: var(--s-2); }
+/* (the save sheet: width by height, kept in proportion) */
+.pho-size { display: flex; align-items: flex-end; gap: var(--s-2); margin: var(--s-3) 0 0; }
+.pho-size label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; font-size: var(--fs-xs); color: var(--muted); }
+.pho-size > span { padding-bottom: 6px; color: var(--muted); }
+.paint .pho-full, .pa-sheet .pho-full { flex: none; height: 30px; padding: 0 var(--s-2); border-radius: var(--r-pill); font-size: var(--fs-xs); color: var(--menu-link); background: var(--hover); }
 
 /* Vector's tool settings: the category's tools at the top, a grid of
    buttons with their names; the tool's settings (or what's picked) under them */
