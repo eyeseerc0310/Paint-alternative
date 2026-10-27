@@ -7,6 +7,7 @@
 #   tests/run.sh brushes            the bristle brushes' checks
 #   tests/run.sh selection          selecting: layers, undo and redo, Shift to add
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
+#   tests/run.sh effects            Effects: Content-Aware Scale, the selection kept
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
 # save goes in tests/.out.
@@ -84,6 +85,13 @@ text() {
   check "text/text-dark-360-touch" "$OUT/text" "$T/text/text.js" dark 360 740 touch
 }
 
+effects() {
+  check "effects/cas-light-1400-gpu" "$OUT/effects" "$T/effects/cas.js" light 1400 900
+  check "effects/cas-light-1400-cpu" "$OUT/effects" "$T/effects/cas.js" light 1400 900 cpu
+  check "effects/cas-dark-1024-touch-safari" "$OUT/effects" "$T/effects/cas.js" dark 1024 768 touch safari
+  check "effects/cas-light-390-touch-safari-cpu" "$OUT/effects" "$T/effects/cas.js" light 390 844 touch safari cpu
+}
+
 serve "$APP_PORT" "$ROOT"
 what=${1:-all}; [ $# -gt 0 ] && shift
 case $what in
@@ -93,8 +101,9 @@ case $what in
   brushes) brushes ;;
   selection) selection ;;
   text) text ;;
-  all) brushes; selection; text; vector; regress; lock ;;
-  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text] [names]"; exit 2 ;;
+  effects) effects ;;
+  all) brushes; selection; text; effects; vector; regress; lock ;;
+  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects] [names]"; exit 2 ;;
 esac
 if [ ${#FAILED[@]} -gt 0 ]; then echo; echo "not passing: ${FAILED[*]}"; exit 1; fi
 echo; echo "all passing"
