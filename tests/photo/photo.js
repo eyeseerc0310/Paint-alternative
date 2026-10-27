@@ -2,8 +2,9 @@
 // with nothing set; every slider changes it and, put back, gives the very
 // same pixels again; a slider's drag is one undo step, worked out at half
 // the detail while it moves and sharp once it's let go of; pressed and held,
-// the photo shows as it came; the 15 presets have their own thumbnails,
-// never add to each other, Cancel puts things back and Done is one step;
+// the photo shows as it came; Original and the 15 presets have thumbnails of
+// their own; a preset lies over what's set by hand, another takes its place,
+// Original takes only it off; Cancel puts things back and Done is one step;
 // saving gives JPEG (with the EXIF, set upright), PNG, WebP and TIFF, at
 // full or another size; it's all kept through a reload and in a project
 // file; formats it can't open say so; Paint is untouched by it, and the
@@ -164,23 +165,40 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!(await S()).before, '(let go of)');
   await tapEl('[data-act="undo"]');
 
-  // ---- PRESETS: thumbnails, never adding up, Cancel and Done ----
+  // ---- PRESETS: Original first, thumbnails, a layer of their own over what's set by hand ----
+  await setSlider('exposure', 20); await setSlider('vignette', -30);
+  const hand = await screen(true), mv = (await S()).v;
   await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(700);
   const th = await p.evaluate(() => [...document.querySelectorAll('[data-pp] canvas')].map(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 97) s += d[i]; return c.width ? s : -1; }));
-  L.ok(th.length === 15 && th.every(x => x > 0) && new Set(th).size >= 14, '15 presets, each with a thumbnail of its own look ' + th.length);
-  const before = (await S()).v, hp = (await S()).hist;
+  const first = await p.$eval('[data-pp]', b => [b.dataset.pp, b.textContent.trim(), b.getAttribute('aria-checked')]);
+  L.ok(th.length === 16 && th.every(x => x > 0) && new Set(th).size >= 15 && first.join('|') === 'original|Original|true', 'Original first, then 15 presets, each with a thumbnail of its own look ' + th.length + ' ' + first.join('|'));
+  const hp = (await S()).hist;
   await tapEl('[data-pp="cinematic"]'); const ci = await S();
   await tapEl('[data-pp="bw"]'); const bw = await S();
-  L.ok(ci.v.grade && ci.v.vignette === 22 && !bw.v.grade && bw.v.vignette === 0 && bw.v.saturation === -100 && bw.hist === hp, 'trying one preset after another never adds them up, nor takes a step');
-  await tapEl('[data-pa="pcancel"]');
-  L.ok(JSON.stringify((await S()).v) === JSON.stringify(before) && (await screen()).diff === 0, 'Cancel puts everything back exactly');
+  L.ok(ci.e.grade && ci.e.vignette === -30 + 22 && ci.e.exposure === 20 && !bw.e.grade && bw.e.vignette === -30 && bw.e.saturation === -100 && bw.e.exposure === 20 && bw.hist === hp,
+    'one preset after another: each takes the last one’s place, on top of what was set by hand, and takes no step ' + JSON.stringify({ civ: ci.e.vignette, bwv: bw.e.vignette, ex: bw.e.exposure }));
+  L.ok(JSON.stringify(Object.assign({}, bw.v, { preset: null })) === JSON.stringify(mv), 'what was set by hand is untouched underneath');
+  await tapEl('[data-pp="original"]');
+  L.ok((await S()).v.preset === null && (await screen()).diff === 0, 'Original takes the preset off: exactly as set by hand');
+  await tapEl('[data-pp="bw"]'); await tapEl('[data-pa="pcancel"]');
+  L.ok(JSON.stringify((await S()).v) === JSON.stringify(mv) && (await screen()).diff === 0, 'Cancel puts everything back exactly');
   await tapEl('[data-pp="goldenhour"]'); await tapEl('[data-pa="pdone"]');
   const gd = await S();
-  L.ok(gd.hist === hp + 1 && gd.preset === null && gd.v.temp === 30 && gd.cat === 'edit', 'Done keeps it as one step, back on the sliders ' + JSON.stringify({ steps: gd.hist - hp, temp: gd.v.temp }));
+  L.ok(gd.hist === hp + 1 && gd.v.preset === 'goldenhour' && gd.e.temp === 30 && gd.v.temp === 0 && gd.cat === 'edit', 'Done keeps it as one step, back on the sliders ' + JSON.stringify({ steps: gd.hist - hp, temp: gd.e.temp }));
   L.ok(await p.$eval('[data-pk="temp"]', i => +i.value === 30), 'which show the preset’s settings');
+  // set by hand after the preset: kept when the preset goes
+  await setSlider('temp', 50);
+  const ga = await S();
+  L.ok(ga.e.temp === 50 && ga.v.temp === 20, 'a slider moved over a preset moves what’s set by hand ' + JSON.stringify({ e: ga.e.temp, v: ga.v.temp }));
+  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(300); await tapEl('[data-pp="original"]'); await tapEl('[data-pa="pdone"]');
+  const go = await S();
+  L.ok(!go.v.preset && go.e.temp === 20 && go.e.exposure === 20 && go.e.vignette === -30, 'Original then Done: the preset’s part gone, everything set by hand, before and after it, kept ' + JSON.stringify({ temp: go.e.temp, ex: go.e.exposure, vg: go.e.vignette }));
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
-  L.ok((await screen()).diff === 0, 'undo takes the whole preset back');
+  L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 50, 'undo puts the preset back');
+  await p.keyboard.press('Control+z'); await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
+  L.ok((await screen()).diff === 0, 'and further back, exactly as set by hand before it');
   await p.keyboard.press('Control+Shift+z'); await p.waitForTimeout(80);
+  L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 30, 'redo brings the preset again');
   const look = await screen(true);
 
   // ---- SAVING: four formats, full or another size; a JPEG's EXIF kept, upright ----
@@ -227,7 +245,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(exif.at > 0 && exif.orient === 1 && exif.none, 'saved, its EXIF goes with it, set upright (and not, when asked)');
   await tapEl('[data-act="undo"]'); await p.waitForTimeout(400);
   const back = await S();
-  L.ok(back.w === 600 && back.v.temp === 30 && (await screen()).diff === 0, 'undo brings the last photo back, as it was edited');
+  L.ok(back.w === 600 && back.e.temp === 30 && (await screen()).diff === 0, 'undo brings the last photo back, as it was edited');
 
   // ---- MOVING ABOUT: zoom, fit, a drag (two fingers pinch) ----
   const k0 = (await S()).view.k;
@@ -251,7 +269,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await p.waitForTimeout(1500);
   await p.reload(); await p.waitForTimeout(1800);
   const rl = await S();
-  L.ok(await p.evaluate(() => document.documentElement.classList.contains('photo-mode')) && rl.w === 600 && rl.v.temp === 30, 'a reload comes back in Photo mode, with the photo as edited ' + JSON.stringify({ w: rl.w, temp: rl.v && rl.v.temp }));
+  L.ok(await p.evaluate(() => document.documentElement.classList.contains('photo-mode')) && rl.w === 600 && rl.e.temp === 30, 'a reload comes back in Photo mode, with the photo as edited ' + JSON.stringify({ w: rl.w, temp: rl.e && rl.e.temp }));
   L.ok((await screen()).diff === 0 || true, '');
   const rlook = await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
   // ---- AND IN A PROJECT FILE ----
@@ -261,18 +279,18 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     L.ok(items.includes('photo') && items.includes('project'), 'Save offers the photo and the project ' + items.join(','));
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 8000 }), p.$eval('[data-save="project"]', e => e.click())]);
     const proj = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
-    L.ok(proj.mode === 'photo' && proj.photo && /^data:image\/png/.test(proj.photo.data) && proj.photo.v.temp === 30, 'the project file carries the photo and its settings');
+    L.ok(proj.mode === 'photo' && proj.photo && /^data:image\/png/.test(proj.photo.data) && proj.photo.v.preset === 'goldenhour' && proj.photo.v.exposure === 20, 'the project file carries the photo and its settings');
     // a new picture: Photo starts empty; the project opened brings it all back
     await p.evaluate(() => PaintPhoto.load(null)); await p.waitForTimeout(100);
     L.ok((await S()).w === 0, '(emptied)');
     await p.setInputFiles('.paint-open input', { name: 'drawing.paint', mimeType: 'application/x-paint-alternative', buffer: fs.readFileSync(await dl.path()) }); await p.waitForTimeout(1500);
     const op = await S();
-    L.ok(op.w === 600 && op.v.temp === 30, 'opened again, the photo and its settings are back ' + JSON.stringify({ w: op.w }));
+    L.ok(op.w === 600 && op.e.temp === 30, 'opened again, the photo and its settings are back ' + JSON.stringify({ w: op.w }));
   }
 
   // ---- TO PAINT: the edited photo comes across on a layer; Paint as it was ----
   await p.evaluate(() => { try { localStorage.setItem('paint-mode-ask', 'true'); } catch (x) {} });
-  await settingsItem('photo');
+  await settingsItem('paint');
   const ask = await p.$('[data-vm="bring"]');
   L.ok(!!ask, 'leaving with a photo asks whether to bring it');
   if (ask) await tapEl('[data-vm="bring"]');

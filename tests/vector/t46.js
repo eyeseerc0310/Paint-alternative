@@ -13,7 +13,12 @@ const V = require('./vt.js');
     await H.tool('rect'); const bw = await p.evaluate(() => window.PaintVector.serialize().w); await H.drag([bw * 0.2, 300], [bw * 0.6, 450]);
     await openSettings();
     ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'true' && b.textContent.includes('✓')), name + ': settings item, on');
+    ok(await p.$$eval('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"]', bs => bs.map(b => b.textContent.replace('✓', '').trim()).join('|')) === 'Paint mode|Vector mode|Photo mode', name + ': the three modes, no preview labels');
+    ok(await p.$eval('[data-setting="paint"]', b => b.getAttribute('aria-checked') === 'false'), name + ': only the one in use ticked');
     await p.click('[data-setting="vector"]'); await p.waitForTimeout(300);
+    ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), name + ': the one in use again changes nothing');
+    await openSettings();
+    await p.click('[data-setting="paint"]'); await p.waitForTimeout(300);
     const sheet = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sheet) { await sheet.click(); await p.waitForTimeout(300); }
     ok(await p.evaluate(() => !document.documentElement.classList.contains('vector-mode')), name + ': back to paint');
     ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': vector art kept');

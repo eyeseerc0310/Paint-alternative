@@ -1919,7 +1919,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .pho-empty p { margin: 0; font-size: var(--fs-ui); color: var(--muted); }
 .pho-empty .pho-open { height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
 @media (hover: hover) { .pho-empty .pho-open:hover { background: var(--accent-hover); } }
-.photo-mode .paint-stage > :not(.pho-stage) { visibility: hidden !important; }
+.photo-mode .paint-stage > :not(.pho-stage):not(.paint-preview) { visibility: hidden !important; }
 .pho-group[hidden] { display: none; }
 .photo-mode .paint-left .paint-toolgroups { position: relative; }
 .photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pl-view) { visibility: hidden; }
@@ -1947,7 +1947,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .pho-mui line, .pho-mui polyline { fill: none; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
 .pho-mui .dash { stroke-dasharray: 5 4; }
 .pho-mui circle { fill: #fff; stroke: rgb(0 0 0 / .55); stroke-width: 1; }
-.pho-mui circle.brush { fill: none; stroke: #fff; stroke-width: 1.5; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
+/* (the brush's circle: Paint's ring, .paint-ring, dark inside a light edge) */
+.pho-mui circle.ring { fill: none; stroke: rgba(0, 0, 0, .55); stroke-width: 1; }
+.pho-mui circle.ring-o { fill: none; stroke: rgba(255, 255, 255, .8); stroke-width: 1; }
+.pho-mui circle.ring.dash { stroke: rgba(255, 255, 255, .85); stroke-dasharray: 3 3; filter: drop-shadow(0 0 1px rgb(0 0 0 / .7)); }
+/* (another mask's pin: a tap picks it) */
+.pho-mui circle.pin { fill: rgb(255 255 255 / .55); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 0 1px rgb(0 0 0 / .8)); }
 .pho-madd { display: flex; gap: var(--s-1); }
 .paint .pho-madd .ctx-btn { flex: 1; justify-content: center; }
 .pho-mlist { display: flex; flex-direction: column; gap: 2px; margin: var(--s-2) 0; }
