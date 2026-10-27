@@ -146,7 +146,8 @@
     function showTip(e) {
       if (e.pointerType === 'touch') return;
       var b = e.target.closest && e.target.closest('[data-tip]');
-      if (!b || !b.matches('button') || b.matches('.paint-current, .paint-second') || !b.querySelector('svg') || b.innerText.trim() || e.buttons || !b.closest('.paint, .site-header, .paint-focusout')) { hideTip(); return; }
+      // (Open is a label round its file chooser, not a button, and has one too)
+      if (!b || !b.matches('button, label.hb') || b.matches('.paint-current, .paint-second') || !b.querySelector('svg') || b.innerText.trim() || e.buttons || !b.closest('.paint, .site-header, .paint-focusout')) { hideTip(); return; }
       if (b !== tipOn) { tipOn = b; tip.textContent = b.dataset.tip; }
       // (a top-bar button's label sits just under it; the others, by the pointer)
       if (b.closest('.site-header')) {
