@@ -8,6 +8,7 @@
 #   tests/run.sh selection          selecting: layers, undo and redo, Shift to add
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
 #   tests/run.sh effects            Effects: Content-Aware Scale, the selection kept
+#   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
 # save goes in tests/.out.
@@ -92,6 +93,19 @@ effects() {
   check "effects/cas-light-390-touch-safari-cpu" "$OUT/effects" "$T/effects/cas.js" light 390 844 touch safari cpu
 }
 
+photo() {
+  check "photo/photo-light-1400" "$OUT/photo" "$T/photo/photo.js" light 1400 900
+  check "photo/photo-dark-1024-touch" "$OUT/photo" "$T/photo/photo.js" dark 1024 768 touch
+  check "photo/photo-light-390-touch" "$OUT/photo" "$T/photo/photo.js" light 390 844 touch
+  check "photo/photo-dark-360" "$OUT/photo" "$T/photo/photo.js" dark 360 740
+  check "photo/geometry-light-1400" "$OUT/photo" "$T/photo/geometry.js" light 1400 900
+  check "photo/geometry-dark-1024-touch" "$OUT/photo" "$T/photo/geometry.js" dark 1024 768 touch
+  check "photo/geometry-light-390-touch" "$OUT/photo" "$T/photo/geometry.js" light 390 844 touch
+  check "photo/masks-light-1400" "$OUT/photo" "$T/photo/masks.js" light 1400 900
+  check "photo/masks-dark-1024-touch" "$OUT/photo" "$T/photo/masks.js" dark 1024 768 touch
+  check "photo/masks-light-390-touch" "$OUT/photo" "$T/photo/masks.js" light 390 844 touch
+}
+
 serve "$APP_PORT" "$ROOT"
 what=${1:-all}; [ $# -gt 0 ] && shift
 case $what in
@@ -102,8 +116,9 @@ case $what in
   selection) selection ;;
   text) text ;;
   effects) effects ;;
-  all) brushes; selection; text; effects; vector; regress; lock ;;
-  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects] [names]"; exit 2 ;;
+  photo) photo ;;
+  all) brushes; selection; text; effects; photo; vector; regress; lock ;;
+  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects|photo] [names]"; exit 2 ;;
 esac
 if [ ${#FAILED[@]} -gt 0 ]; then echo; echo "not passing: ${FAILED[*]}"; exit 1; fi
 echo; echo "all passing"

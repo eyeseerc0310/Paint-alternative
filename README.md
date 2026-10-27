@@ -98,12 +98,29 @@ uploaded.
 - **History:** see every step and jump back to any of them
 - **Keyboard shortcuts:** press **?** to see them all
 - **Save** as PNG or JPEG, or **Share** straight to Messages, Photos, Mail…
+- **Photo mode (preview, from Settings):** a photo editor in the manner of
+  Lightroom. Open a JPEG, PNG, WebP (or HEIC where the browser can) and edit
+  it without ever changing the photo itself: Light (exposure, contrast,
+  highlights, shadows, whites, blacks, brightness, a tone curve), Colour
+  (temperature, tint, vibrance, saturation, a colour mixer for eight hues,
+  colour grading), Effects (texture, clarity, dehaze, vignette, grain) and
+  Detail (sharpening, noise reduction), Optics & Geometry (lens distortion,
+  lens vignetting, colour fringes, vertical and horizontal perspective,
+  scale), and Crop & Straighten (shapes, a straightening angle, quarter
+  turns and flips), and Masks (up to four brush, linear or radial masks,
+  each with its own exposure, contrast, highlights, shadows, temperature,
+  tint, saturation and clarity), worked out on the graphics chip.
+  Press and hold the photo (or \\) to see it as it came; try 15 presets
+  with live thumbnails; save as JPEG (keeping its EXIF), PNG, WebP or TIFF at
+  full or another size; it's kept with the drawing and in project files, and
+  it can be brought across to Paint on a layer
 - **Install it as an app:** it works offline, and keeps your drawing between
   visits
 
 ## Files
 
 - `index.html`, `style.css`, `paint.js`: the app
+- `vector.js`: Vector mode; `photo.js`: Photo mode; `fx-shared.js`: the tone sums Paint's Effects and Photo mode share
 - `manifest.webmanifest`, `sw.js`, `icons/`: installing and working offline
 
 Published with GitHub Pages from the `main` branch.

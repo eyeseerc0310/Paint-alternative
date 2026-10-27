@@ -128,7 +128,7 @@
     // undo, the two colours, redo and opacity; the dock: the tool options)
     var left = $('.paint-left'), bbar = $('.paint-bottom'), dock = $('.paint-dock'), paintEl = root.querySelector('.paint') || root;
     // (Paint or Vector: which workspace shows; see PAINT AND VECTOR, near the end)
-    var PV = window.PaintVector || null, modeEl = $('.mode-switch'), wsMode = 'paint', modeAsk = stored('paint-mode-ask', true);
+    var PV = window.PaintVector || null, PH = window.PaintPhoto || null, modeEl = $('.mode-switch'), wsMode = 'paint', modeAsk = stored('paint-mode-ask', true);
     if (!modeEl) PV = null;
 
     // ---- a little label beside the mouse saying what each tool does ----
@@ -347,7 +347,7 @@
 
     function applyView() {
       world.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px)' + (view.r ? ' rotate(' + view.r + 'rad)' : '') + ' scale(' + view.k + ')';
-      if (wsMode !== 'vector') zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
+      if (wsMode === 'paint') zoomVal.textContent = Math.round(view.k / fitK * 100) + '%';
       placeSelectionToolbar();
       if (textBox) placeTextBox();
       if (lasso && lasso.length) drawLasso(lassoHover); else if (sel && uctx) drawSelUi();
@@ -1027,6 +1027,7 @@
     function buttons() { histButtons(); renderHistory(); }
     function histButtons() {
       if (wsMode === 'vector') { PV.histButtons(); return; } // (Vector's own steps)
+      if (wsMode === 'photo') { PH.histButtons(); return; } // (Photo's)
       var P = pen && pen.hist ? pen : null;
       var S = sel && selSteps() ? sel : null, G = grad && grad.hist ? grad : null;
       $('[data-act="undo"]').disabled = !undo.length && !(P && P.hist.length) && !(S && S.hist && S.hist.length) && !G;
@@ -4999,30 +5000,7 @@
     function adjChanged() { return !!adj && Object.keys(adj.v).some(fxOn); }
     // CURVES: points (in 0-255) joined by a natural cubic spline; the tones
     // just stop at pure black and pure white. 256 values out of it.
-    function curveLut(P0) {
-      var P = P0.map(function (q) { return [q[0], q[1]]; }).sort(function (a, b) { return a[0] - b[0]; });
-      for (var t = 1; t < P.length; t++) if (P[t][0] - P[t - 1][0] < 0.5) P[t][0] = P[t - 1][0] + 0.5; // (two at the same place: a hair apart)
-      var n = P.length, out = new Float32Array(256), i, x;
-      if (n < 3) {
-        for (x = 0; x < 256; x++) { var u0 = (x - P[0][0]) / Math.max(0.5, P[1][0] - P[0][0]); out[x] = Math.max(0, Math.min(255, x <= P[0][0] ? P[0][1] : x >= P[1][0] ? P[1][1] : P[0][1] + (P[1][1] - P[0][1]) * u0)); }
-        return out;
-      }
-      // second derivatives (natural ends), by the usual tridiagonal sweep
-      var h = [], al = [], l = [1], mu = [0], z = [0], c = new Array(n).fill(0);
-      for (i = 0; i < n - 1; i++) h[i] = P[i + 1][0] - P[i][0];
-      for (i = 1; i < n - 1; i++) al[i] = 3 / h[i] * (P[i + 1][1] - P[i][1]) - 3 / h[i - 1] * (P[i][1] - P[i - 1][1]);
-      for (i = 1; i < n - 1; i++) { l[i] = 2 * (P[i + 1][0] - P[i - 1][0]) - h[i - 1] * mu[i - 1]; mu[i] = h[i] / l[i]; z[i] = (al[i] - h[i - 1] * z[i - 1]) / l[i]; }
-      var bb = [], dd = [];
-      for (i = n - 2; i >= 0; i--) { c[i] = (i ? z[i] : 0) - (i ? mu[i] * c[i + 1] : 0); bb[i] = (P[i + 1][1] - P[i][1]) / h[i] - h[i] * (c[i + 1] + 2 * c[i]) / 3; dd[i] = (c[i + 1] - c[i]) / (3 * h[i]); }
-      for (x = 0, i = 0; x < 256; x++) {
-        var y;
-        if (x <= P[0][0]) y = P[0][1];
-        else if (x >= P[n - 1][0]) y = P[n - 1][1];
-        else { while (i < n - 2 && x > P[i + 1][0]) i++; var dx = x - P[i][0]; y = P[i][1] + bb[i] * dx + c[i] * dx * dx + dd[i] * dx * dx * dx; }
-        out[x] = Math.max(0, Math.min(255, y));
-      }
-      return out;
-    }
+    function curveLut(P0) { return PaintFX.curveLut(P0); } // (fx-shared.js, Photo mode's too)
     function curvePts() { return (adj && adj.v.curve) || [[0, 0], [255, 255]]; }
     // the layer's spread of tones (inside the selection, if there is one),
     // scaled so a few tall spikes don't flatten the rest
@@ -5144,23 +5122,16 @@
       var v = adj.v, val = function (k) { return (v[k] || 0) / 100; };
       var ex = Math.pow(2, val('exposure') * 1.5), co = val('contrast'), hi = val('highlights'), sh = val('shadows'), wh = val('whites'), bl = val('blacks'), fa = val('fade');
       var lut = new Uint8ClampedArray(256), blut = new Float32Array(256), br = val('brilliance');
-      var lb = lv('lb'), lw = lv('lw'), lg = lv('lg') / 100, ob = lv('ob'), ow = lv('ow'), cl8 = v.curve ? curveLut(v.curve) : null;
+      var lb = lv('lb'), lw = lv('lw'), lg = lv('lg') / 100, ob = lv('ob'), ow = lv('ow'), cl8 = v.curve ? curveLut(v.curve) : null, tn = { sh: sh, hi: hi, wh: wh, bl: bl, co: co, fa: fa };
       for (var i = 0; i < 256; i++) {
         // (levels first, then the curve, then the sliders)
         var x = Math.max(0, Math.min(1, (i - lb) / Math.max(1, lw - lb)));
         x = (ob + Math.pow(x, 1 / lg) * (ow - ob)) / 255;
         if (cl8) { var cx8 = x * 255, c0 = Math.min(254, Math.floor(cx8)), cf = cx8 - c0; x = (cl8[c0] * (1 - cf) + cl8[c0 + 1] * cf) / 255; }
-        x *= ex;
-        x += sh * 0.3 * (1 - sstep(0, 0.55, x)) * (sh > 0 ? 1 - x : x);
-        x += hi * 0.3 * sstep(0.45, 1, x) * (hi > 0 ? 1 - x : x);
-        x += wh * 0.22 * sstep(0.55, 1.05, x);
-        x += bl * 0.16 * Math.pow(1 - Math.min(1, x), 3);
-        x = Math.max(0, Math.min(1, x));
-        x = co >= 0 ? x + co * 0.9 * (x * x * (3 - 2 * x) - x) * 1.6 : 0.5 + (x - 0.5) * (1 + co * 0.6);
-        x = fa ? x * (1 - fa * 0.22) + fa * 0.12 : x;
+        // (the sliders' sums are shared with Photo mode: fx-shared.js)
+        x = PaintFX.toneAt(x * ex, tn);
         lut[i] = Math.round(Math.max(0, Math.min(1, x)) * 255);
-        // brilliance: brings up the darker parts and holds back the brightest
-        var L = i / 255; blut[i] = L ? Math.max(0, L + br * (0.45 * L * (1 - L) * (1 - L) - 0.25 * L * L * (1 - L))) / L : 1;
+        blut[i] = PaintFX.brilliance(i / 255, br);
       }
       var hu = val('hue') * Math.PI, gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
       if (v.gmap && gms) {
@@ -7249,8 +7220,8 @@
       if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
-    sizeIn.addEventListener('input', function () { if (wsMode === 'vector') return; setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
-    alphaIn.addEventListener('input', function () { if (wsMode === 'vector') return; st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
+    sizeIn.addEventListener('input', function () { if (wsMode !== 'paint') return; setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
+    alphaIn.addEventListener('input', function () { if (wsMode !== 'paint') return; st.alpha = +alphaIn.value / 100; alphaIn.nextElementSibling.textContent = alphaIn.value; if (textBox) styleTextBox(); else preview(); });
 
     // ---- DRAG A COLOUR onto the picture: it drops in and spreads out to
     // fill the area it lands on (like the fill tool). Any swatch, a recent
@@ -7310,7 +7281,7 @@
     }
     $('.paint-open input').addEventListener('change', function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (isProject(f)) openProject(f); else addPicture(f, 'open');
+      if (isProject(f)) openProject(f); else if (wsMode === 'photo') PH.openFile(f); else addPicture(f, 'open');
       e.target.value = '';
     });
     // ---- A PROJECT FILE (.paint): the whole drawing, every layer with its
@@ -7334,6 +7305,12 @@
       }
       return out;
     }
+    // (a project's photo: its own file back as a Blob, if it's one)
+    function photoFrom(p) {
+      if (!p || typeof p !== 'object' || typeof p.data !== 'string') return null;
+      var m = /^data:([\w.+\/-]*);base64,(.*)$/.exec(p.data); if (!m) return null;
+      try { var bin = atob(m[2]), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return { name: String(p.name || 'Photo').slice(0, 120), type: String(p.type || m[1]).slice(0, 80), w: +p.w || 0, h: +p.h || 0, v: p.v, cat: p.cat, blob: new Blob([u], { type: m[1] || 'application/octet-stream' }) }; } catch (x) { return null; }
+    }
     function isProject(f) { return /\.paint$/i.test(f.name || '') || f.type === 'application/x-paint-alternative'; }
     function saveProject() {
       finishWork();
@@ -7341,11 +7318,19 @@
       var out = { app: 'Paint Alternative', version: 1, width: ov.width, height: ov.height, active: layers.indexOf(active), palettes: myPalettes, mode: wsMode, vector: PV ? PV.serialize() : null,
         groups: gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; }),
         layers: layers.map(function (L) { return { name: L.name, visible: L.visible, bg: L.bg, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: L.text || null, group: gl.indexOf(L.group), mask: L.mask ? L.mask.cv.toDataURL('image/png') : null, png: L.cv.toDataURL('image/png') }; }) };
-      var blob = new Blob([JSON.stringify(out)], { type: 'application/x-paint-alternative' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = 'drawing.paint';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-      toast('Saved the project: open it again to carry on');
+      // (Photo mode's photo goes in as its own file, as it came, encoded)
+      var ph = PH ? PH.serialize() : null;
+      var write = function () {
+        var blob = new Blob([JSON.stringify(out)], { type: 'application/x-paint-alternative' }), a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'drawing.paint';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        toast('Saved the project: open it again to carry on');
+      };
+      if (!ph) { write(); return; }
+      var rdp = new FileReader();
+      rdp.onload = function () { out.photo = { name: ph.name, type: ph.type, w: ph.w, h: ph.h, v: ph.v, cat: ph.cat, data: rdp.result }; write(); };
+      rdp.onerror = write; rdp.readAsDataURL(ph.blob);
     }
     function openProject(file) {
       var rd = new FileReader();
@@ -7387,7 +7372,7 @@
             });
             storeIt('paint-palettes', myPalettes);
           }
-          mount(); fit(); vecLoad(d.vector, d.mode); buttons(); autosave();
+          mount(); fit(); vecLoad(d.vector, d.mode, photoFrom(d.photo)); buttons(); autosave();
           toast('Opened the project');
           });
         });
@@ -7399,6 +7384,7 @@
     saveMenu.innerHTML = '<button type="button" role="menuitem" data-save="png">PNG<small>Keeps see-through parts</small></button>' +
       '<button type="button" role="menuitem" data-save="jpeg">JPEG<small>Smaller file</small></button>' +
       '<button type="button" role="menuitem" data-save="svg" hidden>SVG<small>The vector artwork, sharp at any size</small></button>' +
+      '<button type="button" role="menuitem" data-save="photo" hidden>Photo\u2026<small>JPEG, PNG, WebP or TIFF, at any size</small></button>' +
       '<button type="button" role="menuitem" data-save="share">Share\u2026<small>Messages, Photos, Mail\u2026</small></button>' +
       '<button type="button" role="menuitem" data-save="project">Project<small>Every layer, to carry on later</small></button>';
     root.appendChild(saveMenu);
@@ -7411,6 +7397,7 @@
       if (type === 'share') { share(); return; }
       if (type === 'project') { saveProject(); return; }
       if (wsMode === 'vector') { PV.exportBlob(type).then(function (blob) { if (blob) download(blob, type === 'jpeg' ? 'jpg' : type); }); return; }
+      if (wsMode === 'photo') { PH.saveSheet(); return; }
       if (grad) gradDone(); if (adj) adjustDone();
       if (textBox) commitText();
       if (sel) commitSelection();
@@ -7449,7 +7436,7 @@
     // the drawing as it's kept: its size, its layers (each as a PNG, with its
     // mask) and their groups, and which drawing of the gallery it is
     function docInfo(then) {
-      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count, gid: gid, name: docName, mode: wsMode, vector: PV ? PV.serialize() : null }, gl = [];
+      var info = { R: R, pw: ov.width, ph: ov.height, active: layers.indexOf(active), count: count, gid: gid, name: docName, mode: wsMode, vector: PV ? PV.serialize() : null, photo: PH ? PH.serialize() : null }, gl = [];
       layers.forEach(function (L) { if (L.group && gl.indexOf(L.group) < 0) gl.push(L.group); });
       info.groups = gl.map(function (G) { return { name: G.name, open: G.open, visible: G.visible, opacity: G.opacity, blend: G.blend }; });
       Promise.all(layers.map(function (L) {
@@ -7538,7 +7525,7 @@
         active = layers[Math.max(0, Math.min(layers.length - 1, d.active | 0))] || null;
         count = layers.length ? Math.max(count, d.count | 0) : 0;
         ims.forEach(function (b) { if (b && b.close) b.close(); });
-        mount(); if (d.pw) fit(); vecLoad(d.vector, d.mode); done(true);
+        mount(); if (d.pw) fit(); vecLoad(d.vector, d.mode, d.photo); done(true);
       }, function () { done(); });
     }
     // ---- THE GALLERY: every drawing, kept in this browser. The one being
@@ -7875,6 +7862,8 @@
       mount(); fit();
       // (and a blank vector artboard the new size, if Vector mode is out)
       if (PV) { PV.load(null); if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); } }
+      // (and no photo in Photo mode: a new drawing starts without one)
+      if (PH) { PH.load(null); if (wsMode === 'photo') { PH.enter(null); ctxFor = null; ctxRender(); } }
       buttons(); autosave();
     }
 
@@ -7971,6 +7960,7 @@
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
         (PV ? '<button type="button" role="menuitemcheckbox" aria-checked="' + (wsMode === 'vector') + '" data-setting="vector">' + modeEl.querySelector('[data-mode="vector"] svg').outerHTML + 'Vector mode (preview)<span class="settings-check" aria-hidden="true">' + (wsMode === 'vector' ? '✓' : '') + '</span></button>' +
+          (PH ? '<button type="button" role="menuitemcheckbox" aria-checked="' + (wsMode === 'photo') + '" data-setting="photo">' + modeEl.querySelector('[data-mode="photo"] svg').outerHTML + 'Photo mode (preview)<span class="settings-check" aria-hidden="true">' + (wsMode === 'photo' ? '✓' : '') + '</span></button>' : '') +
           '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
       settingsBox.hidden = false;
       hb('settings').setAttribute('aria-expanded', 'true');
@@ -7994,6 +7984,7 @@
       else if (b.dataset.setting === 'gestures') gestureSheet();
       else if (b.dataset.setting === 'flip') flipUI();
       else if (b.dataset.setting === 'vector') askMode(wsMode === 'vector' ? 'paint' : 'vector');
+      else if (b.dataset.setting === 'photo') askMode(wsMode === 'photo' ? 'paint' : 'photo');
       else if (b.dataset.setting === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); }
       else helpSheet();
     });
@@ -8136,6 +8127,7 @@
     // ---- PICTURES IN: open, paste (cmd / ctrl + V) or drop one on the page;
     // it comes in on a layer of its own ----
     function addPicture(file, how) {
+      if (wsMode === 'photo' && file) { PH.openFile(file); return; } // (Photo mode: the photo to edit)
       if (!file || !/^image\//.test(file.type)) { if (how !== 'open') toast('That isn’t a picture'); return; }
       if (wsMode === 'vector') { PV.addImageFile(file); return; } // (Vector mode: placed as a picture object)
       var im = new Image(), url = URL.createObjectURL(file);
@@ -8171,7 +8163,7 @@
       clearTimeout(pasteWait); pasteWait = 0;
       var items = (e.clipboardData && e.clipboardData.items) || [];
       for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { e.preventDefault(); pasteFile(items[i].getAsFile()); return; }
-      if (selClip && wsMode !== 'vector') { e.preventDefault(); pasteClip(); }
+      if (selClip && wsMode === 'paint') { e.preventDefault(); pasteClip(); }
     });
     function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
     document.addEventListener('dragover', function (e) { if (!hasFiles(e) || !document.contains(root)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; stage.classList.add('drop'); });
@@ -8181,7 +8173,7 @@
       e.preventDefault(); stage.classList.remove('drop');
       var fs = e.dataTransfer.files || [], pj = Array.prototype.filter.call(fs, isProject)[0];
       if (pj) { openProject(pj); return; }
-      var f = Array.prototype.filter.call(fs, function (x) { return /^image\//.test(x.type); })[0];
+      var f = Array.prototype.filter.call(fs, function (x) { return /^image\//.test(x.type) || (PH && wsMode === 'photo' && PH.kindOf(x) !== 'image'); })[0];
       if (f) addPicture(f, 'drop'); else toast('That isn’t a picture');
     });
 
@@ -8246,6 +8238,7 @@
         group('View', [['Zoom in', '+'], ['Zoom out', '−'], ['Fit (and upright)', '0'], ['Grab & move', 'Space drag'], ['Zoom', CMD + 'scroll'], ['These shortcuts', '?']]) +
         (PV && wsMode === 'vector' ? group('Vector tools', [['Selection', 'V'], ['Direct Selection', 'A'], ['Lasso', 'Q'], ['Magic Wand', 'Y'], ['Pen', 'P'], ['Scissors', 'C'], ['Join Paths', 'J'], ['Vector Brush', 'B'], ['Blob Brush', '⇧ B'], ['Vector Eraser', '⇧ E'], ['Rectangle', 'M'], ['Ellipse', 'L'], ['Shape Builder', '⇧ M'], ['Free Transform', 'E'], ['Scale', 'S'], ['Rotate', 'R'], ['Reflect', 'O'], ['Text', 'T'], ['Character Editing', '⇧ T'], ['Gradient', 'G'], ['Eyedropper', 'I'], ['Vector Fill', 'K'], ['Variable Width', '⇧ W'], ['Blend', 'W'], ['Warp', '⇧ R'], ['Artboard', '⇧ O'], ['Rotate View', '⇧ H'], ['Hand', 'H'], ['Zoom', 'Z']]) +
           group('Vector editing', [['Group', CMD + 'G'], ['Ungroup', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'G'], ['Join picked paths', CMD + 'J'], ['Duplicate', CMD + 'D'], ['Copy, cut, paste', CMD + 'C'], ['Bring forward', CMD + ']'], ['Send backward', CMD + '['], ['Bring to front', (MAC ? '⇧⌘' : 'Ctrl Shift ') + ']'], ['Send to back', (MAC ? '⇧⌘' : 'Ctrl Shift ') + '['], ['Compound path', CMD + '8'], ['Clipping mask', CMD + '7'], ['Convert to outlines', (MAC ? '⇧⌘' : 'Ctrl Shift ') + 'O'], ['Turn (Selection)', 'Drag outside a corner'], ['Swap fill and stroke', 'X'], ['Default fill and stroke', 'D'], ['No fill', '/'], ['Finish a path', MAC ? '↩' : 'Enter'], ['Nudge (by 10)', '← ↑ (⇧)'], ['Fit to screen', '0'], ['Actual size', CMD + '1'], ['Show or hide rulers', CMD + 'R'], ['Show or hide the grid', CMD + '\''], ['Show or hide guides', CMD + ';'], ['Delete the artboard (Artboard tools)', MAC ? '⌫' : 'Delete']]) : '') +
+        (PH && wsMode === 'photo' ? group('Photo', [['The photo as it came (while held)', '\\'], ['The same, on the photo', 'Press and hold'], ['Fit', '0'], ['Actual pixels, or fit', 'Double-click'], ['Move the photo', 'Drag'], ['Undo, redo', CMD + 'Z']]) : '') +
         group('Touch & Pencil', Object.keys(GDEF).filter(function (g) { return gest[g] !== 'none'; }).map(function (g) { return [gactName(gest[g]), GNAMES[g]]; }).concat([['Zoom & move', 'Pinch'], ['Turn the canvas', 'Twist two fingers'], ['Snap to a shape', 'Hold at the end'], ['Circle or square', 'Shift while snapped'], ['Layer options', '•••']])) +
         '</div><div class="pa-sheet-acts"><button type="button" class="pa-primary" data-close>Done</button></div>');
       sheetEl.querySelector('[data-close]').addEventListener('click', closeSheet);
@@ -8272,12 +8265,13 @@
         download(blob, 'png');
       };
       if (wsMode === 'vector') { PV.exportBlob('png').then(made); return; } // (Vector's artwork)
+      if (wsMode === 'photo') { if (PH.isEmpty()) { toast('Open a photo first'); return; } PH.exportBlob({ type: 'jpeg', quality: 0.92 }).then(function (b) { var f = window.File ? new File([b], 'photo.jpg', { type: 'image/jpeg' }) : null; if (f && navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: 'Photo' }).catch(function () {}); else download(b, 'jpg'); }); return; } // (the edited photo, full size)
       if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       flatBlob('png', made);
     }
-    function download(blob, ext) {
+    function download(blob, ext, name) {
       var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = 'drawing.' + ext;
+      a.href = URL.createObjectURL(blob); a.download = (name || 'drawing') + '.' + ext;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
     }
@@ -8592,7 +8586,7 @@
     var settingsToggle = $('.paint-settings-toggle');
     settingsToggle.addEventListener('click', function () {
       var open = toolMenuOpen();
-      if (wsMode === 'vector') { ctxMin(open); return; } // (Vector's panel: just folded or opened)
+      if (wsMode !== 'paint') { ctxMin(open); return; } // (Vector's or Photo's panel: just folded or opened)
       if (!pc.hidden) picker(null);
       if (!adjBox.hidden || adj) adjustDone();
       if (!bsBox.hidden) studio(false);
@@ -8601,6 +8595,7 @@
     function settingsToggleSync() {
       if (!settingsToggle) return;
       if (wsMode === 'vector') { settingsToggle.disabled = false; settingsToggle.setAttribute('aria-label', 'Quick options'); return; } // (Vector's quick options, not the panel)
+      if (wsMode === 'photo') { settingsToggle.disabled = false; settingsToggle.setAttribute('aria-label', 'Edit panel'); settingsToggle.setAttribute('aria-expanded', toolMenuOpen() ? 'true' : 'false'); return; }
       var open = toolMenuOpen();
       // (greyed out for a tool with no settings, while nothing else is open)
       settingsToggle.disabled = !open && !!ctxEl && ctxEl.hidden;
@@ -8834,14 +8829,14 @@
     function ctxRender() {
       if (!ctxEl) return;
       ctxClose();
-      var key = wsMode === 'vector' ? 'vector' : ctxView === 'sym' ? 'sym' : (ctxToolId || 'brush');
-      if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = key === 'vector' ? PV.panelHTML() : CTX[key] ? CTX[key]() : ''; }
-      if (key === 'vector') PV.panelSync();
+      var key = wsMode !== 'paint' ? wsMode : ctxView === 'sym' ? 'sym' : (ctxToolId || 'brush');
+      if (key !== ctxFor) { ctxFor = key; ctxTool.innerHTML = key === 'vector' ? PV.panelHTML() : key === 'photo' ? PH.panelHTML() : CTX[key] ? CTX[key]() : ''; }
+      if (key === 'vector') PV.panelSync(); else if (key === 'photo') PH.panelSync();
       var mb = $('.paint-mirror'); if (mb) mb.setAttribute('aria-expanded', ctxView === 'sym' ? 'true' : 'false');
       ctxSync(); ctxShow();
       // (and the bottom bar: which of size and opacity this tool uses; the
       // other is greyed out, so nothing moves)
-      var uses = wsMode === 'vector' ? '' : { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
+      var uses = wsMode !== 'paint' ? '' : { brush: 'so', eraser: 'so', smudge: 'so', blur: 'so', tone: 'so', line: 'so', shape: 'so', pen: 'so', fill: 'o', gradient: 'o', text: 'o' }[st.tool] || '';
       bbar.dataset.uses = uses; sizeIn.disabled = uses.indexOf('s') < 0; alphaIn.disabled = uses.indexOf('o') < 0;
     }
     // (symmetry's settings take the panel's place while they're open)
@@ -9078,13 +9073,26 @@
       // (the fonts, the same as the Text tool's, fetched the first time they're wanted)
       fonts: function () { return FONTS; }, ensureFonts: ensureFonts
     });
+    if (PH) PH.init({
+      stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
+      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast,
+      ctxRefresh: function () { ctxFor = null; ctxRender(); },
+      showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
+      openPicker: function () { header.querySelector('.paint-open input').click(); },
+      openSheet: openSheet, closeSheet: closeSheet, download: download,
+      decoders: window.PaintDecoders || null
+    });
     function modeSync() {
-      var vec = wsMode === 'vector';
+      var vec = wsMode === 'vector', pho = wsMode === 'photo';
       document.documentElement.classList.toggle('vector-mode', vec);
+      document.documentElement.classList.toggle('photo-mode', pho);
       Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.tabIndex = b.dataset.mode === wsMode ? 0 : -1; });
       // (what's only the painting's is greyed out, so nothing moves)
-      ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec; });
+      ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec || pho; });
+      $('[data-act="layers"]').disabled = pho; // (a photo has no layers)
       Array.prototype.forEach.call(saveMenu.querySelectorAll('[data-save="svg"]'), function (b) { b.hidden = !vec; });
+      Array.prototype.forEach.call(saveMenu.querySelectorAll('[data-save="photo"]'), function (b) { b.hidden = !pho; });
+      Array.prototype.forEach.call(saveMenu.querySelectorAll('[data-save="png"], [data-save="jpeg"]'), function (b) { b.hidden = pho; });
     }
     // (the bottom bar back to the painting's: its size, opacity and two colours)
     function bbarBack() {
@@ -9095,44 +9103,67 @@
     }
     // (a copy of the painting as it's seen, see-through where it is)
     function flatCopy() { var c = document.createElement('canvas'); c.width = ov.width; c.height = ov.height; flattenInto(c.getContext('2d')); return c; }
+    // THREE WORKSPACES: Paint, Vector and Photo, one showing at a time.
+    // Leaving one finishes what can't wait hidden (the words being typed,
+    // Effects; a selection, a path or a gradient stays open); bring: a copy
+    // of what's being left goes into the one being opened (as a new layer,
+    // a picture object, or the photo to edit), and nothing is ever changed
+    // in the one being left
+    var MODE_NAME = { paint: 'Paint', vector: 'Vector', photo: 'Photo' };
+    function modeOk(m) { return m === 'paint' || (m === 'vector' && PV) || (m === 'photo' && PH); }
     function setMode(m, bring) {
-      if (!PV || m === wsMode) return;
+      if (!modeOk(m) || m === wsMode) return;
       hideTip(); finishMenus(); lmenu.hidden = true; ctxClose(); closeSelectionPopover();
       if (!bsBox.hidden) studio(false);
-      if (m === 'vector') {
-        // (what can't wait hidden is finished: the words being typed, and
-        // Effects, kept as they're set; a selection, a path or a gradient
-        // stays as it is, to carry on with)
+      var from = wsMode, flat = null;
+      if (from === 'paint') {
         if (textBox) commitText();
         if (adj || !adjBox.hidden) adjustDone();
         if (spaceDown) letGoOfSpace();
-        var flat = bring ? flatCopy() : null;
-        wsMode = 'vector'; modeSync(); ctxAside(); PV.enter(flat);
+        layerPanel(false);
+        if (bring) flat = flatCopy();
+      } else if (from === 'vector') {
+        if (bring) flat = PV.raster(ov.width, ov.height); // (a promise: Vector draws its art as it can)
+        PV.leave();
       } else {
-        PV.leave(); wsMode = 'paint'; modeSync(); bbarBack();
-        if (bring) PV.raster(ov.width, ov.height).then(function (c) {
-          if (wsMode !== 'paint' || !roomFor()) return;
-          if (grad) gradDone(); if (textBox) commitText(); if (sel) commitSelection();
-          rememberLayers('Bring Artwork');
-          var n = 1; layers.forEach(function (L) { if (/^Vector Artwork( \d+)?$/.test(L.name)) n++; });
-          var L = makeLayer(n > 1 ? 'Vector Artwork ' + n : 'Vector Artwork', false);
-          L.ctx.drawImage(c, 0, 0, W, H);
-          layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; also = []; mount(); buttons(); autosave();
-          toast('Brought a copy of the vector artwork in, on a layer of its own');
-        });
-        applyView();
+        if (bring) flat = PH.raster();
+        PH.leave();
       }
+      wsMode = m; modeSync();
+      if (m === 'paint') { bbarBack(); applyView(); }
+      else ctxAside();
+      // (the one opened: what came across, once it's ready)
+      var go = flat && flat.then ? flat : Promise.resolve(flat);
+      if (m === 'vector') PV.enter(flat && !flat.then ? flat : null);
+      else if (m === 'photo') { bbarPhoto(); PH.enter(flat && !flat.then ? flat : null); if (flat && flat.then) go.then(function (c) { if (c && wsMode === 'photo') PH.enter(c); }); }
+      else if (flat) go.then(function (c) {
+        if (!c || wsMode !== 'paint' || !roomFor()) return;
+        if (grad) gradDone(); if (textBox) commitText(); if (sel) commitSelection();
+        var nm = from === 'photo' ? 'Photo' : 'Vector Artwork';
+        rememberLayers('Bring ' + (from === 'photo' ? 'Photo' : 'Artwork'));
+        var n = 1, re = new RegExp('^' + nm + '( \\d+)?$'); layers.forEach(function (L) { if (re.test(L.name)) n++; });
+        var L = makeLayer(n > 1 ? nm + ' ' + n : nm, false);
+        // (fitted into the picture as the artboard fits; a photo keeps its proportions)
+        var k = from === 'photo' ? Math.min(W / c.width, H / c.height) : 1, w = from === 'photo' ? c.width * k : W, h = from === 'photo' ? c.height * k : H;
+        L.ctx.imageSmoothingQuality = 'high'; L.ctx.drawImage(c, (W - w) / 2, (H - h) / 2, w, h);
+        layers.splice(active ? layers.indexOf(active) + 1 : layers.length, 0, L); L.group = active ? active.group : null; active = L; also = []; mount(); buttons(); autosave();
+        toast(from === 'photo' ? 'Brought a copy of the edited photo in, on a layer of its own' : 'Brought a copy of the vector artwork in, on a layer of its own');
+      });
       ctxFor = null; ctxRender(); histButtons(); autosave();
     }
+    // (the bottom bar in Photo mode: size and opacity aren't Photo's; the
+    // last button still shows or hides the panel)
+    function bbarPhoto() { sizeIn.disabled = true; alphaIn.disabled = true; bbar.dataset.uses = ''; settingsToggle.dataset.tip = 'Edit panel'; settingsToggleSync(); zoomVal.textContent = '100%'; }
+    function sideHas(m) { return m === 'paint' ? !thumbOf().blank : m === 'vector' ? !PV.isEmpty() : !PH.isEmpty(); }
     function askMode(m) {
-      if (!PV || m === wsMode || sheetEl) return;
-      var has = wsMode === 'paint' ? !thumbOf().blank : !PV.isEmpty();
-      if (!modeAsk || !has) { setMode(m, false); return; }
-      var vec = m === 'vector';
-      var box = openSheet('vm', '<div class="pa-sheet-title">Switch to ' + (vec ? 'Vector' : 'Paint') + '</div>' +
-        '<p class="vm-text">' + (vec ? 'Bring a copy of your painting into Vector mode? It comes in as a picture on a layer of its own, to trace over. The painting itself stays just as it is.' : 'Bring a copy of your vector artwork into Paint mode? It comes in as paint on a new layer. The vector artwork stays just as it is, to edit later.') + '</p>' +
+      if (!modeOk(m) || m === wsMode || sheetEl) return;
+      if (!modeAsk || !sideHas(wsMode)) { setMode(m, false); return; }
+      var what = { paint: 'painting', vector: 'vector artwork', photo: 'edited photo' }[wsMode];
+      var into = m === 'paint' ? 'It comes in as paint on a new layer.' : m === 'vector' ? 'It comes in as a picture on a layer of its own, to trace over.' : 'It becomes the photo being edited (undo brings the last one back).';
+      var box = openSheet('vm', '<div class="pa-sheet-title">Switch to ' + MODE_NAME[m] + '</div>' +
+        '<p class="vm-text">Bring a copy of your ' + what + ' into ' + MODE_NAME[m] + ' mode? ' + into + ' Your ' + what + ' itself stays just as it is.</p>' +
         '<label class="vm-ask"><input type="checkbox" data-vm-ask> Don’t ask again <small>(Settings can turn it back on)</small></label>' +
-        '<div class="pa-sheet-acts"><button type="button" data-vm="cancel">Cancel</button><button type="button" data-vm="switch">Switch Without Copying</button><button type="button" class="pa-primary" data-vm="bring">Bring Artwork</button></div>');
+        '<div class="pa-sheet-acts"><button type="button" data-vm="cancel">Cancel</button><button type="button" data-vm="switch">Switch Without Copying</button><button type="button" class="pa-primary" data-vm="bring">Bring ' + (wsMode === 'photo' ? 'Photo' : 'Artwork') + '</button></div>');
       box.addEventListener('click', function (e) {
         var b = e.target.closest('[data-vm]'); if (!b) return;
         var w = b.dataset.vm;
@@ -9142,18 +9173,20 @@
       });
     }
     if (PV) modeEl.addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) askMode(b.dataset.mode); });
-    // (a radio group: the arrow keys go between the two)
+    // (a radio group: the arrow keys go round the workspaces there are)
     if (PV) modeEl.addEventListener('keydown', function (e) {
       if (!/^Arrow(Left|Right|Up|Down)$/.test(e.key)) return;
       e.preventDefault(); e.stopPropagation();
-      var to = wsMode === 'paint' ? 'vector' : 'paint'; modeEl.querySelector('[data-mode="' + to + '"]').focus(); askMode(to);
+      var ms = ['paint', 'vector', 'photo'].filter(modeOk), d = /Right|Down/.test(e.key) ? 1 : ms.length - 1, to = ms[(ms.indexOf(wsMode) + d) % ms.length];
+      var tb = modeEl.querySelector('[data-mode="' + to + '"]'); if (tb) tb.focus(); askMode(to);
     });
-    // (a kept drawing's Vector side, and which was showing)
-    function vecLoad(v, m) {
-      if (!PV) return;
-      PV.load(v || null);
-      var want = m === 'vector' && v ? 'vector' : 'paint';
+    // (a kept drawing's Vector and Photo sides, and which was showing)
+    function vecLoad(v, m, ph) {
+      if (PV) PV.load(v || null);
+      var phGo = PH ? PH.load(ph || null) : Promise.resolve();
+      var want = m === 'vector' && v && PV ? 'vector' : m === 'photo' && ph && PH ? 'photo' : 'paint';
       if (want !== wsMode) setMode(want, false); else if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); }
+      else if (wsMode === 'photo') phGo.then(function () { if (wsMode === 'photo') { PH.enter(null); ctxFor = null; ctxRender(); } });
     }
     // (while Vector mode is still being made, the switch stays out of sight:
     // Settings' Vector mode (preview) goes in and out)
@@ -9176,9 +9209,9 @@
         if (k === 'escape' && document.documentElement.classList.contains('focus-mode')) { focusMode(false); return; }
         if (k === 'escape' && !pc.hidden) { picker(null); return; }
         if (e.target && (e.target.isContentEditable || (/input|textarea|select/i.test(e.target.tagName || '') && e.target.type !== 'range'))) return;
-        // (Vector mode: its own keys, then the few that are the app's)
-        if (wsMode === 'vector') {
-          if (PV.key(e) || mod || e.altKey) return;
+        // (Vector and Photo mode: their own keys, then the few that are the app's)
+        if (wsMode !== 'paint') {
+          if ((wsMode === 'vector' ? PV.key(e) : PH.key(e)) || mod || e.altKey) return;
           if (e.key === '?') helpSheet();
           else if (e.key === '\\') focusMode(!document.documentElement.classList.contains('focus-mode'));
           else if (k === 'n') newSheet();
@@ -9246,7 +9279,7 @@
         else if (e.key === '\\') focusMode(!document.documentElement.classList.contains('focus-mode'));
         else if (k === 'n' && !mod) newSheet();
       },
-      keyup: function (e) { if (wsMode === 'vector') { PV.keyup(e); return; } if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
+      keyup: function (e) { if (wsMode === 'vector') { PV.keyup(e); return; } if (wsMode === 'photo') { PH.keyup(e); return; } if (e.key === 'Shift') shiftChanged(false); if (e.key === ' ') letGoOfSpace(); else if (e.key === 'Alt') stage.classList.remove('picking'); }
     };
   }
   function setup() {

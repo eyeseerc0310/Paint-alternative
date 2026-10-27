@@ -14,6 +14,7 @@ tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
 tests/run.sh effects            # Effects: Content-Aware Scale, the selection kept
+tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -69,6 +70,35 @@ with `all passing`, or lists what isn't, and exits non-zero.
   works the same; Esc takes it all back; and the selection stays through
   every Effects slider. `gpu`/`cpu` pick the graphics chip or the worker for
   the other effects; `touch` and `safari` as in the text tool's.
+- `photo/photo.js`: Photo mode, from Settings, on `fixtures/scene.png`. Formats it
+  can't open (a RAW file, a HEIC in Chromium) say so; a photo with nothing set
+  saves exactly as it came; every slider changes it as one undo step and, put
+  back (a double-click on its name), gives the very same screen again, and the
+  ones that shape another (vignette's midpoint, grain's size, sharpening's
+  radius, detail and masking) change it too; the colour mixer, colour grading
+  and the tone curve; half the detail while a slider moves, sharp once let go
+  of; undo and redo; pressed and held (or \\ held), the photo as it came; the 15
+  presets' thumbnails, trying one after another never adding up, Cancel, Done
+  as one step; JPEG, PNG, WebP and TIFF at full and another size, a JPEG's EXIF
+  kept and set upright; zoom, fit, a drag or a pinch; a reload and a project
+  file keep it all; and the edited photo brought across to Paint on a layer.
+  `touch` drives it by finger.
+- `photo/geometry.js`: Photo mode's Optics & Geometry and Crop & Straighten.
+  Each lens and perspective slider changes the photo as one step and, put
+  back, gives the very same screen; the crop shows the whole frame; a square
+  stays square while a corner is dragged, by mouse or finger, the opposite
+  corner held; dragged by its inside it stops at the frame's edge; Free moves
+  one side; the saved photo is the crop's size; undo takes a drag back;
+  straightening leaves no corner empty; a quarter turn swaps the sides; flips
+  and turns undo each other exactly; saving and loading keep it all; Reset
+  and Done.
+- `photo/masks.js`: Photo mode's masks. A linear mask drawn by a drag darkens
+  the top and leaves the bottom alone; a radial one takes the colour out
+  inside it and not outside, and inverted the other way round; a brush stroke
+  (mouse or finger) is kept as its points, brightens where it went, and the
+  eraser takes it back; undo and redo all the way give the very same photo;
+  hidden, the masks change nothing; saved and loaded they come back the same;
+  four at most; Done clears their lines.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and
