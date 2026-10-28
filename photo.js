@@ -538,7 +538,7 @@
     ['crop', 'Crop & Straighten', '<path d="M7 3v12a2 2 0 0 0 2 2h12"/><path d="M3 7h12a2 2 0 0 1 2 2v12"/>'],
     ['masks', 'Masks', '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 8h6M12 12h8M12 16h6"/>'],
     ['presets', 'Presets', '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>']];
-  var CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+  var CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>'; // (Paint's one chevron, .chev)
   var RESET = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 4.5v3.8h3.8"/></svg>';
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
   function slider(k, name, lo, hi, cls, step) {
@@ -1335,7 +1335,15 @@
     }, true);
   }
 
+  // (a still tap on the empty workspace lets go of the mask in hand: its
+  // brush or handles; Photo's other categories hold no tool)
+  function toolDown() {
+    if (!on || !doc || cat !== 'masks' || !mPick || mdrag) return false;
+    mPick = null; mFresh = null; mHover = null; changed(true); mSync(); return true;
+  }
+
   window.PaintPhoto = {
+    toolDown: toolDown,
     init: init, enter: enter, leave: leave, key: key, keyup: keyup, load: load, serialize: serialize, isEmpty: isEmpty,
     panelHTML: panelHTML, panelSync: panelSync, openFile: openFile, saveSheet: saveSheet, exportBlob: exportBlob, raster: rasterFull,
     histButtons: histButtons, relayout: relayout, isOn: function () { return on; }, kindOf: kindOf,

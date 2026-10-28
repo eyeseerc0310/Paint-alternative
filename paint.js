@@ -422,6 +422,19 @@
       el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
       keepOnScreen(el);
     }
+    // THE LAYERS PANELS (the painting's and Vector's): put beside the bar when
+    // they open, and then left where they are while their rows change, so New
+    // Layer, at their head, stays under the pointer for the next one; no taller
+    // than the room under where they start, the list scrolling in what's left
+    function layersPlace(el, btn, fresh) {
+      el.style.maxHeight = '';
+      if (fresh || !el.style.top) besideBar(el, btn);
+      var r = el.getBoundingClientRect(), lim = window.innerHeight - 8;
+      // (and clear of the bottom bar, where it would cover it)
+      if (bbar && bbar.offsetParent) { var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left && bb.top > r.top + 180) lim = Math.min(lim, bb.top - 8); }
+      if (fresh && r.bottom > lim) { el.style.top = Math.round(Math.max(8, Math.min(r.top, lim - r.height))) + 'px'; r = el.getBoundingClientRect(); }
+      if (r.bottom > lim) el.style.maxHeight = Math.max(180, Math.floor(lim - r.top)) + 'px';
+    }
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
     // filling the space (and stepping back out stops there and at 100%)
     function zoomStep(dir) {
@@ -1033,7 +1046,7 @@
     // and redo, working from the picture as it then is)
     function fxStays() { return !!(adj && !adj.finishing && !adj.applying && !adjChanged()); }
     function fxAfter(on) { if (!on || !adj) return; if (layers.indexOf(adj.L) < 0 || adj.L !== active) adjustClose(); else adjustRebase(); }
-    function buttons() { histButtons(); renderHistory(); }
+    function buttons() { histButtons(); renderHistory(); if (typeof imgMenu !== 'undefined' && docIs('image')) imageFill(); } // (the image panel's size and Crop follow undo and redo)
     function histButtons() {
       if (wsMode === 'vector') { PV.histButtons(); return; } // (Vector's own steps)
       if (wsMode === 'photo') { PH.histButtons(); return; } // (Photo's)
@@ -4493,7 +4506,7 @@
           var gm0 = membersOf(G);
           head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (gm0.length && gm0.every(function (M) { return M === active || also.indexOf(M) >= 0; }) && also.length ? ' also' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
             '<button type="button" class="pl-eye" data-geye="' + G.id + '" aria-label="' + (G.visible ? 'Hide' : 'Show') + ' ' + esc(G.name) + '" aria-pressed="' + (!G.visible) + '">' + EYE(G.visible) + '</button>' +
-            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>' +
+            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg></button>' +
             '<button type="button" class="pl-name" data-gname="' + G.id + '" title="Tap again to rename"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg><span>' + esc(G.name) + '</span></button>' +
             '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
         }
@@ -4516,15 +4529,19 @@
         '<label class="pl-bl"><span>Blend</span><select data-layer-blend aria-label="Blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === active.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' : '';
       thumbsSoon();
       var nPick = also.length ? also.length + 1 : 0;
-      panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div><div class="pl-list">' + rows + '</div>' + pr +
+      var was = panel.querySelector('.pl-list'), keep = was ? was.scrollTop : 0;
+      panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div>' +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
           '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
           '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
           '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) < 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
           '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
-        '</div>';
+        '</div><div class="pl-list">' + rows + '</div>' + pr;
+      panel.querySelector('.pl-list').scrollTop = keep;
+      if (revealOn) { revealOn = false; var onRow = panel.querySelector('.pl-row.on'); if (onRow) onRow.scrollIntoView({ block: 'nearest' }); }
     }
+    var revealOn = false; // (a layer just made is scrolled into view)
     // LAYER PREVIEWS: a little picture of what's on each layer (over a
     // checkerboard, so see-through parts show), kept up to date while the
     // panel is open; rest the mouse on one for a bigger look
@@ -4580,9 +4597,10 @@
     panel.addEventListener('pointerleave', hidePeek);
     function layerPanel(open) {
       if (!open) hidePeek(); else thumbsSoon();
+      var fresh = panel.hidden;
       panel.hidden = !open;
       $('[data-act="layers"]').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) besideBar(panel, $('[data-act="layers"]'));
+      if (open) layersPlace(panel, $('[data-act="layers"]'), fresh);
       $('[data-act="layers"]').setAttribute('aria-pressed', open ? 'true' : 'false');
     }
     // renaming: tap the picked layer's name again (or double-click any name)
@@ -5079,7 +5097,7 @@
       if (a === 'add') {
         if (!roomFor()) return;
         rememberLayers('New Layer');
-        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); L.group = active ? active.group : null; active = L;
+        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); L.group = active ? active.group : null; active = L; revealOn = true;
       } else if (a === 'group') {
         if (!active || active.group) return;
         rememberLayers('New Group'); active.group = makeGroup(); focusG = null;
@@ -5140,7 +5158,7 @@
     function gmStops(id) { if (id === 'colours') return [st.color2, st.color]; var g = GMAPS.filter(function (x) { return x[0] === id; })[0]; return g ? g[2] : null; }
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Effects');
-    var FX_CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var FX_CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>'; // (the one chevron: style.css's .chev)
     // (the sliders whose tracks show what they do: fxTracks, below)
     var FX_TRACKS = { hue: 1, saturation: 1, vibrance: 1, lightness: 1, warmth: 1, tint: 1 };
     var sliderRow = function (a) {
@@ -7199,6 +7217,24 @@
       begin(e);
     });
     var offTap = null, noTap = null;
+    // THE EMPTY WORKSPACE (round the bars, the panels and the picture's space):
+    // a still click or tap there puts the tool down too, as one round the
+    // picture does, with the same care for work in progress (in Vector, its
+    // own tool goes down; in Photo, the mask in hand is let go of). Only the
+    // bare backgrounds count: a press on any control, panel or the picture
+    // never gets here
+    var bareTap = null;
+    function bareAt(t) { return t === paintEl || t === document.body || t === document.documentElement || !!(t && t.classList && (t.classList.contains('paint-centre') || t.classList.contains('paint-dock') || t.classList.contains('site-main') || t.classList.contains('site-header'))); }
+    document.addEventListener('pointerdown', function (e) { bareTap = e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0) && bareAt(e.target) ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null; }, true);
+    document.addEventListener('pointercancel', function () { bareTap = null; }, true);
+    document.addEventListener('pointerup', function (e) {
+      var b = bareTap; bareTap = null;
+      if (!b || b.id !== e.pointerId || Math.hypot(e.clientX - b.x, e.clientY - b.y) > (e.pointerType === 'mouse' ? 3 : 8)) return;
+      if (wsMode === 'vector') { if (PV) PV.toolDown(); return; }
+      if (wsMode === 'photo') { if (PH) PH.toolDown(); return; }
+      if (st.tool === 'none' || textBox || lassoOn || (pen && pen.pts.length) || grad) return;
+      setTool('none'); hideRing();
+    }, true);
     function offPic(p) { return p.x < 0 || p.y < 0 || p.x > W || p.y > H; }
     var touchWait = null, penErase = null, lastPen = -1e9, penSeen = false, fingerDraw = stored('paint-finger-draw', 'pencil');
     function waitGo() { var w = touchWait; touchWait = null; if (w) { clearTimeout(w.t); if (pointers[w.id] && Object.keys(pointers).length === 1 && !gesture) begin(w.ev); } }
@@ -7994,7 +8030,7 @@
     // and the close button. Share keeps the system's own sheet ----
     var docBox = document.createElement('div'), docView = null, docFrom = null;
     docBox.className = 'paint-docpanel'; docBox.hidden = true; docBox.setAttribute('role', 'region');
-    docBox.innerHTML = '<div class="dp-head"><button type="button" class="dp-back" hidden aria-label="Back" data-tip="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>' +
+    docBox.innerHTML = '<div class="dp-head"><button type="button" class="dp-back" hidden aria-label="Back" data-tip="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 7l-5 5 5 5"/></svg></button>' +
       '<div class="dp-title" id="dp-title"></div><button type="button" class="dp-close" aria-label="Close" data-tip="Close (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div><div class="dp-body"></div>';
     docBox.setAttribute('aria-labelledby', 'dp-title');
     left.appendChild(docBox); // (dockPanels puts it in the dock on wider screens)
@@ -8230,12 +8266,12 @@
       if (!stay && docIs('settings')) { docClose(); return; }
       closeDrops(); otherPopovers();
       var theme = header.querySelector('.theme-toggle');
-      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
+      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch Gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
         (PV ? ['paint', 'vector', 'photo'].filter(modeOk).map(function (m) {
           // (the workspaces, one of them ticked: the one in use)
-          return '<button type="button" role="menuitemradio" aria-checked="' + (wsMode === m) + '" data-setting="' + m + '">' + modeEl.querySelector('[data-mode="' + m + '"] svg').outerHTML + MODE_NAME[m] + ' mode<span class="settings-check" aria-hidden="true">' + (wsMode === m ? '✓' : '') + '</span></button>';
+          return '<button type="button" role="menuitemradio" aria-checked="' + (wsMode === m) + '" data-setting="' + m + '">' + modeEl.querySelector('[data-mode="' + m + '"] svg').outerHTML + MODE_NAME[m] + ' Mode<span class="settings-check" aria-hidden="true">' + (wsMode === m ? '✓' : '') + '</span></button>';
         }).join('') +
-          '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
+          '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to Bring Art<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
       docShow('settings', 'Settings', settingsBox, { btn: hb('settings'), reopen: settingsAgain });
     }
     function settingsAgain() { settingsMenu(true); }
@@ -8309,7 +8345,7 @@
     }
     function relayout() {
       closeDrops(); ctxClose(); lmenu.hidden = true;
-      if (!panel.hidden) besideBar(panel, $('[data-act="layers"]'));
+      if (!panel.hidden) layersPlace(panel, $('[data-act="layers"]'), true);
       if (!docBox.hidden) docFit();
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       placeSelectionPopover();
@@ -8351,6 +8387,14 @@
     function imageMenu(open) {
       if (!open) { if (docIs('image')) docClose(); return; }
       closeDrops(); otherPopovers();
+      imageFill();
+      docShow('image', 'Crop & Rotate', imgMenu, { btn: hb('image'), reopen: function () { imageMenu(true); } });
+    }
+    // (its buttons and the picture's size, made again after each change while
+    // it's open, so it stays open from one turn or flip to the next; the
+    // button that was pressed keeps the focus)
+    function imageFill() {
+      var had = imgMenu.contains(document.activeElement) && document.activeElement.dataset.img;
       var ico = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
       imgMenu.innerHTML =
         '<button type="button" role="menuitem" data-img="left">' + ico('<path d="M9 4.5L5.5 8 9 11.5"/><path d="M5.5 8H14a5 5 0 0 1 5 5v6"/>') + 'Rotate Left</button>' +
@@ -8360,7 +8404,7 @@
         '<button type="button" role="menuitem" data-img="crop"' + (sel ? '' : ' disabled') + '>' + ico('<path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/>') + 'Crop to Selection</button>' +
         '<button type="button" role="menuitem" data-img="clear"' + (active ? '' : ' disabled') + '>' + ico('<path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/>') + 'Clear Layer</button>' +
         '<div class="pd-info">' + (sel ? '' : 'Make a selection to crop to it.<br>') + 'Picture: ' + ov.width + ' × ' + ov.height + ' pixels</div>';
-      docShow('image', 'Crop, Rotate & Flip', imgMenu, { btn: hb('image'), reopen: function () { imageMenu(true); } });
+      var f = had && imgMenu.querySelector('[data-img="' + had + '"]:not([disabled])'); if (f) f.focus({ preventScroll: true });
     }
     // every layer is redrawn onto a new one of the new size (the old ones are
     // kept, unchanged, for undo)
@@ -8378,8 +8422,7 @@
       mount(); fit(); autosave();
     }
     function imageAct(a) {
-      imageMenu(false);
-      if (a === 'clear') { runAct('clear'); return; }
+      if (a === 'clear') { runAct('clear'); imageFill(); return; }
       var cropBox = null;
       if (a === 'crop') {
         if (!sel) return;
@@ -8395,6 +8438,7 @@
       else if (a === 'fliph') transformDoc('Flip Horizontal', pw, ph, function (c, s) { c.translate(pw, 0); c.scale(-1, 1); c.drawImage(s, 0, 0); });
       else if (a === 'flipv') transformDoc('Flip Vertical', pw, ph, function (c, s) { c.translate(0, ph); c.scale(1, -1); c.drawImage(s, 0, 0); });
       else if (cropBox) transformDoc('Crop', cropBox[2], cropBox[3], function (c, s) { c.drawImage(s, -cropBox[0], -cropBox[1]); });
+      if (docIs('image')) imageFill();
     }
     imgMenu.addEventListener('click', function (e) { var b = e.target.closest('[data-img]'); if (b && !b.disabled) imageAct(b.dataset.img); });
 
@@ -8636,7 +8680,7 @@
       selArrows = ['up', 'down'].map(function (dir) {
         var a = document.createElement('button'); a.type = 'button'; a.className = 'sel-more sel-more-' + dir; a.tabIndex = -1;
         a.setAttribute('aria-hidden', 'true'); a.dataset.tip = dir === 'up' ? 'More above' : 'More below';
-        a.innerHTML = svg(dir === 'up' ? '<path d="M6 15l6-6 6 6"/>' : '<path d="M6 9l6 6 6-6"/>');
+        a.innerHTML = svg(dir === 'up' ? '<path d="M7 14.5l5-5 5 5"/>' : '<path d="M7 9.5l5 5 5-5"/>'); // (the one chevron's glyph)
         a.addEventListener('click', function () { selStep(dir === 'up' ? -1 : 1); });
         selbar.appendChild(a); return a;
       });
@@ -8957,7 +9001,7 @@
       });
     });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
-    var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var CHEV = '<svg class="ctx-chev chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
       triangle: '<path d="M12 5.5l7.5 13h-15z"/>', star: '<path d="M12 4.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16.3l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7z"/>', arrow: '<path d="M5 19L19 5"/><path d="M11 5h8v8"/>' };
     var hint = function (t) { return '<span class="ctx-hint">' + t + '</span>'; };
@@ -9339,7 +9383,7 @@
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
       layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl,
       docSize: function () { return { pw: ov.width, ph: ov.height }; },
-      autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, draggable: draggable,
+      autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, layersPlace: layersPlace, draggable: draggable,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       panelOpen: toolMenuOpen, togglePanel: function () { ctxMin(toolMenuOpen()); },

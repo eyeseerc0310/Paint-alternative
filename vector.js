@@ -198,6 +198,9 @@
     opacity: { name: 'Opacity', tip: 'Opacity: how solid objects are, and their fill and stroke on their own' },
     blend: { name: 'Blend Modes', tip: 'Blend Modes: how objects mix with what’s under them' },
     hand: { name: 'Hand', key: 'h', tip: 'Hand (H): drag to move round the artboard. Space does it with any tool' },
+    // (no tool in hand: a tap on the empty workspace puts it down, as in Paint;
+    // in no category, so nothing in the left bar is lit, and a drag moves round)
+    none: { name: 'No Tool', tip: 'No tool: drag to move round the artboard. Pick a tool on the left to carry on' },
     zoom: { name: 'Zoom', key: 'z', tip: 'Zoom (Z): tap to zoom in, Alt-tap to zoom out, drag a box to zoom to it' },
     fit: { name: 'Fit to Screen', action: true, tip: 'Fit to Screen (0): the whole artboard, upright' },
     actual: { name: 'Actual Size', action: true, tip: 'Actual Size (Ctrl/⌘ 1): one pixel of the artboard to one on the screen' },
@@ -1994,7 +1997,7 @@
   function begin(d, label) { if (d.rec) return; d.rec = true; d.snap = snap(); hist.push({ s: d.snap, label: label }); if (hist.length > HMAX) hist.shift(); fut = []; histButtons(); }
   function cancelDrag() { var d = drag; drag = null; if (!d) return; if (d.rec) { restore(d.snap); hist.pop(); histButtons(); } ui.marquee = ui.lasso = ui.knife = ui.zoom = ui.join = null; changed(); }
   function cursorFor(s, touch) {
-    if (spaceDown || tool === 'hand') return drag && drag.kind === 'pan' ? 'grabbing' : 'grab';
+    if (spaceDown || tool === 'hand' || tool === 'none') return drag && drag.kind === 'pan' ? 'grabbing' : 'grab';
     if (tool === 'zoom') return 'zoom-in';
     if (tool === 'rotview') return 'grab';
     if (TOOLS[tool].shape || tool === 'pen' || tool === 'curvature' || tool === 'knife' || tool === 'pencil' || tool === 'vbrush' || tool === 'blob' || tool === 'veraser' || tool === 'smooth' || tool === 'builder') return 'crosshair';
@@ -2025,7 +2028,7 @@
     if (ids.length > 1) return;
     var now = performance.now(), dbl = lastDown.s && now - lastDown.t < 350 && dist(lastDown.s, s) < (touch ? 18 : 6);
     lastDown = { t: dbl ? 0 : now, s: s };
-    if (spaceDown || e.button === 1 || tool === 'hand') { drag = { kind: 'pan', s0: s, vx: view.x, vy: view.y }; stageEl.style.cursor = 'grabbing'; return; }
+    if (spaceDown || e.button === 1 || tool === 'hand' || tool === 'none') { drag = { kind: 'pan', s0: s, vx: view.x, vy: view.y }; stageEl.style.cursor = 'grabbing'; return; }
     var p = fromScreen(s.x, s.y), h = H[tool] || H.select;
     ui.snapMk = ui.smart = null; if (snapsAt(tool)) { var sq = snapPt(p, null, touch); p = v2(sq.x, sq.y); ui.snapMk = sq.mk; }
     h.down(e, s, p, touch, dbl);
@@ -2332,6 +2335,7 @@
     up: function () { drag = null; }
   };
   H.hand = { down: function () {}, move: function () {}, up: function () { drag = null; } };
+  H.none = H.hand;
 
   // PEN: click for corners, drag for curves; the first point closes it;
   // Return, Esc or another tool finishes it. Points are added at the end
@@ -4326,6 +4330,7 @@
   };
   var panelKey = '';
   function panelHTML() {
+    if (tool === 'none') { panelKey = keyNow(); return '<div class="vec-panel"><div class="vec-cat">No Tool</div><div class="vec-set">' + hint(TOOLS.none.tip.replace(/^[^:]*: /, '')) + '</div></div>'; }
     var c = CATS.filter(function (q) { return q.id === cat; })[0] || CATS[0];
     var top = '<div class="vec-tools" role="group" aria-label="' + esc(c.name) + ' tools">' + c.tools.map(function (t) {
       var T = TOOLS[t];
@@ -5088,7 +5093,7 @@
     if (pen && t !== 'pen') endPen();
     if (cv && t !== 'curvature') { cv = null; ui.pen = null; }
     if (drag) cancelDrag();
-    tool = t; var c = catOf(t); cat = c.id; lastTool[cat] = t;
+    tool = t; var c = catOf(t); cat = c ? c.id : null; if (cat) lastTool[cat] = t;
     ui.hover = ui.hoverPt = ui.pen = null; wpick = -1; ui.smart = ui.snapMk = null; if (t !== 'vblend') blendA = null;
     if (!ANCHORTOOLS[t] && t !== 'vwidth') asel = {};
     groupSync(); panelRefresh(); drawUI(); bbarSync();
@@ -5192,14 +5197,15 @@
   function layersOpen() { return vlp && !vlp.hidden; }
   function layersPanel(open) {
     if (!vlp) return;
+    var fresh = vlp.hidden;
     vlp.hidden = !open; B.layersBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); B.layersBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
-    if (open) { layersRender(); B.besideBar(vlp, B.layersBtn); }
+    if (open) { layersRender(); B.layersPlace(vlp, B.layersBtn, fresh); }
   }
   function rowHtml(n, depth) {
     var cont = isCont(n), cur = n.type === 'layer' && n.id === doc.cur, on2 = sel.indexOf(n.id) >= 0;
     return '<div class="pl-row vl-row' + (cur ? ' cur' : '') + (on2 ? ' on' : '') + (n.visible ? '' : ' off') + (n.type === 'layer' ? ' vl-layer' : '') + '" data-vn="' + n.id + '" style="--vd:' + depth + '">' +
       '<button type="button" class="pl-eye" data-vn-eye="' + n.id + '" aria-label="' + (n.visible ? 'Hide ' : 'Show ') + esc(n.name) + '" aria-pressed="' + !n.visible + '">' + EYE(n.visible) + '</button>' +
-      (cont ? '<button type="button" class="pl-fold" data-vn-fold="' + n.id + '" aria-expanded="' + !!n.open + '" aria-label="' + (n.open ? 'Fold ' : 'Open ') + esc(n.name) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>' : '<span class="vl-gap" aria-hidden="true"></span>') +
+      (cont ? '<button type="button" class="pl-fold" data-vn-fold="' + n.id + '" aria-expanded="' + !!n.open + '" aria-label="' + (n.open ? 'Fold ' : 'Open ') + esc(n.name) + '"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg></button>' : '<span class="vl-gap" aria-hidden="true"></span>') +
       '<button type="button" class="pl-name" data-vn-name="' + n.id + '"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true">' + (KIND[n.type] || '') + '</svg><span>' + esc(n.name) + '</span></button>' +
       '<button type="button" class="pl-eye vl-lock" data-vn-lock="' + n.id + '" aria-label="' + (n.locked ? 'Unlock ' : 'Lock ') + esc(n.name) + '" aria-pressed="' + !!n.locked + '">' + LOCK(n.locked) + '</button>' +
       '<span class="pl-grip" data-vn-grip title="Drag to move it" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="1.3"/><circle cx="15" cy="7" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="17" r="1.3"/><circle cx="15" cy="17" r="1.3"/></svg></span></div>';
@@ -5212,15 +5218,16 @@
     var canUp = objs.length ? objs.some(function (n) { var q = where(n.id); return q && q.i < q.list.length - 1; }) : w && w.i < w.list.length - 1;
     var canDown = objs.length ? objs.some(function (n) { var q = where(n.id); return q && q.i > 0; }) : w && w.i > 0;
     var canDel = objs.length ? objs.some(function (n) { return chain(n.id).every(function (q) { return !q.locked; }); }) : doc.layers.length > 1 || (w && w.p);
-    vlp.innerHTML = '<div class="pl-title">Vector Layers</div><div class="pl-list">' + rowsOf(doc.layers, 0) + '</div>' +
+    vlp.innerHTML = '<div class="pl-title">Vector Layers</div>' +
       '<div class="pl-acts">' +
         '<button type="button" data-vl-act="add" title="New layer" aria-label="New layer">' + CI(IC.plus) + '</button>' +
         '<button type="button" data-vl-act="sub" title="New sublayer, in the current layer" aria-label="New sublayer">' + CI('<path d="M5 5v9a2 2 0 0 0 2 2h7"/><path d="M17 12v8M13 16h8"/>') + '</button>' +
         '<button type="button" data-vl-act="up" title="Move up" aria-label="Move up"' + (canUp ? '' : ' disabled') + '>' + CI(IC.up) + '</button>' +
         '<button type="button" data-vl-act="down" title="Move down" aria-label="Move down"' + (canDown ? '' : ' disabled') + '>' + CI(IC.down) + '</button>' +
         '<button type="button" data-vl-act="del" title="' + (objs.length ? 'Delete the picked objects' : 'Delete the layer') + '" aria-label="Delete"' + (canDel ? '' : ' disabled') + '>' + CI(IC.trash) + '</button>' +
-      '</div>';
+      '</div><div class="pl-list">' + rowsOf(doc.layers, 0) + '</div>';
     vlp.querySelector('.pl-list').scrollTop = scroll;
+    B.layersPlace(vlp, B.layersBtn, false);
   }
   var dndDone = 0;
   function layersClick(e) {
@@ -5483,7 +5490,7 @@
     sel = (Array.isArray(d.sel) ? d.sel : []).filter(function (id) { return !!byId(id); });
     if (d.view && isFinite(d.view.k) && d.view.k > 0) { view.x = nm(d.view.x, 0); view.y = nm(d.view.y, 0); view.k = d.view.k; view.r = nm(d.view.r, 0); view.fit = !!d.view.fit; } else view.fit = true;
     lastSize = null;
-    if (TOOLS[d.tool] && !TOOLS[d.tool].action) { tool = d.tool; cat = catOf(tool).id; lastTool[cat] = tool; }
+    if (TOOLS[d.tool] && !TOOLS[d.tool].action) { tool = d.tool; var tc = catOf(tool); cat = tc ? tc.id : null; if (cat) lastTool[cat] = tool; }
     ensureDefs(); renderArt();
     if (on) { relayout(); changed(false); }
   }
@@ -5633,6 +5640,9 @@
     groupEl = document.createElement('div'); groupEl.className = 'paint-group vec-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Vector tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-vcat="' + c.id + '" aria-label="' + esc(c.name) + '" aria-pressed="false" data-tip="' + esc(c.name + ': ' + c.tools.map(function (t) { return TOOLS[t].name; }).join(', ')) + '">' + CI(ICONS[c.icon]) + '</button>'; }).join('');
+    // (and Fit, the painting's own button, last, as it is there: its click is the artboard's fit)
+    var fitB = B.leftViewGroup.parentNode.querySelector('.paint-fitbtn');
+    if (fitB) { fitB = fitB.cloneNode(true); fitB.setAttribute('aria-label', 'Fit the artboard (0)'); fitB.dataset.tip = 'Fit (0): the whole artboard, upright'; groupEl.appendChild(fitB); }
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-vcat]'); if (b) pickCat(b.dataset.vcat); });
     // (the tool settings panel's own controls, when it shows Vector's)
@@ -5685,7 +5695,15 @@
     changed(); return true;
   }
 
+  // (a still tap on the empty workspace: the tool goes down, unless something's
+  // being made with it, which keeps its own way of finishing)
+  function toolDown() {
+    if (!on || !doc || tool === 'none' || te || pen || cv || drag) return false;
+    setTool('none'); return true;
+  }
+
   window.PaintVector = {
+    toolDown: toolDown,
     init: init, enter: enter, leave: leave, load: load, serialize: serialize, isEmpty: isEmpty,
     panelHTML: panelHTML, panelSync: panelSync, key: key, keyup: keyup, histButtons: histButtons, raster: raster, exportBlob: exportBlob,
     addImageFile: addImageFile, relayout: relayout, isOn: function () { return on; },

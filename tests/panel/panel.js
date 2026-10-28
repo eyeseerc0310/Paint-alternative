@@ -57,7 +57,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!base.shown, 'the panel is closed to begin with');
 
   // ---- EACH OPTION, IN THE PANEL ----
-  const OPTS = [['gallery', 'Gallery'], ['new', 'New Picture'], ['save', 'Save'], ['image', 'Crop, Rotate & Flip'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
+  const OPTS = [['gallery', 'Gallery'], ['new', 'New Picture'], ['save', 'Save'], ['image', 'Crop & Rotate'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
   let stage1 = null;
   for (const [k, title] of OPTS) {
     await top(k);
@@ -87,7 +87,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await tapEl('[data-setting="theme"]'); await p.waitForTimeout(600);
   s = await panel();
   L.ok(s.shown && s.title === 'Settings' && (await p.evaluate(() => document.documentElement.getAttribute('data-theme'))) !== dark0, 'Settings: the theme switches and the panel stays');
-  L.ok(await p.$eval('[data-setting="theme"]', b => /mode/.test(b.textContent)), 'its row says what it switches to now');
+  L.ok(await p.$eval('[data-setting="theme"]', b => /(Light|Dark) Mode/.test(b.textContent)), 'its row says what it switches to now');
   await tapEl('[data-setting="theme"]'); await p.waitForTimeout(600); // (back as it was)
   await tapEl('[data-setting="gestures"]');
   s = await panel();
@@ -120,7 +120,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const d0 = await dims();
   await top('image'); await tapEl('[data-img="right"]'); await p.waitForTimeout(400);
   const d1 = await dims();
-  L.ok(d1[0] === d0[1] && d1[1] === d0[0] && !(await panel()).shown, 'Rotate Right turns the picture, and the panel closes as the menu did ' + d0.join('x') + ' → ' + d1.join('x'));
+  L.ok(d1[0] === d0[1] && d1[1] === d0[0] && (await panel()).shown, 'Rotate Right turns the picture, and the panel stays open for the next ' + d0.join('x') + ' → ' + d1.join('x'));
+  await top('image');
   await p.keyboard.press((process.platform === 'darwin' ? 'Meta' : 'Control') + '+z'); await p.waitForTimeout(300);
   // Save: PNG downloads
   await top('save');

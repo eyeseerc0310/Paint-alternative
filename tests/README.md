@@ -16,6 +16,7 @@ tests/run.sh text               # the text tool: its settings, the highlight, th
 tests/run.sh effects            # Content-Aware Scale on the selection's frame, and on a big picture
 tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
 tests/run.sh panel              # the top bar's options in the right-hand panel
+tests/run.sh polish             # Fit everywhere, panels that stay open, New Layer, the empty workspace, chevrons
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -134,6 +135,17 @@ with `all passing`, or lists what isn't, and exits non-zero.
   turns the picture, Save downloads, Share still asks the system, New Picture
   makes one, the Gallery shows its drawings; a tool with settings, the
   picker and Effects take its place.
+- `polish/polish.js`: the app-wide polish. Fit is in the left bar in Paint,
+  Vector (above Layers) and Photo, and fits, as 0 does, after zooming in;
+  Crop & Rotate stays open through a turn and the flips, says the new size,
+  and follows undo; in Layers, New Layer stays under the pointer as nine
+  layers are added, each new one in view, the panel on the screen and off
+  the bottom bar, the list keeping where it was scrolled; a tap on the tool
+  settings leaves the tool in hand, a still tap on the bare workspace puts
+  it down (nothing lit) and a drag there doesn't; in Vector it puts Vector's
+  tool down (nothing lit, No Tool, a drag moves round, a tool's key takes one
+  up again); in Effects every chevron stands at one edge, turned while its
+  section is folded.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and

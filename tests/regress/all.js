@@ -10,6 +10,8 @@ const log = (...a) => console.log(...a);
   const box = async () => (await p.$('.paint-stage')).boundingBox();
   // (a top bar button, folded away or not: a selection turning up folds the bar)
   const hb = k => p.evaluate(k => document.querySelector('[data-hb="' + k + '"]').click(), k);
+  // (Crop & Rotate, opened only if it isn't open: it stays open after a turn now, and closed after one before)
+  const imgOpen = () => p.evaluate(() => { const b = document.querySelector('[data-img="left"]'); if (!b || !b.offsetParent) document.querySelector('[data-hb="image"]').click(); });
   const docSize = () => p.evaluate(() => { const c = document.querySelector('.paint-over'); return [c.width, c.height]; });
   const nLayers = () => p.$$eval('.paint-layers canvas', l => l.length);
   // a point on the picture, as a fraction of it
@@ -117,13 +119,13 @@ const log = (...a) => console.log(...a);
   await p.click('[data-img="right"]'); await p.waitForTimeout(200);
   log('rotate right', JSON.stringify(s0), '->', JSON.stringify(await docSize()));
   await p.screenshot({ path: 'out/rotated.png' });
-  await hb('image'); await p.click('[data-img="left"]'); await p.waitForTimeout(200);
+  await imgOpen(); await p.click('[data-img="left"]'); await p.waitForTimeout(200);
   log('rotate left ->', JSON.stringify(await docSize()));
-  const before = await px(0.2, 0.25); await hb('image'); await p.click('[data-img="fliph"]'); await p.waitForTimeout(200);
+  const before = await px(0.2, 0.25); await imgOpen(); await p.click('[data-img="fliph"]'); await p.waitForTimeout(200);
   log('flip: pixel at 0.2 before', JSON.stringify(before), 'now at 0.8', JSON.stringify(await px(0.8, 0.25)));
   await p.keyboard.press('m');
   await stroke([[0.25, 0.25], [0.75, 0.75]]);
-  await hb('image'); await p.click('[data-img="crop"]'); await p.waitForTimeout(250);
+  await imgOpen(); await p.click('[data-img="crop"]'); await p.waitForTimeout(250);
   log('crop ->', JSON.stringify(await docSize()));
   await p.keyboard.press('Control+z'); await p.waitForTimeout(200);
   log('undo crop ->', JSON.stringify(await docSize()));
