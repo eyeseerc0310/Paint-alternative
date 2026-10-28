@@ -107,7 +107,7 @@ uploaded.
   button; press the same button again (or Esc) to close it
 - **Save** as PNG or JPEG, or **Share** straight to Messages, Photos, Mail…
 - **Photo mode (from Settings, beside Paint and Vector mode):** a photo editor in the manner of
-  Lightroom. Open a JPEG, PNG, WebP (or HEIC where the browser can) and edit
+  Lightroom. Open a JPEG, PNG, WebP, TIFF, HEIC or a camera's RAW file (DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2 and more) and edit
   it without ever changing the photo itself: Light (exposure, contrast,
   highlights, shadows, whites, blacks, brightness, a tone curve), Colour
   (temperature, tint, vibrance, saturation, a colour mixer for eight hues,
