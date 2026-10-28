@@ -510,6 +510,8 @@
   }
   function openFile(file, name) {
     var kind = kindOf(file);
+    if (kind === 'raw' && B.decoders && B.decoders.raw) B.toast('Developing the RAW file…'); // (a big one takes a few seconds)
+    if (kind === 'heic' && B.decoders && B.decoders.heic) return B.decoders.heic(file).then(function (r) { take(r.el, { name: name || file.name, type: 'image/heic', blob: file, w: r.w, h: r.h }); }, function (x) { B.toast(x && x.message || 'That HEIC photo couldn’t be opened'); });
     if (kind === 'raw' && B.decoders && B.decoders.raw) return B.decoders.raw(file).then(function (r) { take(r.el, { name: name || file.name, type: 'raw', blob: file, w: r.w, h: r.h, meta: r.meta }); }, function (x) { B.toast(x && x.message || 'That RAW file couldn’t be opened'); });
     if (kind === 'raw') { B.toast('RAW files (' + (file.name.split('.').pop() || '').toUpperCase() + ') can’t be opened in this version yet'); return Promise.resolve(); }
     if (kind === 'tiff' && B.decoders && B.decoders.tiff) return B.decoders.tiff(file).then(function (r) { take(r.el, { name: name || file.name, type: 'tiff', blob: file, w: r.w, h: r.h }); }, function () { B.toast('That TIFF couldn’t be opened'); });
@@ -1233,7 +1235,8 @@
     hist = []; fut = []; presetBase = null; presetPick = null; thumbs = {};
     if (!d || !d.blob) { doc = null; img = null; rev++; emptySync(); histButtons(); return Promise.resolve(); }
     doc = { name: d.name, type: d.type, w: d.w, h: d.h, blob: d.blob, v: checkV(d.v) }; cat = d.cat === 'presets' ? 'presets' : 'edit';
-    var go = kindOf({ name: d.name, type: d.type }) === 'raw' && B.decoders && B.decoders.raw ? B.decoders.raw(d.blob).then(function (r) { return r.el; }) : kindOf({ name: d.name, type: d.type }) === 'tiff' && B.decoders && B.decoders.tiff ? B.decoders.tiff(d.blob).then(function (r) { return r.el; }) : decode(d.blob);
+    var k = kindOf({ name: d.name, type: d.type }), dec = k !== 'image' && B.decoders && B.decoders[k];
+    var go = dec ? dec(d.blob).then(function (r) { return r.el; }) : decode(d.blob); // (RAW, TIFF and HEIC through their decoders again)
     return go.then(function (el) {
       img = { el: el, w: el.width || el.naturalWidth || d.w, h: el.height || el.naturalHeight || d.h }; doc.w = img.w; doc.h = img.h; rev++;
       if (gl || glInit()) upload();

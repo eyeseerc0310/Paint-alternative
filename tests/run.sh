@@ -111,6 +111,9 @@ photo() {
   check "photo/maskedit-light-1400" "$OUT/photo" "$T/photo/maskedit.js" light 1400 900
   check "photo/maskedit-dark-1024-touch" "$OUT/photo" "$T/photo/maskedit.js" dark 1024 768 touch
   check "photo/maskedit-light-390-touch" "$OUT/photo" "$T/photo/maskedit.js" light 390 844 touch
+  check "photo/decoders-light-1400" "$OUT/photo" "$T/photo/decoders.js" light 1400 900
+  check "photo/decoders-dark-1180-touch" "$OUT/photo" "$T/photo/decoders.js" dark 1180 820 touch
+  check "photo/decoders-light-390-touch" "$OUT/photo" "$T/photo/decoders.js" light 390 844 touch
 }
 
 panel() {

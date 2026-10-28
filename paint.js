@@ -8446,6 +8446,16 @@
     // it comes in on a layer of its own ----
     function addPicture(file, how) {
       if (wsMode === 'photo' && file) { PH.openFile(file); return; } // (Photo mode: the photo to edit)
+      // (a RAW, TIFF or HEIC the browser can't show: decoded first, then added as a PNG like any picture)
+      var PD = window.PaintDecoders, dk = file && !file.decoded && PD && PD.kind(file);
+      if (dk) {
+        if (dk === 'raw') toast('Developing the RAW file…');
+        PD.decode(file).then(function (r) {
+          var c = r.el; if (!(c instanceof HTMLCanvasElement)) { c = document.createElement('canvas'); c.width = r.w; c.height = r.h; c.getContext('2d').drawImage(r.el, 0, 0); }
+          c.toBlob(function (b) { if (!b) return; var f = new File([b], (file.name || 'Picture').replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' }); f.decoded = true; addPicture(f, how); }, 'image/png');
+        }, function (x) { toast(x && x.message || 'That picture couldn’t be opened'); });
+        return;
+      }
       if (!file || !/^image\//.test(file.type)) { if (how !== 'open') toast('That isn’t a picture'); return; }
       if (wsMode === 'vector') { PV.addImageFile(file); return; } // (Vector mode: placed as a picture object)
       var im = new Image(), url = URL.createObjectURL(file);

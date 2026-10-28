@@ -890,8 +890,19 @@ When building or changing anything visual:
   quality (and the original's EXIF, orientation set to 1, `withExif`),
   PNG, WebP, or TIFF (`tiff`, written here), at full or another size.
   Formats a browser can't show natively are named (`kindOf`) and go to
-  decoders on the bridge (`decoders.raw`, `decoders.tiff`) when there are
-  any; otherwise a toast says what can't be opened. Bring to Paint:
+  the decoders on the bridge (`decoders.raw`, `.tiff`, `.heic`; HEIC tries
+  the browser's own first), when opened and when kept ones load again; what
+  can't be decoded says so in a toast. **The decoders** (`decoders.js`,
+  `window.PaintDecoders`: `kind`, `decode`, `raw`, `tiff`, `heic`, each
+  giving `{ el, w, h, meta }`) use the libraries in `vendor/` (see its
+  README: versions, licences, hashes), each fetched only the first time its
+  kind of file is opened (the service worker keeps it from then on): RAW by
+  LibRaw (single-threaded WebAssembly in its own module worker; `RAW_SET`:
+  the camera's white balance, sRGB with its own curve, `gamm` as a
+  `Float64Array`, a plain array isn't read; AHD; brightness LibRaw's own),
+  TIFF by UTIF with pako (its largest picture) and HEIC by libheif, both
+  in a worker of their own made from a Blob (`inWorker`). Paint and Vector
+  take them too: `addPicture` decodes one and adds it as a PNG. Bring to Paint:
   `PH.raster()` on a new layer "Photo"; from Paint or Vector into Photo the
   flat copy becomes the photo (undo brings the last one back).
 - **Opening:** `.app-splash` (in `index.html`) shows the app's mark until

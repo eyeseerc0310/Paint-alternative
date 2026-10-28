@@ -146,6 +146,12 @@ with `all passing`, or lists what isn't, and exits non-zero.
   tool down (nothing lit, No Tool, a drag moves round, a tool's key takes one
   up again); in Effects every chevron stands at one edge, turned while its
   section is folded.
+- `photo/decoders.js`: what a browser can't open by itself. A RAW (the DNG
+  that `fixtures/make_photo_fixtures.py` makes: a 16-bit RGGB mosaic of the
+  test scene), a TIFF and a HEIC each decode to the scene, 240 x 160, its
+  colours close to those drawn; each opens in Photo mode, a RAW comes back
+  after a reload, a file that only says it's a RAW says so and changes
+  nothing; in Paint a TIFF and a HEIC come in on layers of their own.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and
