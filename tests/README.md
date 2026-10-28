@@ -15,6 +15,7 @@ tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
 tests/run.sh effects            # Content-Aware Scale on the selection's frame, and on a big picture
 tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
+tests/run.sh panel              # the top bar's options in the right-hand panel
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
 tests/run.sh lock               # the layout lock, or: tests/run.sh lock desk-dark,phone-light
@@ -123,6 +124,16 @@ with `all passing`, or lists what isn't, and exits non-zero.
   photo grows with the zoom; Done keeps every mask; back in Masks each is
   picked from the list or its pin, painted on again and adjusted; undo takes
   back one change.
+- `panel/panel.js`: the top bar's panel. Gallery, New Picture, Save, Crop,
+  Rotate & Flip, History and Settings each open in it (in the dock, as wide
+  as the tool settings, which step aside; beside the left bar on phones),
+  never as a drop-down or a sheet, with the picture's space kept its size;
+  another option replaces it, the same button, the close button and Esc
+  close it; Settings stays open for the theme, Touch Gestures has Back and
+  Keyboard Shortcuts' Done goes back; History goes back a step, Rotate Right
+  turns the picture, Save downloads, Share still asks the system, New Picture
+  makes one, the Gallery shows its drawings; a tool with settings, the
+  picker and Effects take its place.
 - `vector/`: Vector mode, each file a set of checks ending `ALL OK`, sharing
   `vt.js` (`setup`, which goes into Vector mode through Settings; `tool`, `drag`,
   `at` in the artboard's units, `ser` for the document). `t5`–`t8` switching and

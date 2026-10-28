@@ -359,7 +359,9 @@ body > * { flex-shrink: 0; }
 .paint-bar > .paint-group + .paint-group, .paint-toolgroups > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
 .paint-bar > .paint-group + .paint-group::before, .paint-toolgroups > .paint-group + .paint-group::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
 
-.paint button, .paint-open {
+/* (the toolbar's buttons: not what stands in the top bar's panel, which keeps
+   its menus' and sheets' own; :where, so nothing here weighs more) */
+.paint button:where(:not(.paint-docpanel *)), .paint-open {
   display: inline-flex; align-items: center; justify-content: center;
   width: 40px; height: 40px; padding: 0; border: 0; border-radius: var(--r-btn);
   background: none; color: var(--text); cursor: pointer;
@@ -367,14 +369,14 @@ body > * { flex-shrink: 0; }
   -webkit-tap-highlight-color: transparent;
   transition: color var(--dur) ease, background-color var(--dur) ease, transform var(--dur) var(--spring), box-shadow var(--dur) ease, opacity var(--dur) ease;
 }
-@media (hover: hover) { .paint button:hover, .paint-open:hover { background: var(--hover); } }
-.paint button:active, .paint-open:active { transform: scale(var(--press)); transition-timing-function: var(--ease); }
+@media (hover: hover) { .paint button:where(:not(.paint-docpanel *)):hover, .paint-open:hover { background: var(--hover); } }
+.paint button:where(:not(.paint-docpanel *)):active, .paint-open:active { transform: scale(var(--press)); transition-timing-function: var(--ease); }
 /* selected: a solid neutral chip (no colour) */
-.paint button[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+.paint button:where(:not(.paint-docpanel *))[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
 .paint .paint-left button[aria-pressed="true"], .paint .paint-left .paint-adjust-btn[aria-expanded="true"], .paint .paint-left .paint-mirror[aria-expanded="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
 @media (hover: hover) { .paint .paint-left button[aria-pressed="true"]:hover { background: var(--chip); } }
-.paint button:disabled { opacity: var(--disabled); cursor: default; background: none; transform: none; }
-.paint svg { width: var(--icon); height: var(--icon); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+.paint button:where(:not(.paint-docpanel *)):disabled { opacity: var(--disabled); cursor: default; background: none; transform: none; }
+.paint svg:where(:not(.paint-docpanel *)) { width: var(--icon); height: var(--icon); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 /* SLIDERS, everywhere: a thin track and a white knob, the same in every
    panel (the ones whose track shows what they do, like Hue, keep that) */
 input[type="range"] { -webkit-appearance: none; appearance: none; height: 24px; padding: 0; background: transparent; cursor: pointer; }
@@ -576,7 +578,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 ::highlight(paint-text-kept) { background-color: Highlight; color: HighlightText; }
 
 /* ---------- Pop-overs: menus, panels, tooltips ---------- */
-.paint-brushes, .paint-adjust, .paint-savemenu, .paint-layerpanel, .paint-lmenu, .paint-colorpanel {
+.paint-brushes, .paint-adjust, .paint-savemenu, .paint-layerpanel, .paint-lmenu, .paint-colorpanel, .paint-docpanel {
   background: var(--menu-bg); color: var(--menu-link);
   -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
   border: .5px solid transparent; border-radius: var(--r-menu); box-shadow: var(--shadow-pop);
@@ -1501,6 +1503,52 @@ select.p-field {
   top: 0; right: 0; bottom: auto; left: auto; width: var(--ctx-w); max-height: 100%; padding: 10px;
   border-radius: var(--r-dock); animation-name: pl-in; box-shadow: var(--shadow-panel);
 }
+/* THE TOP BAR'S PANEL (Gallery, New Picture, Save, Crop, Rotate & Flip,
+   History, Settings, Keyboard Shortcuts and what opens from them): in the
+   dock as Effects are, as wide, over the tool settings, which step aside;
+   on phones beside the left bar, as Effects are. A head with Back, the
+   title and the close button stays at its top; what it shows is the
+   menus' and sheets' own, at the panel's width */
+.paint-docpanel {
+  position: absolute; left: calc(100% + 10px); top: 0; z-index: 6; width: 250px; max-height: calc(100svh - var(--hdr, 52px) - 2 * var(--edge));
+  overflow: auto; overscroll-behavior: contain; padding: 0 10px 10px; font-size: var(--fs);
+  animation: pb-in var(--dur-pop) var(--spring);
+}
+.paint .paint-docpanel { background: var(--menu-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.paint-docpanel[hidden] { display: none; }
+.paint-dock > .paint-docpanel { top: 0; right: 0; bottom: auto; left: auto; width: var(--ctx-w); max-height: 100%; border-radius: var(--r-dock); animation-name: pl-in; box-shadow: var(--shadow-panel); }
+.dp-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--s-1); margin: 0 -10px var(--s-1); padding: 10px 6px var(--s-2) 10px; background: var(--menu-solid); }
+.dp-title { flex: 1; min-width: 0; font-family: var(--display); font-size: var(--fs-title); font-weight: 700; letter-spacing: -.022em; line-height: 1.2; overflow-wrap: anywhere; color: var(--text); }
+.paint .dp-head button { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
+.paint .dp-head button:active { transform: scale(var(--press)); }
+@media (hover: hover) { .paint .dp-head button:hover { background: var(--hover); color: var(--text); } }
+.paint .dp-head button[hidden] { display: none; }
+.dp-head svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: var(--stroke-xs); stroke-linecap: round; stroke-linejoin: round; }
+.dp-back { margin-left: -4px; }
+.dp-back svg { width: var(--icon-sm); height: var(--icon-sm); stroke-width: var(--stroke); }
+/* (the menus and sheets it shows, at its width, on its card) */
+.paint-docpanel .paint-drop, .paint-docpanel .paint-savemenu {
+  position: static; width: auto; min-width: 0; max-width: none; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; animation: none;
+}
+.paint-docpanel .ph-list { max-height: none; overflow: visible; }
+.paint .paint-docpanel .paint-savemenu button:not([hidden]) { display: flex; border: 0; background: none; font: inherit; cursor: pointer; }
+@media (hover: hover) { .paint .paint-docpanel .paint-savemenu button:hover { background: var(--hover); } }
+.paint .paint-docpanel .paint-savemenu button:active { transform: scale(var(--press-row)); }
+.paint-docpanel .pa-sheet { width: auto; max-height: none; overflow: visible; padding: 0; background: none; box-shadow: none; border-radius: 0; transform: none; opacity: 1; transition: none; color: var(--text); }
+.paint-docpanel .pa-sheet-title { display: none; }
+.paint-docpanel .pa-sheet-acts { position: sticky; bottom: -10px; z-index: 1; flex-wrap: wrap; margin: var(--s-3) -10px -10px; padding: var(--s-2) 10px 10px; background: var(--menu-solid); border-top: .5px solid var(--menu-line); }
+.paint-docpanel .pa-sheet-acts button { flex: 1 1 auto; min-width: 0; padding: 0 var(--s-3); }
+.paint-docpanel .ns-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.paint-docpanel .ns-row input { width: 100%; padding: 0 var(--s-2); }
+.paint-docpanel .ns-row label { flex: 1 1 60px; min-width: 0; }
+.paint-docpanel .ns-bg { width: 100%; }
+.paint-docpanel .gal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3) var(--s-2); }
+.paint-docpanel .gal-acts { min-width: 0; width: max-content; max-width: calc(var(--ctx-w) - 20px); }
+.paint-docpanel .hs-cols { columns: auto; }
+.paint-docpanel .hs-row { gap: var(--s-2); font-size: var(--fs-sm); }
+.paint-docpanel .gs-row { flex-wrap: wrap; gap: var(--s-1) var(--s-2); }
+.paint-docpanel .gs-row select.p-field { flex: 1 1 100%; }
+@media (max-width: 560px) { .paint-docpanel { left: calc(100% + 6px); width: 210px; } }
 .paint-dock > .paint-adjust .pa-title { cursor: default; }
 .paint-dock > .paint-adjust .pa-title { top: -10px; margin: -10px -10px 6px; padding: 10px 10px var(--s-2); }
 .paint-dock > .paint-adjust .pa-acts { bottom: -10px; margin: var(--s-3) -10px -10px; padding: var(--s-2) 10px 10px; }
@@ -1811,7 +1859,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 @media (min-width: 561px) {
   .ui-flipped .paint-dock > .paint-ctx,
   .ui-flipped .paint-dock > .paint-colorpanel,
-  .ui-flipped .paint-dock > .paint-adjust { left: 0; right: auto; }
+  .ui-flipped .paint-dock > .paint-adjust,
+  .ui-flipped .paint-dock > .paint-docpanel { left: 0; right: auto; }
 }
 @media (max-width: 560px) {
   .ui-flipped .paint-dock { left: 0; right: calc(var(--bar) + var(--pgap)); margin: 0; }

@@ -9,6 +9,7 @@
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
 #   tests/run.sh effects            Content-Aware Scale on the selection's frame, and on a big picture
 #   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
+#   tests/run.sh panel              the top bar's options in the right-hand panel
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
 # save goes in tests/.out.
@@ -111,6 +112,13 @@ photo() {
   check "photo/maskedit-light-390-touch" "$OUT/photo" "$T/photo/maskedit.js" light 390 844 touch
 }
 
+panel() {
+  check "panel/panel-light-1400" "$OUT/panel" "$T/panel/panel.js" light 1400 900
+  check "panel/panel-dark-1024-touch" "$OUT/panel" "$T/panel/panel.js" dark 1024 768 touch
+  check "panel/panel-light-390-touch" "$OUT/panel" "$T/panel/panel.js" light 390 844 touch
+  check "panel/panel-dark-360" "$OUT/panel" "$T/panel/panel.js" dark 360 740
+}
+
 serve "$APP_PORT" "$ROOT"
 what=${1:-all}; [ $# -gt 0 ] && shift
 case $what in
@@ -122,8 +130,9 @@ case $what in
   text) text ;;
   effects) effects ;;
   photo) photo ;;
-  all) brushes; selection; text; effects; photo; vector; regress; lock ;;
-  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects|photo] [names]"; exit 2 ;;
+  panel) panel ;;
+  all) brushes; selection; text; effects; photo; panel; vector; regress; lock ;;
+  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects|photo|panel] [names]"; exit 2 ;;
 esac
 if [ ${#FAILED[@]} -gt 0 ]; then echo; echo "not passing: ${FAILED[*]}"; exit 1; fi
 echo; echo "all passing"
