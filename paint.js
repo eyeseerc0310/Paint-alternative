@@ -4506,7 +4506,7 @@
           var gm0 = membersOf(G);
           head = '<div class="pl-row pl-grp' + (focusG === G ? ' on' : '') + (gm0.length && gm0.every(function (M) { return M === active || also.indexOf(M) >= 0; }) && also.length ? ' also' : '') + (G.visible ? '' : ' off') + '" data-gid="' + G.id + '">' +
             '<button type="button" class="pl-eye" data-geye="' + G.id + '" aria-label="' + (G.visible ? 'Hide' : 'Show') + ' ' + esc(G.name) + '" aria-pressed="' + (!G.visible) + '">' + EYE(G.visible) + '</button>' +
-            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>' +
+            '<button type="button" class="pl-fold" data-gfold="' + G.id + '" aria-expanded="' + G.open + '" aria-label="' + (G.open ? 'Fold' : 'Open') + ' the group"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg></button>' +
             '<button type="button" class="pl-name" data-gname="' + G.id + '" title="Tap again to rename"><svg class="pl-folder" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg><span>' + esc(G.name) + '</span></button>' +
             '<button type="button" class="pl-more" data-gmore="' + G.id + '" aria-haspopup="menu" aria-label="Options for ' + esc(G.name) + '" title="Group options"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></button></div>';
         }
@@ -5158,7 +5158,7 @@
     function gmStops(id) { if (id === 'colours') return [st.color2, st.color]; var g = GMAPS.filter(function (x) { return x[0] === id; })[0]; return g ? g[2] : null; }
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Effects');
-    var FX_CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var FX_CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>'; // (the one chevron: style.css's .chev)
     // (the sliders whose tracks show what they do: fxTracks, below)
     var FX_TRACKS = { hue: 1, saturation: 1, vibrance: 1, lightness: 1, warmth: 1, tint: 1 };
     var sliderRow = function (a) {
@@ -8012,7 +8012,7 @@
     // and the close button. Share keeps the system's own sheet ----
     var docBox = document.createElement('div'), docView = null, docFrom = null;
     docBox.className = 'paint-docpanel'; docBox.hidden = true; docBox.setAttribute('role', 'region');
-    docBox.innerHTML = '<div class="dp-head"><button type="button" class="dp-back" hidden aria-label="Back" data-tip="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>' +
+    docBox.innerHTML = '<div class="dp-head"><button type="button" class="dp-back" hidden aria-label="Back" data-tip="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 7l-5 5 5 5"/></svg></button>' +
       '<div class="dp-title" id="dp-title"></div><button type="button" class="dp-close" aria-label="Close" data-tip="Close (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div><div class="dp-body"></div>';
     docBox.setAttribute('aria-labelledby', 'dp-title');
     left.appendChild(docBox); // (dockPanels puts it in the dock on wider screens)
@@ -8662,7 +8662,7 @@
       selArrows = ['up', 'down'].map(function (dir) {
         var a = document.createElement('button'); a.type = 'button'; a.className = 'sel-more sel-more-' + dir; a.tabIndex = -1;
         a.setAttribute('aria-hidden', 'true'); a.dataset.tip = dir === 'up' ? 'More above' : 'More below';
-        a.innerHTML = svg(dir === 'up' ? '<path d="M6 15l6-6 6 6"/>' : '<path d="M6 9l6 6 6-6"/>');
+        a.innerHTML = svg(dir === 'up' ? '<path d="M7 14.5l5-5 5 5"/>' : '<path d="M7 9.5l5 5 5-5"/>'); // (the one chevron's glyph)
         a.addEventListener('click', function () { selStep(dir === 'up' ? -1 : 1); });
         selbar.appendChild(a); return a;
       });
@@ -8983,7 +8983,7 @@
       });
     });
     var CI = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
-    var CHEV = '<svg class="ctx-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>';
+    var CHEV = '<svg class="ctx-chev chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>';
     var SHAPE_ICONS = { rect: '<rect x="4.5" y="6" width="15" height="12" rx="1"/>', rounded: '<rect x="4.5" y="6" width="15" height="12" rx="3.5"/>', ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6"/>',
       triangle: '<path d="M12 5.5l7.5 13h-15z"/>', star: '<path d="M12 4.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2L12 16.3l-4.6 2.5.9-5.2-3.8-3.6 5.2-.7z"/>', arrow: '<path d="M5 19L19 5"/><path d="M11 5h8v8"/>' };
     var hint = function (t) { return '<span class="ctx-hint">' + t + '</span>'; };

@@ -92,7 +92,8 @@
   --icon-sm: 17px;
   --icon-hdr: 19px;
   --stroke: 1.6;
-  --chev-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E"); /* (a drop-down field's chevron, the same everywhere) */
+  --chev-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 9.5l5 5 5-5'/%3E%3C/svg%3E"); /* (a drop-down field's chevron, the same everywhere) */
+  --chev: 12px; /* (the one chevron's size, .chev) */
   --stroke-xs: 2.2; /* (a 12px glyph: a list's chevron, a close X, the fold arrow; so it isn't thinner than the rest) */
   /* motion: quick, easing out like a spring that's settling; --spring
      overshoots a little, for things that pop open */
@@ -406,14 +407,23 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @media (hover: hover) { .paint .pl-layersbtn[aria-pressed="true"]:hover { background: var(--chip); } }
 /* (the sections that fold by their titles: Effects, Brush Studio) */
 .paint .pr-head {
-  display: flex; align-items: center; justify-content: space-between; width: 100%; height: 26px; padding: 0 2px 0 6px; border-radius: var(--r-xs);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); width: 100%; height: 26px; padding: 0 6px; border-radius: var(--r-xs);
   font-size: var(--fs-sm); font-weight: 700; letter-spacing: -.01em; color: var(--text); white-space: nowrap;
 }
 .paint .pr-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.paint .pr-head svg { color: var(--muted); }
 @media (hover: hover) { .paint .pr-head:hover { color: var(--text); } }
-.paint .pr-head svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
-.pr-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+/* ONE CHEVRON for every disclosure, list and fold (a section's head, a
+   drop-down in the tool settings, a group of layers): the same glyph, size,
+   weight and colour, at its row's trailing edge; it turns, easing, to say
+   open (down) or folded (pointing at what's folded away: right) */
+.paint .chev, .chev {
+  flex: none; display: block; width: var(--chev); height: var(--chev); margin: 0;
+  fill: none; stroke: currentColor; stroke-width: var(--stroke-xs); stroke-linecap: round; stroke-linejoin: round;
+  color: var(--muted); opacity: 1; transition: transform var(--dur) var(--ease), color var(--dur-fast) ease;
+}
+.pr-head[aria-expanded="false"] .chev, .pl-fold[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+.ctx-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+@media (hover: hover) { .pr-head:hover .chev, .ctx-btn:hover .chev, .pl-fold:hover .chev { color: var(--text); } }
 /* (folding: the body's height runs smoothly to nothing) */
 .pr-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--dur) var(--ease), opacity var(--dur) ease; }
 .pr-in { min-height: 0; overflow: hidden; padding: var(--s-2) 7px var(--s-1); margin: 0 -7px; } /* (room at the sides for a picked swatch's ring, grown on hover) */
@@ -696,11 +706,15 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 /* EFFECTS: sections that fold like the right-hand panel's; a dot and a
    reset button show on any that have been changed */
 .fx-secs { display: flex; flex-direction: column; }
-.fx-head { display: flex; align-items: center; gap: 2px; }
-.paint .fx-head .pr-head { flex: 1; height: 28px; font-size: var(--fs-sm); letter-spacing: 0; color: var(--text); }
+.fx-head { position: relative; display: flex; align-items: center; margin: 0 -6px; } /* (its words over the sliders' names, its chevron over their values: the hover reaches out past them) */
+/* (the whole row opens and folds it, its chevron at the same trailing edge in
+   every section, however long the name; the reset button, once something's
+   changed, stands just inside it) */
+.paint .fx-head .pr-head { flex: 1; min-width: 0; height: 28px; padding: 0 6px; font-size: var(--fs-sm); letter-spacing: 0; color: var(--text); }
+.fx-sec.changed .fx-head .pr-head > span { padding-right: 28px; }
 .fx-dot { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--control); vertical-align: 1px; opacity: 0; transition: opacity var(--dur) ease; }
 .fx-sec.changed .fx-dot { opacity: 1; }
-.paint .fx-reset { flex: none; width: 26px; height: 26px; border-radius: var(--r-xs); color: var(--muted); visibility: hidden; }
+.paint .fx-reset { position: absolute; right: calc(var(--chev) + 10px); top: 50%; translate: 0 -50%; width: 26px; height: 26px; border-radius: var(--r-xs); color: var(--muted); visibility: hidden; }
 @media (hover: hover) { .paint .fx-reset:hover { color: var(--text); } }
 .paint .fx-reset svg { width: var(--icon-sm); height: var(--icon-sm); }
 .fx-sec.changed .fx-reset { visibility: visible; }
@@ -808,8 +822,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .pl-row.pl-grp .pl-name { gap: 6px; font-weight: 600 !important; }
 .pl-folder { flex: none; width: var(--icon-sm); height: var(--icon-sm); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linejoin: round; stroke-linecap: round; opacity: .8; }
 .paint .pl-row .pl-fold { flex: none; width: 22px; color: var(--muted); }
-.paint .pl-row .pl-fold svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
-.pl-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
+.paint .pl-row .pl-fold .chev { width: var(--chev); height: var(--chev); }
 .pl-row.pl-grp.off .pl-name, .pl-row.pl-grp.off .pl-folder { opacity: .5; }
 .pl-row.in-grp { margin-left: var(--s-3); }
 .paint .pl-row .pl-name { min-width: 0; } /* (a long name gives way, so the row's buttons always fit) */
@@ -827,7 +840,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .pl-op output { width: 2.6rem; text-align: right; font-variant-numeric: tabular-nums; }
 .pl-bl select {
   flex: 1; min-width: 0; height: 32px; padding: 0 1.6rem 0 .6rem; font: inherit; font-size: var(--fs-ui); color: var(--text);
-  background: var(--hover) var(--chev-down) no-repeat right .4rem center / 14px; border: 0; border-radius: var(--r-2xs); cursor: pointer;
+  background: var(--hover) var(--chev-down) no-repeat right .45rem center / var(--chev); border: 0; border-radius: var(--r-2xs); cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
 .pl-acts { display: flex; justify-content: space-between; margin-bottom: var(--s-2); padding: var(--s-1); border-radius: var(--r-pill); background: var(--hover); } /* (under the title: New Layer never moves as rows come and go) */
@@ -922,7 +935,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .paint .ctx-btn.ctx-icon { padding: 0; width: 28px; }
 .paint .ctx-btn[aria-expanded="true"] { background: var(--hover-strong); }
 .ctx-btn canvas { display: block; width: 46px; height: 20px; }
-.ctx-btn .ctx-chev { width: 12px !important; height: 12px !important; stroke-width: var(--stroke-xs); opacity: .55; }
+.paint .ctx-btn .ctx-chev { width: var(--chev); height: var(--chev); } /* (over the tool settings' icon size) */
 /* a labelled slider: Smoothing 40 ----o---- */
 .ctx-slider { flex: none; display: flex; align-items: center; gap: var(--s-2); height: 28px; padding: 0 var(--s-2); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 .ctx-slider input[type="range"] { width: 112px; margin: 0; accent-color: var(--control); }
@@ -1491,7 +1504,7 @@ kbd {
 .p-field::-webkit-inner-spin-button, .p-field::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 select.p-field {
   -webkit-appearance: none; appearance: none; padding-right: 1.6rem; cursor: pointer;
-  background: var(--hover) var(--chev-down) no-repeat right .4rem center / 14px;
+  background: var(--hover) var(--chev-down) no-repeat right .45rem center / var(--chev);
 }
 
 /* THE COLOUR PICKER, above the bottom bar, its middle over the two colours */
@@ -1529,7 +1542,7 @@ select.p-field {
 .paint .dp-head button[hidden] { display: none; }
 .dp-head svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: var(--stroke-xs); stroke-linecap: round; stroke-linejoin: round; }
 .dp-back { margin-left: -4px; }
-.dp-back svg { width: var(--icon-sm); height: var(--icon-sm); stroke-width: var(--stroke); }
+.dp-back svg { width: var(--chev); height: var(--chev); } /* (Back: the one chevron, pointing back, beside the close X) */
 /* (the menus and sheets it shows, at its width, on its card) */
 .paint-docpanel .paint-drop, .paint-docpanel .paint-savemenu {
   position: static; width: auto; min-width: 0; max-width: none; padding: 0; border: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; animation: none;
@@ -2104,7 +2117,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vec-count { padding: var(--s-1) var(--s-2); font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
 .vec-name .p-field, .vec-selrow select { flex: 1; min-width: 0; height: 26px; }
 .vec-name { gap: var(--s-2); }
-.vec-selrow select { padding: 0 1.6rem 0 .5rem; background: var(--hover) var(--chev-down) no-repeat right .4rem center / 14px; border: 0; border-radius: var(--r-2xs); -webkit-appearance: none; appearance: none; font: inherit; font-size: var(--fs-ui); color: var(--text); }
+.vec-selrow select { padding: 0 1.6rem 0 .5rem; background: var(--hover) var(--chev-down) no-repeat right .45rem center / var(--chev); border: 0; border-radius: var(--r-2xs); -webkit-appearance: none; appearance: none; font: inherit; font-size: var(--fs-ui); color: var(--text); }
 /* a colour: its swatch (a ring for a stroke, a slash for none), name and hex */
 .paint .vec-colour { gap: var(--s-2); }
 .vec-sw { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--sw, transparent); box-shadow: var(--swatch-edge); }
@@ -2139,6 +2152,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vl-row.cur .pl-name span { font-weight: 600; }
 .vl-row.cur:not(.on) { background: var(--selected); } /* (the layer new objects go in: tinted, as a layer picked alongside is; what's picked is the chip) */
 .vl-row.vl-layer .pl-folder { opacity: .55; }
+.paint .vl-row .pl-name { gap: 6px; } /* (its icon apart from its name, as a group's is) */
 .vl-row.off .pl-name { opacity: .5; }
 .vl-row.vl-dragging { opacity: .5; }
 .vec-layerpanel .pl-list { position: relative; }
