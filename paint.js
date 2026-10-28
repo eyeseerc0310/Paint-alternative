@@ -3803,8 +3803,8 @@
       // (laid in only if the frame still asks for that size; an older ask is just kept)
       if (C.want === k && casKey() === k) {
         C.want = null; C.pid = ++C.id; C.pv = null; sel.float = c; casBusy(false);
-        // (a Commit waiting lays it down at once: no drawing it first)
-        if (C.then) { var f = C.then; C.then = null; casPillSync(); f(); } else drawSel();
+        // (a Commit waiting lays it down next, a task of its own, with no drawing it first)
+        if (C.then) { var f = C.then; C.then = null; setTimeout(function () { casPillSync(); if (sel && sel.cas === C) f(); }, 0); } else drawSel();
       }
     }
     // (Commit, Return, Deselect, a click outside, the X, Normal Scale and the
@@ -3860,15 +3860,27 @@
       fx.kind = 'layer'; fx.L = L; fx.g = g; fx.bx = bx; fx.by = by;
       fx.before = bx1 > bx && by1 > by ? L.ctx.getImageData(bx, by, bx1 - bx, by1 - by) : null;
     }
+    // (in steps, each a task of its own, so no one of them holds the page
+    // up: what was under the stand-in with the full size on it is made off
+    // the screen, then drawn over the stand-in at once)
     function casRefine(fx, c) {
-      casFix = null;
-      if (fx.kind === 'float') { if (sel && sel.float === fx.ph) { sel.float = c; drawSel(); } }
-      else if (fx.before && layers.indexOf(fx.L) >= 0 && fx.L.cv.boxV === fx.v) {
-        var cx = fx.L.ctx; cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.putImageData(fx.before, fx.bx, fx.by); cx.restore();
-        var keep = sel; sel = fx.g; putFloat(cx, c); sel = keep; viewsSoon(); autosave();
-      }
-      casDrop(fx.C); casBusy(false);
-      if (fx.after) fx.after();
+      var done = function () { if (casFix === fx) casFix = null; casDrop(fx.C); casBusy(false); if (fx.after) fx.after(); };
+      if (fx.kind === 'float') { casFix = null; if (sel && sel.float === fx.ph) { sel.float = c; drawSel(); } done(); return; }
+      var ok = function () { return fx.before && layers.indexOf(fx.L) >= 0 && fx.L.cv.boxV === fx.v; };
+      if (!ok()) { done(); return; }
+      setTimeout(function () {
+        if (!ok()) { done(); return; }
+        var t = document.createElement('canvas'); t.width = fx.before.width; t.height = fx.before.height;
+        var tx = t.getContext('2d'); tx.putImageData(fx.before, 0, 0); tx.setTransform(R, 0, 0, R, -fx.bx, -fx.by);
+        var keep = sel; sel = fx.g; putFloat(tx, c); sel = keep;
+        setTimeout(function () {
+          if (ok()) {
+            var cx = fx.L.ctx; cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(fx.bx, fx.by, t.width, t.height); cx.drawImage(t, fx.bx, fx.by); cx.restore();
+            fx.L.cv.boxV = (fx.L.cv.boxV || 0) + 1; viewsSoon(); autosave();
+          }
+          done();
+        }, 0);
+      }, 0);
     }
     // (a worker gave up twice: what was there before is put back)
     function casFailed(C) {
