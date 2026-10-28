@@ -997,6 +997,8 @@
     // the picture's steps, for the History list)
     function doUndo(whole) {
       endFillAnim(); if (down) { cancelStroke(); return; }
+      if (casFix && casFix.kind === 'layer') { casFix.after = function () { doUndo(whole); }; casHold(); return; } // (once Content-Aware Scale has finished what it laid down)
+      if (sel && sel.cas && sel.cas.then) { sel.cas.then = null; casPillSync(); }
       if (pen && !whole && penUndo()) return;
       // (Content-Aware Scale with nothing sized yet: undo is Esc)
       if (!whole && sel && sel.cas && (!sel.hist || sel.hist.length <= sel.cas.hn)) { casCancel(); return; }
@@ -1012,6 +1014,8 @@
     }
     function doRedo(whole) {
       endFillAnim(); if (down) return;
+      if (casFix && casFix.kind === 'layer') { casFix.after = function () { doRedo(whole); }; casHold(); return; }
+      if (sel && sel.cas && sel.cas.then) { sel.cas.then = null; casPillSync(); }
       if (pen && !whole && penRedo()) return;
       if (!whole && selRedo()) return;
       if (pen && pen.pts.length && !pen.fromUndo && !whole) return; // (a new path in the making: nothing ahead of it)
@@ -3403,7 +3407,7 @@
       if ((sel.rot || sel.quad) && !keep) { clearSel(); autosave(); return; }
       drawSel(); autosave();
     }
-    function clearSel() { if (sel && sel.cas) { sel.cas.id++; casPill.hidden = true; delete casPill.dataset.busy; } if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selectionToolbarSync(); selx.hidden = true; if (seldist) seldist.hidden = true; sctx.clearRect(0, 0, W, H); if (!lasso.length) uiSheet(); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
+    function clearSel() { if (sel && sel.cas) { var Cc = sel.cas; sel.cas = null; casDrop(Cc); if (!casFix) casBusy(false); } if (sel && sel.more) sel.more.forEach(function (it) { if (it.cv) it.cv.remove(); }); var had = sel && (sel.hist || sel.fut); sel = null; selbar.hidden = true; selectionToolbarSync(); selx.hidden = true; if (seldist) seldist.hidden = true; casPillSync(); sctx.clearRect(0, 0, W, H); if (!lasso.length) uiSheet(); cornerCursor(null); stage.classList.remove('can-move', 'moving'); scaleSync(); if (had) histButtons(); }
     // A SELECTION'S OWN STEPS: while something is picked up, each move, size,
     // turn (or size typed in Scale) is a step of its own, which undo and redo
     // take first; undone past the first, it goes back down where it was
@@ -3674,30 +3678,36 @@
       if (sel.mask) { sel.mask = mask; sel.maskData = md; sel.tint = null; }
       drawSel(); autosave();
     }
-    if (seldist) seldist.addEventListener('click', function () { if (!sel) return; if (sel.cas) casEnd(); if (sel.quad) distortOff(); else distortOn(); });
+    function distortTap() { if (!sel || casGate(distortTap)) return; if (sel.cas) casEnd(); if (sel.quad) distortOff(); else distortOn(); }
+    if (seldist) seldist.addEventListener('click', distortTap);
     // CONTENT-AWARE SCALE (from Effects): the selection is picked up and its
     // frame sizes it by seam carving instead of stretching: what matters
     // keeps its shape and the plainest parts give way, each way on its own
     // (the frame gets handles on its sides too). Every size is worked from
     // the pixels as they were picked up (sel.cas.src), never from the last
     // one, so dragging back and forth loses nothing and the size it started
-    // at gives them back exactly. While a handle is dragged a small copy is
-    // carved (casLive) and shown stretched to the frame; let go of, the full
-    // size (casFull, kept by size in cache). Each size is a step of the
-    // selection's own, like any other; Commit or Return lays it down, Esc
-    // puts everything back as it was, and the pill on the picture (or a
-    // tool from Transform) goes back to plain scaling with what's carved.
+    // at gives them back exactly. Nothing is carved on this thread: while a
+    // handle is dragged a small copy is carved in one worker (casLive) and
+    // shown stretched to the frame; let go of (or held still a moment), the
+    // full size in the other (casFull, kept by size in cache). Each size is
+    // a step of the selection's own, like any other; Commit or Return lays
+    // it down once the full size is there (casGate: the pill says it's
+    // finishing meanwhile, and Esc calls it all off), Esc puts everything
+    // back as it was, and the pill on the picture (or the toggle in
+    // Transform) goes back to plain scaling with what's carved.
     var casPill = document.createElement('div');
     casPill.className = 'paint-casmode'; casPill.hidden = true; casPill.setAttribute('role', 'status');
-    casPill.innerHTML = '<span>Content-Aware Scale</span><button type="button" data-cas-off data-tip="Back to plain scaling, with what’s carved so far">Normal Scale</button>';
+    casPill.innerHTML = '<span class="cas-name">Content-Aware Scale</span><button type="button" data-cas-off data-tip="Back to plain scaling, with what’s carved so far">Normal Scale</button>';
     stage.appendChild(casPill);
-    casPill.addEventListener('click', function (e) { if (e.target.closest('[data-cas-off]') && sel && sel.cas) { casEnd(); toast('Back to plain scaling'); } });
+    var casName = casPill.querySelector('.cas-name'), casOff = casPill.querySelector('[data-cas-off]');
+    function casPlain() { if (!sel || !sel.cas || casGate(casPlain)) return; casEnd(); toast('Back to plain scaling'); }
+    casOff.addEventListener('click', casPlain);
     // (and beside Distort in the selection's Transform options, where what's
     // picked up stays picked up, turned or not)
     var selcas = document.createElement('button');
     selcas.type = 'button'; selcas.className = 'paint-selcas'; selcas.hidden = true; selcas.setAttribute('aria-pressed', 'false');
     selcas.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h5M5 10l2 2-2 2M22 12h-5M19 10l-2 2 2 2"/><circle cx="12" cy="12" r="3"/></svg><span>Content-Aware Scale</span>';
-    selcas.addEventListener('click', function () { if (!sel) return; if (sel.cas) casEnd(); else casStart(); });
+    selcas.addEventListener('click', function () { if (!sel) return; if (sel.cas) casPlain(); else casStart(); });
     function casBtnSync() {
       if (!selcas) return; // (not made yet)
       var on = !!(sel && sel.cas), ok = on || casOk();
@@ -3712,70 +3722,178 @@
       var on = casOk(); b.disabled = !on;
       b.dataset.tip = on ? 'Size the selection by its frame: what matters keeps its shape' : 'Select part of a layer first: Content-Aware Scale works on a selection';
     }
+    // (sid: which mode this is, so a worker's answer for an earlier one is
+    // dropped; casFix: a size laid down before it was worked out, still
+    // to come, see casEnd)
+    var casSid = 0, casFix = null, casSlowT = 0;
     function casStart() {
       if (!casOk()) return;
+      if (casFix) { casHold(); return; } // (the last one's still being finished)
       if (adj || !adjBox.hidden) adjustDone();
       if (!sel) return;
       if (sel.quad) distortOff();
       var was = lifted();
       lift();
       if (!sel.float || sel.more) return;
-      var f = sel.float, sw = f.width, sh = f.height, src = document.createElement('canvas');
-      src.width = sw; src.height = sh; src.getContext('2d').drawImage(f, 0, 0);
-      // (the small copy the quick look is worked on: about 60,000 pixels)
-      var q = Math.min(1, Math.sqrt(6e4 / (sw * sh))), ssw = Math.max(1, Math.round(sw * q)), ssh = Math.max(1, Math.round(sh * q));
-      var sc = document.createElement('canvas'); sc.width = ssw; sc.height = ssh; var sx = sc.getContext('2d', { willReadFrequently: true });
+      // (what's picked up is the original: nothing changes it while the
+      // mode's on, so it isn't copied; the small copy the quick look is
+      // worked on is about 80,000 pixels)
+      var src = sel.float, sw = src.width, sh = src.height;
+      var q = Math.min(1, Math.sqrt(8e4 / (sw * sh))), ssw = Math.max(1, Math.round(sw * q)), ssh = Math.max(1, Math.round(sh * q));
+      var sc = document.createElement('canvas'); sc.width = ssw; sc.height = ssh; var sx = sc.getContext('2d');
       sx.imageSmoothingQuality = 'high'; sx.drawImage(src, 0, 0, ssw, ssh);
-      sel.cas = { src: src, px: src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, sw, sh).data, sw: sw, sh: sh, w0: sel.w, h0: sel.h,
-        spx: sx.getImageData(0, 0, ssw, ssh).data, ssw: ssw, ssh: ssh, id: 0, pv: null, cache: {}, was: was, geo0: selGeo(), mv: was ? null : undo[undo.length - 1], hn: sel.hist ? sel.hist.length : 0 };
-      sel.cache = null; sel.float = src; // (what's shown is always worked from src)
-      casPill.hidden = false; selbar.hidden = false; drawSel(); autosave();
+      var C = sel.cas = { sid: ++casSid, src: src, small: sc, sw: sw, sh: sh, k0: sw + 'x' + sh, w0: sel.w, h0: sel.h, ssw: ssw, ssh: ssh, id: 0, pid: 0, pv: null, pvc: null,
+        cache: new Map(), want: null, then: null, fails: 0, was: was, geo0: selGeo(), mv: was ? null : undo[undo.length - 1], hn: sel.hist ? sel.hist.length : 0 };
+      sel.cache = null;
+      casPrime(C); // (the full size's worker gets the pixels now, once, so nothing waits for them later)
+      casPillSync(); selbar.hidden = false; drawSel(); autosave();
       toast('Drag the frame: the plainest parts give way. Return keeps it, Esc puts it back');
     }
     // (the size the frame asks for, in the picked-up pixels' own detail)
     function casTarget() { var C = sel.cas; return { tw: Math.max(1, Math.round(C.sw * sel.w / C.w0)), th: Math.max(1, Math.round(C.sh * sel.h / C.h0)) }; }
+    function casKey() { var t = casTarget(); return t.tw + 'x' + t.th; }
+    function casReady(C) { var k = casKey(); return k === C.k0 || C.cache.has(k); }
+    // (while a handle moves: the quick look, and once it's held still a
+    // moment the full size starts, so letting go there finds it ready)
     function casLive() {
       var C = sel && sel.cas; if (!C) return;
       var t = casTarget(), k = t.tw + 'x' + t.th;
-      if (C.cache[k] || (t.tw === C.sw && t.th === C.sh)) { C.pv = null; sel.float = C.cache[k] || C.src; return; }
+      clearTimeout(C.restT);
+      // (a size already known: shown as it is, and a quick look still on its way is dropped)
+      if (k === C.k0 || C.cache.has(k)) { C.pid = ++C.id; C.pv = null; sel.float = k === C.k0 ? C.src : C.cache.get(k); return; }
       var stw = Math.max(1, Math.round(C.ssw * t.tw / C.sw)), sth = Math.max(1, Math.round(C.ssh * t.th / C.sh));
-      casPost('prev', { id: ++C.id, px: C.spx, w: C.ssw, h: C.ssh, tw: stw, th: sth, budget: 6e6 });
+      C.pid = ++C.id; casSend('prev', C, { id: C.pid, key: stw + 'x' + sth, tw: stw, th: sth, budget: 6e6, few: 6 });
+      C.restT = setTimeout(function () { if (sel && sel.cas === C && casKey() === k) casAsk(C, t.tw, t.th); }, 250);
     }
+    // (let go of, or a size typed or brought back by undo: the full size)
     function casFull() {
       var C = sel && sel.cas; if (!C) return;
+      clearTimeout(C.restT);
       var t = casTarget(), k = t.tw + 'x' + t.th;
-      if (t.tw === C.sw && t.th === C.sh) { C.pv = null; C.want = null; delete casPill.dataset.busy; sel.float = C.src; drawSel(); return; }
-      if (C.cache[k]) { C.pv = null; C.want = null; delete casPill.dataset.busy; sel.float = C.cache[k]; drawSel(); return; }
-      C.want = k; casPill.dataset.busy = '1'; casPost('full', { id: ++C.id, px: C.px, w: C.sw, h: C.sh, tw: t.tw, th: t.th, budget: 2e8 });
+      if (k === C.k0 || C.cache.has(k)) { C.pid = ++C.id; C.pv = null; C.want = null; sel.float = k === C.k0 ? C.src : C.cache.get(k); casBusy(false); drawSel(); return; }
+      C.want = k; casBusy(true); casAsk(C, t.tw, t.th);
     }
-    function casCanvas(o, tw, th) { var c = document.createElement('canvas'); c.width = tw; c.height = th; c.getContext('2d').putImageData(new ImageData(o, tw, th), 0, 0); return c; }
+    function casAsk(C, tw, th) { casSend('full', C, { id: ++C.id, key: tw + 'x' + th, tw: tw, th: th, budget: 2e8 }); }
+    // (a quick look drawn at most once a frame, however fast they come)
+    var casRaf = 0;
+    function casDraw() { if (!casRaf) casRaf = requestAnimationFrame(function () { casRaf = 0; if (sel && sel.cas) drawSel(); }); }
+    // (a worker's pixels on a canvas: a new one for the full size, kept; the
+    // quick look's one is used again and again)
+    function casCanvas(c, o, tw, th, bmp) {
+      c = c || document.createElement('canvas');
+      if (c.width !== tw || c.height !== th) { c.width = tw; c.height = th; }
+      if (bmp) { var x = c.getContext('2d'); x.clearRect(0, 0, tw, th); x.drawImage(bmp, 0, 0); bmp.close(); }
+      else c.getContext('2d').putImageData(new ImageData(o, tw, th), 0, 0);
+      return c;
+    }
+    // (sizes worked out are kept, the newest four, and never more than
+    // ~64 MB of them: the one shown is never the one let go of)
+    function casKeep(C, k, c) {
+      C.cache.delete(k); C.cache.set(k, c);
+      var bytes = 0; C.cache.forEach(function (v) { bytes += v.width * v.height * 4; });
+      C.cache.forEach(function (v, key) {
+        if ((C.cache.size > 4 || bytes > 64e6) && key !== k && !(sel && sel.float === v) && !(casFix && casFix.ph === v)) { bytes -= v.width * v.height * 4; C.cache.delete(key); }
+      });
+    }
     function casBack(kind, d) {
-      var C = sel && sel.cas; if (!C) return; // (the mode's over: dropped)
-      if (kind === 'prev') { if (d.id === C.id) { C.pv = casCanvas(d.out, d.tw, d.th); drawSel(); } return; }
-      var k = d.tw + 'x' + d.th, c = casCanvas(d.out, d.tw, d.th), keys = Object.keys(C.cache);
-      if (keys.length > 8) delete C.cache[keys[0]];
-      C.cache[k] = c;
+      var C = sel && sel.cas && sel.cas.sid === d.sid ? sel.cas : casFix && casFix.C.sid === d.sid ? casFix.C : null;
+      if (!C) return; // (a mode that's over: dropped)
+      if (kind === 'prev') { if (d.id === C.pid && sel && sel.cas === C) { C.pv = C.pvc = casCanvas(C.pvc, d.out, d.tw, d.th); casDraw(); } return; }
+      var k = d.tw + 'x' + d.th, c = casCanvas(null, d.out, d.tw, d.th, d.bmp);
+      C.fails = 0; casKeep(C, k, c);
+      if (casFix && casFix.C === C) { if (casFix.key === k) casRefine(casFix, c); return; }
       // (laid in only if the frame still asks for that size; an older ask is just kept)
-      var t = casTarget(); if (C.want === k && t.tw + 'x' + t.th === k) { C.want = null; C.pv = null; sel.float = c; delete casPill.dataset.busy; drawSel(); autosave(); }
+      if (C.want === k && casKey() === k) {
+        C.want = null; C.pid = ++C.id; C.pv = null; sel.float = c; casBusy(false);
+        // (a Commit waiting lays it down next, a task of its own, with no drawing it first)
+        if (C.then) { var f = C.then; C.then = null; setTimeout(function () { casPillSync(); if (sel && sel.cas === C) f(); }, 0); } else drawSel();
+      }
     }
-    // (the mode ends: what the frame asks for is worked out now if it isn't
-    // yet, and what's carved stays picked up, to move, size or lay down)
-    function casNow() {
-      var C = sel && sel.cas; if (!C) return;
-      var t = casTarget(), k = t.tw + 'x' + t.th;
-      if (t.tw === C.sw && t.th === C.sh) sel.float = C.src;
-      else sel.float = C.cache[k] = C.cache[k] || casCanvas(casCarve2(C.px, C.sw, C.sh, t.tw, t.th, 2e8), t.tw, t.th);
-      C.pv = null; C.want = null; delete casPill.dataset.busy;
+    // (Commit, Return, Deselect, a click outside, the X, Normal Scale and the
+    // other selection actions wait for the full size, never working it out
+    // here: fn runs once it's in. Meanwhile the pill says it's finishing,
+    // the picture takes no presses, and Esc calls it all off)
+    function casGate(fn) {
+      var C = sel && sel.cas; if (!C || casReady(C)) return false;
+      C.then = fn; casFull(); casPillSync(); return true;
     }
+    // (a press on the picture while that's so: the pill says why nothing happens)
+    function casHold() {
+      if (!((casFix && casFix.kind === 'layer') || (sel && sel.cas && sel.cas.then) || casFix)) return false;
+      clearTimeout(casSlowT); casPill.classList.add('slow'); casPill.hidden = false; return true;
+    }
+    function casBusy(on, fin) {
+      clearTimeout(casSlowT);
+      if (!on) { delete casPill.dataset.busy; casPill.classList.remove('slow', 'fin'); casPill.removeAttribute('aria-busy'); casPillSync(); return; }
+      casPill.dataset.busy = '1'; casPill.classList.toggle('fin', !!fin); casPill.setAttribute('aria-busy', 'true'); casPillSync();
+      // (only once it takes longer than a moment: the dot pulses, as the saved status's does)
+      casSlowT = setTimeout(function () { casPill.classList.add('slow'); }, 400);
+    }
+    function casPillSync() {
+      var on = !!(sel && sel.cas), fin = casPill.classList.contains('fin') || !!(on && sel.cas.then);
+      casPill.hidden = !on && !casPill.dataset.busy;
+      casName.textContent = fin ? 'Finishing Content-Aware Scale…' : 'Content-Aware Scale';
+      casOff.hidden = !on || fin;
+    }
+    // (the mode ends, what's carved staying picked up, to move, size or lay
+    // down. If the size asked for isn't worked out yet (a tool picked, a
+    // layer switched, anything else that lays the selection down), it
+    // isn't worked out here: the quick look stands in, and the full size
+    // takes its place when it comes (casRefine), in what's picked up or,
+    // once laid down, in the layer, if nothing has changed it since)
     function casEnd() {
       var C = sel && sel.cas; if (!C) return;
-      casNow(); C.id++; sel.cas = null; casPill.hidden = true; drawSel(); autosave();
+      clearTimeout(C.restT); C.then = null;
+      var t = casTarget(), k = t.tw + 'x' + t.th;
+      if (k === C.k0) sel.float = C.src;
+      else if (C.cache.has(k)) sel.float = C.cache.get(k);
+      else { var ph = C.pv || C.src; sel.float = ph; casFix = { C: C, key: k, ph: ph, kind: 'float' }; casAsk(C, t.tw, t.th); }
+      C.pv = null; sel.cas = null;
+      if (!casFix || casFix.C !== C) { casDrop(C); casBusy(false); } else casBusy(true, true);
+      drawSel(); autosave();
+    }
+    // (the stand-in being laid down: where it goes, and what was there, so
+    // the full size can take its place exactly)
+    function casFixLay(fx) {
+      var L = active, g = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, rot: sel.rot || 0 }, m = { x: g.x + g.w / 2, y: g.y + g.h / 2 }, co = Math.cos(g.rot), si = Math.sin(g.rot);
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) { var dx = q[0] * g.w / 2, dy = q[1] * g.h / 2, x = m.x + co * dx - si * dy, y = m.y + si * dx + co * dy; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); });
+      var bx = Math.max(0, Math.floor(x0 * R) - 2), by = Math.max(0, Math.floor(y0 * R) - 2), bx1 = Math.min(L.cv.width, Math.ceil(x1 * R) + 2), by1 = Math.min(L.cv.height, Math.ceil(y1 * R) + 2);
+      fx.kind = 'layer'; fx.L = L; fx.g = g; fx.bx = bx; fx.by = by;
+      fx.before = null;
+      if (bx1 > bx && by1 > by) { var b = document.createElement('canvas'); b.width = bx1 - bx; b.height = by1 - by; b.getContext('2d').drawImage(L.cv, bx, by, b.width, b.height, 0, 0, b.width, b.height); fx.before = b; }
+    }
+    // (in steps, each a task of its own, so no one of them holds the page
+    // up: what was under the stand-in with the full size on it is made off
+    // the screen, then drawn over the stand-in at once)
+    function casRefine(fx, c) {
+      var done = function () { if (casFix === fx) casFix = null; casDrop(fx.C); casBusy(false); if (fx.after) fx.after(); };
+      if (fx.kind === 'float') { casFix = null; if (sel && sel.float === fx.ph) { sel.float = c; drawSel(); } done(); return; }
+      var ok = function () { return fx.before && layers.indexOf(fx.L) >= 0 && fx.L.cv.boxV === fx.v; };
+      if (!ok()) { done(); return; }
+      setTimeout(function () {
+        if (!ok()) { done(); return; }
+        var t = fx.before, tx = t.getContext('2d'); tx.setTransform(R, 0, 0, R, -fx.bx, -fx.by); // (what was under it, the full size drawn on it)
+        var keep = sel; sel = fx.g; putFloat(tx, c); sel = keep;
+        setTimeout(function () {
+          if (ok()) {
+            var cx = fx.L.ctx; cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(fx.bx, fx.by, t.width, t.height); cx.drawImage(t, fx.bx, fx.by); cx.restore();
+            fx.L.cv.boxV = (fx.L.cv.boxV || 0) + 1; viewsSoon(); autosave();
+          }
+          done();
+        }, 0);
+      }, 0);
+    }
+    // (a worker gave up twice: what was there before is put back)
+    function casFailed(C) {
+      if (casFix && casFix.C === C) { var fx = casFix; casFix = null; casDrop(C); casBusy(false); toast('Content-Aware Scale couldn’t finish at full detail'); if (fx.after) fx.after(); return; }
+      if (sel && sel.cas === C) { casCancel(); toast('Content-Aware Scale couldn’t be worked out, so it’s put back as it was'); }
     }
     // (Esc: everything as it was before the mode began, exactly: picked up
     // just for it, the step that picked it up is taken back)
     function casCancel() {
       var C = sel && sel.cas; if (!C) return false;
-      C.id++; sel.cas = null; casPill.hidden = true; delete casPill.dataset.busy;
+      clearTimeout(C.restT); C.then = null; sel.cas = null; casDrop(C); casBusy(false);
       if (C.mv && undo[undo.length - 1] === C.mv) {
         sel.float = null; // (dropped, not laid down: the step's own pixels come back)
         var e = undo.pop(); apply(e); if (e.redoWas) redo = e.redoWas;
@@ -3783,6 +3901,7 @@
         if (g.mask !== sel.mask) { sel.mask = g.mask; sel.maskData = g.maskData; sel.tint = null; }
         buttons(); refitMask(); drawSel(); viewsSoon(); autosave();
       } else { selPut(C.geo0); sel.float = C.geo0.float; if (sel.hist) sel.hist.length = Math.min(sel.hist.length, C.hn); sel.fut = []; histButtons(); drawSel(); autosave(); }
+      casPillSync();
       toast('Content-Aware Scale put back');
       return true;
     }
@@ -4173,7 +4292,13 @@
       if (sel && sel.cas) casEnd();
       if (!sel) return;
       if (sel.more) { putMore(); autosave(); }
-      else if (sel.float) { putFloat(active.ctx); autosave(); }
+      else if (sel.float) {
+        // (a Content-Aware Scale size still being worked out: its stand-in
+        // goes down now, and the full size takes its place when it comes)
+        var fx = casFix && casFix.kind === 'float' && casFix.ph === sel.float ? casFix : null;
+        if (fx) casFixLay(fx);
+        putFloat(active.ctx); if (fx) fx.v = active.cv.boxV; autosave();
+      }
       clearSel();
     }
     function invertSel() {
@@ -4214,7 +4339,7 @@
     }
     function copySel() {
       if (!sel || !(sel.w > 0 && sel.h > 0)) return;
-      casNow(); // (Content-Aware Scale: the full size of what's shown)
+      if (casGate(copySel)) return; // (Content-Aware Scale: the full size of what's shown, once it's there)
       var cv = document.createElement('canvas'), c, b;
       if (lifted()) {
         // (picked up: drawn as it would be put down, past the picture's edge too)
@@ -4286,6 +4411,8 @@
       }).catch(function () { pasteClip(); });
     }
     function selAction(a) {
+      // (Content-Aware Scale: anything but a quarter turn or Delete waits for the full size)
+      if (sel && sel.cas && a !== 'rot90' && a !== 'delete' && casGate(function () { selAction(a); })) return;
       if (a === 'all') { selectAll(); return; }
       if (a === 'paste') { pasteAny(); return; }
       if (!sel) return;
@@ -4294,7 +4421,7 @@
       if (a === 'region-invert') { changeSelectionMask('invert', 0); return; }
       if (sel.text && a === 'delete') { var TL = sel.text; clearSel(); active = TL; layerAct('delete'); return; }
       if (sel.text && a !== 'rot90' && a !== 'done') return;
-      if (sel.cas && a !== 'done' && a !== 'rot90') casEnd(); // (anything else done to the pixels: what's carved, as it is)
+      if (sel.cas && a !== 'done' && a !== 'rot90' && a !== 'delete') casEnd(); // (anything else done to the pixels: what's carved, as it is)
       if (a === 'done') { deselect(lifted() ? 'Commit' : 'Deselect'); return; }
       if (a === 'invert') { invertSel(); return; }
       if (a === 'rot90' && sel.quad) { lift(); selRecord(); sel.quad = quadTurn(sel.quad.slice(), quadMid(), Math.PI / 2); drawSel(); autosave(); return; }
@@ -5434,8 +5561,45 @@
     // selection, 0-255 a pixel, or null; tw: the width wanted. (budget: about
     // how many pixel steps it may take; past that, several seams that don't
     // touch go in one pass)
-    function casCarve(px, mk, w, h, tw, budget) {
+    function casCarve(px, mk, w, h, tw, budget, few) {
       tw = Math.max(1, Math.round(tw));
+      // the cheapest way down to each pixel: what taking it out would bring
+      // together (forward energy), plus how much is going on there (the
+      // change across it and down it), so a seam doesn't cut through the
+      // middle of a flat shape just because its sides match. (On its own,
+      // everything it uses handed to it: nothing it reads is shared with a
+      // closure, so the engine keeps it fast; once that was the sort's
+      // comparator holding M, and this loop ran some 25 times slower)
+      // Each difference counts as d² / (d + T), T the picture's own grain
+      // (see seams): grain costs next to nothing, a real edge all it is, so
+      // a flat shape on a grainy ground isn't cheaper to cut through than
+      // the ground (on a big picture a seam meets a shape's edge twice, but
+      // the grain on every row it passes)
+      function dp(In, Pn, M, D, h, cw0, cw, T) {
+        for (var y = 0; y < h; y++) {
+          var o = y * cw0, u = o - cw0, dn = y < h - 1 ? o + cw0 : o, up = y ? u : o;
+          for (var x = 0; x < cw; x++) {
+            var c = o + x, L = In[x > 0 ? c - 1 : c], Rr = In[x < cw - 1 ? c + 1 : c], cu = Math.abs(Rr - L), dv = Math.abs(In[dn + x] - In[up + x]);
+            cu = cu * cu / (cu + T); dv = dv * dv / (dv + T);
+            var en = cu + dv + Pn[c];
+            if (!y) { M[c] = en; D[c] = 0; continue; }
+            var U = In[u + x], best = M[u + x] + cu, d = 0, t, q;
+            if (x > 0) { q = Math.abs(U - L); if ((t = M[u + x - 1] + cu + q * q / (q + T)) < best) { best = t; d = -1; } }
+            if (x < cw - 1) { q = Math.abs(U - Rr); if ((t = M[u + x + 1] + cu + q * q / (q + T)) < best) { best = t; d = 1; } }
+            M[c] = best + en - cu; D[c] = d;
+          }
+        }
+      }
+      // (the grain: six times the change from one pixel to the next that
+      // nine in ten of a sample of them stay under (the middling one leaves
+      // the grain's tail costly, and on a tall picture that adds up), never
+      // more than a real edge's step; a clean drawing's is about nothing)
+      function grain(In, cw0, h) {
+        var n = cw0 * h, step = Math.max(1, Math.floor(n / 20000)), v = [];
+        for (var i = 0; i + 1 < n; i += step) if ((i + 1) % cw0) v.push(Math.abs(In[i + 1] - In[i]));
+        v.sort(function (a, b) { return a - b; });
+        return Math.min(16, 6 * (v.length ? v[Math.floor(v.length * 0.9)] : 0) + 0.25);
+      }
       // (how light each pixel is, and how solid, softened a little (three
       // passes of a 3 x 3 box), so fine grain and noise cost next to
       // nothing while real edges keep their cost)
@@ -5451,34 +5615,20 @@
       // the seams: k of them, the cheapest first, as the columns (of px)
       // each takes out of each row (rem, k a row); idx is what's left
       var seams = function (p, m, cw0, k) {
-        var n = cw0 * h, In = I(p, n), Pn = new Float32Array(n), idx = new Int32Array(n), M = new Float32Array(n), D = new Int8Array(n);
+        var n = cw0 * h, In = I(p, n), T = grain(In, cw0, h), Pn = new Float32Array(n), idx = new Int32Array(n), M = new Float32Array(n), D = new Int8Array(n);
         var rem = new Int32Array(h * k), rc = new Int32Array(h), mark = new Uint8Array(n), path = new Int32Array(h), x, y, i;
         for (y = 0; y < h; y++) for (x = 0; x < cw0; x++) { i = y * cw0 + x; idx[i] = x; Pn[i] = m ? (255 - m[i]) * 400 : 0; }
-        var cw = cw0, done = 0, passes = Math.min(k, Math.max(16, Math.floor((budget || 2e8) / Math.max(1, n * 6))));
+        var cw = cw0, done = 0, passes = Math.min(k, Math.max(few || 16, Math.floor((budget || 2e8) / Math.max(1, n * 6))));
         var marked = [], acc = [];
         while (done < k) {
-          // the cheapest way down to each pixel: what taking it out would
-          // bring together (forward energy), plus how much is going on there
-          // (the change across it and down it), so a seam doesn't cut
-          // through the middle of a flat shape just because its sides match
-          for (y = 0; y < h; y++) {
-            var o = y * cw0, u = o - cw0, dn = y < h - 1 ? o + cw0 : o, up = y ? u : o;
-            for (x = 0; x < cw; x++) {
-              var c = o + x, L = In[x > 0 ? c - 1 : c], Rr = In[x < cw - 1 ? c + 1 : c], cu = Math.abs(Rr - L);
-              var en = cu + Math.abs(In[dn + x] - In[up + x]) + Pn[c];
-              if (!y) { M[c] = en; D[c] = 0; continue; }
-              var U = In[u + x], best = M[u + x] + cu, d = 0, t;
-              if (x > 0 && (t = M[u + x - 1] + cu + Math.abs(U - L)) < best) { best = t; d = -1; }
-              if (x < cw - 1 && (t = M[u + x + 1] + cu + Math.abs(U - Rr)) < best) { best = t; d = 1; }
-              M[c] = best + en - cu; D[c] = d;
-            }
-          }
+          // the cheapest way down to each pixel (dp, below)
+          dp(In, Pn, M, D, h, cw0, cw, T);
           // this pass's seams: from the cheapest ends at the foot, each
           // taking the cheapest way up that no seam before it has taken
           // (stepping aside to a free neighbour where its own way is taken)
           var want = Math.max(1, Math.ceil((k - done) / Math.max(1, passes--))), last = (h - 1) * cw0, ends = [];
           if (want === 1) { var bx = 0; for (x = 1; x < cw; x++) if (M[last + x] < M[last + bx]) bx = x; ends.push(bx); }
-          else { for (x = 0; x < cw; x++) ends.push(x); ends.sort(function (a, b) { return M[last + a] - M[last + b]; }); }
+          else { var ec = M.slice(last, last + cw); for (x = 0; x < cw; x++) ends.push(x); ends.sort(function (a, b) { return ec[a] - ec[b]; }); }
           acc.length = 0;
           for (var e = 0; e < ends.length && acc.length < want; e++) {
             var px0 = ends[e], ok = !mark[last + px0];
@@ -5542,41 +5692,85 @@
     }
     // BOTH WAYS: the width first, then the height (the rows and columns
     // turned about, carved, and turned back). It stands alone too, for the
-    // workers: px RGBA, w x h, to tw x th
-    function casCarve2(px, w, h, tw, th, budget) {
-      var a = tw === w ? px : casCarve(px, null, w, h, tw, budget);
+    // workers: px RGBA, w x h, to tw x th (a: the width already carved)
+    function casCarve2(px, w, h, tw, th, budget, few, a) {
+      a = a || (tw === w ? px : casCarve(px, null, w, h, tw, budget, few));
       if (th === h) return a;
       var t = new Uint8ClampedArray(tw * h * 4), x, y, s0, d0;
       for (y = 0; y < h; y++) for (x = 0; x < tw; x++) { s0 = (y * tw + x) * 4; d0 = (x * h + y) * 4; t[d0] = a[s0]; t[d0 + 1] = a[s0 + 1]; t[d0 + 2] = a[s0 + 2]; t[d0 + 3] = a[s0 + 3]; }
-      var b = casCarve(t, null, h, tw, th, budget), out = new Uint8ClampedArray(tw * th * 4);
+      var b = casCarve(t, null, h, tw, th, budget, few), out = new Uint8ClampedArray(tw * th * 4);
       for (y = 0; y < th; y++) for (x = 0; x < tw; x++) { s0 = (x * th + y) * 4; d0 = (y * tw + x) * 4; out[d0] = b[s0]; out[d0 + 1] = b[s0 + 1]; out[d0 + 2] = b[s0 + 2]; out[d0 + 3] = b[s0 + 3]; }
       return out;
     }
-    // (its workers: one for the quick look while the frame is dragged, one
-    // for the full size, each working only the newest ask; a full size
-    // that's been overtaken is stopped, not waited for)
-    var casWs = {};
+    // ITS WORKERS: one for the quick look while the frame is dragged, one
+    // for the full size. Each is handed the mode's pixels once ('src') and
+    // keeps them, and the width it carved last, so an ask is only its
+    // size; each works one ask at a time, the newest waiting (one asked
+    // for again while it's being worked isn't asked twice). A worker that
+    // fails is made again and asked once more (casLost), then casFailed
+    var CAS_W = 'var S = null;\n' +
+      'onmessage = function (e) { var d = e.data;\n' +
+      '  if (d.t === "src") { S = { sid: d.sid, px: d.px, w: d.w, h: d.h, aw: -1, a: null }; return; }\n' +
+      '  if (d.t === "drop") { S = null; return; }\n' +
+      '  if (!S || S.sid !== d.sid) { postMessage({ sid: d.sid, id: d.id, err: "nosrc" }); return; }\n' +
+      '  var a = d.tw === S.w ? S.px : d.tw === S.aw ? S.a : casCarve(S.px, null, S.w, S.h, d.tw, d.budget, d.few);\n' +
+      '  if (d.tw !== S.w) { S.aw = d.tw; S.a = a; }\n' +
+      '  var o = casCarve2(S.px, S.w, S.h, d.tw, d.th, d.budget, d.few, a); if (o === S.px || o === S.a) o = o.slice();\n' +
+      '  var m = { sid: d.sid, id: d.id, tw: d.tw, th: d.th };\n' +
+      // (the full size goes back as a picture made here, so the page only copies it, never converts it)
+      '  if (d.bmp && typeof createImageBitmap === "function") createImageBitmap(new ImageData(o, d.tw, d.th)).then(function (b) { m.bmp = b; postMessage(m, [b]); }, function () { m.out = o; postMessage(m, [o.buffer]); });\n' +
+      '  else { m.out = o; postMessage(m, [o.buffer]); } };';
+    var casWs = {}, casURL = null;
     function casWorker(kind) {
-      if (casWs[kind] || typeof Worker === 'undefined' || typeof Blob === 'undefined') return casWs[kind] || null;
+      var w = casWs[kind]; if (w) return w;
+      if (typeof Worker === 'undefined' || typeof Blob === 'undefined') return null;
       try {
-        var code = casCarve.toString() + '\n' + casCarve2.toString() + '\nonmessage = function (e) { var d = e.data, o = casCarve2(d.px, d.w, d.h, d.tw, d.th, d.budget); postMessage({ id: d.id, out: o, tw: d.tw, th: d.th }, [o.buffer]); };';
-        var w = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
-        w.onmessage = function (e) { w.busy = null; casBack(kind, e.data); if (w.want) { var j = w.want; w.want = null; casPost(kind, j); } };
-        w.onerror = function () { casWs[kind] = null; };
-        casWs[kind] = w;
-      } catch (x) { casWs[kind] = null; }
-      return casWs[kind];
+        if (!casURL) casURL = URL.createObjectURL(new Blob([casCarve.toString() + '\n' + casCarve2.toString() + '\n' + CAS_W], { type: 'text/javascript' }));
+        w = new Worker(casURL);
+      } catch (x) { return null; }
+      w.kind = kind; w.sid = 0; w.busy = null; w.want = null;
+      w.onmessage = function (e) { var d = e.data, j = w.busy; w.busy = null; if (d.err) { w.sid = 0; if (j) casSend(kind, j.C, j); } else casBack(kind, d); casNext(w); };
+      w.onerror = function (e) { if (e && e.preventDefault) e.preventDefault(); casLost(w, w.busy); };
+      casWs[kind] = w; return w;
     }
-    function casPost(kind, job) {
+    // (the pixels a worker works from: read off the canvas when it's handed
+    // them, and transferred, so no copy stays here)
+    function casPixels(C, kind) { var c = kind === 'prev' ? C.small : C.src; return { px: c.getContext('2d').getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height }; }
+    function casPrime(C) { var w = casWorker('full'); if (w && !w.busy && w.sid !== C.sid) { var p = casPixels(C, 'full'); w.postMessage({ t: 'src', sid: C.sid, px: p.px, w: p.w, h: p.h }, [p.px.buffer]); w.sid = C.sid; } }
+    function casSend(kind, C, job) {
+      job.C = C;
       var w = casWorker(kind);
-      if (!w) { var o = casCarve2(job.px, job.w, job.h, job.tw, job.th, job.budget); casBack(kind, { id: job.id, out: o, tw: job.tw, th: job.th }); return; }
-      if (w.busy) {
-        if (kind === 'prev') { w.want = job; return; } // (the newest look, once this one's done)
-        w.terminate(); casWs[kind] = null; w = casWorker(kind); if (!w) { casPost(kind, job); return; }
+      if (!w) {
+        // (no workers here: worked a moment later, the only time it's done on this thread)
+        setTimeout(function () { var p = casPixels(C, kind), o = casCarve2(p.px, p.w, p.h, job.tw, job.th, job.budget, job.few); casBack(kind, { sid: C.sid, id: job.id, out: o, tw: job.tw, th: job.th }); }, 0);
+        return;
       }
-      // (a copy goes: the original is kept for the next ask)
-      var px = new Uint8ClampedArray(job.px);
-      w.busy = job.id; w.postMessage({ id: job.id, px: px, w: job.w, h: job.h, tw: job.tw, th: job.th, budget: job.budget }, [px.buffer]);
+      if (w.busy) { if (w.busy.C === C && w.busy.key === job.key) { if (w.want && w.want.C === C) w.want = null; return; } w.want = job; return; }
+      casGo(w, C, job);
+    }
+    function casGo(w, C, job) {
+      if (w.sid !== C.sid) { var p = casPixels(C, w.kind); w.postMessage({ t: 'src', sid: C.sid, px: p.px, w: p.w, h: p.h }, [p.px.buffer]); w.sid = C.sid; }
+      w.busy = job; w.postMessage({ sid: C.sid, id: job.id, tw: job.tw, th: job.th, budget: job.budget, few: job.few, bmp: w.kind === 'full' });
+    }
+    function casNext(w) { var j = w.want; w.want = null; if (j && ((sel && sel.cas === j.C) || (casFix && casFix.C === j.C))) casGo(w, j.C, j); }
+    function casLost(w, j) {
+      try { w.terminate(); } catch (x) {}
+      if (casWs[w.kind] === w) casWs[w.kind] = null;
+      var n = w.want; w.want = null;
+      if (j && w.kind === 'full') { var C = j.C; if (++C.fails <= 1) casSend('full', C, j); else casFailed(C); }
+      if (n) casSend(w.kind, n.C, n);
+    }
+    // (the mode's over: its workers let go of its pixels, one still working
+    // for it is stopped, and what it kept goes)
+    function casDrop(C) {
+      clearTimeout(C.restT);
+      ['prev', 'full'].forEach(function (k) {
+        var w = casWs[k]; if (!w) return;
+        if (w.want && w.want.C === C) w.want = null;
+        if (w.busy && w.busy.C === C) { try { w.terminate(); } catch (x) {} casWs[k] = null; return; }
+        if (w.sid === C.sid) { w.postMessage({ t: 'drop' }); w.sid = 0; }
+      });
+      C.cache.clear(); C.pv = C.pvc = null;
     }
     // THE WORKER: the live look worked out off the main thread (only the
     // newest settings are worked: any asked for in between are skipped), in
@@ -6450,6 +6644,7 @@
     }
     function begin(e) { var sw = maskIn(); begin0(e); if (sw && !down) maskOut(); selectionToolbarSync(); }
     function begin0(e) {
+      if (casHold()) return; // (Content-Aware Scale finishing: the picture waits)
       var p = pos(e), t = st.tool, cq = cornerAt(p, e.pointerType !== 'mouse');
       if (!/^(picker|move|text|pen)$/.test(t)) need();
       if (cq && sel.quad) {
@@ -6524,6 +6719,8 @@
         var adding = e.shiftKey && !!sel && !sel.thing && !sel.text && !sel.auto, was = null;
         if (!adding && inSel(p)) { selMode = 'move'; selOff = { x: p.x - sel.x, y: p.y - sel.y }; lift(); selRecord(); stage.classList.add('moving'); }
         else {
+          // (Content-Aware Scale not worked out yet: this press only lays it down, once it is)
+          if (!adding && sel && sel.cas && casGate(function () { var w0 = selSnap(); commitSelection(); selLog(w0, 'Commit'); })) return;
           was = selSnap();
           if (adding) selAddStart(); else commitSelection();
           if (t === 'wand') { wandAt(p); if (adding) sel = selAddFinish(sel); selbar.hidden = !sel; drawSel(); selLog(was, adding ? 'Add to Selection' : 'Magic Wand'); return; }
@@ -7168,7 +7365,7 @@
       if (pk && pk.dataset.pick === 'font' && textBox) { st.font = pk.dataset.val; loadFont(st.font); openMenu(null); ctxClose(); afterTextChange(); ctxSync(); return; }
       if (pk && pk.dataset.pick === 'brush' && !bsBox.hidden) { st.brush = pk.dataset.val; ctxClose(); ctxSync(); studio(true); return; }
       if (pk) { st[pk.dataset.pick] = pk.dataset.val; if (pk.dataset.pick === 'font') loadFont(st.font); openMenu(null); ctxClose(); setTool({ brush: 'brush', shape: 'shape', font: 'text', tone: 'tone' }[pk.dataset.pick]); ctxSync(); return; }
-      if (e.target.closest('.paint-selx')) { commitSelection(); return; }
+      if (e.target.closest('.paint-selx')) { if (!casGate(commitSelection)) commitSelection(); return; }
       var t = e.target.closest('button[data-tool]'); // (the picture carries data-tool too, for its cursor)
       if (t) {
         // (the tool in hand, again: brings back its panel if it was folded away)
