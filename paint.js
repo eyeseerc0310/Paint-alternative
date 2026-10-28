@@ -3779,10 +3779,12 @@
     function casDraw() { if (!casRaf) casRaf = requestAnimationFrame(function () { casRaf = 0; if (sel && sel.cas) drawSel(); }); }
     // (a worker's pixels on a canvas: a new one for the full size, kept; the
     // quick look's one is used again and again)
-    function casCanvas(c, o, tw, th) {
+    function casCanvas(c, o, tw, th, bmp) {
       c = c || document.createElement('canvas');
       if (c.width !== tw || c.height !== th) { c.width = tw; c.height = th; }
-      c.getContext('2d').putImageData(new ImageData(o, tw, th), 0, 0); return c;
+      if (bmp) { var x = c.getContext('2d'); x.clearRect(0, 0, tw, th); x.drawImage(bmp, 0, 0); bmp.close(); }
+      else c.getContext('2d').putImageData(new ImageData(o, tw, th), 0, 0);
+      return c;
     }
     // (sizes worked out are kept, the newest four, and never more than
     // ~64 MB of them: the one shown is never the one let go of)
@@ -3797,7 +3799,7 @@
       var C = sel && sel.cas && sel.cas.sid === d.sid ? sel.cas : casFix && casFix.C.sid === d.sid ? casFix.C : null;
       if (!C) return; // (a mode that's over: dropped)
       if (kind === 'prev') { if (d.id === C.pid && sel && sel.cas === C) { C.pv = C.pvc = casCanvas(C.pvc, d.out, d.tw, d.th); casDraw(); } return; }
-      var k = d.tw + 'x' + d.th, c = casCanvas(null, d.out, d.tw, d.th);
+      var k = d.tw + 'x' + d.th, c = casCanvas(null, d.out, d.tw, d.th, d.bmp);
       C.fails = 0; casKeep(C, k, c);
       if (casFix && casFix.C === C) { if (casFix.key === k) casRefine(casFix, c); return; }
       // (laid in only if the frame still asks for that size; an older ask is just kept)
@@ -3858,7 +3860,8 @@
       [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) { var dx = q[0] * g.w / 2, dy = q[1] * g.h / 2, x = m.x + co * dx - si * dy, y = m.y + si * dx + co * dy; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); });
       var bx = Math.max(0, Math.floor(x0 * R) - 2), by = Math.max(0, Math.floor(y0 * R) - 2), bx1 = Math.min(L.cv.width, Math.ceil(x1 * R) + 2), by1 = Math.min(L.cv.height, Math.ceil(y1 * R) + 2);
       fx.kind = 'layer'; fx.L = L; fx.g = g; fx.bx = bx; fx.by = by;
-      fx.before = bx1 > bx && by1 > by ? L.ctx.getImageData(bx, by, bx1 - bx, by1 - by) : null;
+      fx.before = null;
+      if (bx1 > bx && by1 > by) { var b = document.createElement('canvas'); b.width = bx1 - bx; b.height = by1 - by; b.getContext('2d').drawImage(L.cv, bx, by, b.width, b.height, 0, 0, b.width, b.height); fx.before = b; }
     }
     // (in steps, each a task of its own, so no one of them holds the page
     // up: what was under the stand-in with the full size on it is made off
@@ -3870,8 +3873,7 @@
       if (!ok()) { done(); return; }
       setTimeout(function () {
         if (!ok()) { done(); return; }
-        var t = document.createElement('canvas'); t.width = fx.before.width; t.height = fx.before.height;
-        var tx = t.getContext('2d'); tx.putImageData(fx.before, 0, 0); tx.setTransform(R, 0, 0, R, -fx.bx, -fx.by);
+        var t = fx.before, tx = t.getContext('2d'); tx.setTransform(R, 0, 0, R, -fx.bx, -fx.by); // (what was under it, the full size drawn on it)
         var keep = sel; sel = fx.g; putFloat(tx, c); sel = keep;
         setTimeout(function () {
           if (ok()) {
@@ -5714,7 +5716,10 @@
       '  var a = d.tw === S.w ? S.px : d.tw === S.aw ? S.a : casCarve(S.px, null, S.w, S.h, d.tw, d.budget, d.few);\n' +
       '  if (d.tw !== S.w) { S.aw = d.tw; S.a = a; }\n' +
       '  var o = casCarve2(S.px, S.w, S.h, d.tw, d.th, d.budget, d.few, a); if (o === S.px || o === S.a) o = o.slice();\n' +
-      '  postMessage({ sid: d.sid, id: d.id, out: o, tw: d.tw, th: d.th }, [o.buffer]); };';
+      '  var m = { sid: d.sid, id: d.id, tw: d.tw, th: d.th };\n' +
+      // (the full size goes back as a picture made here, so the page only copies it, never converts it)
+      '  if (d.bmp && typeof createImageBitmap === "function") createImageBitmap(new ImageData(o, d.tw, d.th)).then(function (b) { m.bmp = b; postMessage(m, [b]); }, function () { m.out = o; postMessage(m, [o.buffer]); });\n' +
+      '  else { m.out = o; postMessage(m, [o.buffer]); } };';
     var casWs = {}, casURL = null;
     function casWorker(kind) {
       var w = casWs[kind]; if (w) return w;
@@ -5745,7 +5750,7 @@
     }
     function casGo(w, C, job) {
       if (w.sid !== C.sid) { var p = casPixels(C, w.kind); w.postMessage({ t: 'src', sid: C.sid, px: p.px, w: p.w, h: p.h }, [p.px.buffer]); w.sid = C.sid; }
-      w.busy = job; w.postMessage({ sid: C.sid, id: job.id, tw: job.tw, th: job.th, budget: job.budget, few: job.few });
+      w.busy = job; w.postMessage({ sid: C.sid, id: job.id, tw: job.tw, th: job.th, budget: job.budget, few: job.few, bmp: w.kind === 'full' });
     }
     function casNext(w) { var j = w.want; w.want = null; if (j && ((sel && sel.cas === j.C) || (casFix && casFix.C === j.C))) casGo(w, j.C, j); }
     function casLost(w, j) {
