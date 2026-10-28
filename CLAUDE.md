@@ -488,31 +488,61 @@ When building or changing anything visual:
   the selection's Transform options (`casBtnSync`), where what's picked up
   stays picked up, turned or not. Either starts the mode (`casStart`):
   Effects steps aside, the selection is lifted (`lift`, its 'Move' step kept
-  as `sel.cas.mv`) and its pixels kept as they came (`sel.cas.src`, `px`,
-  and a ~60,000-pixel copy, `spx`); the frame gets side handles (`n`, `s`,
-  `e`, `w` in `localCorners`, `corner-ns`/`corner-ew` cursors) and a pill on
-  the picture says it's on (`.paint-casmode`, with Normal Scale). A side
-  sizes one way, a corner both (each free, unless Shift), in whole pixels of
-  what's picked up, so the size it began at is exactly that. Every size is
-  worked from the original, never from the last result: while dragged the
-  small copy is carved (`casLive`, `casPost('prev')`) and shown stretched in
-  the frame (`C.pv`, swapped in by `putFloat`); let go of, the full size is
-  carved in the other worker (`casFull`, an overtaken one is stopped) and
-  laid in (`casBack`, kept by size in `C.cache`; `data-busy` on the pill
-  while it works). It's seam carving (`casCarve`, `casCarve2`: width, then
-  height through a transposed copy; both stand alone, copied into the
-  workers): forward energy plus the change across and down, on a softened
-  copy (so grain costs little and edges a lot); several seams a pass that
-  step aside rather than cross; wider by doubling the seams that would go
-  first. Each size is a step of the selection's own (`selRecord`, undo and
-  redo take them first, `selPut` lays the right size in). Commit, Return or
-  a click outside lays it down (`commitSelection` → `casEnd`, which works
-  the full size out at once if it isn't yet); Normal Scale, pressing the
-  toggle again, Distort or any other selection action ends the mode with
-  what's carved still picked up (`casEnd`; Copy takes the full size,
-  `casNow`); Esc, or undo before anything's sized, puts everything back
-  exactly (`casCancel`: the lift's own step taken back, or, if it was
-  picked up already, the geometry and pixels as they were).
+  as `sel.cas.mv`) and what's picked up is the original (`sel.cas.src`, not
+  copied: nothing changes it while the mode's on), with a ~80,000-pixel
+  copy (`small`); each mode has a `sid`. The frame gets side handles (`n`,
+  `s`, `e`, `w` in `localCorners`, `corner-ns`/`corner-ew` cursors) and a
+  pill on the picture says it's on (`.paint-casmode`, with Normal Scale). A
+  side sizes one way, a corner both (each free, unless Shift), in whole
+  pixels of what's picked up, so the size it began at is exactly that.
+  **Nothing is carved on the page's thread** (once, Commit carved there
+  whenever the full size wasn't back yet, and froze for seconds): two
+  workers (`casWorker` `prev` and `full`, one Blob URL, `CAS_W`) are each
+  handed the mode's pixels once (`casPrime`/`casGo`, `src`, transferred, so
+  no copy stays here) and keep them, and the width they carved last, so an
+  ask is only its size; each works one ask at a time, the newest waiting,
+  and one asked again while it's worked isn't asked twice (`casSend`,
+  `casNext`). Every size is worked from the original: while a handle is
+  dragged the small copy is carved (`casLive`, few passes) and shown
+  stretched in the frame (`C.pv`, drawn at most once a frame, `casDraw`;
+  swapped in by `putFloat`), and held still a moment (`restT`) or let go of,
+  the full size (`casFull`, `casAsk`), kept by size in `C.cache` (the newest
+  four, ~64 MB at most, `casKeep`); a size already known invalidates a
+  quick look still on its way (`C.pid`). The pill's `data-busy` is set while
+  the full size is worked, and past 400 ms its dot pulses (`slow`,
+  `casBusy`, `casPillSync`). Explicit actions wait for it without blocking
+  (`casGate(fn)`: Commit, Return, Deselect, a click outside, the X, Normal
+  Scale, Distort, Copy and the other selection actions but a quarter turn
+  and Delete): the pill reads Finishing…, the picture takes no presses
+  (`casHold` in `begin0`), Esc calls it all off, undo or redo drops the
+  wait, and `fn` runs once it's in (no drawing first). Anything else that
+  lays the selection down (a new layer, a tool, a mode) goes through
+  `commitSelection` → `casEnd`, which never carves either: the quick look
+  stands in (`casFix`, laid down with what was under it kept, `casFixLay`)
+  and the full size takes its place exactly when it comes (`casRefine`),
+  if the layer hasn't changed since (`boxV`); meanwhile the pill says it's
+  finishing, presses wait, and undo or redo run after it (`casFix.after`).
+  A worker that fails is made again and asked once more (`casLost`); twice,
+  everything goes back as it was (`casFailed`); a mode that ends lets its
+  workers drop its pixels, stops one still working for it and empties its
+  cache (`casDrop`). It's seam carving (`casCarve`, `casCarve2`: width,
+  then height through a transposed copy; both stand alone, copied into the
+  workers): forward energy plus the change across and down (`dp`, a
+  function of its own with all it uses handed to it, so the engine keeps it
+  fast), on a softened copy, each difference counted as d² / (d + T), `T`
+  the picture's own grain (`grain`: six times its 90th-percentile step,
+  sampled, at most 16), so grain costs next to nothing and edges their
+  full amount (a flat shape on a grainy ground was cheaper to cut through
+  than the ground, and on a big picture the circle in the tests lost a
+  quarter of its width); several seams a pass that step aside rather than
+  cross; wider by doubling the seams that would go first. Each size is a
+  step of the selection's own (`selRecord`, undo and redo take them first,
+  `selPut` lays the right size in). Normal Scale, pressing the toggle
+  again, Distort or any other selection action ends the mode with what's
+  carved still picked up (`casEnd`); Esc, or undo before anything's sized,
+  puts everything back exactly (`casCancel`: the lift's own step taken
+  back, or, if it was picked up already, the geometry and pixels as they
+  were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
   **They're reached from Settings: Paint mode, Vector mode and Photo mode**
   (`data-setting` the mode, `menuitemradio`s, the one in use ticked; picking

@@ -13,7 +13,7 @@ tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
-tests/run.sh effects            # Content-Aware Scale on the selection's frame
+tests/run.sh effects            # Content-Aware Scale on the selection's frame, and on a big picture
 tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
@@ -73,6 +73,16 @@ with `all passing`, or lists what isn't, and exits non-zero.
   Scale goes back to plain sizing; a turned selection works from Transform's
   toggle, in its own frame; a circle selection changes nothing outside the
   circle. `touch` and `safari` as in the text tool's.
+- `effects/casbig.js`: Content-Aware Scale on a 2400 x 1600 picture (`huge`:
+  4000 x 3000), with a heartbeat on the page's thread: it never stalls while
+  the frame is dragged and Commit is pressed at once, three times over (the
+  pill says it's finishing, then it's laid down at full quality, the same as
+  waiting first); a new layer laying it down puts the quick look down and
+  the full size exactly in its place when it comes; undo pressed meanwhile
+  waits, then undoes; Esc while Commit waits puts it all back; a worker that
+  fails once is asked again, twice puts everything back and says so; never
+  more than two of its workers at once (the injected failures and the count
+  come from a stand-in `Worker`).
 - `photo/photo.js`: Photo mode, from Settings (Paint, Vector and Photo mode,
   the one in use ticked), on `fixtures/scene.png`. Formats it
   can't open (a RAW file, a HEIC in Chromium) say so; a photo with nothing set
