@@ -5192,8 +5192,9 @@
   function layersOpen() { return vlp && !vlp.hidden; }
   function layersPanel(open) {
     if (!vlp) return;
+    var fresh = vlp.hidden;
     vlp.hidden = !open; B.layersBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); B.layersBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
-    if (open) { layersRender(); B.besideBar(vlp, B.layersBtn); }
+    if (open) { layersRender(); B.layersPlace(vlp, B.layersBtn, fresh); }
   }
   function rowHtml(n, depth) {
     var cont = isCont(n), cur = n.type === 'layer' && n.id === doc.cur, on2 = sel.indexOf(n.id) >= 0;
@@ -5212,15 +5213,16 @@
     var canUp = objs.length ? objs.some(function (n) { var q = where(n.id); return q && q.i < q.list.length - 1; }) : w && w.i < w.list.length - 1;
     var canDown = objs.length ? objs.some(function (n) { var q = where(n.id); return q && q.i > 0; }) : w && w.i > 0;
     var canDel = objs.length ? objs.some(function (n) { return chain(n.id).every(function (q) { return !q.locked; }); }) : doc.layers.length > 1 || (w && w.p);
-    vlp.innerHTML = '<div class="pl-title">Vector Layers</div><div class="pl-list">' + rowsOf(doc.layers, 0) + '</div>' +
+    vlp.innerHTML = '<div class="pl-title">Vector Layers</div>' +
       '<div class="pl-acts">' +
         '<button type="button" data-vl-act="add" title="New layer" aria-label="New layer">' + CI(IC.plus) + '</button>' +
         '<button type="button" data-vl-act="sub" title="New sublayer, in the current layer" aria-label="New sublayer">' + CI('<path d="M5 5v9a2 2 0 0 0 2 2h7"/><path d="M17 12v8M13 16h8"/>') + '</button>' +
         '<button type="button" data-vl-act="up" title="Move up" aria-label="Move up"' + (canUp ? '' : ' disabled') + '>' + CI(IC.up) + '</button>' +
         '<button type="button" data-vl-act="down" title="Move down" aria-label="Move down"' + (canDown ? '' : ' disabled') + '>' + CI(IC.down) + '</button>' +
         '<button type="button" data-vl-act="del" title="' + (objs.length ? 'Delete the picked objects' : 'Delete the layer') + '" aria-label="Delete"' + (canDel ? '' : ' disabled') + '>' + CI(IC.trash) + '</button>' +
-      '</div>';
+      '</div><div class="pl-list">' + rowsOf(doc.layers, 0) + '</div>';
     vlp.querySelector('.pl-list').scrollTop = scroll;
+    B.layersPlace(vlp, B.layersBtn, false);
   }
   var dndDone = 0;
   function layersClick(e) {
@@ -5633,6 +5635,9 @@
     groupEl = document.createElement('div'); groupEl.className = 'paint-group vec-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Vector tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-vcat="' + c.id + '" aria-label="' + esc(c.name) + '" aria-pressed="false" data-tip="' + esc(c.name + ': ' + c.tools.map(function (t) { return TOOLS[t].name; }).join(', ')) + '">' + CI(ICONS[c.icon]) + '</button>'; }).join('');
+    // (and Fit, the painting's own button, last, as it is there: its click is the artboard's fit)
+    var fitB = B.leftViewGroup.parentNode.querySelector('.paint-fitbtn');
+    if (fitB) { fitB = fitB.cloneNode(true); fitB.setAttribute('aria-label', 'Fit the artboard (0)'); fitB.dataset.tip = 'Fit (0): the whole artboard, upright'; groupEl.appendChild(fitB); }
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-vcat]'); if (b) pickCat(b.dataset.vcat); });
     // (the tool settings panel's own controls, when it shows Vector's)

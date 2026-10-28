@@ -110,6 +110,7 @@
   --hdr-open: 64px;
   /* space between groups in a toolbar */
   --group-gap: 10px;
+  --tool-h: 40px; /* (a left-bar tool button's height; 32px where the screen is short) */
   --ctx-w: 196px;
   /* the space between the workspace's columns (bars, picture, dock) */
   --pgap: 1rem;
@@ -747,8 +748,11 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 /* LAYERS */
 .paint-layerpanel {
   position: fixed; z-index: 150; width: 312px; padding: 10px;
+  display: flex; flex-direction: column; /* (its title and New Layer stay put; the list takes what room's left, and scrolls) */
   animation: pl-in var(--dur-pop) var(--spring);
 }
+.paint-layerpanel > * { flex: none; }
+.paint-layerpanel > .pl-list { flex: 0 1 auto; min-height: 88px; }
 .paint-layerpanel[hidden] { display: none; }
 .pl-title { font-family: var(--display); font-size: var(--fs-title); font-weight: 700; letter-spacing: -.022em; padding: var(--s-1) 6px 10px; }
 /* a panel's title is what it's dragged by */
@@ -826,7 +830,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   background: var(--hover) var(--chev-down) no-repeat right .4rem center / 14px; border: 0; border-radius: var(--r-2xs); cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
-.pl-acts { display: flex; justify-content: space-between; margin-top: 10px; padding: var(--s-1); border-radius: var(--r-pill); background: var(--hover); }
+.pl-acts { display: flex; justify-content: space-between; margin-bottom: var(--s-2); padding: var(--s-1); border-radius: var(--r-pill); background: var(--hover); } /* (under the title: New Layer never moves as rows come and go) */
 .paint .pl-acts button { width: 40px; height: 34px; border-radius: var(--r-pill); color: var(--menu-link); }
 .paint .pl-acts button svg { width: var(--icon-sm); height: var(--icon-sm); }
 /* layers: rename in place, drag by the grip to reorder */
@@ -1785,7 +1789,8 @@ select.p-field {
   :root:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
   .site-header:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
   .site-header .hb, .site-header .theme-toggle { height: 32px; }
-  .paint-left .paint-group > button { height: 32px; }
+  :root { --tool-h: 32px; }
+  .paint-left .paint-group > button { height: var(--tool-h); }
 }
 
 /* The existing theme and shortcut actions now live behind Settings. */
@@ -1971,6 +1976,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { visibility: hidden; }
 .paint-left .paint-toolgroups > .vec-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
 .paint-left .paint-toolgroups > .vec-group::before { display: none; }
+/* (Vector's fourteen categories and Fit are eight rows: where Paint's seven,
+   in four groups, are shorter than that, Layers and the zoom step down just
+   enough, worked out from the same sizes: 8 rows and 7 gaps of 3px, against
+   7 rows, 3 gaps of 3px and three groups' gaps and padding) */
+.vector-mode .paint-left .pl-view { margin-top: max(0px, calc(var(--tool-h) + 12px - 6 * var(--group-gap))); }
 /* (what's only the painting's: out of sight, or greyed out where hiding it
    would move something) */
 .vector-mode .selection-slot, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),
@@ -1998,6 +2008,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pl-view) { visibility: hidden; }
 .paint-left .paint-toolgroups > .pho-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
 .paint-left .paint-toolgroups > .pho-group::before { display: none; }
+.photo-mode .paint-left .paint-fitbtn { visibility: visible; } /* (Fit stays where it is in Paint: Photo's own fit, from its click) */
 .photo-mode .selection-slot, .photo-mode .paint-adjust, .photo-mode .paint-layerpanel, .photo-mode .paint-colorpanel,
 .photo-mode .paint-selx, .photo-mode .paint-seldist, .photo-mode .paint-scale { display: none !important; }
 /* the crop: what it keeps lit, the rest dimmed (by its own shadow), thirds
@@ -2126,6 +2137,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .paint .vl-row { padding-left: calc(2px + var(--vd, 0) * 14px); }
 .vl-gap { flex: none; width: 22px; }
 .vl-row.cur .pl-name span { font-weight: 600; }
+.vl-row.cur:not(.on) { background: var(--selected); } /* (the layer new objects go in: tinted, as a layer picked alongside is; what's picked is the chip) */
 .vl-row.vl-layer .pl-folder { opacity: .55; }
 .vl-row.off .pl-name { opacity: .5; }
 .vl-row.vl-dragging { opacity: .5; }

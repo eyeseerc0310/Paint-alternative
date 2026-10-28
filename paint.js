@@ -422,6 +422,19 @@
       el.style.top = Math.round(Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, r.top - 12))) + 'px';
       keepOnScreen(el);
     }
+    // THE LAYERS PANELS (the painting's and Vector's): put beside the bar when
+    // they open, and then left where they are while their rows change, so New
+    // Layer, at their head, stays under the pointer for the next one; no taller
+    // than the room under where they start, the list scrolling in what's left
+    function layersPlace(el, btn, fresh) {
+      el.style.maxHeight = '';
+      if (fresh || !el.style.top) besideBar(el, btn);
+      var r = el.getBoundingClientRect(), lim = window.innerHeight - 8;
+      // (and clear of the bottom bar, where it would cover it)
+      if (bbar && bbar.offsetParent) { var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left && bb.top > r.top + 180) lim = Math.min(lim, bb.top - 8); }
+      if (fresh && r.bottom > lim) { el.style.top = Math.round(Math.max(8, Math.min(r.top, lim - r.height))) + 'px'; r = el.getBoundingClientRect(); }
+      if (r.bottom > lim) el.style.maxHeight = Math.max(180, Math.floor(lim - r.top)) + 'px';
+    }
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
     // filling the space (and stepping back out stops there and at 100%)
     function zoomStep(dir) {
@@ -1033,7 +1046,7 @@
     // and redo, working from the picture as it then is)
     function fxStays() { return !!(adj && !adj.finishing && !adj.applying && !adjChanged()); }
     function fxAfter(on) { if (!on || !adj) return; if (layers.indexOf(adj.L) < 0 || adj.L !== active) adjustClose(); else adjustRebase(); }
-    function buttons() { histButtons(); renderHistory(); }
+    function buttons() { histButtons(); renderHistory(); if (typeof imgMenu !== 'undefined' && docIs('image')) imageFill(); } // (the image panel's size and Crop follow undo and redo)
     function histButtons() {
       if (wsMode === 'vector') { PV.histButtons(); return; } // (Vector's own steps)
       if (wsMode === 'photo') { PH.histButtons(); return; } // (Photo's)
@@ -4516,15 +4529,19 @@
         '<label class="pl-bl"><span>Blend</span><select data-layer-blend aria-label="Blend mode">' + BLENDS.map(function (b) { return '<option value="' + b[0] + '"' + (b[0] === active.blend ? ' selected' : '') + '>' + b[1] + '</option>'; }).join('') + '</select></label></div>' : '';
       thumbsSoon();
       var nPick = also.length ? also.length + 1 : 0;
-      panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div><div class="pl-list">' + rows + '</div>' + pr +
+      var was = panel.querySelector('.pl-list'), keep = was ? was.scrollTop : 0;
+      panel.innerHTML = '<div class="pl-title">Layers' + (nPick ? '<span class="pl-count" aria-live="polite">' + nPick + ' picked</span>' : '') + '</div>' +
         '<div class="pl-acts">' +
           '<button type="button" data-layer-act="add" title="New layer" aria-label="New layer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' +
           '<button type="button" data-layer-act="group" title="' + (nPick ? 'Put the picked layers in a new group' : 'Put the layer in a new group') + '" aria-label="New group"' + (active && (nPick || !active.group) ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M12 11v5M9.5 13.5h5"/></svg></button>' +
           '<button type="button" data-layer-act="up" title="Move up" aria-label="Move layer up"' + (nPick || !active || layers.indexOf(active) === layers.length - 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
           '<button type="button" data-layer-act="down" title="Move down" aria-label="Move layer down"' + (nPick || !active || layers.indexOf(active) < 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
           '<button type="button" data-layer-act="delete" title="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '" aria-label="' + (nPick ? 'Delete the picked layers' : 'Delete layer') + '"' + (active ? '' : ' disabled') + '><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/></svg></button>' +
-        '</div>';
+        '</div><div class="pl-list">' + rows + '</div>' + pr;
+      panel.querySelector('.pl-list').scrollTop = keep;
+      if (revealOn) { revealOn = false; var onRow = panel.querySelector('.pl-row.on'); if (onRow) onRow.scrollIntoView({ block: 'nearest' }); }
     }
+    var revealOn = false; // (a layer just made is scrolled into view)
     // LAYER PREVIEWS: a little picture of what's on each layer (over a
     // checkerboard, so see-through parts show), kept up to date while the
     // panel is open; rest the mouse on one for a bigger look
@@ -4580,9 +4597,10 @@
     panel.addEventListener('pointerleave', hidePeek);
     function layerPanel(open) {
       if (!open) hidePeek(); else thumbsSoon();
+      var fresh = panel.hidden;
       panel.hidden = !open;
       $('[data-act="layers"]').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) besideBar(panel, $('[data-act="layers"]'));
+      if (open) layersPlace(panel, $('[data-act="layers"]'), fresh);
       $('[data-act="layers"]').setAttribute('aria-pressed', open ? 'true' : 'false');
     }
     // renaming: tap the picked layer's name again (or double-click any name)
@@ -5079,7 +5097,7 @@
       if (a === 'add') {
         if (!roomFor()) return;
         rememberLayers('New Layer');
-        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); L.group = active ? active.group : null; active = L;
+        var L = makeLayer('Layer ' + (++count), false); layers.splice(i + 1, 0, L); L.group = active ? active.group : null; active = L; revealOn = true;
       } else if (a === 'group') {
         if (!active || active.group) return;
         rememberLayers('New Group'); active.group = makeGroup(); focusG = null;
@@ -8309,7 +8327,7 @@
     }
     function relayout() {
       closeDrops(); ctxClose(); lmenu.hidden = true;
-      if (!panel.hidden) besideBar(panel, $('[data-act="layers"]'));
+      if (!panel.hidden) layersPlace(panel, $('[data-act="layers"]'), true);
       if (!docBox.hidden) docFit();
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       placeSelectionPopover();
@@ -8351,6 +8369,14 @@
     function imageMenu(open) {
       if (!open) { if (docIs('image')) docClose(); return; }
       closeDrops(); otherPopovers();
+      imageFill();
+      docShow('image', 'Crop & Rotate', imgMenu, { btn: hb('image'), reopen: function () { imageMenu(true); } });
+    }
+    // (its buttons and the picture's size, made again after each change while
+    // it's open, so it stays open from one turn or flip to the next; the
+    // button that was pressed keeps the focus)
+    function imageFill() {
+      var had = imgMenu.contains(document.activeElement) && document.activeElement.dataset.img;
       var ico = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
       imgMenu.innerHTML =
         '<button type="button" role="menuitem" data-img="left">' + ico('<path d="M9 4.5L5.5 8 9 11.5"/><path d="M5.5 8H14a5 5 0 0 1 5 5v6"/>') + 'Rotate Left</button>' +
@@ -8360,7 +8386,7 @@
         '<button type="button" role="menuitem" data-img="crop"' + (sel ? '' : ' disabled') + '>' + ico('<path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/>') + 'Crop to Selection</button>' +
         '<button type="button" role="menuitem" data-img="clear"' + (active ? '' : ' disabled') + '>' + ico('<path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/>') + 'Clear Layer</button>' +
         '<div class="pd-info">' + (sel ? '' : 'Make a selection to crop to it.<br>') + 'Picture: ' + ov.width + ' × ' + ov.height + ' pixels</div>';
-      docShow('image', 'Crop, Rotate & Flip', imgMenu, { btn: hb('image'), reopen: function () { imageMenu(true); } });
+      var f = had && imgMenu.querySelector('[data-img="' + had + '"]:not([disabled])'); if (f) f.focus({ preventScroll: true });
     }
     // every layer is redrawn onto a new one of the new size (the old ones are
     // kept, unchanged, for undo)
@@ -8378,8 +8404,7 @@
       mount(); fit(); autosave();
     }
     function imageAct(a) {
-      imageMenu(false);
-      if (a === 'clear') { runAct('clear'); return; }
+      if (a === 'clear') { runAct('clear'); imageFill(); return; }
       var cropBox = null;
       if (a === 'crop') {
         if (!sel) return;
@@ -8395,6 +8420,7 @@
       else if (a === 'fliph') transformDoc('Flip Horizontal', pw, ph, function (c, s) { c.translate(pw, 0); c.scale(-1, 1); c.drawImage(s, 0, 0); });
       else if (a === 'flipv') transformDoc('Flip Vertical', pw, ph, function (c, s) { c.translate(0, ph); c.scale(1, -1); c.drawImage(s, 0, 0); });
       else if (cropBox) transformDoc('Crop', cropBox[2], cropBox[3], function (c, s) { c.drawImage(s, -cropBox[0], -cropBox[1]); });
+      if (docIs('image')) imageFill();
     }
     imgMenu.addEventListener('click', function (e) { var b = e.target.closest('[data-img]'); if (b && !b.disabled) imageAct(b.dataset.img); });
 
@@ -9339,7 +9365,7 @@
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
       layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl,
       docSize: function () { return { pw: ov.width, ph: ov.height }; },
-      autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, draggable: draggable,
+      autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, layersPlace: layersPlace, draggable: draggable,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       panelOpen: toolMenuOpen, togglePanel: function () { ctxMin(toolMenuOpen()); },
