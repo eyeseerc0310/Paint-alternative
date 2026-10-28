@@ -10,6 +10,7 @@
 #   tests/run.sh effects            Content-Aware Scale on the selection's frame, and on a big picture
 #   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
 #   tests/run.sh panel              the top bar's options in the right-hand panel
+#   tests/run.sh polish             Fit everywhere, panels that stay open, New Layer, the empty workspace, chevrons
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
 # save goes in tests/.out.
@@ -119,6 +120,13 @@ panel() {
   check "panel/panel-dark-360" "$OUT/panel" "$T/panel/panel.js" dark 360 740
 }
 
+polish() {
+  check "polish/polish-light-1400" "$OUT/polish" "$T/polish/polish.js" light 1400 900
+  check "polish/polish-dark-1180-touch" "$OUT/polish" "$T/polish/polish.js" dark 1180 820 touch
+  check "polish/polish-light-390-touch" "$OUT/polish" "$T/polish/polish.js" light 390 844 touch
+  check "polish/polish-dark-360" "$OUT/polish" "$T/polish/polish.js" dark 360 740
+}
+
 serve "$APP_PORT" "$ROOT"
 what=${1:-all}; [ $# -gt 0 ] && shift
 case $what in
@@ -131,8 +139,9 @@ case $what in
   effects) effects ;;
   photo) photo ;;
   panel) panel ;;
-  all) brushes; selection; text; effects; photo; panel; vector; regress; lock ;;
-  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects|photo|panel] [names]"; exit 2 ;;
+  polish) polish ;;
+  all) brushes; selection; text; effects; photo; panel; polish; vector; regress; lock ;;
+  *) echo "run.sh [all|regress|lock|vector|brushes|selection|text|effects|photo|panel|polish] [names]"; exit 2 ;;
 esac
 if [ ${#FAILED[@]} -gt 0 ]; then echo; echo "not passing: ${FAILED[*]}"; exit 1; fi
 echo; echo "all passing"

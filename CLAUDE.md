@@ -43,7 +43,7 @@ When building or changing anything visual:
   Spacing: `--s-1` to `--s-4`. Type: `--fs-xs`, `--fs-sm`, `--fs-ui` (buttons with words, rows, fields), `--fs`, `--fs-title` (every panel's and menu's title), `--fs-head` (a sheet's title); section labels are sentence case, never capitals. Icons:
   `--icon`, `--icon-sm`, `--icon-hdr` (the top bar), `--stroke`, `--chev-down` (a drop-down field's chevron; every `select` uses it), `--stroke-xs` (a 12px glyph: a
   list's chevron, a close X, the fold arrow, so it isn't drawn thinner than the
-  rest; icons ≥14px keep `--stroke`). Motion: `--dur-fast` (a knob or swatch answering a touch), `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
+  rest; icons ≥14px keep `--stroke`), `--chev` (the one chevron's size), `--tool-h` (a left-bar tool button's height). Motion: `--dur-fast` (a knob or swatch answering a touch, and every button's hover and press, the `:where(button)` rules), `--dur`, `--dur-pop` (a menu or panel popping open), `--dur-slow`, `--ease`, `--spring` (a small overshoot, for things that pop open) (reduced motion is honoured for all of them by one rule at the end of `style.css`). Don't hard-code a colour, radius, shadow or spacing value in a
   component. If a value you need doesn't exist yet, add it as a token
   (spacing, radius, type size, motion and so on) so later features can reuse it.
 - **Reuse shared component styles** for the same kind of thing (buttons,
@@ -79,8 +79,12 @@ When building or changing anything visual:
   tall for that), holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). The Shapes button keeps its own icon
-  whichever kind is picked; Select sits beside Pen; at its foot are Layers
-  (`.pl-layersbtn`) and the zoom (`.paint-zoom`). The saved-status pill
+  whichever kind is picked; Select sits beside Pen; Fit (`.paint-fitbtn`,
+  0) is its last tool, in every workspace: Photo shows the painting's own
+  where it is, Vector a copy after its categories (an eighth row, with Layers
+  stepped down only where the buttons are too tall for it, from `--tool-h`
+  and `--group-gap`), each click going to that workspace's own `fit`. At its
+  foot are Layers (`.pl-layersbtn`) and the zoom (`.paint-zoom`). The saved-status pill
   (`.doc-status`) sits in the corner under it, centred on the bar, level
   with the bottom bar's middle (hidden in focus mode). The **bottom bar**
   (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
@@ -134,7 +138,14 @@ When building or changing anything visual:
   top of the picture (the dock takes no room there). Its lists open on the
   side towards the picture's middle.
   Toolbar icons are 24-unit outline drawings using `--stroke`, with round
-  caps and joins; keep new ones in the same style. An icon in a button that has its
+  caps and joins; keep new ones in the same style. **One chevron** (`.chev`:
+  the path `M7 9.5l5 5 5-5`, `--chev` big, `--stroke-xs`, `--muted`, `--text`
+  on its row's hover) for every disclosure, list and fold: a section's head
+  (`.pr-head`, the whole row its button, the chevron at its trailing edge;
+  Effects' reset stands just inside it, so every section's chevron lines up),
+  a drop-down in the tool settings (turned up while open), a group of layers,
+  Back (pointing back), the selection panel's arrows; a folded one turns to
+  point right. A `select` draws the same glyph (`--chev-down`, `--chev` big). An icon in a button that has its
   own `aria-label` is `aria-hidden="true"`; an icon that says something
   by itself (a layer's tags) has `role="img"` and a label. Put new tool
   settings there, never in a list beside the left toolbar. Symmetry's
@@ -192,6 +203,16 @@ When building or changing anything visual:
   (`L.editMask`), painting tools work on `L.mask.P`, which stands in for the
   layer (`maskIn`/`maskOut`). New layers made next to one join its group
   (`L.group`).
+- **The Layers panels** (the painting's and Vector's, `.paint-layerpanel`):
+  the title, then the actions (`.pl-acts`: New Layer first), then the list
+  (`.pl-list`, which scrolls), then the active layer's opacity and blend. They're
+  placed beside the bar only when they open (`layersPlace(el, btn, fresh)`),
+  and then stay where they are while rows come and go, so New Layer stays
+  under the pointer for the next one; no taller than the room under where
+  they start, and clear of the bottom bar where they'd cover it. A redrawn
+  list keeps where it was scrolled, and a layer just made is scrolled into
+  view (`revealOn`). Vector's current layer is tinted `--selected`, what's
+  picked the chip.
 - **Reordering layers:** by a row's grip, or by the row itself (`reorder`,
   one path for both): with a mouse a drag up or down moves it (the wheel
   scrolls the list); with a finger or the Pencil a moment's hold lifts it
@@ -265,7 +286,7 @@ When building or changing anything visual:
   once and shows it spreading on a stand-in canvas (`spread`); anything
   else that happens ends the spread (`endFillAnim`).
 - **The top bar's panel** (`.paint-docpanel`, `docBox`): everything the
-  top bar opens (Gallery, New Picture, Save, Crop, Rotate & Flip, History,
+  top bar opens (Gallery, New Picture, Save, Crop & Rotate, History,
   Settings, Keyboard Shortcuts, and Touch Gestures and Vector's mode dialog
   from Settings) is shown in it, never as a drop-down or a sheet over a
   dimmed page; only Share asks the system. It stands in the dock like Effects
@@ -285,6 +306,11 @@ When building or changing anything visual:
   from a view, as Settings does with `settingsAgain`) or closes. The
   toolbar's own `.paint button`/`.paint svg` rules skip what's in it
   (`:where(:not(.paint-docpanel *))`, so their weight doesn't change);
+  Crop & Rotate stays open from one turn, flip, crop or Clear Layer to the
+  next: its buttons and the picture's size are made again in place
+  (`imageFill`, also after every undo and redo, from `buttons()`), the
+  pressed button keeping the focus. Settings' items are Title Case, short
+  enough for one line at the dock's width (Shortcuts, Ask to Bring Art).
   `relayout()` keeps everything that floats on the screen when the window
   changes size; Esc closes the top-most thing first.
 - **Input:** mouse, finger, Apple Pencil and keyboard share the stage's
@@ -293,7 +319,9 @@ When building or changing anything visual:
   (`penSeen`) a single finger doesn't paint unless Touch Gestures says so
   (`fingerDraw`), and touches just after the Pencil are ignored as a resting
   hand. The Pencil's eraser end rubs out, its barrel button picks a colour.
-  A still click or tap on the empty space around the picture puts the tool
+  A still click or tap on the empty space around the picture, or on the bare
+  workspace round the bars and panels (`bareTap`, `bareAt`: only the bare
+  backgrounds, never a control or a panel), puts the tool
   down (`st.tool` is `'none'`, from `offTap`; a stroke that starts there still
   paints; words, a path, a cutout or a gradient being made are dealt with
   first): no tool button is lit, a drag moves the picture, and picking a
@@ -303,7 +331,12 @@ When building or changing anything visual:
   still works it; picking a tool again carries on with it), and once the Pencil's in use a finger's tap there
   still puts the tool down (its drag does nothing). Tapping a tool's button
   again folds its settings only while that tool is in hand. New tools
-  mustn't assume a tool is always in hand.
+  mustn't assume a tool is always in hand. In Vector the bare workspace
+  puts its tool down too (`PV.toolDown`: `tool` is `'none'`, in no
+  category, so nothing in the left bar is lit, the panel says No Tool, and
+  a drag moves round, as with the Hand; not while words, a path or a
+  curvature path are being made, or mid-drag); in Photo it lets go of the
+  mask in hand (`PH.toolDown`), its other categories holding no tool.
 - **The pen's path** has steps of its own while it's being made
   (`pen.hist`/`pen.fut`, kept with `penRecord`): each point placed, point or
   handle moved, close or Backspace is one step, and undo/redo take those
@@ -920,7 +953,7 @@ https://eyeseerc0310.github.io/Paint-alternative/
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `photo`, `panel`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `photo`, `panel`, `polish`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and

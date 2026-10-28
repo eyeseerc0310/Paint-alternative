@@ -98,12 +98,11 @@ uploaded.
   picture to fill an area
 - **Picture size:** New Picture with presets (square, 16:9, A4, Instagram…)
   or any size up to 4096 pixels a side
-- **Crop, rotate and flip** the whole picture
+- **Crop, rotate and flip** the whole picture, as many times as you like with the panel open
 - **Pictures in:** open one, paste one (⌘/Ctrl+V) or drag one onto the page
 - **History:** see every step and jump back to any of them
 - **Keyboard shortcuts:** press **?** to see them all
-- **One panel on the right:** the Gallery, New Picture, Save, Crop, Rotate &
-  Flip, History, Settings and Keyboard Shortcuts open in the panel at the
+- **One panel on the right:** the Gallery, New Picture, Save, Crop & Rotate, History, Settings and Keyboard Shortcuts open in the panel at the
   right, where the tool settings stand, each with its title, Back and a close
   button; press the same button again (or Esc) to close it
 - **Save** as PNG or JPEG, or **Share** straight to Messages, Photos, Mail…
