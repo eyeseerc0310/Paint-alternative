@@ -7,7 +7,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); 
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await p.goto('http://127.0.0.1:8123/index.html'); await p.waitForTimeout(1200);
   const mode = () => p.evaluate(() => document.documentElement.classList.contains('vector-mode') ? 'vector' : 'paint');
-  const sheet = () => p.$('.pa-sheet-wrap.in .vm');
+  const sheet = () => p.$('.paint-docpanel:not([hidden]) .vm'); // (the switch's question, in the top bar's panel)
   const nObj = () => p.$$eval('.vec-art use', l => l.length);
   const vser = () => p.evaluate(() => JSON.stringify(window.PaintVector.serialize()));
   const layerNames = () => p.$$eval('.paint-layers canvas', l => l.length);

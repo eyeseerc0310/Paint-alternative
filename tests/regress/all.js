@@ -139,7 +139,7 @@ const log = (...a) => console.log(...a);
   log('help open:', !!(await p.$('.pa-sheet.hs')));
   await p.screenshot({ path: 'out/help.png' });
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
-  log('help closed:', !(await p.$('.pa-sheet-wrap')));
+  log('help closed:', !(await p.$('.pa-sheet-wrap, .paint-docpanel:not([hidden]) .pa-sheet')));
 
   // 10. install / offline
   const sw = await p.evaluate(async () => { const r = await navigator.serviceWorker.ready; return !!r.active; });

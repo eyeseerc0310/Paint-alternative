@@ -698,6 +698,7 @@
         if (!pc.hidden) pcDone();
         if (anyMenu()) openMenu(null); if (!panel.hidden) layerPanel(false); if (adj) adjustDone();
         if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+        docClose(true);
         pcWhich = which; pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
       } else if (!pc.hidden) { pcDone(); pc.hidden = true; }
       pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady);
@@ -872,6 +873,7 @@
       return !!(ctxEl && ((!ctxEl.classList.contains('min') && !ctxEl.hidden) || !pc.hidden || !adjBox.hidden || !bsBox.hidden));
     }
     function minimizeToolMenu() {
+      docClose(true);
       if (!pc.hidden) picker(null);
       if (!adjBox.hidden || adj) adjustDone();
       if (!bsBox.hidden) studio(false);
@@ -897,6 +899,7 @@
       // settings of its own; one with settings takes its place)
       var keepPc = !pc.hidden && pc.parentNode === dock && !hasMenu(t);
       if (show) {
+        if (hasMenu(t)) docClose(true); // (a tool with settings takes the top bar's panel's place, as it does the picker's)
         if (!pc.hidden && !keepPc) picker(null);
         if (!adjBox.hidden || adj) adjustDone();
         if (!bsBox.hidden) studio(false);
@@ -6097,6 +6100,7 @@
       if (adj) { var was = adj.finishing; adjustDone(); if (!was) return; }
       if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
       if (!active) return;
+      docClose(true); // (Effects take the top bar's panel's place in the dock)
       if (textBox) commitText(); openMenu(null); layerPanel(false); anchor();
       var cv = active.cv;
       adj = { L: active, src: null, out: null, mask: null, box: null, selOn: !!sel, v: {}, blur: null, wide: null, queued: false, hist: null, ver: 0, shown: 0, mode: 'cpu' };
@@ -6290,6 +6294,7 @@
     function studio(open) {
       if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); return; }
       if (adj) adjustDone();
+      docClose(true);
       bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside'); studioPreview(); // (again, now it can be measured)
       bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px'; keepOnScreen(bsBox);
       if (narrow()) picker(null);
@@ -7392,7 +7397,7 @@
       var ln = e.target.closest('[data-layer]');
       if (ln) { var L2 = layers[+ln.dataset.layer]; if (pickKeys(e, L2)) return; if (L2 === active && !focusG && !also.length) { rename(+ln.dataset.layer); return; } selSettle(); active = L2; also = []; focusG = null; renderLayers(); layerPanel(true); return; }
       var la = e.target.closest('[data-layer-act]'); if (la) { layerAct(la.dataset.layerAct); return; }
-      var sv = e.target.closest('[data-save]'); if (sv) { savePanel(false); save(sv.dataset.save); return; }
+      var sv = e.target.closest('[data-save]'); if (sv) { if (sv.dataset.save === 'photo') { sheetBack = function () { savePanel(true); }; save('photo'); return; } savePanel(false); save(sv.dataset.save); return; } // (Photo…: its own sheet, Back to Save)
       var aa = e.target.closest('[data-adj-act]');
       if (aa) { var w2 = aa.dataset.adjAct; if (w2 === 'done') { if (aa.closest('.paint-adjust') === adjBox) adjustApply(); else adjustDone(); } else { adjustCancel(); adjustOpen(); } return; }
       var a = e.target.closest('[data-act]'); if (!a) return;
@@ -7400,7 +7405,7 @@
     });
     // the actions behind the buttons (some in the top bar, some here)
     function runAct(w) {
-      if (w === 'layers') { openMenu(null); closeDrops(); savePanel(false); layerPanel(panel.hidden); }
+      if (w === 'layers') { openMenu(null); closeDrops(); layerPanel(panel.hidden); }
       else if (w === 'adjust') { if (!adjBox.hidden) minimizeToolMenu(); else adjustOpen(); }
       else if (w === 'undo') doUndo();
       else if (w === 'redo') doRedo();
@@ -7411,7 +7416,7 @@
         if (active.bg) { active.ctx.fillStyle = '#fff'; active.ctx.fillRect(0, 0, W, H); }
         autosave();
       }
-      else if (w === 'save') { openMenu(null); layerPanel(false); closeDrops(); savePanel(saveMenu.hidden); }
+      else if (w === 'save') { openMenu(null); closeDrops(); savePanel(!docIs('save')); }
     }
     document.addEventListener('pointerdown', function (e) {
       if (!document.contains(root)) return;
@@ -7424,7 +7429,6 @@
       var pcStays = pc.parentNode === dock && e.target.closest('[data-act="layers"], .paint-layerpanel, .paint-lmenu, .paint-zoom, [data-zoom]');
       if (!pc.hidden && !pcStays && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
       if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
-      if (!saveMenu.hidden && !e.target.closest('.paint-savemenu, [data-act="save"]')) savePanel(false);
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
     sizeIn.addEventListener('input', function () { if (wsMode !== 'paint') return; setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });
@@ -7595,10 +7599,10 @@
       '<button type="button" role="menuitem" data-save="share">Share\u2026<small>Messages, Photos, Mail\u2026</small></button>' +
       '<button type="button" role="menuitem" data-save="project">Project<small>Every layer, to carry on later</small></button>';
     root.appendChild(saveMenu);
+    // (in the top bar's panel)
     function savePanel(open) {
-      saveMenu.hidden = !open;
-      var b = $('[data-act="save"]'); b.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) dropUnder(saveMenu, b);
+      if (!open) { if (docIs('save')) docClose(); return; }
+      docShow('save', 'Save', saveMenu, { btn: $('[data-act="save"]'), reopen: function () { savePanel(true); } });
     }
     function save(type) {
       if (type === 'share') { share(); return; }
@@ -7974,40 +7978,103 @@
     function dropdown(cls) { var d = document.createElement('div'); d.className = 'paint-drop ' + cls; d.hidden = true; document.body.appendChild(d); return d; }
     function closeDrops() {
       var any = false;
-      [imgMenu, histBox, moreBox, settingsBox].forEach(function (d) { if (d && !d.hidden) { d.hidden = true; any = true; } });
-      if (hb('settings')) hb('settings').setAttribute('aria-expanded', 'false');
+      // (the phone's ••• menu: the one drop-down the top bar has; what its
+      // buttons open stands in the panel)
+      if (moreBox && !moreBox.hidden) { moreBox.hidden = true; any = true; }
       if (hb('more')) hb('more').setAttribute('aria-expanded', 'false');
-      hb('image').setAttribute('aria-expanded', 'false'); hb('history').setAttribute('aria-expanded', 'false');
       return any;
     }
 
-    // ---- sheets: a panel in the middle of the screen over a dimmed page ----
-    var sheetEl = null;
-    var sheetFrom = null;
-    function openSheet(cls, html) {
-      var from = sheetEl ? sheetFrom : document.activeElement;
-      closeSheet(); closeDrops(); finishMenus(); lmenu.hidden = true; ctxClose(); if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
-      sheetFrom = from;
-      sheetEl = document.createElement('div'); sheetEl.className = 'pa-sheet-wrap';
-      sheetEl.innerHTML = '<div class="pa-sheet ' + cls + '" role="dialog" aria-modal="true">' + html + '</div>';
-      document.body.appendChild(sheetEl);
-      var t = sheetEl.querySelector('.pa-sheet-title'); if (t) { t.id = 'pa-sheet-t'; sheetEl.firstChild.setAttribute('aria-labelledby', 'pa-sheet-t'); }
-      sheetEl.addEventListener('pointerdown', function (e) { if (e.target === sheetEl) closeSheet(); });
-      // (Tab goes round the sheet's own controls)
-      sheetEl.addEventListener('keydown', function (e) {
-        if (e.key !== 'Tab') return;
-        var f = Array.prototype.filter.call(sheetEl.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])'), function (x) { return !x.disabled && x.offsetParent; });
-        if (!f.length) return;
-        var i = f.indexOf(document.activeElement);
-        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    // ---- THE TOP BAR'S PANEL: what the top bar's buttons open (Gallery, New
+    // Picture, Save, Crop, Rotate & Flip, History, Settings and what opens
+    // from it, Keyboard Shortcuts) stands in the dock, as Effects and the
+    // colour picker do, in the tool settings' place, which step aside: one
+    // thing at a time there, the same button closing it, another taking its
+    // place. Its head has the title, Back (for what opened from inside it)
+    // and the close button. Share keeps the system's own sheet ----
+    var docBox = document.createElement('div'), docView = null, docFrom = null;
+    docBox.className = 'paint-docpanel'; docBox.hidden = true; docBox.setAttribute('role', 'region');
+    docBox.innerHTML = '<div class="dp-head"><button type="button" class="dp-back" hidden aria-label="Back" data-tip="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg></button>' +
+      '<div class="dp-title" id="dp-title"></div><button type="button" class="dp-close" aria-label="Close" data-tip="Close (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div><div class="dp-body"></div>';
+    docBox.setAttribute('aria-labelledby', 'dp-title');
+    left.appendChild(docBox); // (dockPanels puts it in the dock on wider screens)
+    var dpBody = docBox.querySelector('.dp-body'), dpTitle = docBox.querySelector('.dp-title'), dpBack = docBox.querySelector('.dp-back');
+    function docIs(key) { return !docBox.hidden && !!docView && docView.key === key; }
+    // (the buttons that open it say which of them it's showing)
+    function docExpanded() {
+      [hb('gallery'), hb('new'), $('[data-act="save"]'), hb('image'), hb('history'), hb('settings'), hb('help')].forEach(function (b) {
+        if (b) b.setAttribute('aria-expanded', docView && docView.btn === b ? 'true' : 'false');
       });
-      void sheetEl.offsetWidth; sheetEl.classList.add('in');
-      var first = sheetEl.querySelector('.pa-primary') || sheetEl.querySelector('button, input, select'); if (first) first.focus({ preventScroll: true });
-      return sheetEl.firstChild;
+    }
+    // (key: which view; el: what it shows, moved in; o.btn: the button that
+    // opened it, o.reopen: how to show it again (for Back from what opens
+    // inside it), o.back: Back's own)
+    function docShow(key, title, el, o) {
+      o = o || {};
+      var from = docBox.hidden ? document.activeElement : docFrom, same = docIs(key) && docView.el === el;
+      // (the dock holds one thing at a time: what stood there gives way,
+      // Effects keeping what's set)
+      if (!pc.hidden && (pc.parentNode === dock || phoneLayout())) picker(null);
+      if (adj || !adjBox.hidden) adjustDone();
+      if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+      openMenu(null); lmenu.hidden = true; ctxClose(); moreMenu(false);
+      if (!same) docLeave();
+      docView = { key: key, el: el, btn: o.btn || null, reopen: o.reopen || null, back: o.back || null };
+      if (el.parentNode !== dpBody) dpBody.appendChild(el);
+      el.hidden = false;
+      dpTitle.textContent = title; dpBack.hidden = !o.back;
+      docExpanded();
+      docBox.hidden = false; docFrom = from;
+      if (!same) dpBody.scrollTop = 0;
+      docFit();
+      ctxAside(); if (ctxEl) dockSync(ctxReady);
+      if (!same) { var f = el.querySelector('.pa-primary') || el.querySelector('button:not([disabled]):not([hidden]), input, select'); if (f) f.focus({ preventScroll: true }); }
+    }
+    // (in the dock, its place; beside the left bar, no taller than the room
+    // between where it starts and the bottom bar, so its foot is always in reach)
+    function docFit() {
+      if (docBox.parentNode === dock) { docBox.style.maxHeight = ''; dockPlace(docBox); return; }
+      var b = bbar && bbar.offsetParent ? bbar.getBoundingClientRect().top - 8 : window.innerHeight - 12;
+      docBox.style.maxHeight = ''; keepOnScreen(docBox);
+      docBox.style.maxHeight = Math.max(160, Math.floor(b - docBox.getBoundingClientRect().top)) + 'px';
+    }
+    // (what was shown goes: a sheet's for good, the menus' kept, hidden)
+    function docLeave() {
+      if (!docView) return;
+      var el = docView.el;
+      if (el === sheetEl) { sheetEl = null; el.remove(); } else el.hidden = true;
+      docView = null;
+    }
+    function docClose(quiet) {
+      if (docBox.hidden) return false;
+      docLeave(); docBox.hidden = true; docExpanded();
+      ctxAside(); if (ctxEl) dockSync(ctxReady);
+      var f = docFrom; docFrom = null;
+      if (!quiet && f && f.focus && document.contains(f) && !docBox.contains(f)) f.focus({ preventScroll: true });
+      return true;
+    }
+    dpBack.addEventListener('click', function () { if (docView && docView.back) docView.back(); });
+    docBox.querySelector('.dp-close').addEventListener('click', function () { docClose(); });
+
+    // ---- sheets: Gallery, New Picture, Keyboard Shortcuts, Touch Gestures,
+    // the switch between workspaces, Photo's Save: shown in the top bar's
+    // panel. (sheetBack, set just before one is opened from inside the
+    // panel, is how Back gets back there; closing one goes back there too) ----
+    var sheetEl = null, sheetBack = null;
+    var SHEET_BTN = { gal: 'gallery', ns: 'new', hs: 'help' };
+    function openSheet(cls, html) {
+      var back = sheetBack; sheetBack = null;
+      var parent = back && docView ? docView.btn : null;
+      lmenu.hidden = true; ctxClose(); if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+      var box = document.createElement('div'); box.className = 'pa-sheet ' + cls; box.innerHTML = html;
+      var t = box.querySelector('.pa-sheet-title');
+      docShow('sheet-' + cls, t ? t.textContent : '', box, { btn: SHEET_BTN[cls] ? hb(SHEET_BTN[cls]) : parent, back: back });
+      sheetEl = box;
+      return box;
     }
     function closeSheet() {
-      if (!sheetEl) return false; var s = sheetEl, from = sheetFrom; sheetEl = null; sheetFrom = null; s.classList.remove('in'); setTimeout(function () { s.remove(); }, 220);
-      if (from && from.focus && document.contains(from) && !from.closest('.pa-sheet-wrap')) from.focus({ preventScroll: true });
+      if (!sheetEl) return false;
+      if (docView && docView.el === sheetEl && docView.back) docView.back(); else docClose();
       return true;
     }
 
@@ -8159,11 +8226,9 @@
         refit(true); relayout();
       }
     }
-    function settingsMenu() {
-      var open = settingsBox.hidden;
-      closeDrops();
-      if (!open) return;
-      otherPopovers();
+    function settingsMenu(stay) {
+      if (!stay && docIs('settings')) { docClose(); return; }
+      closeDrops(); otherPopovers();
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light mode' : 'Dark mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Keyboard shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
         (PV ? ['paint', 'vector', 'photo'].filter(modeOk).map(function (m) {
@@ -8171,15 +8236,11 @@
           return '<button type="button" role="menuitemradio" aria-checked="' + (wsMode === m) + '" data-setting="' + m + '">' + modeEl.querySelector('[data-mode="' + m + '"] svg').outerHTML + MODE_NAME[m] + ' mode<span class="settings-check" aria-hidden="true">' + (wsMode === m ? '✓' : '') + '</span></button>';
         }).join('') +
           '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to bring artwork across<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
-      settingsBox.hidden = false;
-      hb('settings').setAttribute('aria-expanded', 'true');
-      placeDrop(settingsBox, hb('settings'));
-      var r = settingsBox.getBoundingClientRect();
-      if (r.left < 8) { settingsBox.style.right = 'auto'; settingsBox.style.left = '8px'; }
-      settingsBox.querySelector('button').focus();
+      docShow('settings', 'Settings', settingsBox, { btn: hb('settings'), reopen: settingsAgain });
     }
+    function settingsAgain() { settingsMenu(true); }
     settingsBox.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDrops(); hb('settings').focus(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); docClose(); }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault(); e.stopPropagation();
         var items = Array.from(settingsBox.querySelectorAll('button'));
@@ -8188,13 +8249,18 @@
     });
     settingsBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-setting]'); if (!b) return;
-      closeDrops(); hb('settings').focus();
-      if (b.dataset.setting === 'theme') header.querySelector('.theme-toggle').click();
-      else if (b.dataset.setting === 'gestures') gestureSheet();
-      else if (b.dataset.setting === 'flip') flipUI();
-      else if (/^(paint|vector|photo)$/.test(b.dataset.setting)) askMode(b.dataset.setting);
-      else if (b.dataset.setting === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); }
-      else helpSheet();
+      // (the panel stays, its ticks brought up to date; what opens from it
+      // opens in its place, with Back to it)
+      var k = b.dataset.setting, again = function () {
+        if (!docIs('settings')) return;
+        settingsMenu(true); var nb = settingsBox.querySelector('[data-setting="' + k + '"]'); if (nb) nb.focus({ preventScroll: true });
+      };
+      if (k === 'theme') { header.querySelector('.theme-toggle').click(); again(); }
+      else if (k === 'gestures') { sheetBack = settingsAgain; gestureSheet(); }
+      else if (k === 'flip') { flipUI(); again(); }
+      else if (/^(paint|vector|photo)$/.test(k)) { sheetBack = settingsAgain; askMode(k); sheetBack = null; again(); }
+      else if (k === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); again(); }
+      else { sheetBack = settingsAgain; helpSheet(); }
     });
     // FOCUS MODE: just the picture. The bars fade away and the picture gets
     // the whole window; \ (or Esc, or the button in the corner) brings them back
@@ -8212,7 +8278,7 @@
     function focusMode(on) {
       var html = document.documentElement;
       if (on === html.classList.contains('focus-mode')) return;
-      finishMenus(); hideTip();
+      finishMenus(); hideTip(); docClose(true);
       cancelAnimationFrame(focusAnim); clearTimeout(focusEnd);
       var from = stage.getBoundingClientRect();
       ['flex', 'maxWidth', 'width', 'height', 'transition'].forEach(function (k) { stage.style[k] = ''; });
@@ -8244,7 +8310,7 @@
     function relayout() {
       closeDrops(); ctxClose(); lmenu.hidden = true;
       if (!panel.hidden) besideBar(panel, $('[data-act="layers"]'));
-      if (!saveMenu.hidden) dropUnder(saveMenu, $('[data-act="save"]'));
+      if (!docBox.hidden) docFit();
       if (!pc.hidden) { placePicker(); keepOnScreen(pc); }
       placeSelectionPopover();
       [adjBox, bsBox].forEach(function (el) { keepOnScreen(el); });
@@ -8263,7 +8329,7 @@
     function headerOpen(on) {
       var html = document.documentElement;
       if (!hdrFold || on === html.classList.contains('hdr-open') || html.classList.contains('focus-mode')) return;
-      closeDrops(); moreMenu(false); savePanel(false); hideTip();
+      closeDrops(); moreMenu(false); hideTip();
       cancelAnimationFrame(hdrAnim); clearTimeout(hdrEnd);
       void getComputedStyle(html).getPropertyValue('--hdr');
       html.classList.add('hdr-anim');
@@ -8279,11 +8345,11 @@
     if (hdrFold) { hdrSync(); hdrFold.addEventListener('click', function () { headerOpen(!document.documentElement.classList.contains('hdr-open')); }); }
     function finishMenus() { openMenu(null); layerPanel(false); savePanel(false); closeDrops(); moreMenu(false); if (!pc.hidden) picker(null); }
     // (before a drop-down from the top bar opens: the others go)
-    function otherPopovers() { openMenu(null); layerPanel(false); savePanel(false); lmenu.hidden = true; ctxClose(); }
+    function otherPopovers() { openMenu(null); lmenu.hidden = true; ctxClose(); }
     var imgMenu = dropdown('paint-imgmenu');
     imgMenu.setAttribute('role', 'menu');
     function imageMenu(open) {
-      if (!open) { imgMenu.hidden = true; hb('image').setAttribute('aria-expanded', 'false'); return; }
+      if (!open) { if (docIs('image')) docClose(); return; }
       closeDrops(); otherPopovers();
       var ico = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
       imgMenu.innerHTML =
@@ -8294,7 +8360,7 @@
         '<button type="button" role="menuitem" data-img="crop"' + (sel ? '' : ' disabled') + '>' + ico('<path d="M6.5 3v14.5H21"/><path d="M3 6.5h14.5V21"/>') + 'Crop to Selection</button>' +
         '<button type="button" role="menuitem" data-img="clear"' + (active ? '' : ' disabled') + '>' + ico('<path d="M5 7h14"/><path d="M9 7V5h6v2"/><path d="M7 7l1 12h8l1-12"/>') + 'Clear Layer</button>' +
         '<div class="pd-info">' + (sel ? '' : 'Make a selection to crop to it.<br>') + 'Picture: ' + ov.width + ' × ' + ov.height + ' pixels</div>';
-      imgMenu.hidden = false; hb('image').setAttribute('aria-expanded', 'true'); placeDrop(imgMenu, hb('image'));
+      docShow('image', 'Crop, Rotate & Flip', imgMenu, { btn: hb('image'), reopen: function () { imageMenu(true); } });
     }
     // every layer is redrawn onto a new one of the new size (the old ones are
     // kept, unchanged, for undo)
@@ -8409,14 +8475,15 @@
       var cur = undo.length, rows = [[0, trimmed ? 'Earlier' : 'Start']];
       undo.forEach(function (e, i) { rows.push([i + 1, e.label]); });
       for (var j = redo.length - 1, n = cur + 1; j >= 0; j--, n++) rows.push([n, redo[j].label]);
-      histBox.innerHTML = '<div class="pd-title">History</div><div class="ph-list">' + rows.map(function (r) {
+      histBox.innerHTML = '<div class="ph-list">' + rows.map(function (r) {
         return '<button type="button" data-hist="' + r[0] + '" class="' + (r[0] === cur ? 'on' : r[0] > cur ? 'ahead' : '') + '">' + r[1] + '</button>';
       }).join('') + '</div><div class="pd-info">' + (undo.length + redo.length ? 'Tap a step to go back to it.' : 'Nothing to undo yet.') + '</div>';
       var on = histBox.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
     }
     function historyPanel(open) {
-      if (!open) { histBox.hidden = true; hb('history').setAttribute('aria-expanded', 'false'); return; }
-      closeDrops(); otherPopovers(); histBox.hidden = false; hb('history').setAttribute('aria-expanded', 'true'); renderHistory(); placeDrop(histBox, hb('history'));
+      if (!open) { if (docIs('history')) docClose(); return; }
+      closeDrops(); otherPopovers();
+      docShow('history', 'History', histBox, { btn: hb('history'), reopen: function () { historyPanel(true); } }); renderHistory();
     }
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
@@ -8497,12 +8564,12 @@
       if (w === 'guides') { smartGuides(!smartOn); toast(smartOn ? 'Smart Guides on: what you move snaps into line' : 'Smart Guides off'); return; }
       if (w === 'settings') { settingsMenu(); return; }
       if (w === 'more') { moreMenu(moreBox.hidden); return; }
-      if (w === 'new') newSheet();
-      else if (w === 'gallery') { closeDrops(); gallery(); }
-      else if (w === 'image') imageMenu(imgMenu.hidden);
-      else if (w === 'history') historyPanel(histBox.hidden);
+      if (w === 'new') { if (docIs('sheet-ns')) docClose(); else newSheet(); }
+      else if (w === 'gallery') { closeDrops(); if (docIs('sheet-gal')) docClose(); else gallery(); }
+      else if (w === 'image') imageMenu(!docIs('image'));
+      else if (w === 'history') historyPanel(!docIs('history'));
       else if (w === 'share') { closeDrops(); share(); }
-      else if (w === 'help') helpSheet();
+      else if (w === 'help') { if (docIs('sheet-hs')) docClose(); else helpSheet(); }
       else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; }); }
     });
     document.addEventListener('pointerdown', function (e) {
@@ -8793,6 +8860,7 @@
     var ctxEl = $('.paint-ctx'), ctxTool = ctxEl.querySelector('.ctx-tool'), ctxFor = null, ctxToolId = 'brush', ctxView = ctxView || 'tool';
     var settingsToggle = $('.paint-settings-toggle');
     settingsToggle.addEventListener('click', function () {
+      if (docClose(true)) { ctxMin(false); ctxAside(); return; } // (the top bar's panel in the way: the tool settings back)
       var open = toolMenuOpen();
       if (wsMode !== 'paint') { ctxMin(open); return; } // (Vector's or Photo's panel: just folded or opened)
       if (!pc.hidden) picker(null);
@@ -8837,7 +8905,7 @@
     // (wider screens: Effects and the colour picker open in the dock's place,
     // as wide as it, over the tool settings, which step aside; on a phone
     // where they were, beside the left bar and over the bottom bar)
-    var DOCKED_PANELS = [[adjBox, left], [pc, bbar]];
+    var DOCKED_PANELS = [[adjBox, left], [pc, bbar], [docBox, left]];
     function dockPanels() {
       var d = !phoneLayout();
       DOCKED_PANELS.forEach(function (x) {
@@ -8866,12 +8934,13 @@
       ctxLock(!ctxLocked);
       if (!pc.hidden) dockPlace(pc);
       if (!adjBox.hidden) dockPlace(adjBox);
+      if (!docBox.hidden) dockPlace(docBox);
     }
-    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !adjBox.hidden || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock)); }
+    function ctxAside() { if (ctxEl) ctxEl.classList.toggle('aside', !adjBox.hidden || (typeof bsBox !== 'undefined' && !bsBox.hidden) || (!pc.hidden && pc.parentNode === dock) || (!docBox.hidden && docBox.parentNode === dock)); }
     function dockSync(ease) {
       settingsToggleSync();
       if (ctxLocked && !ctxDocked()) ctxEl.style.translate = ''; // (locked: always in its place)
-      var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock));
+      var on = !phoneLayout() && ctxLocked && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock) || (!docBox.hidden && docBox.parentNode === dock));
       var mini = !phoneLayout() && ctxLocked && !on;
       if (paintEl.classList.contains('dock-on') === on && paintEl.classList.contains('dock-mini') === mini) return;
       if (!ease) paintEl.classList.add('dock-instant');
@@ -9322,6 +9391,7 @@
     function setMode(m, bring) {
       if (!modeOk(m) || m === wsMode) return;
       hideTip(); finishMenus(); lmenu.hidden = true; ctxClose(); closeSelectionPopover();
+      docClose(true); // (the top bar's panel goes, as the menu that switched did: the workspace's own panel takes the dock)
       if (!bsBox.hidden) studio(false);
       var from = wsMode, flat = null;
       if (from === 'paint') {
@@ -9414,6 +9484,7 @@
           return;
         }
         if (k === 'escape' && closeDrops()) return;
+        if (k === 'escape' && docClose()) return;
         if (k === 'escape' && document.documentElement.classList.contains('focus-mode')) { focusMode(false); return; }
         if (k === 'escape' && !pc.hidden) { picker(null); return; }
         if (e.target && (e.target.isContentEditable || (/input|textarea|select/i.test(e.target.tagName || '') && e.target.type !== 'range'))) return;
