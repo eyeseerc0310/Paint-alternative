@@ -526,6 +526,8 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .paint-stage.moving:not(.panning) { cursor: grabbing; }
 .paint-stage.corner-nwse:not(.panning) { cursor: nwse-resize !important; }
 .paint-stage.corner-nesw:not(.panning) { cursor: nesw-resize !important; }
+.paint-stage.corner-ns:not(.panning) { cursor: ns-resize !important; }
+.paint-stage.corner-ew:not(.panning) { cursor: ew-resize !important; }
 .paint-stage.corner-rot:not(.panning) { cursor: grab !important; }
 .paint-stage.picking:not(.panning) { cursor: crosshair; } /* (Alt / Option: pick a colour) */
 .paint-stage[data-tool="text"] { cursor: text; }
@@ -1061,17 +1063,33 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 /* DISTORT, over the top of a selection: a small pill (a closed padlock while
    the corners move together; tapped, an open one, lit like a pressed button,
    and each corner moves on its own) */
-.paint .paint-seldist {
+.paint .paint-seldist, .paint .paint-selcas {
   position: absolute; z-index: 3; width: auto; height: 28px; gap: 5px; padding: 0 var(--s-3) 0 var(--s-2); border-radius: var(--r-pill);
   background: var(--panel-solid); color: var(--text); box-shadow: 0 0 0 .5px var(--line), var(--shadow-float);
   font-size: var(--fs-sm); font-weight: 600; white-space: nowrap;
 }
-@media (hover: hover) { .paint .paint-seldist:hover { background: var(--panel-solid); } .paint .paint-seldist[aria-pressed="true"]:hover { background: var(--chip); } }
-.paint .paint-seldist[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow), var(--shadow-float); }
-.paint .paint-seldist svg { width: var(--icon-sm); height: var(--icon-sm); }
+@media (hover: hover) { .paint .paint-seldist:hover, .paint .paint-selcas:hover { background: var(--panel-solid); } .paint .paint-seldist[aria-pressed="true"]:hover, .paint .paint-selcas[aria-pressed="true"]:hover { background: var(--chip); } }
+.paint .paint-seldist[aria-pressed="true"], .paint .paint-selcas[aria-pressed="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow), var(--shadow-float); }
+.paint .paint-seldist svg, .paint .paint-selcas svg { width: var(--icon-sm); height: var(--icon-sm); }
 .paint-seldist .sd-off, .paint-seldist[aria-pressed="true"] .sd-on { display: none; }
 .paint-seldist[aria-pressed="true"] .sd-off { display: block; }
-.paint-seldist[hidden] { display: none !important; }
+.paint-seldist[hidden], .paint-selcas[hidden] { display: none !important; }
+/* CONTENT-AWARE SCALE: while it's on, a pill at the foot of the picture's
+   space says so, with the way back to plain scaling */
+.paint-casmode {
+  position: absolute; left: 50%; bottom: var(--s-2); z-index: 4; transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--s-2); height: 34px; padding: 0 3px 0 var(--s-3);
+  background: var(--menu-bg); color: var(--text); border-radius: var(--r-pill); box-shadow: var(--shadow-panel);
+  -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass);
+  font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; animation: pd-in var(--dur-pop) var(--spring);
+}
+.paint-casmode[hidden] { display: none; }
+.paint-casmode span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: var(--s-2); border-radius: 50%; background: var(--accent); vertical-align: 1px; }
+.paint .paint-casmode button { width: auto; height: 28px; padding: 0 var(--s-3); border-radius: var(--r-pill); background: var(--hover); color: var(--text); font-size: var(--fs-sm); font-weight: 500; }
+@media (hover: hover) { .paint .paint-casmode button:hover { background: var(--hover-strong); } }
+.focus-mode .paint-casmode, .vector-mode .paint-casmode, .photo-mode .paint-casmode { display: none !important; }
+.paint .fx-cas { width: 100%; justify-content: center; margin-top: var(--s-2); background: var(--hover); }
+@media (hover: hover) { .paint .fx-cas:hover { background: var(--hover-strong); } }
 /* SCALE: a small pill at the top of the picture's space while something is
    selected or picked up: type a size (100% its own size), and keep its
    proportions or not */
@@ -1256,6 +1274,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .ctx-tool > .ctx-slider > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* (and past that, its name, whole in its tip) */
   .ctx-field { height: 28px; }
   .paint-scale { top: auto; bottom: var(--s-2); } /* (the tool settings run along the top here) */
+  .paint-casmode { bottom: calc(var(--s-2) + 34px + var(--s-1)); } /* (over Scale) */
   .ctx-field > span:first-child { display: none; }
   [data-sym-when] > .ctx-hint, [data-tpath-on] > .ctx-hint, [data-tpath-off] > .ctx-hint { display: none; }
   .paint-layerpanel { width: min(296px, calc(100vw - 16px)); }
@@ -1652,7 +1671,8 @@ select.p-field {
 .paint .selection-pop-content > .selection-apply { color: var(--accent); background: var(--accent-soft); justify-content: center; }
 .selection-transform .paint-scale { position: static; display: flex; width: 100%; margin: 0 0 var(--s-2); transform: none; box-shadow: none; background: none; padding: 0; }
 .selection-transform .paint-scale[hidden] { display: none; }
-.selection-transform .paint-seldist { position: static !important; margin: var(--s-2) 0; transform: none; }
+.selection-transform .paint-seldist, .selection-transform .paint-selcas { position: static !important; margin: var(--s-2) 0; transform: none; }
+.selection-transform .paint-seldist + .paint-selcas { margin-top: 0; }
 /* (its buttons the left toolbar's size wherever that changes) */
 @media (max-height: 850px) { .paint .selection-toolbar .paint-group > button, .paint .selection-toolbar .selection-foot > .selection-commit { height: 32px; } }
 @media (max-width: 560px) { .paint .selection-toolbar .paint-group > button { width: 36px; height: 28px; } .paint .selection-toolbar .selection-foot > .selection-commit { height: 28px; } }

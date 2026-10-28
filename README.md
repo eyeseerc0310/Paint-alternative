@@ -78,6 +78,11 @@ uploaded.
   Levels, Curves, Hue & Saturation, White Balance, Gradient Map (presets or
   your two colours, with strength and reverse), Detail (sharpen, clarity,
   grain) and Finish (vignette, fade)
+- **Content-Aware Scale:** from Effects, or Transform in a selection's
+  panel: drag the selection's frame (a side, or a corner) and the plainest
+  parts give way while what matters keeps its shape, with a quick look as
+  you drag and the full result as you let go. Return or Commit keeps it,
+  Esc puts it back exactly, Normal Scale goes back to plain sizing
 - **Colour picker loupe:** hold the picker (or Alt) to see the pixels close
   up, with the new colour against the one in hand; let go to pick it
 - **Layers:** as many as the memory allows for the picture's size (up to

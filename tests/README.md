@@ -13,7 +13,7 @@ tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
-tests/run.sh effects            # Effects: Content-Aware Scale, the selection kept
+tests/run.sh effects            # Content-Aware Scale on the selection's frame
 tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
 tests/run.sh vector             # Vector mode, or: tests/run.sh vector t32 t44
 tests/run.sh regress            # the paint regressions, or: tests/run.sh regress fill pen
@@ -59,17 +59,20 @@ with `all passing`, or lists what isn't, and exits non-zero.
   iPad) does: a pressed button or slider takes no focus, and a press nothing
   stopped clears the highlight. Run with a mouse and by touch, at desktop,
   iPad and phone sizes, light and dark.
-- `effects/cas.js`: Content-Aware Scale, in Effects, on `fixtures/scene.png` (a
-  red circle and a blue square on a grainy sky). Greyed out without a
-  selection; with one, a live look while the slider moves and the full size
-  once it's let go of; the circle keeps its width as the selection narrows
-  and widens while the sky gives way; what the selection no longer covers is
-  see-through; outside the selection nothing changes; 100% puts the pixels
-  back exactly; the same width gives the same result, and quick changes end
-  on the last; Done is one undo step, redo puts it back; a circle selection
-  works the same; Esc takes it all back; and the selection stays through
-  every Effects slider. `gpu`/`cpu` pick the graphics chip or the worker for
-  the other effects; `touch` and `safari` as in the text tool's.
+- `effects/cas.js`: Content-Aware Scale on the selection's frame, on
+  `fixtures/scene.png` (a red circle and a blue square on a grainy sky).
+  The Effects button is greyed out without a selection; pressed, the mode is
+  on (its pill, side handles) and the selection stays; a side dragged in
+  shows a quick look while it moves and the full size once let go of, the
+  circle and the square keeping their width; dragged back, it's exactly as
+  it started; each size is an undo step in the mode; the same size gives the
+  same result; Esc, and undo before anything's sized, put the picture back
+  exactly; Return lays it down (see-through where it no longer reaches,
+  nothing outside the selection changed), one undo step, redo puts it back;
+  a corner narrows and shortens it, the circle as wide and as tall; Normal
+  Scale goes back to plain sizing; a turned selection works from Transform's
+  toggle, in its own frame; a circle selection changes nothing outside the
+  circle. `touch` and `safari` as in the text tool's.
 - `photo/photo.js`: Photo mode, from Settings (Paint, Vector and Photo mode,
   the one in use ticked), on `fixtures/scene.png`. Formats it
   can't open (a RAW file, a HEIC in Chromium) say so; a photo with nothing set
