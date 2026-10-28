@@ -7217,6 +7217,24 @@
       begin(e);
     });
     var offTap = null, noTap = null;
+    // THE EMPTY WORKSPACE (round the bars, the panels and the picture's space):
+    // a still click or tap there puts the tool down too, as one round the
+    // picture does, with the same care for work in progress (in Vector, its
+    // own tool goes down; in Photo, the mask in hand is let go of). Only the
+    // bare backgrounds count: a press on any control, panel or the picture
+    // never gets here
+    var bareTap = null;
+    function bareAt(t) { return t === paintEl || t === document.body || t === document.documentElement || !!(t && t.classList && (t.classList.contains('paint-centre') || t.classList.contains('paint-dock') || t.classList.contains('site-main') || t.classList.contains('site-header'))); }
+    document.addEventListener('pointerdown', function (e) { bareTap = e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0) && bareAt(e.target) ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null; }, true);
+    document.addEventListener('pointercancel', function () { bareTap = null; }, true);
+    document.addEventListener('pointerup', function (e) {
+      var b = bareTap; bareTap = null;
+      if (!b || b.id !== e.pointerId || Math.hypot(e.clientX - b.x, e.clientY - b.y) > (e.pointerType === 'mouse' ? 3 : 8)) return;
+      if (wsMode === 'vector') { if (PV) PV.toolDown(); return; }
+      if (wsMode === 'photo') { if (PH) PH.toolDown(); return; }
+      if (st.tool === 'none' || textBox || lassoOn || (pen && pen.pts.length) || grad) return;
+      setTool('none'); hideRing();
+    }, true);
     function offPic(p) { return p.x < 0 || p.y < 0 || p.x > W || p.y > H; }
     var touchWait = null, penErase = null, lastPen = -1e9, penSeen = false, fingerDraw = stored('paint-finger-draw', 'pencil');
     function waitGo() { var w = touchWait; touchWait = null; if (w) { clearTimeout(w.t); if (pointers[w.id] && Object.keys(pointers).length === 1 && !gesture) begin(w.ev); } }

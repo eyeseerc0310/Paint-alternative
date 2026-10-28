@@ -1335,7 +1335,15 @@
     }, true);
   }
 
+  // (a still tap on the empty workspace lets go of the mask in hand: its
+  // brush or handles; Photo's other categories hold no tool)
+  function toolDown() {
+    if (!on || !doc || cat !== 'masks' || !mPick || mdrag) return false;
+    mPick = null; mFresh = null; mHover = null; changed(true); mSync(); return true;
+  }
+
   window.PaintPhoto = {
+    toolDown: toolDown,
     init: init, enter: enter, leave: leave, key: key, keyup: keyup, load: load, serialize: serialize, isEmpty: isEmpty,
     panelHTML: panelHTML, panelSync: panelSync, openFile: openFile, saveSheet: saveSheet, exportBlob: exportBlob, raster: rasterFull,
     histButtons: histButtons, relayout: relayout, isOn: function () { return on; }, kindOf: kindOf,

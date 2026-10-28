@@ -198,6 +198,9 @@
     opacity: { name: 'Opacity', tip: 'Opacity: how solid objects are, and their fill and stroke on their own' },
     blend: { name: 'Blend Modes', tip: 'Blend Modes: how objects mix with what’s under them' },
     hand: { name: 'Hand', key: 'h', tip: 'Hand (H): drag to move round the artboard. Space does it with any tool' },
+    // (no tool in hand: a tap on the empty workspace puts it down, as in Paint;
+    // in no category, so nothing in the left bar is lit, and a drag moves round)
+    none: { name: 'No Tool', tip: 'No tool: drag to move round the artboard. Pick a tool on the left to carry on' },
     zoom: { name: 'Zoom', key: 'z', tip: 'Zoom (Z): tap to zoom in, Alt-tap to zoom out, drag a box to zoom to it' },
     fit: { name: 'Fit to Screen', action: true, tip: 'Fit to Screen (0): the whole artboard, upright' },
     actual: { name: 'Actual Size', action: true, tip: 'Actual Size (Ctrl/⌘ 1): one pixel of the artboard to one on the screen' },
@@ -1994,7 +1997,7 @@
   function begin(d, label) { if (d.rec) return; d.rec = true; d.snap = snap(); hist.push({ s: d.snap, label: label }); if (hist.length > HMAX) hist.shift(); fut = []; histButtons(); }
   function cancelDrag() { var d = drag; drag = null; if (!d) return; if (d.rec) { restore(d.snap); hist.pop(); histButtons(); } ui.marquee = ui.lasso = ui.knife = ui.zoom = ui.join = null; changed(); }
   function cursorFor(s, touch) {
-    if (spaceDown || tool === 'hand') return drag && drag.kind === 'pan' ? 'grabbing' : 'grab';
+    if (spaceDown || tool === 'hand' || tool === 'none') return drag && drag.kind === 'pan' ? 'grabbing' : 'grab';
     if (tool === 'zoom') return 'zoom-in';
     if (tool === 'rotview') return 'grab';
     if (TOOLS[tool].shape || tool === 'pen' || tool === 'curvature' || tool === 'knife' || tool === 'pencil' || tool === 'vbrush' || tool === 'blob' || tool === 'veraser' || tool === 'smooth' || tool === 'builder') return 'crosshair';
@@ -2025,7 +2028,7 @@
     if (ids.length > 1) return;
     var now = performance.now(), dbl = lastDown.s && now - lastDown.t < 350 && dist(lastDown.s, s) < (touch ? 18 : 6);
     lastDown = { t: dbl ? 0 : now, s: s };
-    if (spaceDown || e.button === 1 || tool === 'hand') { drag = { kind: 'pan', s0: s, vx: view.x, vy: view.y }; stageEl.style.cursor = 'grabbing'; return; }
+    if (spaceDown || e.button === 1 || tool === 'hand' || tool === 'none') { drag = { kind: 'pan', s0: s, vx: view.x, vy: view.y }; stageEl.style.cursor = 'grabbing'; return; }
     var p = fromScreen(s.x, s.y), h = H[tool] || H.select;
     ui.snapMk = ui.smart = null; if (snapsAt(tool)) { var sq = snapPt(p, null, touch); p = v2(sq.x, sq.y); ui.snapMk = sq.mk; }
     h.down(e, s, p, touch, dbl);
@@ -2332,6 +2335,7 @@
     up: function () { drag = null; }
   };
   H.hand = { down: function () {}, move: function () {}, up: function () { drag = null; } };
+  H.none = H.hand;
 
   // PEN: click for corners, drag for curves; the first point closes it;
   // Return, Esc or another tool finishes it. Points are added at the end
@@ -4326,6 +4330,7 @@
   };
   var panelKey = '';
   function panelHTML() {
+    if (tool === 'none') { panelKey = keyNow(); return '<div class="vec-panel"><div class="vec-cat">No Tool</div><div class="vec-set">' + hint(TOOLS.none.tip.replace(/^[^:]*: /, '')) + '</div></div>'; }
     var c = CATS.filter(function (q) { return q.id === cat; })[0] || CATS[0];
     var top = '<div class="vec-tools" role="group" aria-label="' + esc(c.name) + ' tools">' + c.tools.map(function (t) {
       var T = TOOLS[t];
@@ -5088,7 +5093,7 @@
     if (pen && t !== 'pen') endPen();
     if (cv && t !== 'curvature') { cv = null; ui.pen = null; }
     if (drag) cancelDrag();
-    tool = t; var c = catOf(t); cat = c.id; lastTool[cat] = t;
+    tool = t; var c = catOf(t); cat = c ? c.id : null; if (cat) lastTool[cat] = t;
     ui.hover = ui.hoverPt = ui.pen = null; wpick = -1; ui.smart = ui.snapMk = null; if (t !== 'vblend') blendA = null;
     if (!ANCHORTOOLS[t] && t !== 'vwidth') asel = {};
     groupSync(); panelRefresh(); drawUI(); bbarSync();
@@ -5485,7 +5490,7 @@
     sel = (Array.isArray(d.sel) ? d.sel : []).filter(function (id) { return !!byId(id); });
     if (d.view && isFinite(d.view.k) && d.view.k > 0) { view.x = nm(d.view.x, 0); view.y = nm(d.view.y, 0); view.k = d.view.k; view.r = nm(d.view.r, 0); view.fit = !!d.view.fit; } else view.fit = true;
     lastSize = null;
-    if (TOOLS[d.tool] && !TOOLS[d.tool].action) { tool = d.tool; cat = catOf(tool).id; lastTool[cat] = tool; }
+    if (TOOLS[d.tool] && !TOOLS[d.tool].action) { tool = d.tool; var tc = catOf(tool); cat = tc ? tc.id : null; if (cat) lastTool[cat] = tool; }
     ensureDefs(); renderArt();
     if (on) { relayout(); changed(false); }
   }
@@ -5690,7 +5695,15 @@
     changed(); return true;
   }
 
+  // (a still tap on the empty workspace: the tool goes down, unless something's
+  // being made with it, which keeps its own way of finishing)
+  function toolDown() {
+    if (!on || !doc || tool === 'none' || te || pen || cv || drag) return false;
+    setTool('none'); return true;
+  }
+
   window.PaintVector = {
+    toolDown: toolDown,
     init: init, enter: enter, leave: leave, load: load, serialize: serialize, isEmpty: isEmpty,
     panelHTML: panelHTML, panelSync: panelSync, key: key, keyup: keyup, histButtons: histButtons, raster: raster, exportBlob: exportBlob,
     addImageFile: addImageFile, relayout: relayout, isOn: function () { return on; },
