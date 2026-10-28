@@ -6,7 +6,7 @@ const V = require('./vt.js');
     // (Settings stays open in the panel after a pick that changes nothing, so open it only when it isn't)
     const openSettings = async () => { if (await p.$('.paint-docpanel:not([hidden]) [data-setting="paint"]')) return; await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(150); };
     await openSettings();
-    ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'false' && /Vector mode/.test(b.textContent)), name + ': settings item, off');
+    ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'false' && /Vector Mode/.test(b.textContent)), name + ': settings item, off');
     await p.keyboard.press('Escape');
     await H.vector();
     ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), name + ': in vector mode');
@@ -14,7 +14,7 @@ const V = require('./vt.js');
     await H.tool('rect'); const bw = await p.evaluate(() => window.PaintVector.serialize().w); await H.drag([bw * 0.2, 300], [bw * 0.6, 450]);
     await openSettings();
     ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'true' && b.textContent.includes('✓')), name + ': settings item, on');
-    ok(await p.$$eval('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"]', bs => bs.map(b => b.textContent.replace('✓', '').trim()).join('|')) === 'Paint mode|Vector mode|Photo mode', name + ': the three modes, no preview labels');
+    ok(await p.$$eval('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"]', bs => bs.map(b => b.textContent.replace('✓', '').trim()).join('|')) === 'Paint Mode|Vector Mode|Photo Mode', name + ': the three modes, no preview labels');
     ok(await p.$eval('[data-setting="paint"]', b => b.getAttribute('aria-checked') === 'false'), name + ': only the one in use ticked');
     await p.click('[data-setting="vector"]'); await p.waitForTimeout(300);
     ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), name + ': the one in use again changes nothing');

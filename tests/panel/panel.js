@@ -57,7 +57,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!base.shown, 'the panel is closed to begin with');
 
   // ---- EACH OPTION, IN THE PANEL ----
-  const OPTS = [['gallery', 'Gallery'], ['new', 'New Picture'], ['save', 'Save'], ['image', 'Crop, Rotate & Flip'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
+  const OPTS = [['gallery', 'Gallery'], ['new', 'New Picture'], ['save', 'Save'], ['image', 'Crop & Rotate'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
   let stage1 = null;
   for (const [k, title] of OPTS) {
     await top(k);

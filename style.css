@@ -99,7 +99,7 @@
      overshoots a little, for things that pop open */
   --dur-fast: .14s; /* (a knob or swatch answering a touch) */
   --dur: .22s;
-  --dur-pop: .34s; /* (a menu or panel popping open) */
+  --dur-pop: .3s; /* (a menu or panel popping open) */
   --dur-slow: .42s; /* (for things that come and go as a whole: the opening, sheets) */
   --dur-theme: .36s; /* (light to dark and back) */
   --ease: cubic-bezier(.32, .72, 0, 1);
@@ -244,7 +244,7 @@ body > * { flex-shrink: 0; }
 /* (every control, wherever it sits: the app's type, and an easing between its
    states; a control with transitions of its own keeps them) */
 :where(button, input, select, textarea) { font-family: inherit; }
-:where(button) { transition: color var(--dur) ease, background-color var(--dur) ease, box-shadow var(--dur) ease, opacity var(--dur) ease; }
+:where(button) { transition: color var(--dur-fast) ease, background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease; } /* (hover and press answer at once; what opens and folds takes --dur) */
 :where(input:not([type="range"]), select, textarea) { transition: background-color var(--dur) ease, box-shadow var(--dur) ease; }
 /* (a touch screen: rows and controls a finger can hit) */
 @media (pointer: coarse) { :root { --row: 42px; --ctl: 40px; } }
@@ -369,7 +369,7 @@ body > * { flex-shrink: 0; }
   background: none; color: var(--text); cursor: pointer;
   font: inherit; font-size: var(--fs-ui); font-weight: 500; letter-spacing: -.01em;
   -webkit-tap-highlight-color: transparent;
-  transition: color var(--dur) ease, background-color var(--dur) ease, transform var(--dur) var(--spring), box-shadow var(--dur) ease, opacity var(--dur) ease;
+  transition: color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease;
 }
 @media (hover: hover) { .paint button:where(:not(.paint-docpanel *)):hover, .paint-open:hover { background: var(--hover); } }
 .paint button:where(:not(.paint-docpanel *)):active, .paint-open:active { transform: scale(var(--press)); transition-timing-function: var(--ease); }
