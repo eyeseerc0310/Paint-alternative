@@ -252,6 +252,8 @@ body > * { flex-shrink: 0; }
   .paint .paint-zoom button, .paint .pc-icon, .paint .pc-add { position: relative; }
   .paint .paint-zoom button::after, .paint .pc-icon::after, .paint .pc-add::after { content: ""; position: absolute; inset: -6px -2px; }
   .paint .selection-toolbar .sel-more::after { content: ""; position: absolute; inset: -8px -12px; }
+  .paint .paint-casmode button { position: relative; }
+  .paint .paint-casmode button::after { content: ""; position: absolute; inset: -6px -3px; }
 }
 @media (pointer: coarse) and (min-width: 561px) {
   .paint .paint-ctx:not(.min) .ctx-min, .paint .paint-ctx:not(.min) .ctx-lock, .paint .pc-top .ctx-min, .paint .pc-top .ctx-lock { width: 28px; height: 28px; }
