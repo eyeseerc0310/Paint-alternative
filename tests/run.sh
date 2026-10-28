@@ -7,7 +7,7 @@
 #   tests/run.sh brushes            the bristle brushes' checks
 #   tests/run.sh selection          selecting: layers, undo and redo, Shift to add
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
-#   tests/run.sh effects            Effects: Content-Aware Scale, the selection kept
+#   tests/run.sh effects            Content-Aware Scale on the selection's frame
 #   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
@@ -87,10 +87,9 @@ text() {
 }
 
 effects() {
-  check "effects/cas-light-1400-gpu" "$OUT/effects" "$T/effects/cas.js" light 1400 900
-  check "effects/cas-light-1400-cpu" "$OUT/effects" "$T/effects/cas.js" light 1400 900 cpu
+  check "effects/cas-light-1400" "$OUT/effects" "$T/effects/cas.js" light 1400 900
   check "effects/cas-dark-1024-touch-safari" "$OUT/effects" "$T/effects/cas.js" dark 1024 768 touch safari
-  check "effects/cas-light-390-touch-safari-cpu" "$OUT/effects" "$T/effects/cas.js" light 390 844 touch safari cpu
+  check "effects/cas-light-390-touch-safari" "$OUT/effects" "$T/effects/cas.js" light 390 844 touch safari
 }
 
 photo() {

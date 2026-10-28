@@ -482,24 +482,37 @@ When building or changing anything visual:
   or Reset All takes back what's set. Nothing heavy happens on opening
   (`fxPrepare` runs at the first change); the histogram is made when
   Levels or Curves first shows. `paint-fx-gpu` (`on`/`off`) overrides the
-  choice, for testing. **Content-Aware Scale** (the last section, `cas`, a
-  width from 25% to 200%, greyed out without a selection, `casSync`) is
-  seam carving (`casCarve`, which stands alone, so it's copied into its
+  choice, for testing. **Content-Aware Scale** (the last section, `cas`) is a
+  button, `[data-fx-cas]`, greyed out without a selection (`casOk`,
+  `casSync`), and the same toggle, `.paint-selcas`, sits beside Distort in
+  the selection's Transform options (`casBtnSync`), where what's picked up
+  stays picked up, turned or not. Either starts the mode (`casStart`):
+  Effects steps aside, the selection is lifted (`lift`, its 'Move' step kept
+  as `sel.cas.mv`) and its pixels kept as they came (`sel.cas.src`, `px`,
+  and a ~60,000-pixel copy, `spx`); the frame gets side handles (`n`, `s`,
+  `e`, `w` in `localCorners`, `corner-ns`/`corner-ew` cursors) and a pill on
+  the picture says it's on (`.paint-casmode`, with Normal Scale). A side
+  sizes one way, a corner both (each free, unless Shift), in whole pixels of
+  what's picked up, so the size it began at is exactly that. Every size is
+  worked from the original, never from the last result: while dragged the
+  small copy is carved (`casLive`, `casPost('prev')`) and shown stretched in
+  the frame (`C.pv`, swapped in by `putFloat`); let go of, the full size is
+  carved in the other worker (`casFull`, an overtaken one is stopped) and
+  laid in (`casBack`, kept by size in `C.cache`; `data-busy` on the pill
+  while it works). It's seam carving (`casCarve`, `casCarve2`: width, then
+  height through a transposed copy; both stand alone, copied into the
   workers): forward energy plus the change across and down, on a softened
-  copy (so grain costs little and edges a lot), pixels outside the
-  selection made costly; several seams a pass that step aside rather than
-  cross, within a budget of passes; wider by doubling the seams that would
-  go first, half the width at most a round. `casPrep` keeps the layer as it
-  was (`adj.orig`, what undo brings back and 100% restores exactly) and the
-  selection's box, its pixels and a ~60,000-pixel copy. While the slider
-  moves, the copy is carved (`casPost('prev')`) and shown on a stand-in the
-  screen's size (`casQuick`, `casPvShow`); let go of (`change`), the full
-  size is carved in the other worker (an overtaken one is stopped) and laid
-  in, centred in the box, inside the selection only, see-through (or the
-  paper's white on the Background) where it no longer reaches (`casPut`),
-  and the other effects start again from it. Results carry the ask's `id`,
-  so an older one is dropped. Done, Esc and closing finish it first
-  (`casFinish`).
+  copy (so grain costs little and edges a lot); several seams a pass that
+  step aside rather than cross; wider by doubling the seams that would go
+  first. Each size is a step of the selection's own (`selRecord`, undo and
+  redo take them first, `selPut` lays the right size in). Commit, Return or
+  a click outside lays it down (`commitSelection` → `casEnd`, which works
+  the full size out at once if it isn't yet); Normal Scale, pressing the
+  toggle again, Distort or any other selection action ends the mode with
+  what's carved still picked up (`casEnd`; Copy takes the full size,
+  `casNow`); Esc, or undo before anything's sized, puts everything back
+  exactly (`casCancel`: the lift's own step taken back, or, if it was
+  picked up already, the geometry and pixels as they were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
   **They're reached from Settings: Paint mode, Vector mode and Photo mode**
   (`data-setting` the mode, `menuitemradio`s, the one in use ticked; picking
