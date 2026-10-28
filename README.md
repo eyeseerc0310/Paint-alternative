@@ -102,6 +102,10 @@ uploaded.
 - **Pictures in:** open one, paste one (⌘/Ctrl+V) or drag one onto the page
 - **History:** see every step and jump back to any of them
 - **Keyboard shortcuts:** press **?** to see them all
+- **One panel on the right:** the Gallery, New Picture, Save, Crop, Rotate &
+  Flip, History, Settings and Keyboard Shortcuts open in the panel at the
+  right, where the tool settings stand, each with its title, Back and a close
+  button; press the same button again (or Esc) to close it
 - **Save** as PNG or JPEG, or **Share** straight to Messages, Photos, Mail…
 - **Photo mode (from Settings, beside Paint and Vector mode):** a photo editor in the manner of
   Lightroom. Open a JPEG, PNG, WebP (or HEIC where the browser can) and edit

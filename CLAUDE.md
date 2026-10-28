@@ -71,9 +71,10 @@ When building or changing anything visual:
   heading for screen readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
-  it, never covered, with `refit()` each frame. A button in the folded bar
-  can't be seen, so what it opens drops from the arrow (`hdrBtn`). The left
-  bar (`.paint-left`), its middle level with the picture's space's
+  it, never covered, with `refit()` each frame. What its buttons open
+  stands in the top bar's panel (below); the phone's ••• menu, the one
+  drop-down left, drops from the arrow while the bar is folded (`hdrBtn`).
+  The left bar (`.paint-left`), its middle level with the picture's space's
   (`safe center` above the bottom bar, `--bbar-gap`; at the top if it's too
   tall for that), holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
@@ -115,10 +116,8 @@ When building or changing anything visual:
   anything that would open, unfold or replace the panel: picking a tool with
   no settings again does nothing to any panel (Move still picks the layer up
   again), and such a tool never unfolds the panel, whatever is open.
-  The colour picker stays open for the top bar's Settings (its button, its
-  menu, and the fold arrow that opens the bar to reach it). In the dock
-  (not on phones) it also stays open through a change to a tool with no
-  settings (`keepPc` in `chooseTool`), Layers, the zoom and Fit (`pcStays`);
+  In the dock (not on phones) the colour picker stays open through a change
+  to a tool with no settings (`keepPc` in `chooseTool`), Layers, the zoom and Fit (`pcStays`);
   a tool with settings, symmetry, Effects or the Brush Studio take its
   place, as before. Only the picker does this.
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
@@ -265,10 +264,29 @@ When building or changing anything visual:
   through `fillDrop` (symmetry, masks, undo), which lays the fill down at
   once and shows it spreading on a stand-in canvas (`spread`); anything
   else that happens ends the spread (`endFillAnim`).
-- **Pop-overs and sheets:** a drop-down from the top bar closes the others
-  (`otherPopovers`); `openSheet` closes everything else, moves the focus in
-  and gives it back; `relayout()` keeps everything that floats on the screen
-  when the window changes size; Esc closes the top-most thing first.
+- **The top bar's panel** (`.paint-docpanel`, `docBox`): everything the
+  top bar opens (Gallery, New Picture, Save, Crop, Rotate & Flip, History,
+  Settings, Keyboard Shortcuts, and Touch Gestures and Vector's mode dialog
+  from Settings) is shown in it, never as a drop-down or a sheet over a
+  dimmed page; only Share asks the system. It stands in the dock like Effects
+  (`DOCKED_PANELS`, as wide as the tool settings, which step aside,
+  `ctxAside`; `dockPlace` while unlocked) and beside the left bar on phones
+  (`docFit` keeps its foot above the bottom bar). Its head (`.dp-head`) has
+  the view's title, Back when it was opened from another view, and a close
+  button. `docShow(key, title, el, {btn, back, reopen})` puts a view in
+  (what stood in the dock gives way: the picker, Effects keeping what's set,
+  the Brush Studio, the layer menu; the tool in hand stays); another view
+  replaces it, the same button closes it (`docIs(key)`), as do the close
+  button, Esc (`docClose`, focus back where it was), a tool with settings
+  (`hasMenu`), the picker, Effects, the Studio, the settings toggle and a
+  workspace switch. `openSheet(cls, html)` makes a sheet a view (its
+  `.pa-sheet-title` becomes the panel's title; `.pa-sheet-acts` stays at the
+  foot) and `closeSheet` goes Back (`sheetBack`, set just before opening one
+  from a view, as Settings does with `settingsAgain`) or closes. The
+  toolbar's own `.paint button`/`.paint svg` rules skip what's in it
+  (`:where(:not(.paint-docpanel *))`, so their weight doesn't change);
+  `relayout()` keeps everything that floats on the screen when the window
+  changes size; Esc closes the top-most thing first.
 - **Input:** mouse, finger, Apple Pencil and keyboard share the stage's
   pointer handlers. One finger waits a moment (`touchWait`) before starting
   anything, so a pinch never begins a stroke; once the Pencil has been used
@@ -902,7 +920,7 @@ https://eyeseerc0310.github.io/Paint-alternative/
 ## Testing
 
 The tests live in `tests/` (see `tests/README.md`) and run in Playwright's
-Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `photo`, `vector`, `regress
+Chromium: `tests/run.sh` for everything, or `brushes`, `selection`, `text`, `effects`, `photo`, `panel`, `vector`, `regress
 [names]`, `lock [modes]`. The paint regressions (`tests/regress/`) print what
 they see and are compared with the same suite run on the reference
 (`origin/main`, or `REF=`); a line starting with `~` varies between runs and
