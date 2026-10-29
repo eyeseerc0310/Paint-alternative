@@ -89,18 +89,12 @@
 
     // ======================= COLOUR: LOOKS =======================
     { id: 'natural', name: 'Natural', cat: 'colour', v: { exposure: 4, contrast: 8, highlights: -18, shadows: 16, whites: 6, blacks: -6, vibrance: 14, clarity: 6, texture: 6, sharpen: 30 } },
-    { id: 'neutral', name: 'Neutral', cat: 'colour', v: { contrast: 4, highlights: -10, shadows: 8, vibrance: 4 } },
     { id: 'warmportrait', name: 'Warm Portrait', cat: 'colour', v: { exposure: 6, contrast: 4, highlights: -22, shadows: 20, temp: 16, tint: 4, vibrance: 10, saturation: -4, texture: -12, clarity: -8, hsl: { orange: [0, -8, 12], red: [0, -6, 6] } } },
     { id: 'cinematic', name: 'Cinematic', cat: 'colour', v: { contrast: 18, highlights: -32, shadows: 22, blacks: -14, temp: -6, saturation: -12, vibrance: 8, clarity: 10, vignette: 22, curve: [[0, 14], [64, 54], [192, 206], [255, 240]], grade: { sh: [195, 32, 0], mid: [0, 0, 0], hi: [36, 30, 0], all: [0, 0, 0], blend: 60, bal: 0 } } },
-    { id: 'coolcinematic', name: 'Cool Cinematic', cat: 'colour', v: { contrast: 16, highlights: -24, shadows: 14, blacks: -10, temp: -14, tint: -2, saturation: -14, vibrance: 4, clarity: 8, vignette: 16, curve: [[0, 12], [64, 54], [192, 204], [255, 240]], grade: G([210, 24, 0], null, [200, 8, 0], null, 55, 0) } },
     { id: 'tealorange', name: 'Teal & Orange', cat: 'colour', v: { contrast: 14, highlights: -16, shadows: 10, saturation: -6, vibrance: 10, hsl: { orange: [0, 10, 4], aqua: [0, 10, 0], blue: [-14, 0, -6], green: [18, -20, -6] }, grade: G([190, 40, 0], null, [32, 34, 0], null, 55, 0) } },
     { id: 'goldenhour', name: 'Golden Hour', cat: 'colour', v: { exposure: 6, highlights: -26, shadows: 18, temp: 30, tint: 8, vibrance: 22, dehaze: 6, vignette: 14, grade: { sh: [28, 12, 0], mid: [0, 0, 0], hi: [42, 34, 0], all: [0, 0, 0], blend: 60, bal: 15 } } },
-    { id: 'pastel', name: 'Soft Pastel', cat: 'colour', v: { exposure: 14, contrast: -26, highlights: -20, shadows: 30, whites: 8, saturation: -18, vibrance: 18, temp: 4, curve: [[0, 40], [128, 140], [255, 248]], hsl: { blue: [0, -10, 16], magenta: [0, -6, 14], aqua: [0, -6, 14] } } },
     { id: 'cooleditorial', name: 'Cool Editorial', cat: 'colour', v: { contrast: 16, highlights: -14, whites: 10, blacks: -10, temp: -18, tint: -4, saturation: -14, vibrance: 6, clarity: 12, texture: 8, sharpen: 40 } },
-    { id: 'richcolour', name: 'Rich Colour', cat: 'colour', v: { contrast: 12, blacks: -8, saturation: 10, vibrance: 26, dehaze: 6, clarity: 6, hsl: { red: [0, 8, -4], blue: [0, 10, -8], green: [0, 8, -4] } } },
-    { id: 'softmatte', name: 'Soft Matte', cat: 'colour', v: { contrast: -18, highlights: -18, shadows: 22, saturation: -10, clarity: -10, curve: [[0, 34], [80, 84], [180, 186], [255, 244]] } },
     { id: 'classicfilm', name: 'Classic Film', cat: 'colour', v: { contrast: 10, highlights: -14, shadows: 8, temp: 6, saturation: -12, grain: 26, grainSize: 30, curve: [[0, 20], [60, 52], [128, 132], [200, 210], [255, 242]], grade: { sh: [200, 14, 0], mid: [35, 8, 0], hi: [48, 16, 0], all: [0, 0, 0], blend: 55, bal: 0 } } },
-    { id: 'landscape', name: 'Landscape', cat: 'colour', v: { contrast: 14, highlights: -36, shadows: 26, whites: 8, blacks: -10, vibrance: 28, saturation: 6, clarity: 16, dehaze: 18, texture: 10, hsl: { blue: [-4, 12, -14], green: [-8, 10, -6], aqua: [0, 10, -8] } } },
     { id: 'studio', name: 'Clean Studio', cat: 'colour', v: { exposure: 10, contrast: 10, highlights: -8, shadows: 10, whites: 18, blacks: -4, saturation: -6, vibrance: 6, texture: 6, sharpen: 45, nr: 12 } },
 
     // ===================== BLACK & WHITE: FILM STOCKS =====================
@@ -186,27 +180,11 @@
         curve: [[0, 4], [64, 58], [128, 128], [192, 200], [255, 252]],
         grain: 8, grainSize: 12, grainRough: 10 },
       look: { mono: [0.20, 0.62, 0.18] } },
-    // ROLLEI RETRO 80S. Extended red sensitivity (to about 750nm): foliage and
-    // skin lighter, blue skies darker, haze cut, without a filter; higher
-    // than usual contrast and strong detail.
-    { id: 'retro80s', name: 'Retro 80S', cat: 'bw', group: 'film',
-      v: { contrast: 22, blacks: -6, clarity: 10, sharpen: 30,
-        curve: [[0, 0], [64, 50], [128, 128], [192, 206], [255, 254]],
-        grain: 12, grainSize: 14, grainRough: 25 },
-      look: { mono: [0.46, 0.46, 0.08] } },
 
     // ===================== BLACK & WHITE: LOOKS =====================
     { id: 'bw', name: 'Classic Mono', cat: 'bw', v: { contrast: 22, highlights: -16, shadows: 14, whites: 12, blacks: -14, saturation: -100, clarity: 14, grain: 12, hsl: { red: [0, 0, 10], orange: [0, 0, 14], blue: [0, 0, -18], aqua: [0, 0, -8] } } },
-    { id: 'softmono', name: 'Soft Mono', cat: 'bw', v: { contrast: -14, highlights: -10, shadows: 14, clarity: -6, curve: [[0, 22], [128, 134], [255, 242]] }, look: { mono: [0.30, 0.55, 0.15] } },
-    { id: 'hcmono', name: 'High Contrast', cat: 'bw', v: { contrast: 44, whites: 14, blacks: -20, clarity: 16, texture: 6 }, look: { mono: [0.45, 0.45, 0.10] } },
-    { id: 'mattemono', name: 'Matte Black', cat: 'bw', v: { contrast: 10, highlights: -8, curve: [[0, 40], [64, 74], [128, 130], [255, 240]] }, look: { mono: [0.30, 0.56, 0.14] } },
-    { id: 'silvergelatin', name: 'Silver Gelatin', cat: 'bw', v: { contrast: 14, highlights: -8, curve: [[0, 6], [64, 58], [128, 130], [200, 206], [255, 246]], grain: 10, grade: G([30, 10, 0], null, null, [40, 8, 0], 50, 0) }, look: { mono: [0.31, 0.55, 0.14] } },
     { id: 'fineart', name: 'Fine Art', cat: 'bw', v: { contrast: 8, highlights: -14, shadows: 10, clarity: 4, texture: 4, grade: G([220, 6, 0], null, null, null, 50, 0) }, look: { mono: [0.30, 0.55, 0.15] } },
-    { id: 'highkey', name: 'High Key', cat: 'bw', v: { exposure: 12, contrast: -10, highlights: -6, shadows: 24, whites: 12, curve: [[0, 30], [128, 160], [255, 255]] }, look: { mono: [0.32, 0.54, 0.14] } },
-    { id: 'lowkey', name: 'Low Key', cat: 'bw', v: { exposure: -14, contrast: 24, highlights: -12, blacks: -22, vignette: 24 }, look: { mono: [0.30, 0.56, 0.14] } },
-    { id: 'architectural', name: 'Architectural', cat: 'bw', v: { contrast: 28, clarity: 18, texture: 10, sharpen: 40 }, look: { mono: [0.55, 0.38, 0.07] } },
     { id: 'portraitmono', name: 'Portrait Mono', cat: 'bw', v: { contrast: 6, highlights: -10, shadows: 10, texture: -10, clarity: -6 }, look: { mono: [0.40, 0.48, 0.12] } },
-    { id: 'noir', name: 'Noir', cat: 'bw', v: { contrast: 40, highlights: -10, blacks: -26, vignette: 38, grain: 18, grainRough: 50, curve: [[0, 0], [70, 40], [128, 128], [190, 214], [255, 255]] }, look: { mono: [0.32, 0.56, 0.12] } },
     { id: 'newspaper', name: 'Newsprint', cat: 'bw', v: { contrast: 30, texture: -6, curve: [[0, 36], [80, 70], [160, 180], [255, 232]], grain: 45, grainSize: 55, grainRough: 90, grade: G(null, null, null, [45, 8, 0], 50, 0) }, look: { mono: [0.30, 0.56, 0.14] } }
   ];
   window.PaintPhotoPresets = { cats: [['colour', 'Colour'], ['bw', 'Black & White']], groups: [['film', 'Film stocks'], ['look', 'Looks']], list: list };

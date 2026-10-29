@@ -888,7 +888,7 @@ When building or changing anything visual:
   photo has the room). **The presets** are data in `photo-presets.js`
   (`window.PaintPhotoPresets`: `cats`, Colour and Black & White; `groups`,
   Film stocks and Looks; `list`, each `{ id, name, cat, group, v,
-  look }`), 43 (20 Colour, 23 Black & White), the films' notes beside each.
+  look }`), 28 (14 Colour, 14 Black & White), the films' notes beside each.
   **How much of the preset** (`v.pamt`, 0 to 100, kept with the settings):
   the slider in a slimmer bar where Paint's bottom bar is (`.pho-amount`,
   sharing `.paint-bottom`'s look and `.pb-slider`; `--bbar-h` is its
