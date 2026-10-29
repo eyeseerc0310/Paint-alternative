@@ -208,7 +208,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await tapEl('[data-pcat="presets"]');
   const count = await p.evaluate(() => { const L = window.PaintPhotoPresets.list; return { all: L.length, colour: L.filter(q => q.cat === 'colour').length, bw: L.filter(q => q.cat === 'bw').length, films: L.filter(q => q.group === 'film').length }; });
   const tabs = await p.$$eval('[data-ptab]', bs => bs.map(b => b.textContent.trim() + ':' + b.getAttribute('aria-selected')));
-  L.ok(tabs.join('|') === 'Colour:true|Black & White:false' && count.all === 43 && count.colour === 20 && count.bw === 23 && count.films === 17,
+  L.ok(tabs.join('|') === 'Colour:true|Black & White:false' && count.all === 28 && count.colour === 14 && count.bw === 14 && count.films === 16,
     'the presets: two tabs, Colour and Black & White ' + JSON.stringify({ tabs, count }));
   const thumbsIn = async tab => {
     await p.waitForFunction(() => [...document.querySelectorAll('[data-pp] canvas')].every(c => c.dataset.t), null, { timeout: 20000 }).catch(() => {});
@@ -226,16 +226,16 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(afterTab.v.preset === 'cinematic' && afterTab.hist === hp && JSON.stringify(afterTab.e) === JSON.stringify(ci.e), 'switching to Black & White puts no preset on and takes none off');
   L.ok(tb.length === count.bw + 1 && tb[0].id === 'original' && tb.every(t => t.sum > 0) && new Set(tb.map(t => t.sum)).size === tb.length,
     'Black & White: Original first, then its ' + count.bw + ' presets, each with a thumbnail of its own ' + tb.length);
-  L.ok(tb.filter(t => t.film).every(t => t.grey) && tb.filter(t => t.film).length === 11, 'the black-and-white films are truly grey (mixed from the colours, not drained of them) ' + tb.filter(t => t.film && !t.grey).map(t => t.id).join(','));
+  L.ok(tb.filter(t => t.film).every(t => t.grey) && tb.filter(t => t.film).length === 10, 'the black-and-white films are truly grey (mixed from the colours, not drained of them) ' + tb.filter(t => t.film && !t.grey).map(t => t.id).join(','));
   // (one film's mix: a red, a green and a blue of the same light come out as different greys)
   const mix = await p.evaluate(async () => {
     const out = {};
-    for (const id of ['acros', 'retro80s']) { document.querySelector('[data-pp="' + id + '"]').click(); await new Promise(r => setTimeout(r, 30));
+    for (const id of ['acros', 'trix400']) { document.querySelector('[data-pp="' + id + '"]').click(); await new Promise(r => setTimeout(r, 30));
       const bm = await createImageBitmap(await PaintPhoto.exportBlob({ type: 'png', w: 300, h: 200 })), c = document.createElement('canvas'); c.width = 300; c.height = 200; const x = c.getContext('2d'); x.drawImage(bm, 0, 0);
       const d = x.getImageData(0, 0, 300, 200).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i]; out[id] = s; }
     return out;
   });
-  L.ok(mix.acros !== mix.retro80s, 'and each film has its own mix of the colours ' + JSON.stringify(mix));
+  L.ok(mix.acros !== mix.trix400, 'and each film has its own mix of the colours ' + JSON.stringify(mix));
   await tapEl('[data-pp="bw"]'); const bw = await S();
   L.ok(ci.e.grade && ci.e.vignette === -30 + 22 && ci.e.exposure === 20 && !bw.e.grade && bw.e.vignette === -30 && bw.e.saturation === -100 && bw.e.exposure === 20 && bw.hist === hp,
     'one preset after another: each takes the last one’s place, on top of what was set by hand, and takes no step ' + JSON.stringify({ civ: ci.e.vignette, bwv: bw.e.vignette, ex: bw.e.exposure }));
@@ -356,6 +356,14 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(await p.evaluate(() => document.documentElement.classList.contains('photo-mode')) && rl.w === 600 && rl.e.temp === 30, 'a reload comes back in Photo mode, with the photo as edited ' + JSON.stringify({ w: rl.w, temp: rl.e && rl.e.temp }));
   L.ok((await screen()).diff === 0 || true, '');
   const rlook = await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))));
+  // (a photo kept with a preset that's since been taken out: it opens, with what was set by hand, and no preset)
+  const gone = await p.evaluate(async () => {
+    const keep = PaintPhoto.serialize(), d = Object.assign({}, keep, { v: Object.assign({}, keep.v, { preset: 'noir', pamt: 60, temp: 17 }) });
+    await PaintPhoto.load(d); await new Promise(r => setTimeout(r, 300)); const st = PaintPhoto.state();
+    await PaintPhoto.load(keep); await new Promise(r => setTimeout(r, 300));
+    return { w: st.w, preset: st.v.preset, temp: st.v.temp, eTemp: st.e.temp, back: PaintPhoto.state().v.preset };
+  });
+  L.ok(gone.w === 600 && gone.preset === null && gone.temp === 17 && gone.eTemp === 17 && gone.back === 'goldenhour', 'an edit kept with a preset that’s been taken out still opens, as set by hand ' + JSON.stringify(gone));
   // ---- AND IN A PROJECT FILE ----
   if (!phone) {
     await p.$eval('[data-act="save"]', e => e.click()); await p.waitForTimeout(250);
