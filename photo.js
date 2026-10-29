@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var FX = window.PaintFX;
-  var B = null, on = false, stageEl = null, cv = null, gl = null, groupEl = null, emptyEl = null;
+  var B = null, on = false, stageEl = null, cv = null, gl = null, groupEl = null, histEl = null, emptyEl = null;
   // the photo in hand: its name, size, the file it came from (kept as it
   // was: what's saved, and what export works from) and the settings
   var doc = null, img = null, rev = 0;
@@ -20,7 +20,7 @@
   var DEF = {
     exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0, brightness: 0, curve: null,
     temp: 0, tint: 0, vibrance: 0, saturation: 0, hsl: null, grade: null,
-    texture: 0, clarity: 0, dehaze: 0, vignette: 0, vigMid: 50, grain: 0, grainSize: 25,
+    texture: 0, clarity: 0, dehaze: 0, vignette: 0, vigMid: 50, grain: 0, grainSize: 25, grainRough: 0, grainCol: 0, halation: 0,
     sharpen: 0, sRadius: 10, sDetail: 25, sMask: 0, nr: 0, nrColor: 0,
     distort: 0, lensVig: 0, caR: 0, caB: 0, vert: 0, horiz: 0, scale: 100,
     angle: 0, rot: 0, flipH: false, flipV: false, crop: null, asp: 'orig', aspT: false,
@@ -29,7 +29,7 @@
   var SECS = [
     { id: 'light', name: 'Light', rows: [['exposure', 'Exposure', -100, 100, 'ev'], ['contrast', 'Contrast'], ['highlights', 'Highlights'], ['shadows', 'Shadows'], ['whites', 'Whites'], ['blacks', 'Blacks'], ['brightness', 'Brightness']], curve: true },
     { id: 'colour', name: 'Colour', rows: [['temp', 'Temperature'], ['tint', 'Tint'], ['vibrance', 'Vibrance'], ['saturation', 'Saturation']], mixer: true, grading: true },
-    { id: 'effects', name: 'Effects', rows: [['texture', 'Texture'], ['clarity', 'Clarity'], ['dehaze', 'Dehaze'], ['vignette', 'Vignette'], ['vigMid', 'Vignette Midpoint', 0, 100], ['grain', 'Grain', 0, 100], ['grainSize', 'Grain Size', 0, 100]] },
+    { id: 'effects', name: 'Effects', rows: [['texture', 'Texture'], ['clarity', 'Clarity'], ['dehaze', 'Dehaze'], ['vignette', 'Vignette'], ['vigMid', 'Vignette Midpoint', 0, 100], ['grain', 'Grain', 0, 100], ['grainSize', 'Grain Size', 0, 100], ['grainRough', 'Grain Roughness', 0, 100], ['grainCol', 'Colour Grain', 0, 100], ['halation', 'Halation', 0, 100]] },
     { id: 'detail', name: 'Detail', rows: [['sharpen', 'Sharpening', 0, 150], ['sRadius', 'Radius', 5, 30, 'r'], ['sDetail', 'Detail', 0, 100], ['sMask', 'Masking', 0, 100], ['nr', 'Noise Reduction', 0, 100], ['nrColor', 'Colour Noise Reduction', 0, 100]] },
     { id: 'optics', name: 'Optics & Geometry', rows: [['distort', 'Distortion'], ['lensVig', 'Lens Vignetting'], ['caR', 'Red / Cyan Fringe'], ['caB', 'Blue / Yellow Fringe'], ['vert', 'Vertical'], ['horiz', 'Horizontal'], ['scale', 'Scale', 50, 150, '%']] }
   ];
@@ -56,25 +56,12 @@
   }
   function rowOf(k) { if (k === 'angle') return ANGLE; for (var i = 0; i < SECS.length; i++) for (var j = 0; j < SECS[i].rows.length; j++) if (SECS[i].rows[j][0] === k) return SECS[i].rows[j]; return null; }
 
-  // ---- THE 15 PRESETS: each a set of the very same settings (anything
-  // not named is left as it was before the presets were opened) ----
-  var PRESETS = [
-    ['natural', 'Natural', { exposure: 4, contrast: 8, highlights: -18, shadows: 16, whites: 6, blacks: -6, vibrance: 14, clarity: 6, texture: 6, sharpen: 30 }],
-    ['cinematic', 'Cinematic', { contrast: 18, highlights: -32, shadows: 22, blacks: -14, temp: -6, saturation: -12, vibrance: 8, clarity: 10, vignette: 22, curve: [[0, 14], [64, 54], [192, 206], [255, 240]], grade: { sh: [195, 32, 0], mid: [0, 0, 0], hi: [36, 30, 0], all: [0, 0, 0], blend: 60, bal: 0 } }],
-    ['vintage', 'Vintage Film', { contrast: -10, highlights: -20, shadows: 18, temp: 14, tint: 6, saturation: -22, vibrance: -6, grain: 34, grainSize: 40, vignette: 26, curve: [[0, 30], [70, 72], [190, 196], [255, 236]], grade: { sh: [170, 18, 0], mid: [0, 0, 0], hi: [45, 26, 0], all: [0, 0, 0], blend: 70, bal: 10 } }],
-    ['warmportrait', 'Warm Portrait', { exposure: 6, contrast: 4, highlights: -22, shadows: 20, temp: 16, tint: 4, vibrance: 10, saturation: -4, texture: -12, clarity: -8, hsl: { orange: [0, -8, 12], red: [0, -6, 6] } }],
-    ['cooleditorial', 'Cool Editorial', { contrast: 16, highlights: -14, whites: 10, blacks: -10, temp: -18, tint: -4, saturation: -14, vibrance: 6, clarity: 12, texture: 8, sharpen: 40 }],
-    ['bw', 'Black & White', { contrast: 22, highlights: -16, shadows: 14, whites: 12, blacks: -14, saturation: -100, clarity: 14, grain: 12, hsl: { red: [0, 0, 10], orange: [0, 0, 14], blue: [0, 0, -18], aqua: [0, 0, -8] } }],
-    ['highcontrast', 'High Contrast', { contrast: 52, highlights: -10, shadows: -8, whites: 22, blacks: -26, vibrance: 14, clarity: 22, texture: 10, sharpen: 50 }],
-    ['softmatte', 'Soft Matte', { contrast: -18, highlights: -18, shadows: 22, saturation: -10, clarity: -10, curve: [[0, 34], [80, 84], [180, 186], [255, 244]] }],
-    ['goldenhour', 'Golden Hour', { exposure: 6, highlights: -26, shadows: 18, temp: 30, tint: 8, vibrance: 22, dehaze: 6, vignette: 14, grade: { sh: [28, 12, 0], mid: [0, 0, 0], hi: [42, 34, 0], all: [0, 0, 0], blend: 60, bal: 15 } }],
-    ['moody', 'Moody', { exposure: -12, contrast: 20, highlights: -38, shadows: -6, blacks: -18, temp: -8, saturation: -26, clarity: 16, dehaze: 10, vignette: 34, hsl: { blue: [-10, -20, -20], green: [10, -30, -20] } }],
-    ['studio', 'Clean Studio', { exposure: 10, contrast: 10, highlights: -8, shadows: 10, whites: 18, blacks: -4, saturation: -6, vibrance: 6, texture: 6, sharpen: 45, nr: 12 }],
-    ['pastel', 'Pastel', { exposure: 14, contrast: -26, highlights: -20, shadows: 30, whites: 8, saturation: -18, vibrance: 18, temp: 4, curve: [[0, 40], [128, 140], [255, 248]], hsl: { blue: [0, -10, 16], magenta: [0, -6, 14], aqua: [0, -6, 14] } }],
-    ['urban', 'Urban', { contrast: 26, highlights: -30, shadows: 14, blacks: -16, temp: -10, saturation: -30, vibrance: 4, clarity: 28, texture: 16, dehaze: 12, sharpen: 55, vignette: 18 }],
-    ['landscape', 'Landscape', { contrast: 14, highlights: -36, shadows: 26, whites: 8, blacks: -10, vibrance: 28, saturation: 6, clarity: 16, dehaze: 18, texture: 10, hsl: { blue: [-4, 12, -14], green: [-8, 10, -6], aqua: [0, 10, -8] } }],
-    ['classicfilm', 'Classic Film', { contrast: 10, highlights: -14, shadows: 8, temp: 6, saturation: -12, grain: 26, grainSize: 30, curve: [[0, 20], [60, 52], [128, 132], [200, 210], [255, 242]], grade: { sh: [200, 14, 0], mid: [35, 8, 0], hi: [48, 16, 0], all: [0, 0, 0], blend: 55, bal: 0 } }]
-  ];
+  // ---- THE PRESETS: their names, categories and recipes are data, in
+  // photo-presets.js (window.PaintPhotoPresets); each recipe is a set of the
+  // very same settings (v), and a film's look as well (look: its colour
+  // matrix, its own curve for each channel, a black-and-white film's
+  // spectral mix), which only a preset can set ----
+  var PDATA = window.PaintPhotoPresets || { cats: [['colour', 'Colour'], ['bw', 'Black & White']], list: [] }, PRESETS = PDATA.list, PCATS = PDATA.cats;
   var presetBase = null, presetPick = null, thumbs = {}, thumbRev = -1;
   // A PRESET IS A LAYER OF ITS OWN over the settings set by hand (doc.v),
   // named by doc.v.preset: what's shown and saved is eff(v), each slider the
@@ -83,13 +70,14 @@
   // added band by band, its colour grading where the hand's has none. So
   // Original (no preset) takes off only the preset, another preset takes its
   // place, and nothing set by hand, before or after, is lost.
-  function presetOf(id) { for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i][0] === id) return PRESETS[i]; return null; }
+  function presetOf(id) { for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i].id === id) return PRESETS[i]; return null; }
   function scalarK(k) { return typeof DEF[k] === 'number' && !!rowOf(k); }
   function rangeOf(k) { var r = rowOf(k); return [r && r[2] != null ? r[2] : -100, r && r[3] != null ? r[3] : 100]; }
-  function offOf(v, k) { var q = v.preset && presetOf(v.preset); return q && typeof q[2][k] === 'number' ? q[2][k] - DEF[k] : 0; }
+  function offOf(v, k) { var q = v.preset && presetOf(v.preset); return q && typeof q.v[k] === 'number' ? q.v[k] - DEF[k] : 0; }
   function eff(v) {
     var q = v.preset && presetOf(v.preset); if (!q) return v;
-    var e = copyV(v), pv = q[2];
+    var e = copyV(v), pv = q.v;
+    if (q.look) e.plook = q.look; // (the film's own: matrix, channel curves, spectral mix)
     for (var k in pv) {
       if (scalarK(k)) { var rg = rangeOf(k); e[k] = Math.max(rg[0], Math.min(rg[1], v[k] + pv[k] - DEF[k])); }
       else if (k === 'curve') e.pcurve = pv.curve;
@@ -122,6 +110,8 @@
   // (the working copy: linear light, and the darkest channel for dehaze)
   var COPY = HEAD + 'uniform sampler2D u_in; uniform float u_lod; uniform vec2 u_size; uniform int u_lin; out vec4 frag;\n' +
     'void main() { vec2 uv = gl_FragCoord.xy / u_size; uv.y = 1.0 - uv.y; vec4 s = textureLod(u_in, uv, u_lod); vec3 c = u_lin == 1 ? lin(s.rgb) : s.rgb;\n' +
+    // (2: only the brightest of the working copy, as the light that halates: from a little under white)
+    '  if (u_lin == 2) { frag = vec4(c * smoothstep(0.6, 1.0, dot(c, vec3(0.2126, 0.7152, 0.0722))), 1.0); return; }\n' +
     '  frag = vec4(c, u_lin == 1 ? min(min(c.r, c.g), c.b) : s.a); }';
   // (a Gaussian blur one way, sigma in the texture's own pixels)
   var BLUR = HEAD + 'uniform sampler2D u_in; uniform vec2 u_dir, u_size; uniform float u_sig; out vec4 frag;\n' +
@@ -129,11 +119,13 @@
     '  for (int i = -60; i <= 60; i++) { if (i < -r || i > r) continue; float f = exp(-0.5 * float(i * i) / (u_sig * u_sig)); t += texture(u_in, uv + u_dir * float(i) / u_size) * f; w += f; }\n' +
     '  frag = t / w; }';
   var DEV = HEAD +
-    'uniform sampler2D u_src, u_bm, u_bl, u_lut; uniform vec2 u_o, u_s, u_out, u_img; uniform float u_lod; uniform int u_neutral;\n' +
+    'uniform sampler2D u_src, u_bm, u_bl, u_lut, u_hl; uniform vec2 u_o, u_s, u_out, u_img; uniform float u_lod; uniform int u_neutral;\n' +
     'uniform mat3 u_A, u_P, u_B; uniform float u_k, u_car, u_cab, u_lv; uniform vec2 u_px;\n' +
     // (the masks: up to four, each a kind (1 linear, 2 radial, 3 brush), its shape and its own settings)
     'uniform int u_nm, u_show; uniform int u_mk[4]; uniform vec4 u_mg[4], u_mh[4], u_ma[4], u_mb[4]; uniform vec2 u_asp; uniform sampler2D u_br0, u_br1, u_br2, u_br3;\n' +
-    'uniform vec3 u_wb; uniform float u_ev, u_dh, u_cl, u_tx, u_sh, u_sOff, u_sDet, u_sMask, u_nr, u_nrc, u_sat, u_vib, u_vg, u_vgMid, u_gr, u_grSize;\n' +
+    'uniform vec3 u_wb; uniform float u_ev, u_dh, u_cl, u_tx, u_sh, u_sOff, u_sDet, u_sMask, u_nr, u_nrc, u_sat, u_vib, u_vg, u_vgMid, u_gr, u_grSize, u_grRough, u_grCol, u_fp, u_hal;\n' +
+    // (a film's own, from its preset: its colour matrix and its spectral mix, for black and white)
+    'uniform int u_mat, u_mono; uniform mat3 u_M; uniform vec3 u_monoW;\n' +
     'uniform int u_mix; uniform vec3 u_hsl[8]; uniform float u_hc[8];\n' +
     'uniform int u_grade; uniform vec3 u_gS, u_gM, u_gH, u_gA; uniform float u_gBlend, u_gBal;\n' +
     'out vec4 frag;\n' +
@@ -172,6 +164,17 @@
     '  for (int i = 0; i < 4; i++) { if (i >= u_nm) break; float w = maskW(i, uv); if (i == u_show) wShow = w;\n' +
     '    lex += w * u_ma[i].x; lco += w * u_ma[i].y; lhi += w * u_ma[i].z; lsh += w * u_ma[i].w; lte += w * u_mb[i].x; lti += w * u_mb[i].y; lsa += w * u_mb[i].z; lcl += w * u_mb[i].w; }\n' +
     '  if (lex != 0.0 || lte != 0.0 || lti != 0.0) { vec3 g3 = vec3(exp2(0.8 * lte + 0.15 * lti), exp2(-0.6 * lti), exp2(-0.8 * lte + 0.15 * lti)); g3 /= dot(g3, vec3(0.2126, 0.7152, 0.0722)); c *= exp2(lex) * g3; }\n' +
+    // a film's response, in linear light as it met the light: how its layers see the colours (a
+    // matrix whose rows add to one, so a grey stays grey), and a black-and-white film's
+    // sensitivity to red, green and blue, making the one grey
+    '  if (u_mat == 1) c = max(u_M * c, 0.0);\n' +
+    '  if (u_mono == 1) c = vec3(max(dot(c, u_monoW), 0.0));\n' +
+    // halation: the brightest light spreading back through the base into the red-sensitive
+    // layer, a warm glow round the strong highlights only (the highlights blurred, u_hl, so a
+    // small lamp glows as much as a big one), less what this place's own light gives it, so it
+    // rings round a light rather than tinting what's bright itself; on black and white, grey
+    '  if (u_hal > 0.0) { vec3 wl = vec3(0.2126, 0.7152, 0.0722); float Yh = dot(texture(u_hl, uv).rgb * u_wb * u_ev, wl), Ys = dot(c, wl);\n' +
+    '    float rg = max(Yh - Ys * smoothstep(0.6, 1.0, Ys), 0.0); c += (u_mono == 1 ? vec3(0.45) : vec3(1.0, 0.24, 0.07)) * min(rg, 1.0) * u_hal; }\n' +
     // dehaze: the haze the darkest channel shows, taken out (or added)
     '  if (u_dh != 0.0) { float A = 0.95 * max(u_ev, 0.01) * max(max(u_wb.r, u_wb.g), u_wb.b); float dk = texture(u_bl, uv).a * u_ev;\n' +
     '    if (u_dh > 0.0) { float t = max(0.12, 1.0 - u_dh * 0.92 * dk / A); c = max((c - A) / t + A, 0.0); } else c = mix(c, vec3(A * 0.8), -u_dh * 0.45); }\n' +
@@ -192,7 +195,8 @@
     '    e += d * u_sh * 2.0 * mw * mix(0.6, 1.4, u_sDet); }\n' +
     // the tones: Paint's tone sums, brightness and the curve, as one table
     '  e = clamp(e, 0.0, 1.0); vec2 lt = vec2(0.5 / 1024.0 + e.r * 1023.0 / 1024.0, 0.5);\n' +
-    '  e = vec3(texture(u_lut, vec2(0.5 / 1024.0 + e.r * 1023.0 / 1024.0, 0.5)).r, texture(u_lut, vec2(0.5 / 1024.0 + e.g * 1023.0 / 1024.0, 0.5)).r, texture(u_lut, vec2(0.5 / 1024.0 + e.b * 1023.0 / 1024.0, 0.5)).r);\n' +
+    // (each channel through its own column: the same unless a film's preset curves one of them)
+    '  e = vec3(texture(u_lut, vec2(0.5 / 1024.0 + e.r * 1023.0 / 1024.0, 0.5)).r, texture(u_lut, vec2(0.5 / 1024.0 + e.g * 1023.0 / 1024.0, 0.5)).g, texture(u_lut, vec2(0.5 / 1024.0 + e.b * 1023.0 / 1024.0, 0.5)).b);\n' +
     // (the masks' tones: Paint's sums again, as toneAt in fx-shared.js)
     '  if (lco != 0.0 || lhi != 0.0 || lsh != 0.0) { vec3 x = clamp(e, 0.0, 1.0);\n' +
     '    x += lsh * 0.3 * (1.0 - smoothstep(0.0, 0.55, x)) * mix(x, 1.0 - x, step(0.0, lsh)); x += lhi * 0.3 * smoothstep(0.45, 1.0, x) * mix(x, 1.0 - x, step(0.0, lhi)); x = clamp(x, 0.0, 1.0);\n' +
@@ -213,7 +217,16 @@
     // vignette (Paint's, round the photo) and grain (fixed to the photo, not the screen)
     '  if (u_vg != 0.0) { vec2 dv = (ou - 0.5) * vec2(u_img.x / max(u_img.x, u_img.y), u_img.y / max(u_img.x, u_img.y)); float r = length(dv) / length(vec2(u_img.x, u_img.y) / max(u_img.x, u_img.y) * 0.5);\n' +
     '    float s0 = mix(0.05, 0.75, u_vgMid); float k = smoothstep(s0, 1.08, r) * u_vg * 0.75; if (u_vg > 0.0) e *= 1.0 - k; else e -= k * (1.0 - e); }\n' +
-    '  if (u_gr > 0.0) { vec2 gp = uv * u_px / u_grSize; float n = noise(gp) * 0.6 + noise(gp * 2.1 + 17.0) * 0.4 - 0.5; float l = luma(e); e += n * u_gr * 0.22 * (0.4 + 4.0 * l * (1.0 - l)); }\n' +
+    // grain: fixed to the photo (its size a part of the frame, so a photo of any size has the same
+    // grain), never redrawn differently; grains smaller than a pixel seen average out (u_fp, the
+    // photo's pixels a pixel shown), as on a film scanned smaller, so it neither shimmers when
+    // zoomed out nor changes with the size saved. Roughness: a finer third layer, crisper grains
+    // and clumping (its strength varying slowly across the frame); colour: each channel its own
+    '  if (u_gr > 0.0) { float ge = max(u_grSize, u_fp), att = u_grSize / ge; vec2 gp = uv * u_px / ge;\n' +
+    '    float n0 = noise(gp), n1 = noise(gp * 2.1 + 17.0), n = mix(n0 * 0.6 + n1 * 0.4, n0 * 0.45 + n1 * 0.33 + noise(gp * 4.3 + vec2(5.0, 29.0)) * 0.22, u_grRough) - 0.5;\n' +
+    '    n = mix(n, clamp(n * 2.2, -0.5, 0.5), u_grRough * 0.5); float cl = mix(1.0, 0.45 + 1.1 * noise(gp * 0.19 + vec2(41.0, 7.0)), u_grRough * 0.8);\n' +
+    '    vec3 nv = vec3(n); if (u_grCol > 0.0) nv = mix(nv, vec3(noise(gp + vec2(31.7, 11.0)), noise(gp * 1.07 + vec2(3.3, 57.0)), noise(gp * 0.93 + vec2(77.0, 19.0))) - 0.5, u_grCol);\n' +
+    '    float l = luma(e); e += nv * u_gr * 0.22 * att * cl * (0.4 + 4.0 * l * (1.0 - l)); }\n' +
     '  e = clamp(e, 0.0, 1.0); if (u_show >= 0) e = mix(e, vec3(1.0, 0.16, 0.12), wShow * 0.55);\n' +
     '  frag = vec4(e * S.a, S.a); }';
 
@@ -247,6 +260,7 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     if (fmt === 'f') gl.texImage2D(gl.TEXTURE_2D, 0, F16 ? gl.RGBA16F : gl.RGBA8, w, h, 0, gl.RGBA, F16 ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
     else if (fmt === 'r') gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, w, h, 0, gl.RED, gl.FLOAT, null);
+    else if (fmt === 'rgb16') gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.FLOAT, null);
     else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     t.w = w; t.h = h; return t;
   }
@@ -259,9 +273,9 @@
   function bind(p, n, unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(U(p, n), unit); }
   // THE PHOTO, UP: as big as the chip takes (the photo itself is kept as
   // it came, for saving), with its smaller copies; then the working copy
-  // and its two blurs, made once
+  // and its blurs (the highlights' own for halation), made once
   function upload() {
-    ['src', 'wk', 'bm', 'bl', 'lut'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); T[k] = null; });
+    ['src', 'wk', 'bm', 'bl', 'hl', 'lut'].forEach(function (k) { if (T[k]) gl.deleteTexture(T[k]); T[k] = null; });
     Object.keys(BRC).forEach(function (id) { if (BRC[id].tex) gl.deleteTexture(BRC[id].tex); }); BRC = {};
     var w = img.w, h = img.h, s = Math.min(1, maxTex / Math.max(w, h)), el = img.el;
     if (s < 1) { var c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s); c.getContext('2d').drawImage(el, 0, 0, c.width, c.height); el = c; }
@@ -280,7 +294,10 @@
     var qw = Math.max(1, Math.round(ww / 4)), qh = Math.max(1, Math.round(wh / 4)), small = tex(qw, qh, 'f');
     pass(P.copy, small, qw, qh, function (p) { bind(p, 'u_in', 0, T.wk); gl.uniform1f(U(p, 'u_lod'), 0); gl.uniform2f(U(p, 'u_size'), qw, qh); gl.uniform1i(U(p, 'u_lin'), 0); });
     T.bl = blurOf(small, qw, qh, Math.max(qw, qh) * 0.05); gl.deleteTexture(small);
-    T.lut = tex(1024, 1, 'r'); T.lutKey = null;
+    var hl = tex(ww, wh, 'f');
+    pass(P.copy, hl, ww, wh, function (p) { bind(p, 'u_in', 0, T.wk); gl.uniform1f(U(p, 'u_lod'), 0); gl.uniform2f(U(p, 'u_size'), ww, wh); gl.uniform1i(U(p, 'u_lin'), 2); });
+    T.hl = blurOf(hl, ww, wh, Math.max(ww, wh) * 0.006); gl.deleteTexture(hl);
+    T.lut = tex(1024, 1, 'rgb16'); T.lutKey = null;
   }
   // (a Gaussian blur, one way then the other)
   function blurOf(t, w, h, sig) {
@@ -291,16 +308,21 @@
   // THE TONE TABLE: Paint's tone sums (shadows, highlights, whites, blacks,
   // contrast), then brightness, then the curve, 1,024 steps of it
   function toneTable(v) {
-    var key = [v.contrast, v.highlights, v.shadows, v.whites, v.blacks, v.brightness, JSON.stringify(v.curve), JSON.stringify(v.pcurve || null)].join('|');
+    var rgbC = v.plook && v.plook.rgb || null;
+    var key = [v.contrast, v.highlights, v.shadows, v.whites, v.blacks, v.brightness, JSON.stringify(v.curve), JSON.stringify(v.pcurve || null), JSON.stringify(rgbC)].join('|');
     var tn = { sh: v.shadows / 100, hi: v.highlights / 100, wh: v.whites / 100, bl: v.blacks / 100, co: v.contrast / 100 }, br = v.brightness / 100;
-    var cl = v.curve ? FX.curveLut(v.curve, 1024) : null, pl = v.pcurve ? FX.curveLut(v.pcurve, 1024) : null, o = new Float32Array(1024);
+    var cl = v.curve ? FX.curveLut(v.curve, 1024) : null, pl = v.pcurve ? FX.curveLut(v.pcurve, 1024) : null, o = new Float32Array(4096);
+    var ch = ['r', 'g', 'b'].map(function (c) { return rgbC && rgbC[c] ? FX.curveLut(rgbC[c], 1024) : null; });
     var through = function (L, x) { var f = Math.max(0, Math.min(1, x)) * 1023, i0 = Math.min(1022, Math.floor(f)), t = f - i0; return (L[i0] * (1 - t) + L[i0 + 1] * t) / 255; };
     for (var i = 0; i < 1024; i++) {
       var x = FX.toneAt(i / 1023, tn);
       if (br) x = Math.pow(Math.max(0, Math.min(1, x)), Math.pow(2, -br * 0.9));
       if (cl) x = through(cl, x);
       if (pl) x = through(pl, x); // (the preset's curve, after the hand's)
-      o[i] = Math.max(0, Math.min(1, x));
+      x = Math.max(0, Math.min(1, x));
+      // (then a film's own curve for each channel: where its colours cross over)
+      for (var c = 0; c < 3; c++) o[i * 4 + c] = ch[c] ? Math.max(0, Math.min(1, through(ch[c], x))) : x;
+      o[i * 4 + 3] = 1;
     }
     return { key: key, data: o };
   }
@@ -335,10 +357,10 @@
   function develop(v, out, o, s, lod, neutral, full) {
     v = eff(v);
     var p = P.dev, tb = toneTable(v), G = geo(v, full);
-    if (T.lutKey !== tb.key) { gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1024, 1, gl.RED, gl.FLOAT, tb.data); T.lutKey = tb.key; }
+    if (T.lutKey !== tb.key) { gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1024, 1, gl.RGBA, gl.FLOAT, tb.data); T.lutKey = tb.key; }
     var t = v.temp / 100, ti = v.tint / 100, kr = Math.pow(2, 0.8 * t + 0.15 * ti), kg = Math.pow(2, -0.6 * ti), kb = Math.pow(2, -0.8 * t + 0.15 * ti), ln = 0.2126 * kr + 0.7152 * kg + 0.0722 * kb;
     pass(p, out.tex || null, out.w, out.h, function (p) {
-      bind(p, 'u_src', 0, T.src); bind(p, 'u_bm', 1, T.bm); bind(p, 'u_bl', 2, T.bl); bind(p, 'u_lut', 3, T.lut);
+      bind(p, 'u_src', 0, T.src); bind(p, 'u_bm', 1, T.bm); bind(p, 'u_bl', 2, T.bl); bind(p, 'u_lut', 3, T.lut); bind(p, 'u_hl', 8, T.hl);
       var f1 = function (n, x) { gl.uniform1f(U(p, n), x); };
       gl.uniform2f(U(p, 'u_o'), o.x, o.y); gl.uniform2f(U(p, 'u_s'), s.x, s.y); gl.uniform2f(U(p, 'u_out'), out.w, out.h); gl.uniform2f(U(p, 'u_img'), G.out.w, G.out.h); gl.uniform2f(U(p, 'u_px'), img.w, img.h);
       gl.uniformMatrix3fv(U(p, 'u_A'), false, cm(G.A)); gl.uniformMatrix3fv(U(p, 'u_P'), false, cm(G.P)); gl.uniformMatrix3fv(U(p, 'u_B'), false, cm(G.B));
@@ -351,7 +373,15 @@
       f1('u_sh', v.sharpen / 100); f1('u_sOff', Math.max(0.3, Math.log2(v.sRadius / 10 * 2))); f1('u_sDet', v.sDetail / 100); f1('u_sMask', v.sMask / 100);
       f1('u_nr', v.nr / 100); f1('u_nrc', v.nrColor / 100);
       f1('u_sat', 1 + v.saturation / 100); f1('u_vib', v.vibrance / 100);
-      f1('u_vg', v.vignette / 100); f1('u_vgMid', v.vigMid / 100); f1('u_gr', v.grain / 100); f1('u_grSize', 0.6 + v.grainSize / 100 * 3.4);
+      f1('u_vg', v.vignette / 100); f1('u_vgMid', v.vigMid / 100);
+      // (grain's size in the photo's pixels: as on a frame 3,000 across, so the same part of any
+      // photo; and how many of them a pixel drawn covers)
+      var gs = (0.6 + v.grainSize / 100 * 3.4) * Math.max(img.w, img.h) / 3000, OF = outSize(v, full);
+      f1('u_gr', v.grain / 100); f1('u_grSize', gs); f1('u_grRough', v.grainRough / 100); f1('u_grCol', v.grainCol / 100); f1('u_fp', Math.max(1e-3, s.x * OF.w / G.z));
+      f1('u_hal', v.halation / 100);
+      var lk = v.plook || null, M = lk && lk.mat, mw = lk && lk.mono;
+      gl.uniform1i(U(p, 'u_mat'), M ? 1 : 0); if (M) gl.uniformMatrix3fv(U(p, 'u_M'), false, cm(M));
+      gl.uniform1i(U(p, 'u_mono'), mw ? 1 : 0); if (mw) { var ms = mw[0] + mw[1] + mw[2]; gl.uniform3f(U(p, 'u_monoW'), mw[0] / ms, mw[1] / ms, mw[2] / ms); }
       var hs = v.hsl, mixOn = !!hs && BANDS.some(function (b) { var q = hs[b[0]]; return q && (q[0] || q[1] || q[2]); });
       gl.uniform1i(U(p, 'u_mix'), mixOn ? 1 : 0);
       var hv = new Float32Array(24), hc = new Float32Array(8);
@@ -482,7 +512,10 @@
   }
   function undo() { if (!hist.length) return; var e = hist.pop(); fut.push({ s: snap(), label: e.label }); putBack(e.s); B.toast('Undid ' + e.label); }
   function redo() { if (!fut.length) return; var e = fut.pop(); hist.push({ s: snap(), label: e.label }); putBack(e.s); B.toast('Redid ' + e.label); }
-  function histButtons() { if (!B) return; B.undoBtn.disabled = !hist.length; B.redoBtn.disabled = !fut.length; }
+  function histButtons() {
+    if (!B) return; B.undoBtn.disabled = !hist.length; B.redoBtn.disabled = !fut.length;
+    if (histEl) { histEl.querySelector('[data-act="undo"]').disabled = !hist.length; histEl.querySelector('[data-act="redo"]').disabled = !fut.length; }
+  }
   // (something changed: drawn again, the panel brought up to date, kept)
   function changed(panel) { draw(); if (panel) panelRefresh(); else marks(); histButtons(); B.autosave(); }
 
@@ -917,11 +950,22 @@
     else { v.flipV = !v.flipV; n = { x: c.x, y: 1 - c.y - c.h, w: c.w, h: c.h }; }
     setCrop(n); fit(); changed(true);
   }
+  // THE PRESETS' PANEL: Colour and Black & White as tabs (only which are
+  // shown: switching neither puts one on nor takes one off), Original first
+  // in each, then the films and the other looks under headings of their own
+  var ptab = null;
   function presetsHTML() {
-    var now = doc.v.preset || 'original';
-    return '<div class="pho-presets" role="radiogroup" aria-label="Presets">' + [['original', 'Original']].concat(PRESETS).map(function (q) {
-      return '<button type="button" class="pho-preset" role="radio" data-pp="' + q[0] + '" aria-checked="' + (now === q[0]) + '"><canvas aria-hidden="true"></canvas><span>' + q[1] + '</span></button>';
-    }).join('') + '</div><div class="pa-acts pho-acts"><button type="button" data-pa="pcancel"' + (presetPick ? '' : ' disabled') + '>Cancel</button><button type="button" class="pho-done" data-pa="pdone"' + (presetPick ? '' : ' disabled') + '>Done</button></div>';
+    var now = doc.v.preset || 'original', cur = now !== 'original' && presetOf(now);
+    if (!ptab) ptab = cur ? cur.cat : PCATS[0][0];
+    // (a long name has a short one for its tile, the whole name in its tip)
+    var btn = function (id, name, short) { return '<button type="button" class="pho-preset" role="radio" data-pp="' + id + '" aria-checked="' + (now === id) + '"' + (short ? ' aria-label="' + esc(name) + '" data-tip="' + esc(name) + '"' : '') + '><canvas aria-hidden="true"></canvas><span>' + esc(short || name) + '</span></button>'; };
+    var html = '<div class="pa-tabs pho-ptabs" role="tablist" aria-label="Preset category">' + PCATS.map(function (c) { return '<button type="button" role="tab" data-ptab="' + c[0] + '" aria-selected="' + (c[0] === ptab) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="pho-presets" role="radiogroup" aria-label="Presets">' + btn('original', 'Original');
+    (PDATA.groups || [['film', 'Film stocks'], ['look', 'Looks']]).forEach(function (g) {
+      var items = PRESETS.filter(function (q) { return q.cat === ptab && (q.group || 'look') === g[0]; });
+      if (items.length) html += '<div class="pho-sub pho-pgroup">' + esc(g[1]) + '</div>' + items.map(function (q) { return btn(q.id, q.name, q.short); }).join('');
+    });
+    return html + '</div><div class="pa-acts pho-acts"><button type="button" data-pa="pcancel"' + (presetPick ? '' : ' disabled') + '>Cancel</button><button type="button" class="pho-done" data-pa="pdone"' + (presetPick ? '' : ' disabled') + '>Done</button></div>';
   }
   // (the panel's values from the settings)
   function getK(k) {
@@ -939,7 +983,7 @@
     var v = doc.v;
     if (k.slice(0, 2) === 'm_') { var pm = pickedMask(); if (pm) { if (k === 'm_fe') pm.g.fe = x; else pm.a[k.slice(2)] = x; } return; }
     if (k.slice(0, 2) === 'b_') { BRS[k.slice(2)] = x; try { localStorage.setItem('paint-pho-brush', JSON.stringify(BRS)); } catch (e) {} return; }
-    var pq = v.preset && presetOf(v.preset), pv = pq ? pq[2] : {};
+    var pq = v.preset && presetOf(v.preset), pv = pq ? pq.v : {};
     if (k === 'mxH' || k === 'mxS' || k === 'mxL') { var ix = { mxH: 0, mxS: 1, mxL: 2 }[k], po = pv.hsl && pv.hsl[band] ? pv.hsl[band][ix] : 0; v.hsl = v.hsl || {}; var q = v.hsl[band] = (v.hsl[band] || [0, 0, 0]).slice(); q[ix] = x - po; if (!q[0] && !q[1] && !q[2]) delete v.hsl[band]; if (!Object.keys(v.hsl).length) v.hsl = null; return; }
     if (k === 'gH' || k === 'gS' || k === 'gL' || k === 'gBlend' || k === 'gBal') {
       // (the grading seen, the preset's included, becomes the hand's, then changes)
@@ -963,7 +1007,7 @@
   }
   // (a section that's been changed shows a dot, and its reset button)
   var SEC_KEYS = { light: ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks', 'brightness', 'curve'], colour: ['temp', 'tint', 'vibrance', 'saturation', 'hsl', 'grade'],
-    effects: ['texture', 'clarity', 'dehaze', 'vignette', 'vigMid', 'grain', 'grainSize'], detail: ['sharpen', 'sRadius', 'sDetail', 'sMask', 'nr', 'nrColor'],
+    effects: ['texture', 'clarity', 'dehaze', 'vignette', 'vigMid', 'grain', 'grainSize', 'grainRough', 'grainCol', 'halation'], detail: ['sharpen', 'sRadius', 'sDetail', 'sMask', 'nr', 'nrColor'],
     optics: ['distort', 'lensVig', 'caR', 'caB', 'vert', 'horiz', 'scale'] };
   function marks() {
     if (!doc) return;
@@ -974,6 +1018,7 @@
   function panelRefresh() { if (!on) return; B.ctxRefresh(); }
   function pickCat(c) {
     cat = c; if (c !== 'presets' && presetPick) presetCancel();
+    if (c === 'presets') ptab = null; // (opened afresh: on the tab of the preset in use)
     var was = cropping; cropping = c === 'crop' && !!img; mFresh = null;
     if (c === 'masks' && doc && doc.v.masks && !pickedMask()) mPick = doc.v.masks[doc.v.masks.length - 1].id;
     groupSync(); B.showPanel(); panelRefresh();
@@ -1007,6 +1052,7 @@
     var rs = t.closest('[data-preset-sec]'); if (rs && doc) { record('Reset ' + rs.closest('[data-psec]').querySelector('.pr-head span').firstChild.textContent); SEC_KEYS[rs.dataset.presetSec].forEach(function (k) { doc.v[k] = copyV({ x: DEF[k] }).x; }); changed(true); return; }
     var bd = t.closest('[data-band]'); if (bd) { band = bd.dataset.band; panelSync(); return; }
     var gr = t.closest('[data-grade]'); if (gr) { gradeAt = gr.dataset.grade; panelSync(); return; }
+    var pt = t.closest('[data-ptab]'); if (pt) { if (ptab !== pt.dataset.ptab) { ptab = pt.dataset.ptab; panelRefresh(); var sc = thumbScroller(); if (sc) sc.scrollTop = 0; } return; }
     var pp = t.closest('[data-pp]'); if (pp) { presetTry(pp.dataset.pp); return; }
     var as = t.closest('[data-pasp]'); if (as && doc) { if (doc.v.asp !== as.dataset.pasp) { record('Crop Shape'); doc.v.asp = as.dataset.pasp; setCrop(aspCrop(doc.v)); draw(); changed(true); } return; }
     var a = t.closest('[data-pa]'); if (!a) return;
@@ -1094,24 +1140,42 @@
   }
   function presetDone() {
     if (!presetPick) return;
-    var id = doc.v.preset, was = presetBase.preset, name = id ? presetOf(id)[1] : 'Original', now = copyV(doc.v);
+    var id = doc.v.preset, was = presetBase.preset, name = id ? presetOf(id).name : 'Original', now = copyV(doc.v);
     if (id !== was) { doc.v = presetBase; record(id ? 'Preset: ' + name : 'No Preset'); doc.v = now; }
     presetBase = null; presetPick = null;
     if (id !== was) B.toast(id ? name + ' kept: every setting can still be changed' : 'The preset is off: what you set yourself is kept');
     cat = 'edit'; groupSync(); changed(true);
   }
-  // (each preset's look, on a small copy of this photo: worked out once a
-  // photo and kept; drawn as the panel shows them)
-  var thumbT = 0;
-  function thumbsSoon() { clearTimeout(thumbT); thumbT = setTimeout(function () { thumbs = {}; if (on && cat === 'presets') thumbsDraw(); }, 400); }
+  // (each preset's look, on a small copy of this photo: worked out a few at
+  // a time between frames, the ones in view first, so the panel opens at once
+  // and the photo never waits for them; each is kept until the photo or what's
+  // set changes; a new run (the panel drawn again, a tab, a change) calls off
+  // the last one)
+  var thumbT = 0, thumbGen = 0, thumbQ = null;
+  function thumbsSoon() { clearTimeout(thumbT); thumbT = setTimeout(function () { thumbs = {}; thumbGen++; if (on && cat === 'presets') thumbsDraw(); }, 400); }
+  function thumbScroller() { var el = B && B.ctxTool; while (el && el !== document.body) { var o = getComputedStyle(el).overflowY; if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight + 1) return el; el = el.parentElement; } return null; }
+  function thumbPut(b, t) { var c = b.querySelector('canvas'); if (!c || c.dataset.t === t.id) return; c.width = t.data.width; c.height = t.data.height; c.getContext('2d').putImageData(t.data, 0, 0); c.dataset.t = t.id; }
   function thumbsDraw() {
     if (!gl || !img || !T.src) return;
-    var base = presetBase || doc.v;
-    Array.prototype.forEach.call(B.ctxTool.querySelectorAll('[data-pp]'), function (b) {
-      var c = b.querySelector('canvas'), id = b.dataset.pp;
-      if (!thumbs[id]) thumbs[id] = render(presetVals(id, base), 96 * Math.min(2, window.devicePixelRatio || 1));
-      var t = thumbs[id]; c.width = t.width; c.height = t.height; c.getContext('2d').putImageData(t, 0, 0);
-    });
+    var gen = ++thumbGen, todo = [];
+    Array.prototype.forEach.call(B.ctxTool.querySelectorAll('[data-pp]'), function (b) { var t = thumbs[b.dataset.pp]; if (t) thumbPut(b, t); else todo.push(b); });
+    if (!todo.length) { thumbQ = null; return; }
+    thumbQ = { gen: gen, base: copyV(presetBase || doc.v), todo: todo, size: Math.round(96 * Math.min(2, window.devicePixelRatio || 1)) };
+    requestAnimationFrame(thumbStep);
+  }
+  function thumbStep() {
+    var Q = thumbQ; if (!Q || Q.gen !== thumbGen || !on || cat !== 'presets' || !gl || !T.src) return;
+    var sc = thumbScroller(), vr = sc ? sc.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    var away = function (b) { var r = b.getBoundingClientRect(); return r.bottom < vr.top ? vr.top - r.bottom : r.top > vr.bottom ? r.top - vr.bottom : 0; };
+    Q.todo = Q.todo.filter(function (b) { return document.contains(b); });
+    Q.todo.sort(function (a, b) { return away(a) - away(b); });
+    var t0 = performance.now();
+    while (Q.todo.length && (performance.now() - t0 < 8)) {
+      var b = Q.todo.shift(), id = b.dataset.pp;
+      if (!thumbs[id]) thumbs[id] = { id: id + ':' + thumbGen, data: render(presetVals(id, Q.base), Q.size) };
+      thumbPut(b, thumbs[id]);
+    }
+    if (Q.todo.length) requestAnimationFrame(thumbStep); else thumbQ = null;
   }
   // (the photo worked out at a size, into a texture, and read back)
   function render(v, long, wanted) {
@@ -1267,7 +1331,7 @@
   // ---- IN AND OUT OF PHOTO MODE ----
   function emptySync() { if (emptyEl) emptyEl.hidden = !!img; if (cv) cv.hidden = !img; }
   function enter(flat) {
-    on = true; stageEl.hidden = false; groupEl.hidden = false;
+    on = true; stageEl.hidden = false; groupEl.hidden = false; histEl.hidden = false;
     if (!gl && !glInit()) { B.toast('Photo mode needs WebGL 2, which this browser doesn’t offer'); }
     else if (img && !T.src) upload();
     groupSync(); emptySync(); histButtons();
@@ -1278,7 +1342,7 @@
     if (presetPick) presetCancel();
     on = false; clearTimeout(holdT); before = false; press = null; pinch = null; pts = {}; cdrag = null;
     if (cat === 'crop' || cat === 'masks') { cat = 'edit'; cropping = false; } mFresh = null; mdrag = null;
-    if (stageEl) stageEl.hidden = true; if (groupEl) groupEl.hidden = true;
+    if (stageEl) stageEl.hidden = true; if (groupEl) groupEl.hidden = true; if (histEl) histEl.hidden = true;
   }
   function key(e) {
     var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
@@ -1316,12 +1380,29 @@
     stageEl.addEventListener('dblclick', function (e) { e.stopPropagation(); if (!img) return; var p = local(e); if (view.fit) zoomAt(1, p.x, p.y); else fit(); });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { stageEl.addEventListener(t, function (e) { e.stopPropagation(); e.preventDefault(); }); });
     if (window.ResizeObserver) { var ro = new ResizeObserver(function () { relayout(); }); ro.observe(B.stage); var pan = B.ctxTool.closest('.paint-ctx'); if (pan) ro.observe(pan); }
-    // (the left bar: Edit and Presets, just above Layers and the zoom)
+    // (the left bar, a column of six: the four categories, Fit and the
+    // settings panel's own button (from the bottom bar, which Photo mode
+    // hasn't got); then Undo and Redo; then the zoom. No Layers: a photo has none)
     groupEl = document.createElement('div'); groupEl.className = 'paint-group pho-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Photo tools');
-    groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-pcat="' + c[0] + '" aria-label="' + c[1] + '" aria-pressed="false" data-tip="' + c[1] + '">' + CI(c[2]) + '</button>'; }).join('');
+    groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-pcat="' + c[0] + '" aria-label="' + c[1] + '" aria-pressed="false" data-tip="' + c[1] + '">' + CI(c[2]) + '</button>'; }).join('') +
+      '<button type="button" data-zoom="fit" class="pho-fit" aria-label="Fit the photo (0)" data-tip="Fit (0): the whole photo">' + CI('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M3.5 8V5a1.5 1.5 0 0 1 1.5-1.5h3M16 3.5h3A1.5 1.5 0 0 1 20.5 5v3M20.5 16v3a1.5 1.5 0 0 1-1.5 1.5h-3M8 20.5H5A1.5 1.5 0 0 1 3.5 19v-3"/>') + '</button>' +
+      '<button type="button" class="pho-panelbtn" aria-label="Settings panel" aria-expanded="true" data-tip="Settings panel: show or hide it">' + CI('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15M16.8 9h1.5M16.8 12h1.5M16.8 15h1.5"/>') + '</button>';
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
-    groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-pcat]'); if (b) pickCat(b.dataset.pcat); });
+    groupEl.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pcat]'); if (b) { pickCat(b.dataset.pcat); return; }
+      if (e.target.closest('.pho-panelbtn') && B.settingsBtn) B.settingsBtn.click();
+    });
+    histEl = document.createElement('div'); histEl.className = 'paint-group pho-hist'; histEl.hidden = true;
+    histEl.setAttribute('role', 'group'); histEl.setAttribute('aria-label', 'Undo and redo');
+    histEl.innerHTML = '<button type="button" data-act="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)" disabled>' + CI('<path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/>') + '</button>' +
+      '<button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y)" disabled>' + CI('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/>') + '</button>';
+    B.leftViewGroup.parentNode.insertBefore(histEl, B.leftViewGroup);
+    // (the panel's button shows whether the panel is open, as the bottom bar's did)
+    if (B.settingsBtn && window.MutationObserver) {
+      var pb = groupEl.querySelector('.pho-panelbtn'), sync = function () { pb.setAttribute('aria-expanded', B.settingsBtn.getAttribute('aria-expanded') === 'true' ? 'true' : 'false'); };
+      new MutationObserver(sync).observe(B.settingsBtn, { attributes: true, attributeFilter: ['aria-expanded'] }); sync();
+    }
     B.ctxTool.addEventListener('click', panelClick); B.ctxTool.addEventListener('input', panelInput); B.ctxTool.addEventListener('change', panelChange);
     B.ctxTool.addEventListener('dblclick', panelDbl);
     // (the brush preview goes once its slider is let go of, wherever the pointer is then: Safari can send the release elsewhere)

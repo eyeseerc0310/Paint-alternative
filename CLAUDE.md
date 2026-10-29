@@ -822,8 +822,10 @@ When building or changing anything visual:
   undo is a stack of snapshots (`record` once per drag, `putBack`). The look
   is worked out on the graphics chip (WebGL 2; `glInit`): the photo a
   texture with its smaller copies, a ~1,024-pixel linear working copy and
-  two blurs of it made once (`upload`, `blurOf`), then one pass, `DEV`, in
-  floating point: white balance and exposure in linear light, dehaze, a
+  three blurs of it made once (`upload`, `blurOf`; the third of its
+  highlights only), then one pass, `DEV`, in floating point: white balance
+  and exposure in linear light, a film's matrix or black-and-white mix and
+  halation, dehaze, a
   highlight shoulder only once the light is pushed up (with nothing set the
   photo comes out exactly as it went in), noise reduction, texture,
   clarity, sharpening, the tone table (`toneTable`: `PaintFX.toneAt`, the
@@ -872,7 +874,31 @@ When building or changing anything visual:
   so the painting's never see them. The panel (`panelHTML`, `panelSync`;
   `data-pk` sliders through `getK`/`setK`, a double-click on a name resets
   it) has the left bar's categories, Edit (sections that fold like
-  Effects') and Presets (Original, then `PRESETS`, 15). A preset is a layer
+  Effects') and Presets. **Photo's left bar** is one column of six big
+  buttons the bar's width (`.pho-group`: the four categories, Fit and the
+  panel's toggle `.pho-panelbtn`, which presses the bottom bar's settings
+  toggle through the bridge, `settingsBtn`, and mirrors its state; sizes
+  `--tool-lg`, `--icon-lg`), then Undo and Redo (`.pho-hist`, Photo's own
+  history, `histButtons`), then the zoom; the painting's groups, Layers and
+  the bottom bar aren't shown in Photo mode (`--bbar-h` is 0 there, so the
+  photo has the room). **The presets** are data in `photo-presets.js`
+  (`window.PaintPhotoPresets`: `cats`, Colour and Black & White; `groups`,
+  Film stocks and Looks; `list`, each `{ id, name, short, cat, group, v,
+  look }`), about 60, the films' notes beside each. The panel shows one tab
+  at a time (`ptab`, `[data-ptab]`; switching only changes what's shown,
+  never the preset), Original first in each. A film's `look` is what only a
+  preset sets (`e.plook`): `mat`, a 3×3 matrix in linear light whose rows
+  add to one; `mono`, a black-and-white film's red, green and blue
+  sensitivity (both in `DEV` right after exposure); `rgb`, curves per
+  channel after the main ones (the tone table is RGBA, a column each). The
+  grain (`grain`, `grainSize`, `grainRough`, `grainCol`) is sized from the
+  frame, not the pixels, and fades as it gets smaller than an output pixel
+  (`u_fp`), so it's the same at any export size; luminance-weighted, hashed
+  value noise, so the same every time. Halation (`halation`) is a warm ring
+  round the strongest light, from a blur of the highlights only (`T.hl`,
+  made in `upload`, read on unit 9). Thumbnails are worked out a few at a
+  time (`thumbStep`, 8 ms a frame, nearest the view first, cached per
+  `thumbGen`; anything newer drops the queue). A preset is a layer
   of its own over what's set by hand: `doc.v` is the hand's settings and
   `doc.v.preset` the preset's id; everything drawn, saved and shown on the
   sliders is `eff(v)` (each slider the hand's value plus the preset's

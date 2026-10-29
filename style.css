@@ -112,6 +112,7 @@
   /* space between groups in a toolbar */
   --group-gap: 10px;
   --tool-h: 40px; /* (a left-bar tool button's height; 32px where the screen is short) */
+  --tool-lg: 52px; --icon-lg: 26px; /* (Photo's six big left-bar buttons, and their icons) */
   --ctx-w: 196px;
   /* the space between the workspace's columns (bars, picture, dock) */
   --pgap: 1rem;
@@ -1792,6 +1793,7 @@ select.p-field {
 .focus-mode .paint-left { margin-top: 0; }
 @media (max-width: 560px) {
   :root { --bar: 100px; --hdr-open: 305px; --hdr-thin: 42px; }
+  :root { --tool-lg: 40px; --icon-lg: 22px; }
   .paint-toolgroups > .paint-group { grid-template-columns: repeat(2, 36px); gap: 3px var(--s-1); justify-content: space-between; }
   .paint-toolgroups > .pl-view { grid-template-columns: 1fr; }
   .paint-left .paint-zoom { flex-direction: row; }
@@ -1802,7 +1804,7 @@ select.p-field {
   :root:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
   .site-header:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
   .site-header .hb, .site-header .theme-toggle { height: 32px; }
-  :root { --tool-h: 32px; }
+  :root { --tool-h: 32px; --tool-lg: 44px; }
   .paint-left .paint-group > button { height: var(--tool-h); }
 }
 
@@ -2016,12 +2018,23 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .pho-empty .pho-open { height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
 @media (hover: hover) { .pho-empty .pho-open:hover { background: var(--accent-hover); } }
 .photo-mode .paint-stage > :not(.pho-stage):not(.paint-preview) { visibility: hidden !important; }
-.pho-group[hidden] { display: none; }
-.photo-mode .paint-left .paint-toolgroups { position: relative; }
-.photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pl-view) { visibility: hidden; }
-.paint-left .paint-toolgroups > .pho-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
+/* (the left bar: Photo's own column, its four parts, Fit and the panel's
+   toggle as six big buttons the bar's width, then Undo and Redo, then the
+   zoom; the painting's groups, Layers and the bottom bar aren't Photo's, so
+   they're gone and the photo has their room) */
+.pho-group[hidden], .pho-hist[hidden] { display: none; }
+.photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pho-hist):not(.pl-view),
+.photo-mode .paint-left .pl-layersbtn, .photo-mode .paint-bottom { display: none; }
+:root.photo-mode { --bbar-h: 0px; --bbar-gap: 0px; }
+.paint-left .paint-toolgroups > .pho-group { grid-template-columns: 1fr; gap: var(--s-1); padding-top: 0; }
 .paint-left .paint-toolgroups > .pho-group::before { display: none; }
-.photo-mode .paint-left .paint-fitbtn { visibility: visible; } /* (Fit stays where it is in Paint: Photo's own fit, from its click) */
+.paint .paint-left .pho-group > button { width: 100%; height: var(--tool-lg) !important; }
+.paint .paint-left .pho-group > button svg { width: var(--icon-lg); height: var(--icon-lg); }
+.paint .paint-left .pho-panelbtn[aria-expanded="true"] { color: var(--chip-text); background: var(--chip); box-shadow: var(--chip-shadow); }
+@media (hover: hover) { .paint .paint-left .pho-panelbtn[aria-expanded="true"]:hover { background: var(--chip); } }
+/* (Undo and Redo: the bar's own small buttons, side by side, a step back) */
+.paint .paint-left .pho-hist > button { color: var(--muted); }
+@media (hover: hover) { .paint .paint-left .pho-hist > button:not(:disabled):hover { color: var(--text); } }
 .photo-mode .selection-slot, .photo-mode .paint-adjust, .photo-mode .paint-layerpanel, .photo-mode .paint-colorpanel,
 .photo-mode .paint-selx, .photo-mode .paint-seldist, .photo-mode .paint-scale { display: none !important; }
 /* the crop: what it keeps lit, the rest dimmed (by its own shadow), thirds
@@ -2071,8 +2084,6 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   .photo-mode .paint-ctx .ctx-tool { flex-direction: column; flex-wrap: nowrap; align-items: stretch; flex: 1; min-width: 0; }
   .photo-mode .pho-acts { position: static; }
 }
-/* (the two colours aren't Photo's: out of sight, keeping their room) */
-.photo-mode .paint-bottom .paint-pair { visibility: hidden; }
 /* the panel */
 .pho-sub { margin: var(--s-3) 0 var(--s-1); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 .pho-curve .cv-graph { display: block; width: 100%; }
@@ -2081,12 +2092,18 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .paint .pho-bands button[aria-checked="true"] { box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 3.5px var(--text); }
 .pho-gtabs { margin-bottom: var(--s-2); }
 .paint .pho-gtabs button { font-size: var(--fs-xs); }
-.pho-presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-1); }
+.pho-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-1); }
+/* (the presets' tabs, Colour and Black & White, stay at the top as the list
+   scrolls, as Done stays at its foot; the films and the other looks under a
+   heading each, across both columns) */
+.pho-ptabs { position: sticky; top: 0; z-index: 1; margin-bottom: var(--s-2); background: linear-gradient(var(--hover), var(--hover)), var(--menu-solid); box-shadow: 0 0 0 var(--s-1) var(--menu-solid); }
+.pho-presets .pho-pgroup { grid-column: 1 / -1; margin: var(--s-2) 0 0; }
 .paint .pho-preset { width: auto; height: auto; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px 4px var(--s-1); border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 400; color: var(--menu-link); }
 .pho-preset canvas { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r-xs); background: var(--hover); box-shadow: inset 0 0 0 .5px var(--line); }
 .pho-preset span { text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .paint .pho-preset[aria-checked="true"] { background: var(--chip); box-shadow: var(--chip-shadow); color: var(--chip-text); }
-.pho-acts { position: sticky; bottom: 0; z-index: 1; padding: var(--s-2) 0 var(--s-1); background: var(--menu-solid); }
+/* (down to the panel's own edge, over its padding, so nothing scrolls past under it) */
+.pho-acts { position: sticky; bottom: calc(-1 * var(--s-2)); z-index: 1; margin-bottom: calc(-1 * var(--s-2)); padding: var(--s-2) 0 calc(var(--s-1) + var(--s-2)); background: var(--menu-solid); }
 .pho-hint { padding: var(--s-2); }
 /* (the save sheet: width by height, kept in proportion) */
 .pho-size { display: flex; align-items: flex-end; gap: var(--s-2); margin: var(--s-3) 0 0; }
