@@ -149,7 +149,9 @@ const log = (...a) => console.log(...a);
   log('service worker active:', sw, 'manifest ok:', man);
 
   // 11. kept after reload: size, layers, opacity
-  await hb('new'); await p.click('[data-pre="insta"]'); await p.click('[data-ns-act="create"]'); await p.waitForTimeout(200);
+  await hb('new'); await p.click('[data-pre="insta"]'); await p.click('[data-ns-act="create"]');
+  // (made once the drawing before is kept in the gallery: wait for the new size, not a set time)
+  await p.waitForFunction(() => document.querySelector('.paint-over').width === 1080, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(100);
   await p.keyboard.press('b'); await stroke([[0.3, 0.3], [0.6, 0.6]]);
   await p.click('[data-act="layers"]'); await p.click('[data-layer-act="add"]');
   await p.$eval('[data-layer-op]', e => { e.value = 55; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
