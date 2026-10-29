@@ -8116,6 +8116,36 @@
       return true;
     }
 
+    // (New Picture's own: a sheet in the middle of the window over a blurred
+    // scrim, not the right-hand panel; a press outside it or Esc closes it,
+    // Tab goes round its controls, the focus goes back where it was)
+    var ctrEl = null, ctrFrom = null;
+    function centreSheet(cls, html) {
+      var from = ctrEl ? ctrFrom : document.activeElement;
+      centreClose(); docClose(); closeDrops(); lmenu.hidden = true; ctxClose(); if (typeof bsBox !== 'undefined' && !bsBox.hidden) studio(false);
+      ctrFrom = from;
+      ctrEl = document.createElement('div'); ctrEl.className = 'pa-sheet-wrap';
+      ctrEl.innerHTML = '<div class="pa-sheet ' + cls + '" role="dialog" aria-modal="true">' + html + '</div>';
+      document.body.appendChild(ctrEl);
+      var t = ctrEl.querySelector('.pa-sheet-title'); if (t) { t.id = 'pa-sheet-t'; ctrEl.firstChild.setAttribute('aria-labelledby', 'pa-sheet-t'); }
+      ctrEl.addEventListener('pointerdown', function (e) { if (e.target === ctrEl) centreClose(); });
+      ctrEl.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        var f = Array.prototype.filter.call(ctrEl.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])'), function (x) { return !x.disabled && x.offsetParent; });
+        if (!f.length) return;
+        var i = f.indexOf(document.activeElement);
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+      });
+      void ctrEl.offsetWidth; ctrEl.classList.add('in');
+      var first = ctrEl.querySelector('.pa-primary') || ctrEl.querySelector('button, input, select'); if (first) first.focus({ preventScroll: true });
+      return ctrEl.firstChild;
+    }
+    function centreClose() {
+      if (!ctrEl) return false; var s = ctrEl, from = ctrFrom; ctrEl = null; ctrFrom = null; s.classList.remove('in'); setTimeout(function () { s.remove(); }, 220);
+      if (from && from.focus && document.contains(from) && !from.closest('.pa-sheet-wrap')) from.focus({ preventScroll: true });
+      return true;
+    }
+
     // ---- NEW PICTURE: a fresh picture of a chosen size ----
     var MAXPX = 4096, MAXAREA = 4096 * 4096;
     function presets() {
@@ -8125,7 +8155,7 @@
     }
     function newSheet() {
       var P = presets();
-      var box = openSheet('ns', '<div class="pa-sheet-title">New Picture</div>' +
+      var box = centreSheet('ns', '<div class="pa-sheet-title">New Picture</div>' +
         '<div class="ns-grid">' + P.map(function (q) {
           var k = 34 / Math.max(q[2], q[3]);
           return '<button type="button" class="ns-pre" data-pre="' + q[0] + '"><i style="width:' + Math.max(8, Math.round(q[2] * k)) + 'px;height:' + Math.max(8, Math.round(q[3] * k)) + 'px"></i><b>' + q[1] + '</b><small>' + q[2] + ' × ' + q[3] + '</small></button>';
@@ -8149,11 +8179,11 @@
         var b = e.target.closest('[data-bg]');
         if (b) { bg = b.dataset.bg; Array.prototype.forEach.call(box.querySelectorAll('[data-bg]'), function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); }); return; }
         var a = e.target.closest('[data-ns-act]'); if (!a) return;
-        if (a.dataset.nsAct === 'cancel') { closeSheet(); return; }
+        if (a.dataset.nsAct === 'cancel') { centreClose(); return; }
         var w = Math.round(+wIn.value), h = Math.round(+hIn.value);
         if (!(w >= 16 && h >= 16 && w <= MAXPX && h <= MAXPX)) { err.textContent = 'Width and height can be from 16 to ' + MAXPX + ' pixels.'; err.hidden = false; return; }
         if (w * h > MAXAREA) { err.textContent = 'That’s too big: make it smaller (up to about 16 million pixels).'; err.hidden = false; return; }
-        closeSheet(); newPicture(w, h, bg === 'white');
+        centreClose(); newPicture(w, h, bg === 'white');
       });
       [wIn, hIn].forEach(function (i) { i.addEventListener('input', function () { pick(null); }); i.addEventListener('keydown', function (e) { if (e.key === 'Enter') box.querySelector('[data-ns-act="create"]').click(); }); });
     }
@@ -8488,7 +8518,7 @@
       im.src = url;
     }
     document.addEventListener('paste', function (e) {
-      if (!document.contains(root) || sheetEl) return;
+      if (!document.contains(root) || sheetEl || ctrEl) return;
       var t = e.target; if (t && (t.isContentEditable || /input|textarea/i.test(t.tagName || ''))) return;
       clearTimeout(pasteWait); pasteWait = 0;
       var items = (e.clipboardData && e.clipboardData.items) || [];
@@ -8620,7 +8650,7 @@
       if (w === 'guides') { smartGuides(!smartOn); toast(smartOn ? 'Smart Guides on: what you move snaps into line' : 'Smart Guides off'); return; }
       if (w === 'settings') { settingsMenu(); return; }
       if (w === 'more') { moreMenu(moreBox.hidden); return; }
-      if (w === 'new') { if (docIs('sheet-ns')) docClose(); else newSheet(); }
+      if (w === 'new') { if (!centreClose()) newSheet(); }
       else if (w === 'gallery') { closeDrops(); if (docIs('sheet-gal')) docClose(); else gallery(); }
       else if (w === 'image') imageMenu(!docIs('image'));
       else if (w === 'history') historyPanel(!docIs('history'));
@@ -9490,7 +9520,7 @@
     function bbarPhoto() { sizeIn.disabled = true; alphaIn.disabled = true; bbar.dataset.uses = ''; settingsToggle.dataset.tip = 'Edit panel'; settingsToggleSync(); zoomVal.textContent = '100%'; }
     function sideHas(m) { return m === 'paint' ? !thumbOf().blank : m === 'vector' ? !PV.isEmpty() : !PH.isEmpty(); }
     function askMode(m) {
-      if (!modeOk(m) || m === wsMode || sheetEl) return;
+      if (!modeOk(m) || m === wsMode || sheetEl || ctrEl) return;
       if (!modeAsk || !sideHas(wsMode)) { setMode(m, false); return; }
       var what = { paint: 'painting', vector: 'vector artwork', photo: 'edited photo' }[wsMode];
       var into = m === 'paint' ? 'It comes in as paint on a new layer.' : m === 'vector' ? 'It comes in as a picture on a layer of its own, to trace over.' : 'It becomes the photo being edited (undo brings the last one back).';
@@ -9535,6 +9565,7 @@
       key: function (e) {
         if (e.key === 'Shift') shiftChanged(true);
         var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
+        if (ctrEl) { if (k === 'escape') centreClose(); return; }
         if (sheetEl) {
           if (k === 'escape') { var ga = sheetEl.querySelector('.gal-acts:not([hidden])'); if (ga) galMenus(null); else closeSheet(); }
           return;

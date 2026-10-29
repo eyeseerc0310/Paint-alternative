@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var FX = window.PaintFX;
-  var B = null, on = false, stageEl = null, cv = null, gl = null, groupEl = null, histEl = null, emptyEl = null;
+  var B = null, on = false, stageEl = null, cv = null, gl = null, groupEl = null, histEl = null, emptyEl = null, amtEl = null, amtDrag = false;
   // the photo in hand: its name, size, the file it came from (kept as it
   // was: what's saved, and what export works from) and the settings
   var doc = null, img = null, rev = 0;
@@ -24,7 +24,7 @@
     sharpen: 0, sRadius: 10, sDetail: 25, sMask: 0, nr: 0, nrColor: 0,
     distort: 0, lensVig: 0, caR: 0, caB: 0, vert: 0, horiz: 0, scale: 100,
     angle: 0, rot: 0, flipH: false, flipV: false, crop: null, asp: 'orig', aspT: false,
-    masks: null, preset: null
+    masks: null, preset: null, pamt: 100
   };
   var SECS = [
     { id: 'light', name: 'Light', rows: [['exposure', 'Exposure', -100, 100, 'ev'], ['contrast', 'Contrast'], ['highlights', 'Highlights'], ['shadows', 'Shadows'], ['whites', 'Whites'], ['blacks', 'Blacks'], ['brightness', 'Brightness']], curve: true },
@@ -71,13 +71,36 @@
   // Original (no preset) takes off only the preset, another preset takes its
   // place, and nothing set by hand, before or after, is lost.
   function presetOf(id) { for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i].id === id) return PRESETS[i]; return null; }
+  // HOW MUCH OF IT (v.pamt, the bottom bar's slider, 0 to 100): the preset
+  // as it's laid over what's set by hand, scaled from none of it to all of
+  // it: each slider's offset, its curve's points and each channel's from the
+  // straight line, its mixer and grading, its matrix from none, its black and
+  // white mix (blended in the shader, u_monoA). At 0 it's exactly the hand's.
+  function amtOf(v) { return v.pamt == null ? 1 : Math.max(0, Math.min(100, +v.pamt || 0)) / 100; }
+  function curveAt(c, a) { return a === 1 ? c : c.map(function (q) { return [q[0], q[0] + (q[1] - q[0]) * a]; }); }
+  function pAt(v) {
+    var q = v.preset && presetOf(v.preset), a = q ? amtOf(v) : 0; if (!q || !a) return null;
+    if (a === 1) return { q: q, v: q.v, look: q.look };
+    var o = {}, pv = q.v, L = q.look;
+    for (var k in pv) {
+      if (typeof pv[k] === 'number') o[k] = DEF[k] + (pv[k] - DEF[k]) * a;
+      else if (k === 'curve') o.curve = curveAt(pv.curve, a);
+      else if (k === 'hsl') { o.hsl = {}; for (var b in pv.hsl) o.hsl[b] = pv.hsl[b].map(function (x) { return x * a; }); }
+      else if (k === 'grade') { o.grade = {}; for (var gk in pv.grade) { var g = pv.grade[gk]; o.grade[gk] = Array.isArray(g) ? [g[0], g[1] * a, g[2] * a] : g; } }
+    }
+    var lk = null;
+    if (L) { lk = {}; if (L.mat) lk.mat = L.mat.map(function (x, i) { var id = i % 4 === 0 ? 1 : 0; return id + (x - id) * a; });
+      if (L.rgb) { lk.rgb = {}; for (var c in L.rgb) lk.rgb[c] = curveAt(L.rgb[c], a); }
+      if (L.mono) { lk.mono = L.mono; lk.monoA = a; } }
+    return { q: q, v: o, look: lk };
+  }
   function scalarK(k) { return typeof DEF[k] === 'number' && !!rowOf(k); }
   function rangeOf(k) { var r = rowOf(k); return [r && r[2] != null ? r[2] : -100, r && r[3] != null ? r[3] : 100]; }
-  function offOf(v, k) { var q = v.preset && presetOf(v.preset); return q && typeof q.v[k] === 'number' ? q.v[k] - DEF[k] : 0; }
+  function offOf(v, k) { var P = pAt(v); return P && typeof P.v[k] === 'number' ? P.v[k] - DEF[k] : 0; }
   function eff(v) {
-    var q = v.preset && presetOf(v.preset); if (!q) return v;
-    var e = copyV(v), pv = q.v;
-    if (q.look) e.plook = q.look; // (the film's own: matrix, channel curves, spectral mix)
+    var P = pAt(v); if (!P) return v;
+    var e = copyV(v), pv = P.v;
+    if (P.look) e.plook = P.look; // (the film's own: matrix, channel curves, spectral mix)
     for (var k in pv) {
       if (scalarK(k)) { var rg = rangeOf(k); e[k] = Math.max(rg[0], Math.min(rg[1], v[k] + pv[k] - DEF[k])); }
       else if (k === 'curve') e.pcurve = pv.curve;
@@ -126,7 +149,7 @@
     'uniform int u_nm, u_show; uniform int u_mk[4]; uniform vec4 u_mg[4], u_mh[4], u_ma[4], u_mb[4]; uniform vec2 u_asp; uniform sampler2D u_br0, u_br1, u_br2, u_br3;\n' +
     'uniform vec3 u_wb; uniform float u_ev, u_dh, u_cl, u_tx, u_sh, u_sOff, u_sDet, u_sMask, u_nr, u_nrc, u_sat, u_vib, u_vg, u_vgMid, u_gr, u_grSize, u_grRough, u_grCol, u_fp, u_hal;\n' +
     // (a film's own, from its preset: its colour matrix and its spectral mix, for black and white)
-    'uniform int u_mat, u_mono; uniform mat3 u_M; uniform vec3 u_monoW;\n' +
+    'uniform int u_mat, u_mono; uniform mat3 u_M; uniform vec3 u_monoW; uniform float u_monoA;\n' +
     'uniform int u_mix; uniform vec3 u_hsl[8]; uniform float u_hc[8];\n' +
     'uniform int u_grade; uniform vec3 u_gS, u_gM, u_gH, u_gA; uniform float u_gBlend, u_gBal;\n' +
     'out vec4 frag;\n' +
@@ -169,7 +192,7 @@
     // matrix whose rows add to one, so a grey stays grey), and a black-and-white film's
     // sensitivity to red, green and blue, making the one grey
     '  if (u_mat == 1) c = max(u_M * c, 0.0);\n' +
-    '  if (u_mono == 1) c = vec3(max(dot(c, u_monoW), 0.0));\n' +
+    '  if (u_mono == 1) c = mix(c, vec3(max(dot(c, u_monoW), 0.0)), u_monoA);\n' +
     // halation: the brightest light spreading back through the base into the red-sensitive
     // layer, a warm glow round the strong highlights only (the highlights blurred, u_hl, so a
     // small lamp glows as much as a big one), less what this place's own light gives it, so it
@@ -382,7 +405,7 @@
       f1('u_hal', v.halation / 100);
       var lk = v.plook || null, M = lk && lk.mat, mw = lk && lk.mono;
       gl.uniform1i(U(p, 'u_mat'), M ? 1 : 0); if (M) gl.uniformMatrix3fv(U(p, 'u_M'), false, cm(M));
-      gl.uniform1i(U(p, 'u_mono'), mw ? 1 : 0); if (mw) { var ms = mw[0] + mw[1] + mw[2]; gl.uniform3f(U(p, 'u_monoW'), mw[0] / ms, mw[1] / ms, mw[2] / ms); }
+      gl.uniform1i(U(p, 'u_mono'), mw ? 1 : 0); if (mw) { var ms = mw[0] + mw[1] + mw[2]; gl.uniform3f(U(p, 'u_monoW'), mw[0] / ms, mw[1] / ms, mw[2] / ms); f1('u_monoA', lk.monoA != null ? lk.monoA : 1); }
       var hs = v.hsl, mixOn = !!hs && BANDS.some(function (b) { var q = hs[b[0]]; return q && (q[0] || q[1] || q[2]); });
       gl.uniform1i(U(p, 'u_mix'), mixOn ? 1 : 0);
       var hv = new Float32Array(24), hc = new Float32Array(8);
@@ -400,7 +423,24 @@
   // own detail; while a slider moves, at half of it (quick, a touch soft),
   // then sharp again as soon as it's let go of ----
   var raf = 0, quick = false;
-  function draw() { if (!raf) raf = requestAnimationFrame(drawNow); }
+  function draw() { if (!raf) raf = requestAnimationFrame(drawNow); amtSync(); }
+  // (the bottom bar's one slider: how much of the preset in use, greyed out
+  // with none; a drag is one step, or part of trying presets while they're
+  // being tried, so Cancel and Done take it with them)
+  function amtSync() {
+    if (!amtEl) return;
+    var q = doc && doc.v.preset && presetOf(doc.v.preset), i = amtEl.querySelector('input'), n = q ? Math.round(amtOf(doc.v) * 100) : 100;
+    amtEl.classList.toggle('off', !q); i.disabled = !q;
+    if (+i.value !== n) i.value = n;
+    var t = n + '%', o = amtEl.querySelector('output'), nm = amtEl.querySelector('.pho-amount-name'), name = q ? q.name : 'No preset';
+    if (o.textContent !== t) o.textContent = t; if (nm.textContent !== name) nm.textContent = name;
+  }
+  function amtInput(e) {
+    if (!on || !doc || !doc.v.preset) return;
+    if (!amtDrag) { if (!presetPick) record('Preset Amount'); amtDrag = true; }
+    quick = true; doc.v.pamt = Math.max(0, Math.min(100, Math.round(+e.target.value))); if (cat === 'edit') marks(); draw();
+  }
+  function amtChange() { if (!amtDrag) return; amtDrag = false; quick = false; draw(); if (cat === 'edit') panelSync(); histButtons(); B.autosave(); }
   function drawNow() {
     raf = 0;
     if (!on || !gl || !img || !T.src) return;
@@ -958,13 +998,12 @@
   function presetsHTML() {
     var now = doc.v.preset || 'original', cur = now !== 'original' && presetOf(now);
     if (!ptab) ptab = cur ? cur.cat : PCATS[0][0];
-    // (a long name has a short one for its tile, the whole name in its tip)
-    var btn = function (id, name, short) { return '<button type="button" class="pho-preset" role="radio" data-pp="' + id + '" aria-checked="' + (now === id) + '"' + (short ? ' aria-label="' + esc(name) + '" data-tip="' + esc(name) + '"' : '') + '><canvas aria-hidden="true"></canvas><span>' + esc(short || name) + '</span></button>'; };
+    var btn = function (id, name) { return '<button type="button" class="pho-preset" role="radio" data-pp="' + id + '" aria-checked="' + (now === id) + '"><canvas aria-hidden="true"></canvas><span>' + esc(name) + '</span></button>'; };
     var html = '<div class="pa-tabs pho-ptabs" role="tablist" aria-label="Preset category">' + PCATS.map(function (c) { return '<button type="button" role="tab" data-ptab="' + c[0] + '" aria-selected="' + (c[0] === ptab) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
       '<div class="pho-presets" role="radiogroup" aria-label="Presets">' + btn('original', 'Original');
     (PDATA.groups || [['film', 'Film stocks'], ['look', 'Looks']]).forEach(function (g) {
       var items = PRESETS.filter(function (q) { return q.cat === ptab && (q.group || 'look') === g[0]; });
-      if (items.length) html += '<div class="pho-sub pho-pgroup">' + esc(g[1]) + '</div>' + items.map(function (q) { return btn(q.id, q.name, q.short); }).join('');
+      if (items.length) html += '<div class="pho-sub pho-pgroup">' + esc(g[1]) + '</div>' + items.map(function (q) { return btn(q.id, q.name); }).join('');
     });
     return html + '</div><div class="pa-acts pho-acts"><button type="button" data-pa="pcancel"' + (presetPick ? '' : ' disabled') + '>Cancel</button><button type="button" class="pho-done" data-pa="pdone"' + (presetPick ? '' : ' disabled') + '>Done</button></div>';
   }
@@ -984,7 +1023,7 @@
     var v = doc.v;
     if (k.slice(0, 2) === 'm_') { var pm = pickedMask(); if (pm) { if (k === 'm_fe') pm.g.fe = x; else pm.a[k.slice(2)] = x; } return; }
     if (k.slice(0, 2) === 'b_') { BRS[k.slice(2)] = x; try { localStorage.setItem('paint-pho-brush', JSON.stringify(BRS)); } catch (e) {} return; }
-    var pq = v.preset && presetOf(v.preset), pv = pq ? pq.v : {};
+    var pq = pAt(v), pv = pq ? pq.v : {};
     if (k === 'mxH' || k === 'mxS' || k === 'mxL') { var ix = { mxH: 0, mxS: 1, mxL: 2 }[k], po = pv.hsl && pv.hsl[band] ? pv.hsl[band][ix] : 0; v.hsl = v.hsl || {}; var q = v.hsl[band] = (v.hsl[band] || [0, 0, 0]).slice(); q[ix] = x - po; if (!q[0] && !q[1] && !q[2]) delete v.hsl[band]; if (!Object.keys(v.hsl).length) v.hsl = null; return; }
     if (k === 'gH' || k === 'gS' || k === 'gL' || k === 'gBlend' || k === 'gBal') {
       // (the grading seen, the preset's included, becomes the hand's, then changes)
@@ -1128,11 +1167,12 @@
   // what's set by hand, so trying another never adds to the last, and
   // Original takes it off); Done keeps it as one step, Cancel (or leaving)
   // puts back the one there was ----
-  function presetVals(id, base) { var v = copyV(base || fresh()); v.preset = id === 'original' ? null : id; return v; }
+  function presetVals(id, base) { var v = copyV(base || fresh()); v.preset = id === 'original' ? null : id; v.pamt = 100; return v; }
   function presetTry(id) {
     if (!doc || (id !== 'original' && !presetOf(id))) return;
     if (!presetPick) presetBase = copyV(doc.v);
-    presetPick = id; doc.v.preset = id === 'original' ? null : id; draw(); panelSync();
+    var nid = id === 'original' ? null : id; if (nid !== doc.v.preset) doc.v.pamt = 100; // (another preset: all of it, to begin with)
+    presetPick = id; doc.v.preset = nid; draw(); panelSync();
     var acts = B.ctxTool.querySelectorAll('[data-pa="pcancel"], [data-pa="pdone"]'); Array.prototype.forEach.call(acts, function (b) { b.disabled = false; });
   }
   function presetCancel() {
@@ -1317,6 +1357,7 @@
       if (k === 'grade') { if (v.grade && typeof v.grade === 'object') { var g = v.grade, ok3 = function (q) { return Array.isArray(q) && q.length === 3 ? [Math.max(0, Math.min(360, +q[0] || 0)), Math.max(0, Math.min(100, +q[1] || 0)), Math.max(-100, Math.min(100, +q[2] || 0))] : [0, 0, 0]; }; o.grade = { sh: ok3(g.sh), mid: ok3(g.mid), hi: ok3(g.hi), all: ok3(g.all), blend: Math.max(0, Math.min(100, g.blend != null ? +g.blend : 50)), bal: Math.max(-100, Math.min(100, +g.bal || 0)) }; } continue; }
       if (k === 'masks') { o.masks = checkMasks(v.masks); continue; }
       if (k === 'preset') { o.preset = typeof v.preset === 'string' && presetOf(v.preset) ? v.preset : null; continue; }
+      if (k === 'pamt') { o.pamt = typeof v.pamt === 'number' && isFinite(v.pamt) ? Math.max(0, Math.min(100, Math.round(v.pamt))) : 100; continue; }
       if (k === 'flipH' || k === 'flipV' || k === 'aspT') { o[k] = v[k] === true; continue; }
       if (k === 'rot') { o.rot = (Math.round(+v.rot) || 0) & 3; continue; }
       if (k === 'asp') { o.asp = ASPECTS.some(function (q) { return q[0] === v.asp; }) ? v.asp : 'orig'; continue; }
@@ -1332,7 +1373,7 @@
   // ---- IN AND OUT OF PHOTO MODE ----
   function emptySync() { if (emptyEl) emptyEl.hidden = !!img; if (cv) cv.hidden = !img; }
   function enter(flat) {
-    on = true; stageEl.hidden = false; groupEl.hidden = false; histEl.hidden = false;
+    on = true; stageEl.hidden = false; groupEl.hidden = false; histEl.hidden = false; amtEl.hidden = false; amtSync();
     if (!gl && !glInit()) { B.toast('Photo mode needs WebGL 2, which this browser doesn’t offer'); }
     else if (img && !T.src) upload();
     groupSync(); emptySync(); histButtons();
@@ -1343,7 +1384,7 @@
     if (presetPick) presetCancel();
     on = false; clearTimeout(holdT); before = false; press = null; pinch = null; pts = {}; cdrag = null;
     if (cat === 'crop' || cat === 'masks') { cat = 'edit'; cropping = false; } mFresh = null; mdrag = null;
-    if (stageEl) stageEl.hidden = true; if (groupEl) groupEl.hidden = true; if (histEl) histEl.hidden = true;
+    if (stageEl) stageEl.hidden = true; if (groupEl) groupEl.hidden = true; if (histEl) histEl.hidden = true; if (amtEl) amtEl.hidden = true;
   }
   function key(e) {
     var k = e.key.toLowerCase(), mod = e.metaKey || e.ctrlKey;
@@ -1399,6 +1440,18 @@
     histEl.innerHTML = '<button type="button" data-pact="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)" disabled>' + CI('<path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/>') + '</button>' +
       '<button type="button" data-pact="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y)" disabled>' + CI('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/>') + '</button>';
     B.leftViewGroup.parentNode.insertBefore(histEl, B.leftViewGroup);
+    // (where the bottom bar is in Paint: the preset's amount)
+    amtEl = document.createElement('div'); amtEl.className = 'pho-amount'; amtEl.hidden = true;
+    amtEl.setAttribute('role', 'group'); amtEl.setAttribute('aria-label', 'Preset amount');
+    amtEl.innerHTML = '<label class="pb-slider"><span class="pho-amount-name" data-tip="How much of the preset: 0% is the photo as you set it, 100% the whole preset. Double-click to put it back to 100%">No preset</span>' +
+      '<input type="range" min="0" max="100" step="1" value="100" aria-label="Preset amount" disabled><output>100%</output></label>';
+    var bb = B.root.querySelector('.paint-bottom'); if (bb) bb.parentNode.insertBefore(amtEl, bb.nextSibling);
+    amtEl.querySelector('input').addEventListener('input', amtInput);
+    amtEl.querySelector('input').addEventListener('change', amtChange);
+    amtEl.querySelector('.pho-amount-name').addEventListener('dblclick', function () {
+      if (!on || !doc || !doc.v.preset || amtOf(doc.v) === 1) return;
+      if (!presetPick) record('Preset Amount'); doc.v.pamt = 100; draw(); if (cat === 'edit') panelSync(); histButtons(); B.autosave();
+    });
     // (the panel's button shows whether the panel is open, as the bottom bar's did)
     if (B.settingsBtn && window.MutationObserver) {
       var pb = groupEl.querySelector('.pho-panelbtn'), sync = function () { pb.setAttribute('aria-expanded', B.settingsBtn.getAttribute('aria-expanded') === 'true' ? 'true' : 'false'); };

@@ -286,10 +286,14 @@ When building or changing anything visual:
   once and shows it spreading on a stand-in canvas (`spread`); anything
   else that happens ends the spread (`endFillAnim`).
 - **The top bar's panel** (`.paint-docpanel`, `docBox`): everything the
-  top bar opens (Gallery, New Picture, Save, Crop & Rotate, History,
-  Settings, Keyboard Shortcuts, and Touch Gestures and Vector's mode dialog
-  from Settings) is shown in it, never as a drop-down or a sheet over a
-  dimmed page; only Share asks the system. It stands in the dock like Effects
+  top bar opens (Gallery, Save, Crop & Rotate, History, Settings, Keyboard
+  Shortcuts, and Touch Gestures and Vector's mode dialog from Settings) is
+  shown in it, never as a drop-down or a sheet over a dimmed page; only Share
+  asks the system, and **New Picture** (in every workspace) is a sheet of its
+  own in the middle of the window over the blurred `--scrim`
+  (`centreSheet`/`centreClose`, `ctrEl`: `.pa-sheet-wrap`; a press outside
+  it, Esc, Cancel or Create closes it, Tab goes round it, the focus goes back
+  where it was; the top bar's button closes it too). It stands in the dock like Effects
   (`DOCKED_PANELS`, as wide as the tool settings, which step aside,
   `ctxAside`; `dockPlace` while unlocked) and beside the left bar on phones
   (`docFit` keeps its foot above the bottom bar). Its head (`.dp-head`) has
@@ -883,8 +887,20 @@ When building or changing anything visual:
   the bottom bar aren't shown in Photo mode (`--bbar-h` is 0 there, so the
   photo has the room). **The presets** are data in `photo-presets.js`
   (`window.PaintPhotoPresets`: `cats`, Colour and Black & White; `groups`,
-  Film stocks and Looks; `list`, each `{ id, name, short, cat, group, v,
-  look }`), about 60, the films' notes beside each. The panel shows one tab
+  Film stocks and Looks; `list`, each `{ id, name, cat, group, v,
+  look }`), 43 (20 Colour, 23 Black & White), the films' notes beside each.
+  **How much of the preset** (`v.pamt`, 0 to 100, kept with the settings):
+  the slider in a slimmer bar where Paint's bottom bar is (`.pho-amount`,
+  sharing `.paint-bottom`'s look and `.pb-slider`; `--bbar-h` is its
+  height in Photo mode), the preset's name, the slider, the percentage,
+  greyed out with no preset (`amtSync`, from `draw`). `pAt(v)` gives the
+  preset scaled by it (each slider's offset, its curve's and channels'
+  points from the straight line, its mixer and grading, its matrix from
+  none, its black and white mix through `u_monoA`), which `eff`, `offOf`
+  and `setK` use; at 0 it's exactly the hand's. A drag is one step
+  (`amtInput`/`amtChange`), or part of trying presets while they're tried;
+  a new preset starts at 100, thumbnails show each at 100, a double-click
+  on its name puts it back to 100. The panel shows one tab
   at a time (`ptab`, `[data-ptab]`; switching only changes what's shown,
   never the preset), Original first in each. A film's `look` is what only a
   preset sets (`e.plook`): `mat`, a 3×3 matrix in linear light whose rows

@@ -1,6 +1,8 @@
-// The top bar's panel: every option the top bar opens (Gallery, New
-// Picture, Save, Crop, Rotate & Flip, History, Settings, Keyboard
-// Shortcuts, and Touch Gestures from Settings) stands in the dock on wider
+// The top bar's panel: every option the top bar opens (Gallery, Save, Crop,
+// Rotate & Flip, History, Settings, Keyboard Shortcuts, and Touch Gestures
+// from Settings; not New Picture, which is a sheet in the middle of the
+// window over a blurred scrim, closed by Esc, a press outside it, Cancel or
+// Create, the focus back where it was) stands in the dock on wider
 // screens, as wide as the tool settings, which step aside (and beside the
 // left bar on phones, as Effects do), never a sheet over a dimmed page or a
 // drop-down: with its title, Back for what opens inside it, and a close
@@ -57,7 +59,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!base.shown, 'the panel is closed to begin with');
 
   // ---- EACH OPTION, IN THE PANEL ----
-  const OPTS = [['gallery', 'Gallery'], ['new', 'New Picture'], ['save', 'Save'], ['image', 'Crop & Rotate'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
+  const OPTS = [['gallery', 'Gallery'], ['save', 'Save'], ['image', 'Crop & Rotate'], ['history', 'History'], ['settings', 'Settings']]; // (Keyboard Shortcuts: from Settings, or ?)
   let stage1 = null;
   for (const [k, title] of OPTS) {
     await top(k);
@@ -80,6 +82,20 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!(await panel()).shown, 'the close button closes it');
   await top('history'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
   L.ok(!(await panel()).shown, 'Esc closes it');
+
+  // ---- NEW PICTURE: its own sheet in the middle, not the panel ----
+  const sheet = () => p.evaluate(() => { const w = document.querySelector('.pa-sheet-wrap.in'), s = w && w.querySelector('.pa-sheet.ns'), r = s && s.getBoundingClientRect();
+    return { open: !!s, title: s ? s.querySelector('.pa-sheet-title').textContent : '', cx: r ? Math.round(r.x + r.width / 2) : 0, cy: r ? Math.round(r.y + r.height / 2) : 0, inside: !!s && s.contains(document.activeElement), panel: !document.querySelector('.paint-docpanel').hidden }; });
+  await top('new'); await p.waitForTimeout(300);
+  let ns = await sheet();
+  L.ok(ns.open && ns.title === 'New Picture' && !ns.panel && ns.inside, 'New Picture: a sheet of its own (not the panel), the focus in it ' + JSON.stringify(ns));
+  L.ok(Math.abs(ns.cx - VW / 2) < 4 && Math.abs(ns.cy - VH / 2) < VH * 0.12, 'in the middle of the window ' + JSON.stringify({ cx: ns.cx, cy: ns.cy }));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(350);
+  L.ok(!(await sheet()).open && !(await p.$('.pa-sheet-wrap')), 'Esc closes it');
+  await top('new'); await p.waitForTimeout(300); await tapAt(6, VH - 6); await p.waitForTimeout(350);
+  L.ok(!(await sheet()).open, 'and so does a press outside it');
+  await top('new'); await p.waitForTimeout(300); await tapEl('[data-ns-act="cancel"]'); await p.waitForTimeout(350);
+  L.ok(!(await sheet()).open && !(await panel()).shown, 'and Cancel, opening nothing else');
 
   // ---- SETTINGS: it stays, and what opens from it has Back ----
   await top('settings');
@@ -138,7 +154,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await top('new');
   await p.fill('[data-ns="w"]', '640'); await p.fill('[data-ns="h"]', '480');
   await tapEl('[data-ns-act="create"]'); await p.waitForTimeout(800);
-  L.ok((await dims()).join('x') === '640x480' && !(await panel()).shown, 'New Picture makes a 640 x 480 picture, and the panel closes');
+  L.ok((await dims()).join('x') === '640x480' && !(await panel()).shown && !(await sheet()).open, 'New Picture makes a 640 x 480 picture, and its sheet closes');
   // Gallery: the drawing before is in it, Done closes
   await top('gallery'); await p.waitForTimeout(500);
   L.ok(await p.$$eval('.paint-docpanel .gal-card', l => l.length) >= 1, 'the Gallery has the drawing from before (a blank one isn’t kept)');
