@@ -9182,7 +9182,7 @@
     var ctxSizeMotion = null;
     function ctxMin(on) {
       if (ctxEl.classList.contains('min') === on) { dockSync(ctxReady); return; }
-      if (on && ctxEl.contains(document.activeElement)) settingsToggle.focus();
+      if (on && ctxEl.contains(document.activeElement)) (wsMode === 'photo' && $('.pho-panelbtn') || settingsToggle).focus(); // (Photo's toggle is in the left bar)
       var before = ctxEl.getBoundingClientRect();
       if (ctxSizeMotion) { ctxSizeMotion.cancel(); ctxSizeMotion = null; }
       ctxClose(); hideTip();
@@ -9407,7 +9407,7 @@
       fonts: function () { return FONTS; }, ensureFonts: ensureFonts
     });
     if (PH) PH.init({
-      stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
+      stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'), settingsBtn: settingsToggle,
       leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
