@@ -515,7 +515,7 @@
   function redo() { if (!fut.length) return; var e = fut.pop(); hist.push({ s: snap(), label: e.label }); putBack(e.s); B.toast('Redid ' + e.label); }
   function histButtons() {
     if (!B) return; B.undoBtn.disabled = !hist.length; B.redoBtn.disabled = !fut.length;
-    if (histEl) { histEl.querySelector('[data-act="undo"]').disabled = !hist.length; histEl.querySelector('[data-act="redo"]').disabled = !fut.length; }
+    if (histEl) { histEl.querySelector('[data-pact="undo"]').disabled = !hist.length; histEl.querySelector('[data-pact="redo"]').disabled = !fut.length; }
   }
   // (something changed: drawn again, the panel brought up to date, kept)
   function changed(panel) { draw(); if (panel) panelRefresh(); else marks(); histButtons(); B.autosave(); }
@@ -1387,7 +1387,7 @@
     groupEl = document.createElement('div'); groupEl.className = 'paint-group pho-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Photo tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-pcat="' + c[0] + '" aria-label="' + c[1] + '" aria-pressed="false" data-tip="' + c[1] + '">' + CI(c[2]) + '</button>'; }).join('') +
-      '<button type="button" data-zoom="fit" class="pho-fit" aria-label="Fit the photo (0)" data-tip="Fit (0): the whole photo">' + CI('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M3.5 8V5a1.5 1.5 0 0 1 1.5-1.5h3M16 3.5h3A1.5 1.5 0 0 1 20.5 5v3M20.5 16v3a1.5 1.5 0 0 1-1.5 1.5h-3M8 20.5H5A1.5 1.5 0 0 1 3.5 19v-3"/>') + '</button>' +
+      '<button type="button" data-pzoom="fit" class="pho-fit" aria-label="Fit the photo (0)" data-tip="Fit (0): the whole photo">' + CI('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M3.5 8V5a1.5 1.5 0 0 1 1.5-1.5h3M16 3.5h3A1.5 1.5 0 0 1 20.5 5v3M20.5 16v3a1.5 1.5 0 0 1-1.5 1.5h-3M8 20.5H5A1.5 1.5 0 0 1 3.5 19v-3"/>') + '</button>' +
       '<button type="button" class="pho-panelbtn" aria-label="Settings panel" aria-expanded="true" data-tip="Settings panel: show or hide it">' + CI('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15M16.8 9h1.5M16.8 12h1.5M16.8 15h1.5"/>') + '</button>';
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) {
@@ -1396,8 +1396,8 @@
     });
     histEl = document.createElement('div'); histEl.className = 'paint-group pho-hist'; histEl.hidden = true;
     histEl.setAttribute('role', 'group'); histEl.setAttribute('aria-label', 'Undo and redo');
-    histEl.innerHTML = '<button type="button" data-act="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)" disabled>' + CI('<path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/>') + '</button>' +
-      '<button type="button" data-act="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y)" disabled>' + CI('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/>') + '</button>';
+    histEl.innerHTML = '<button type="button" data-pact="undo" aria-label="Undo" data-tip="Undo (Ctrl+Z)" disabled>' + CI('<path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 0 1 0 10H11"/>') + '</button>' +
+      '<button type="button" data-pact="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y)" disabled>' + CI('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/>') + '</button>';
     B.leftViewGroup.parentNode.insertBefore(histEl, B.leftViewGroup);
     // (the panel's button shows whether the panel is open, as the bottom bar's did)
     if (B.settingsBtn && window.MutationObserver) {
@@ -1410,12 +1410,14 @@
     ['pointerup', 'pointercancel', 'blur'].forEach(function (t) { window.addEventListener(t, function () { if (peekHeld) brushPeek(false); }, true); });
     B.ctxTool.addEventListener('pointerdown', curveDown);
     document.addEventListener('paint:theme', function () { if (on) curveDraw(); });
-    // (while Photo mode shows: undo, redo and the zoom are Photo's)
+    // (while Photo mode shows: undo, redo and the zoom are Photo's; its own buttons in the left
+    // bar are data-pact and data-pzoom, so nothing looking for the painting's finds them)
     document.addEventListener('click', function (e) {
       if (!on) return;
-      var t = e.target.closest('[data-zoom], [data-act="undo"], [data-act="redo"]'); if (!t || !B.root.contains(t)) return;
+      var t = e.target.closest('[data-zoom], [data-pzoom], [data-act="undo"], [data-act="redo"], [data-pact]'); if (!t || !B.root.contains(t)) return;
       e.stopPropagation(); e.preventDefault();
-      if (t.dataset.act === 'undo') undo(); else if (t.dataset.act === 'redo') redo();
+      var act = t.dataset.pact || t.dataset.act;
+      if (act === 'undo') undo(); else if (act === 'redo') redo();
       else if (t.dataset.zoom === 'in') zoomStep(1); else if (t.dataset.zoom === 'out') zoomStep(-1); else fit();
     }, true);
   }

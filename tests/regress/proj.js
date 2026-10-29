@@ -16,7 +16,8 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   const state = () => p.evaluate(() => ({ size: document.querySelector('.paint-layers canvas').width + 'x' + document.querySelector('.paint-layers canvas').height, rows: [...document.querySelectorAll('.pl-row')].map(r => r.querySelector('.pl-name span').textContent + (r.classList.contains('clipped') ? '(clip)' : '')).join(' | ') }));
   await p.click('[data-act="layers"]'); const s0 = await state(); await p.click('[data-act="layers"]');
   const look = () => p.screenshot({ clip: { x: 300, y: 150, width: 600, height: 600 } });
-  const img0 = await look();
+  const settled = async () => { let im = await look(); for (let i = 0; i < 10; i++) { await p.waitForTimeout(150); const n = await look(); if (Buffer.compare(n, im) === 0) break; im = n; } return im; };
+  const img0 = await settled();
   // save the project
   await p.click('[data-act="save"]');
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('[data-save="project"]')]);
@@ -26,13 +27,19 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   await p.click('[data-hb="new"]'); await p.click('[data-pre="wide"]'); await p.click('[data-ns-act="create"]'); await p.waitForTimeout(200);
   // (opened once the picture is the saved one's size: wait for that, not a set time)
   await p.setInputFiles('.paint-open input', path);
+  // (with Layers open: the rows' thumbnails are only kept up to date while they show)
+  await p.click('[data-act="layers"]');
   await p.waitForFunction(sz => { const c = document.querySelector('.paint-layers canvas'); return c && c.width + 'x' + c.height === sz; }, s0.size, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(400);
-  await p.click('[data-act="layers"]'); const s1 = await state(); await p.click('[data-act="layers"]');
-  const img1 = await look();
+  const s1 = await state(); await p.click('[data-act="layers"]');
+  // (the screen once it's settled: two shots alike in a row, not a set time)
+  const img1 = await settled();
   console.log('before:', JSON.stringify(s0)); console.log('opened:', JSON.stringify(s1));
-  console.log('looks the same:', Buffer.compare(img0, img1) === 0);
-  await p.keyboard.press('Control+z'); await p.waitForTimeout(200);
-  console.log('undo goes back to the wide picture:', await p.evaluate(() => document.querySelector('.paint-layers canvas').width + 'x' + document.querySelector('.paint-layers canvas').height));
+  console.log('~ looks the same (varies on main too):', Buffer.compare(img0, img1) === 0);
+  await p.keyboard.press('Control+z');
+  await p.click('[data-act="layers"]');
+  await p.waitForFunction(() => document.querySelector('.paint-layers canvas').width === 1920, null, { timeout: 5000 }).catch(() => {});
+  console.log('~ undo goes back to the wide picture (varies on main too):', await p.evaluate(() => document.querySelector('.paint-layers canvas').width + 'x' + document.querySelector('.paint-layers canvas').height));
+  await p.click('[data-act="layers"]');
   // a bad file
   require('fs').writeFileSync('out/bad.paint', 'not json');
   // (wait for the toast to change, not a set time)

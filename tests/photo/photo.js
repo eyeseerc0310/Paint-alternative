@@ -84,7 +84,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     const w = six.map(b => Math.round(R(b).width)), h = six.map(b => Math.round(R(b).height)), inner = tg.clientWidth;
     const ys = six.map(b => Math.round(R(b).top));
     return { n: six.length, w, h, inner, column: ys.every((y, i) => !i || y > ys[i - 1]) && new Set(six.map(b => Math.round(R(b).left))).size === 1,
-      hist: hist.map(b => b.dataset.act).join(','), histBelow: hist.length && R(hist[0]).top >= R(six[5]).bottom, zoomBelow: vis(z) && hist.length && R(z).top >= R(hist[0]).bottom,
+      hist: hist.map(b => b.dataset.pact).join(','), histBelow: hist.length && R(hist[0]).top >= R(six[5]).bottom, zoomBelow: vis(z) && hist.length && R(z).top >= R(hist[0]).bottom,
       undoOff: hist[1] && hist[1].disabled && !hist[0].disabled === PaintPhoto.state().hist > 0, others, bottom: vis(document.querySelector('.paint-bottom')), layers: vis(document.querySelector('.pl-layersbtn')),
       icon: six[0] && Math.round(R(six[0].querySelector('svg')).width), smallIcon: hist[0] && Math.round(R(hist[0].querySelector('svg')).width) };
   });
@@ -174,11 +174,11 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!dr.quick && dr.v.contrast > 20 && dr.hist === h0 + 2, 'and one step for it ' + JSON.stringify({ c: dr.v.contrast, steps: dr.hist - h0 }));
 
   // ---- UNDO AND REDO, from the bar ----
-  await tapEl('[data-act="undo"]'); await tapEl('[data-act="undo"]');
+  await tapEl('[data-pact="undo"]'); await tapEl('[data-pact="undo"]');
   L.ok((await screen()).diff === 0 && (await S()).fut === 2, 'undo twice: exactly as it was');
-  await tapEl('[data-act="redo"]');
+  await tapEl('[data-pact="redo"]');
   L.ok((await S()).v.exposure === 40, 'redo brings the exposure back');
-  await tapEl('[data-act="undo"]');
+  await tapEl('[data-pact="undo"]');
 
   // ---- PRESSED AND HELD: the photo as it came ----
   await setSlider('saturation', -100); const ed = await screen();
@@ -200,7 +200,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await p.keyboard.down('\\'); await p.waitForTimeout(60);
   L.ok((await S()).before, 'and while \\ is held'); await p.keyboard.up('\\'); await p.waitForTimeout(60);
   L.ok(!(await S()).before, '(let go of)');
-  await tapEl('[data-act="undo"]');
+  await tapEl('[data-pact="undo"]');
 
   // ---- PRESETS: Original first, thumbnails, a layer of their own over what's set by hand ----
   await setSlider('exposure', 20); await setSlider('vignette', -30);
@@ -309,7 +309,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   });
   L.ok(exif.w === 40 && exif.h === 60, 'a JPEG turned by its EXIF opens upright ' + JSON.stringify(exif));
   L.ok(exif.at > 0 && exif.orient === 1 && exif.none, 'saved, its EXIF goes with it, set upright (and not, when asked)');
-  await tapEl('[data-act="undo"]'); await p.waitForTimeout(400);
+  await tapEl('[data-pact="undo"]'); await p.waitForTimeout(400);
   const back = await S();
   L.ok(back.w === 600 && back.e.temp === 30 && (await screen()).diff === 0, 'undo brings the last photo back, as it was edited');
 
