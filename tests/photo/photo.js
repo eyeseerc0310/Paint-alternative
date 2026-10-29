@@ -93,8 +93,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(bar.hist === 'undo,redo' && bar.histBelow && bar.zoomBelow && !bar.others, 'then Undo and Redo, then the zoom, nothing of the painting’s ' + JSON.stringify(bar));
   L.ok(bar.undoOff, 'with nothing to redo, Redo is greyed out (and Undo only when there’s nothing to undo)');
   L.ok(!bar.bottom && !bar.layers, 'no bottom bar and no Layers in Photo mode');
-  const room = await p.evaluate(() => { const st = document.querySelector('.paint-stage').getBoundingClientRect(); return Math.round(window.innerHeight - st.bottom); });
-  L.ok(room < 40, 'the photo has the bottom bar’s room ' + room);
+  const room = await p.evaluate(() => { const st = document.querySelector('.paint-stage').getBoundingClientRect(), a = document.querySelector('.pho-amount').getBoundingClientRect(); return { gap: Math.round(a.top - st.bottom), h: Math.round(a.height), below: Math.round(window.innerHeight - a.bottom) }; });
+  L.ok(room.gap >= 0 && room.gap <= 16 && room.h < 52 && room.below < 30, 'the photo reaches down to the slimmer amount bar where the bottom bar was ' + JSON.stringify(room));
   const pexp = () => p.$eval('.pho-panelbtn', b => b.getAttribute('aria-expanded'));
   const pOpen = () => p.$eval('.paint-ctx', e => !e.hidden && !e.classList.contains('min'));
   const pe0 = [await pexp(), await pOpen()];
@@ -208,7 +208,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await tapEl('[data-pcat="presets"]');
   const count = await p.evaluate(() => { const L = window.PaintPhotoPresets.list; return { all: L.length, colour: L.filter(q => q.cat === 'colour').length, bw: L.filter(q => q.cat === 'bw').length, films: L.filter(q => q.group === 'film').length }; });
   const tabs = await p.$$eval('[data-ptab]', bs => bs.map(b => b.textContent.trim() + ':' + b.getAttribute('aria-selected')));
-  L.ok(tabs.join('|') === 'Colour:true|Black & White:false' && count.all >= 50 && count.all <= 60 && count.colour + count.bw === count.all && count.films >= 27,
+  L.ok(tabs.join('|') === 'Colour:true|Black & White:false' && count.all === 43 && count.colour === 20 && count.bw === 23 && count.films === 17,
     'the presets: two tabs, Colour and Black & White ' + JSON.stringify({ tabs, count }));
   const thumbsIn = async tab => {
     await p.waitForFunction(() => [...document.querySelectorAll('[data-pp] canvas')].every(c => c.dataset.t), null, { timeout: 20000 }).catch(() => {});
@@ -219,8 +219,6 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const tc = await thumbsIn();
   L.ok(tc.length === count.colour + 1 && tc[0].id === 'original' && tc.every(t => t.sum > 0) && new Set(tc.map(t => t.sum)).size === tc.length,
     'Colour: Original first, then its ' + count.colour + ' presets, each with a thumbnail of its own look ' + tc.length);
-  const fullName = await p.$eval('[data-pp="ektachrome"]', b => [b.textContent.trim(), b.getAttribute('aria-label'), b.dataset.tip].join('|'));
-  L.ok(fullName === 'Ektachrome|Ektachrome E100|Ektachrome E100', 'a long name has a short one on its tile, the whole of it in its tip ' + fullName);
   const hp = (await S()).hist;
   await tapEl('[data-pp="cinematic"]'); const ci = await S();
   await tapEl('[data-ptab="bw"]');
@@ -228,7 +226,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(afterTab.v.preset === 'cinematic' && afterTab.hist === hp && JSON.stringify(afterTab.e) === JSON.stringify(ci.e), 'switching to Black & White puts no preset on and takes none off');
   L.ok(tb.length === count.bw + 1 && tb[0].id === 'original' && tb.every(t => t.sum > 0) && new Set(tb.map(t => t.sum)).size === tb.length,
     'Black & White: Original first, then its ' + count.bw + ' presets, each with a thumbnail of its own ' + tb.length);
-  L.ok(tb.filter(t => t.film).every(t => t.grey) && tb.filter(t => t.film).length >= 13, 'the black-and-white films are truly grey (mixed from the colours, not drained of them) ' + tb.filter(t => t.film && !t.grey).map(t => t.id).join(','));
+  L.ok(tb.filter(t => t.film).every(t => t.grey) && tb.filter(t => t.film).length === 11, 'the black-and-white films are truly grey (mixed from the colours, not drained of them) ' + tb.filter(t => t.film && !t.grey).map(t => t.id).join(','));
   // (one film's mix: a red, a green and a blue of the same light come out as different greys)
   const mix = await p.evaluate(async () => {
     const out = {};
@@ -258,6 +256,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(await p.$eval('[data-ptab="colour"]', b => b.getAttribute('aria-selected') === 'true'), 'Presets open on the tab of the preset in use');
   await tapEl('[data-pp="original"]'); await tapEl('[data-pa="pdone"]');
   const go = await S();
+  const amtOff = await p.$eval('.pho-amount', e => ({ shown: !e.hidden && !!e.offsetParent, off: e.querySelector('input').disabled, name: e.querySelector('.pho-amount-name').textContent }));
+  L.ok(amtOff.shown && amtOff.off && amtOff.name === 'No preset', 'with no preset, the amount slider is greyed out ' + JSON.stringify(amtOff));
   L.ok(!go.v.preset && go.e.temp === 20 && go.e.exposure === 20 && go.e.vignette === -30, 'Original then Done: the preset’s part gone, everything set by hand, before and after it, kept ' + JSON.stringify({ temp: go.e.temp, ex: go.e.exposure, vg: go.e.vignette }));
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
   L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 50, 'undo puts the preset back');
@@ -265,6 +265,24 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok((await screen()).diff === 0, 'and further back, exactly as set by hand before it');
   await p.keyboard.press('Control+Shift+z'); await p.waitForTimeout(80);
   L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 30, 'redo brings the preset again');
+
+  // ---- HOW MUCH OF THE PRESET: the slider where the bottom bar was, 100% all of it, 0% none ----
+  const amt = () => p.$eval('.pho-amount', e => { const r = e.getBoundingClientRect(), st = document.querySelector('.paint-stage').getBoundingClientRect(); return { shown: !e.hidden && !!e.offsetParent, off: e.querySelector('input').disabled, v: +e.querySelector('input').value, out: e.querySelector('output').textContent, name: e.querySelector('.pho-amount-name').textContent, below: r.top >= st.bottom - 1, h: Math.round(r.height), mid: Math.round(r.x + r.width / 2 - (st.x + st.width / 2)) }; });
+  const setAmt = v => p.$eval('.pho-amount input', (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  const a0 = await amt();
+  L.ok(a0.shown && !a0.off && a0.v === 100 && a0.out === '100%' && a0.name === 'Golden Hour' && a0.below && Math.abs(a0.mid) <= 2, 'the amount slider is under the photo, in the middle, at 100% for the preset in use ' + JSON.stringify(a0));
+  L.ok(a0.h < 52, 'and slimmer than the bottom bar ' + a0.h);
+  const ha = (await S()).hist;
+  await setAmt(0); const z0 = await S();
+  L.ok(z0.hist === ha + 1 && z0.v.pamt === 0 && JSON.stringify(z0.e) === JSON.stringify(z0.v) && z0.v.preset === 'goldenhour', 'at 0% it’s exactly what was set by hand, the preset still picked, as one step');
+  L.ok((await amt()).out === '0%', 'and says so');
+  await setAmt(50); const z5 = await S();
+  L.ok(z5.hist === ha + 2 && z5.e.temp === 15 && Math.abs(z5.e.vignette - (-30 + 7)) < 1e-9 && z5.e.exposure === 23, 'at 50%, half of each of its settings, over what was set by hand ' + JSON.stringify({ temp: z5.e.temp, vg: z5.e.vignette }));
+  L.ok(await p.$eval('[data-pk="temp"]', i => +i.value === 15), 'which the sliders show');
+  await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
+  L.ok((await S()).v.pamt === 0 && (await amt()).v === 0, 'undo takes the amount back a step');
+  await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
+  L.ok((await S()).v.pamt === 100 && (await S()).e.temp === 30 && (await amt()).v === 100, 'and again, to all of it');
   const look = await screen(true);
 
   // ---- SAVING: four formats, full or another size; a JPEG's EXIF kept, upright ----

@@ -456,8 +456,9 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @media (hover: hover) { .paint .paint-swap:hover svg { transform: rotate(12deg); } }
 
 /* ---- THE BOTTOM BAR: a long glass pill under the picture, like the top
-   bar's capsules: Size, Undo, the two colours, Redo, Opacity ---- */
-.paint-bottom {
+   bar's capsules: Size, Undo, the two colours, Redo, Opacity (and in Photo
+   mode, in its place, a slimmer one: how much of the preset) ---- */
+.paint-bottom, .pho-amount {
   position: relative; z-index: 5; flex: none; display: flex; align-items: center; gap: var(--s-1);
   height: var(--bbar-h); max-width: 100%; padding: 0 var(--s-3);
   border-radius: var(--r-pill); background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
@@ -1206,7 +1207,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .focus-mode .paint-stage { flex: 1 1 auto; aspect-ratio: auto; max-width: none; }
 .focus-mode .paint-bar, .focus-mode .doc-status { opacity: 0; visibility: hidden; pointer-events: none; }
 .focus-mode .paint-left { margin-right: calc(-1 * var(--bar)); transform: translateX(calc(-100% - 2 * var(--edge))); }
-.focus-mode .paint-bottom { margin-top: calc(-1 * var(--bbar-h) - var(--s-3)); transform: translateY(calc(100% + 2 * var(--edge))); opacity: 0; visibility: hidden; pointer-events: none; }
+.focus-mode .paint-bottom, .focus-mode .pho-amount { margin-top: calc(-1 * var(--bbar-h) - var(--s-3)); transform: translateY(calc(100% + 2 * var(--edge))); opacity: 0; visibility: hidden; pointer-events: none; }
 .focus-mode .paint .paint-dock { width: 0; margin-left: calc(-1 * var(--pgap)); }
 .focus-mode .paint-ctx { opacity: 0 !important; visibility: hidden; pointer-events: none; }
 .focusing .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s; }
@@ -1216,7 +1217,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .focusing .paint-ctx { transition: opacity var(--dur) ease, visibility 0s; }
 /* (going: hidden from the pointer and the keyboard once they've faded) */
 .focusing.focus-mode .site-header { transition: height var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
-.focusing.focus-mode .paint-bar, .focusing.focus-mode .paint-bottom { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
+.focusing.focus-mode .paint-bar, .focusing.focus-mode .paint-bottom, .focusing.focus-mode .pho-amount { transition: margin var(--dur-slow) var(--ease), transform var(--dur-slow) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur-slow); }
 .focusing.focus-mode .paint-ctx { transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
 .focusing .site-header { overflow: hidden; } /* (its capsules don't spill out while it folds and unfolds) */
 /* (measuring where things will end up: no movement at all) */
@@ -2025,7 +2026,14 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .pho-group[hidden], .pho-hist[hidden] { display: none; }
 .photo-mode .paint-left .paint-toolgroups > .paint-group:not(.pho-group):not(.pho-hist):not(.pl-view),
 .photo-mode .paint-left .pl-layersbtn, .photo-mode .paint-bottom { display: none; }
-:root.photo-mode { --bbar-h: 0px; --bbar-gap: 0px; }
+:root.photo-mode { --bbar-h: 40px; }
+@media (max-width: 560px) { :root.photo-mode { --bbar-h: 38px; } }
+/* (the preset's amount: its name, the slider, how much; greyed out with no preset) */
+.pho-amount[hidden] { display: none; }
+.pho-amount .pb-slider { gap: var(--s-3); }
+.pho-amount-name { min-width: 88px; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: default; }
+.pho-amount .pb-slider input[type="range"] { width: min(280px, 42vw); }
+.pho-amount .pb-slider output { min-width: 3em; }
 .paint-left .paint-toolgroups > .pho-group { grid-template-columns: 1fr; gap: var(--s-1); padding-top: 0; }
 .paint-left .paint-toolgroups > .pho-group::before { display: none; }
 .paint .paint-left .pho-group > button { width: 100%; height: var(--tool-lg) !important; }
