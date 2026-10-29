@@ -1690,7 +1690,9 @@
       // as faint seams where one frame's redraw met the last)
       var sc = drawSpare && drawSpare.width === ov.width && drawSpare.height === ov.height ? drawSpare : (drawSpare = document.createElement('canvas'));
       if (sc.width !== ov.width || sc.height !== ov.height) { sc.width = ov.width; sc.height = ov.height; }
-      var sx = sc.getContext('2d'); sx.setTransform(1, 0, 0, 1, 0, 0); sx.clearRect(0, 0, sc.width, sc.height); base(sx);
+      // (only the redraw area is copied from it, so only that needs clearing:
+      // clearing the whole sheet every frame cost more than the drawing)
+      var sx = sc.getContext('2d'); sx.setTransform(1, 0, 0, 1, 0, 0); rects.forEach(function (r) { sx.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]); }); base(sx);
       strokeOn(sx, S, cfg, down, R, box, rects);
       octx.save();
       octx.setTransform(1, 0, 0, 1, 0, 0); clipTo2(octx, rects);

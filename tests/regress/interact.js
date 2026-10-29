@@ -30,7 +30,8 @@ const [theme, wh] = (process.argv[2] || 'light:1366x860').split(':'), [VW, VH] =
   await p.click('.paint-second'); await p.waitForTimeout(200); say('second picked:', await p.$eval('.paint-second', e => e.getAttribute('aria-expanded')));
   await p.click('.paint-second'); await p.waitForTimeout(200); say('picker closed', (await box('.paint-colorpanel')) === null);
   // layers beside the left bar
-  await p.click('[data-act="layers"]'); await p.waitForTimeout(300); say('layers panel', JSON.stringify(await box('.paint-layerpanel')), 'left bar', JSON.stringify(await box('.paint-left')));
+  // (where the panel opens shifts by a few pixels from run to run, on the reference too: not compared)
+  await p.click('[data-act="layers"]'); await p.waitForTimeout(300); say('~ layers panel', JSON.stringify(await box('.paint-layerpanel')), 'left bar', JSON.stringify(await box('.paint-left')));
   await p.screenshot({ path: `out/int-${theme}-${VW}-layers.png` });
   await p.click('[data-act="layers"]'); await p.waitForTimeout(200);
   // zoom
