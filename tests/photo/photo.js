@@ -2,9 +2,13 @@
 // with nothing set; every slider changes it and, put back, gives the very
 // same pixels again; a slider's drag is one undo step, worked out at half
 // the detail while it moves and sharp once it's let go of; pressed and held,
-// the photo shows as it came; Original and the 15 presets have thumbnails of
-// their own; a preset lies over what's set by hand, another takes its place,
-// Original takes only it off; Cancel puts things back and Done is one step;
+// the photo shows as it came; the left bar is six big buttons, then Undo
+// and Redo, then the zoom, with no bottom bar or Layers; the presets are in
+// two tabs, Colour and Black & White (switching changes none), Original
+// first in each, every one with a thumbnail of its own, drawn a few at a
+// time; the black-and-white films come out truly grey; a preset lies over
+// what's set by hand, another takes its place, Original takes only it off;
+// Cancel puts things back and Done is one step;
 // saving gives JPEG (with the EXIF, set upright), PNG, WebP and TIFF, at
 // full or another size; it's all kept through a reload and in a project
 // file; formats it can't open say so; Paint is untouched by it, and the
@@ -71,6 +75,33 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const ref = await screen(true);
   L.ok(ref.w >= ref.cw, 'drawn at the screen’s own detail ' + JSON.stringify(ref));
 
+  // ---- THE LEFT BAR: six big buttons the bar's width, then Undo and Redo, then the zoom; no bottom bar, no Layers ----
+  const bar = await p.evaluate(() => {
+    const vis = e => !!e && e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden', R = e => e.getBoundingClientRect();
+    const six = [...document.querySelectorAll('.pho-group > button')].filter(vis), hist = [...document.querySelectorAll('.pho-hist > button')].filter(vis);
+    const tg = document.querySelector('.paint-left .paint-toolgroups'), z = document.querySelector('.paint-left .paint-zoom');
+    const others = [...tg.querySelectorAll(':scope > .paint-group:not(.pho-group):not(.pho-hist):not(.pl-view) button')].filter(vis).length;
+    const w = six.map(b => Math.round(R(b).width)), h = six.map(b => Math.round(R(b).height)), inner = tg.clientWidth;
+    const ys = six.map(b => Math.round(R(b).top));
+    return { n: six.length, w, h, inner, column: ys.every((y, i) => !i || y > ys[i - 1]) && new Set(six.map(b => Math.round(R(b).left))).size === 1,
+      hist: hist.map(b => b.dataset.act).join(','), histBelow: hist.length && R(hist[0]).top >= R(six[5]).bottom, zoomBelow: vis(z) && hist.length && R(z).top >= R(hist[0]).bottom,
+      undoOff: hist[1] && hist[1].disabled && !hist[0].disabled === PaintPhoto.state().hist > 0, others, bottom: vis(document.querySelector('.paint-bottom')), layers: vis(document.querySelector('.pl-layersbtn')),
+      icon: six[0] && Math.round(R(six[0].querySelector('svg')).width), smallIcon: hist[0] && Math.round(R(hist[0].querySelector('svg')).width) };
+  });
+  L.ok(bar.n === 6 && bar.column && new Set(bar.w).size === 1 && new Set(bar.h).size === 1 && bar.w[0] >= bar.inner - 2 && bar.icon > bar.smallIcon,
+    'the left bar: six big buttons, one column, all the same size and the bar’s width, their icons bigger ' + JSON.stringify(bar));
+  L.ok(bar.hist === 'undo,redo' && bar.histBelow && bar.zoomBelow && !bar.others, 'then Undo and Redo, then the zoom, nothing of the painting’s ' + JSON.stringify(bar));
+  L.ok(bar.undoOff, 'with nothing to redo, Redo is greyed out (and Undo only when there’s nothing to undo)');
+  L.ok(!bar.bottom && !bar.layers, 'no bottom bar and no Layers in Photo mode');
+  const room = await p.evaluate(() => { const st = document.querySelector('.paint-stage').getBoundingClientRect(); return Math.round(window.innerHeight - st.bottom); });
+  L.ok(room < 40, 'the photo has the bottom bar’s room ' + room);
+  const pexp = () => p.$eval('.pho-panelbtn', b => b.getAttribute('aria-expanded'));
+  const pOpen = () => p.$eval('.paint-ctx', e => !e.hidden && !e.classList.contains('min'));
+  const pe0 = [await pexp(), await pOpen()];
+  await tapEl('.pho-panelbtn'); await p.waitForTimeout(400); const pe1 = [await pexp(), await pOpen()];
+  await tapEl('.pho-panelbtn'); await p.waitForTimeout(400); const pe2 = [await pexp(), await pOpen()];
+  L.ok(pe0.join() === 'true,true' && pe1.join() === 'false,false' && pe2.join() === 'true,true', 'the panel button folds the panel and opens it again, and says so ' + JSON.stringify([pe0, pe1, pe2]));
+
   // ---- EVERY SLIDER: it changes the photo, and put back it is exactly as it was ----
   const SL = [['exposure', 60], ['contrast', 60], ['highlights', -80], ['shadows', 80], ['whites', 70], ['blacks', -80], ['brightness', 60],
     ['temp', 60], ['tint', -60], ['vibrance', 80], ['saturation', -80],
@@ -88,12 +119,18 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!moved.length, 'each slider changes the photo, as one step, and back at 0 it is exactly as it was' + (moved.length ? ': ' + moved.join('; ') : ''));
   // (the ones that shape another: with it on, they change it too)
   const dep = [];
-  for (const [base, bv, k, v] of [['vignette', 80, 'vigMid', 10], ['grain', 80, 'grainSize', 90], ['sharpen', 150, 'sRadius', 30], ['sharpen', 150, 'sDetail', 100], ['sharpen', 150, 'sMask', 100]]) {
+  for (const [base, bv, k, v] of [['vignette', 80, 'vigMid', 10], ['grain', 80, 'grainSize', 90], ['grain', 80, 'grainRough', 100], ['grain', 80, 'grainCol', 100], ['sharpen', 150, 'sRadius', 30], ['sharpen', 150, 'sDetail', 100], ['sharpen', 150, 'sMask', 100]]) {
     await setSlider(base, bv); const a = await screen(true); await setSlider(k, v); const c = await screen(); if (!(c.diff > 0.02)) dep.push(k + ' ' + c.diff.toFixed(4));
     await dbl(k); await dbl(base);
   }
   await screen(false); await p.evaluate(() => { window.__ref = null; });
   L.ok(!dep.length, 'and the sliders that shape another change it too' + (dep.length ? ': ' + dep.join('; ') : ''));
+  // (halation: a warm glow round the brightest light only, so measured in the saved photo, with the light pushed up)
+  const px = () => p.evaluate(async () => { const bm = await createImageBitmap(await PaintPhoto.exportBlob({ type: 'png' })), c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; const x = c.getContext('2d'); x.drawImage(bm, 0, 0); return Array.from(x.getImageData(0, 0, c.width, c.height).data.filter((v, i) => i % 4 !== 3 && i % 28 < 4)); });
+  await setSlider('exposure', 100); const ha0 = await px(); await setSlider('halation', 100); const ha1 = await px();
+  let hr = 0, hb = 0; for (let i = 0; i < ha0.length; i += 3) { hr += ha1[i] - ha0[i]; hb += ha1[i + 2] - ha0[i + 2]; }
+  L.ok(hr > 0 && hr > hb * 2, 'Halation adds a warm glow (red more than blue) ' + JSON.stringify({ red: hr, blue: hb }));
+  await dbl('halation'); await dbl('exposure');
   await screen(true);
   L.ok((await screen()).diff === 0, '(the reference again)');
   // the colour mixer and grading
@@ -168,12 +205,39 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   // ---- PRESETS: Original first, thumbnails, a layer of their own over what's set by hand ----
   await setSlider('exposure', 20); await setSlider('vignette', -30);
   const hand = await screen(true), mv = (await S()).v;
-  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(700);
-  const th = await p.evaluate(() => [...document.querySelectorAll('[data-pp] canvas')].map(c => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 97) s += d[i]; return c.width ? s : -1; }));
-  const first = await p.$eval('[data-pp]', b => [b.dataset.pp, b.textContent.trim(), b.getAttribute('aria-checked')]);
-  L.ok(th.length === 16 && th.every(x => x > 0) && new Set(th).size >= 15 && first.join('|') === 'original|Original|true', 'Original first, then 15 presets, each with a thumbnail of its own look ' + th.length + ' ' + first.join('|'));
+  await tapEl('[data-pcat="presets"]');
+  const count = await p.evaluate(() => { const L = window.PaintPhotoPresets.list; return { all: L.length, colour: L.filter(q => q.cat === 'colour').length, bw: L.filter(q => q.cat === 'bw').length, films: L.filter(q => q.group === 'film').length }; });
+  const tabs = await p.$$eval('[data-ptab]', bs => bs.map(b => b.textContent.trim() + ':' + b.getAttribute('aria-selected')));
+  L.ok(tabs.join('|') === 'Colour:true|Black & White:false' && count.all >= 50 && count.all <= 60 && count.colour + count.bw === count.all && count.films >= 27,
+    'the presets: two tabs, Colour and Black & White ' + JSON.stringify({ tabs, count }));
+  const thumbsIn = async tab => {
+    await p.waitForFunction(() => [...document.querySelectorAll('[data-pp] canvas')].every(c => c.dataset.t), null, { timeout: 20000 }).catch(() => {});
+    return p.evaluate(() => [...document.querySelectorAll('[data-pp]')].map(b => { const c = b.querySelector('canvas'), d = c.width ? c.getContext('2d').getImageData(0, 0, c.width, c.height).data : []; let s = 0, grey = true;
+      for (let i = 0; i < d.length; i += 4 * 7) { s += d[i] + d[i + 1] * 3 + d[i + 2] * 7; if (Math.abs(d[i] - d[i + 1]) > 2 || Math.abs(d[i + 1] - d[i + 2]) > 2) grey = false; }
+      return { id: b.dataset.pp, name: b.textContent.trim(), sum: c.width ? s : -1, grey, film: (window.PaintPhotoPresets.list.find(q => q.id === b.dataset.pp) || {}).group === 'film' }; }));
+  };
+  const tc = await thumbsIn();
+  L.ok(tc.length === count.colour + 1 && tc[0].id === 'original' && tc.every(t => t.sum > 0) && new Set(tc.map(t => t.sum)).size === tc.length,
+    'Colour: Original first, then its ' + count.colour + ' presets, each with a thumbnail of its own look ' + tc.length);
+  const fullName = await p.$eval('[data-pp="ektachrome"]', b => [b.textContent.trim(), b.getAttribute('aria-label'), b.dataset.tip].join('|'));
+  L.ok(fullName === 'Ektachrome|Ektachrome E100|Ektachrome E100', 'a long name has a short one on its tile, the whole of it in its tip ' + fullName);
   const hp = (await S()).hist;
   await tapEl('[data-pp="cinematic"]'); const ci = await S();
+  await tapEl('[data-ptab="bw"]');
+  const afterTab = await S(), tb = await thumbsIn();
+  L.ok(afterTab.v.preset === 'cinematic' && afterTab.hist === hp && JSON.stringify(afterTab.e) === JSON.stringify(ci.e), 'switching to Black & White puts no preset on and takes none off');
+  L.ok(tb.length === count.bw + 1 && tb[0].id === 'original' && tb.every(t => t.sum > 0) && new Set(tb.map(t => t.sum)).size === tb.length,
+    'Black & White: Original first, then its ' + count.bw + ' presets, each with a thumbnail of its own ' + tb.length);
+  L.ok(tb.filter(t => t.film).every(t => t.grey) && tb.filter(t => t.film).length >= 13, 'the black-and-white films are truly grey (mixed from the colours, not drained of them) ' + tb.filter(t => t.film && !t.grey).map(t => t.id).join(','));
+  // (one film's mix: a red, a green and a blue of the same light come out as different greys)
+  const mix = await p.evaluate(async () => {
+    const out = {};
+    for (const id of ['acros', 'retro80s']) { document.querySelector('[data-pp="' + id + '"]').click(); await new Promise(r => setTimeout(r, 30));
+      const bm = await createImageBitmap(await PaintPhoto.exportBlob({ type: 'png', w: 300, h: 200 })), c = document.createElement('canvas'); c.width = 300; c.height = 200; const x = c.getContext('2d'); x.drawImage(bm, 0, 0);
+      const d = x.getImageData(0, 0, 300, 200).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i]; out[id] = s; }
+    return out;
+  });
+  L.ok(mix.acros !== mix.retro80s, 'and each film has its own mix of the colours ' + JSON.stringify(mix));
   await tapEl('[data-pp="bw"]'); const bw = await S();
   L.ok(ci.e.grade && ci.e.vignette === -30 + 22 && ci.e.exposure === 20 && !bw.e.grade && bw.e.vignette === -30 && bw.e.saturation === -100 && bw.e.exposure === 20 && bw.hist === hp,
     'one preset after another: each takes the last one’s place, on top of what was set by hand, and takes no step ' + JSON.stringify({ civ: ci.e.vignette, bwv: bw.e.vignette, ex: bw.e.exposure }));
@@ -182,7 +246,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok((await S()).v.preset === null && (await screen()).diff === 0, 'Original takes the preset off: exactly as set by hand');
   await tapEl('[data-pp="bw"]'); await tapEl('[data-pa="pcancel"]');
   L.ok(JSON.stringify((await S()).v) === JSON.stringify(mv) && (await screen()).diff === 0, 'Cancel puts everything back exactly');
-  await tapEl('[data-pp="goldenhour"]'); await tapEl('[data-pa="pdone"]');
+  await tapEl('[data-ptab="colour"]'); await tapEl('[data-pp="goldenhour"]'); await tapEl('[data-pa="pdone"]');
   const gd = await S();
   L.ok(gd.hist === hp + 1 && gd.v.preset === 'goldenhour' && gd.e.temp === 30 && gd.v.temp === 0 && gd.cat === 'edit', 'Done keeps it as one step, back on the sliders ' + JSON.stringify({ steps: gd.hist - hp, temp: gd.e.temp }));
   L.ok(await p.$eval('[data-pk="temp"]', i => +i.value === 30), 'which show the preset’s settings');
@@ -190,7 +254,9 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await setSlider('temp', 50);
   const ga = await S();
   L.ok(ga.e.temp === 50 && ga.v.temp === 20, 'a slider moved over a preset moves what’s set by hand ' + JSON.stringify({ e: ga.e.temp, v: ga.v.temp }));
-  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(300); await tapEl('[data-pp="original"]'); await tapEl('[data-pa="pdone"]');
+  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(300);
+  L.ok(await p.$eval('[data-ptab="colour"]', b => b.getAttribute('aria-selected') === 'true'), 'Presets open on the tab of the preset in use');
+  await tapEl('[data-pp="original"]'); await tapEl('[data-pa="pdone"]');
   const go = await S();
   L.ok(!go.v.preset && go.e.temp === 20 && go.e.exposure === 20 && go.e.vignette === -30, 'Original then Done: the preset’s part gone, everything set by hand, before and after it, kept ' + JSON.stringify({ temp: go.e.temp, ex: go.e.exposure, vg: go.e.vignette }));
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
@@ -297,6 +363,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await p.waitForTimeout(600);
   const pt = await p.evaluate(() => ({ photo: document.documentElement.classList.contains('photo-mode'), rows: [...document.querySelectorAll('.paint-layers canvas')].length, stage: !!document.querySelector('.pho-stage') && document.querySelector('.pho-stage').hidden }));
   L.ok(!pt.photo && pt.stage && pt.rows === 2, 'back in Paint, with the photo on a layer of its own ' + JSON.stringify(pt));
+  const pb = await p.evaluate(() => { const vis = e => !!e && e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden'; return { bottom: vis(document.querySelector('.paint-bottom')), layers: vis(document.querySelector('.pl-layersbtn')), pho: vis(document.querySelector('.pho-group')) || vis(document.querySelector('.pho-hist')) }; });
+  L.ok(pb.bottom && pb.layers && !pb.pho, 'and Paint has its bottom bar, Layers and its own tools again ' + JSON.stringify(pb));
   const warm = await p.evaluate(() => { const cs = [...document.querySelectorAll('.paint-layers canvas')], c = cs[cs.length - 1], d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let r = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4 * 53) if (d[i + 3] > 200) { r += d[i]; b += d[i + 2]; n++; } return { n, r: r / n, b: b / n }; });
   L.ok(warm.n > 100, 'and it’s the photo, as edited ' + JSON.stringify(warm));
   // Paint's own tools still paint

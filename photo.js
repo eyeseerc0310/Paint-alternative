@@ -110,8 +110,9 @@
   // (the working copy: linear light, and the darkest channel for dehaze)
   var COPY = HEAD + 'uniform sampler2D u_in; uniform float u_lod; uniform vec2 u_size; uniform int u_lin; out vec4 frag;\n' +
     'void main() { vec2 uv = gl_FragCoord.xy / u_size; uv.y = 1.0 - uv.y; vec4 s = textureLod(u_in, uv, u_lod); vec3 c = u_lin == 1 ? lin(s.rgb) : s.rgb;\n' +
-    // (2: only the brightest of the working copy, as the light that halates: from a little under white)
-    '  if (u_lin == 2) { frag = vec4(c * smoothstep(0.6, 1.0, dot(c, vec3(0.2126, 0.7152, 0.0722))), 1.0); return; }\n' +
+    // (2: the brightest of the working copy, as the light that halates: weighted, so what's pushed
+    // up by exposure halates too, and all but nothing from the middle tones)
+    '  if (u_lin == 2) { float w = smoothstep(0.3, 1.0, dot(c, vec3(0.2126, 0.7152, 0.0722))); frag = vec4(c * w * w, 1.0); return; }\n' +
     '  frag = vec4(c, u_lin == 1 ? min(min(c.r, c.g), c.b) : s.a); }';
   // (a Gaussian blur one way, sigma in the texture's own pixels)
   var BLUR = HEAD + 'uniform sampler2D u_in; uniform vec2 u_dir, u_size; uniform float u_sig; out vec4 frag;\n' +
@@ -173,8 +174,8 @@
     // layer, a warm glow round the strong highlights only (the highlights blurred, u_hl, so a
     // small lamp glows as much as a big one), less what this place's own light gives it, so it
     // rings round a light rather than tinting what's bright itself; on black and white, grey
-    '  if (u_hal > 0.0) { vec3 wl = vec3(0.2126, 0.7152, 0.0722); float Yh = dot(texture(u_hl, uv).rgb * u_wb * u_ev, wl), Ys = dot(c, wl);\n' +
-    '    float rg = max(Yh - Ys * smoothstep(0.6, 1.0, Ys), 0.0); c += (u_mono == 1 ? vec3(0.45) : vec3(1.0, 0.24, 0.07)) * min(rg, 1.0) * u_hal; }\n' +
+    '  if (u_hal > 0.0) { vec3 wl = vec3(0.2126, 0.7152, 0.0722); float Yh = dot(texture(u_hl, uv).rgb * u_wb * u_ev, wl), Ys = dot(c, wl) / max(u_ev, 1e-4), ws = smoothstep(0.3, 1.0, Ys);\n' +
+    '    float rg = max(Yh - Ys * ws * ws * u_ev, 0.0) * mix(1.0, 2.0, smoothstep(0.5, 1.0, Yh)); c += (u_mono == 1 ? vec3(0.45) : vec3(1.0, 0.24, 0.07)) * min(rg, 1.0) * u_hal; }\n' +
     // dehaze: the haze the darkest channel shows, taken out (or added)
     '  if (u_dh != 0.0) { float A = 0.95 * max(u_ev, 0.01) * max(max(u_wb.r, u_wb.g), u_wb.b); float dk = texture(u_bl, uv).a * u_ev;\n' +
     '    if (u_dh > 0.0) { float t = max(0.12, 1.0 - u_dh * 0.92 * dk / A); c = max((c - A) / t + A, 0.0); } else c = mix(c, vec3(A * 0.8), -u_dh * 0.45); }\n' +
@@ -360,7 +361,7 @@
     if (T.lutKey !== tb.key) { gl.bindTexture(gl.TEXTURE_2D, T.lut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1024, 1, gl.RGBA, gl.FLOAT, tb.data); T.lutKey = tb.key; }
     var t = v.temp / 100, ti = v.tint / 100, kr = Math.pow(2, 0.8 * t + 0.15 * ti), kg = Math.pow(2, -0.6 * ti), kb = Math.pow(2, -0.8 * t + 0.15 * ti), ln = 0.2126 * kr + 0.7152 * kg + 0.0722 * kb;
     pass(p, out.tex || null, out.w, out.h, function (p) {
-      bind(p, 'u_src', 0, T.src); bind(p, 'u_bm', 1, T.bm); bind(p, 'u_bl', 2, T.bl); bind(p, 'u_lut', 3, T.lut); bind(p, 'u_hl', 8, T.hl);
+      bind(p, 'u_src', 0, T.src); bind(p, 'u_bm', 1, T.bm); bind(p, 'u_bl', 2, T.bl); bind(p, 'u_lut', 3, T.lut); bind(p, 'u_hl', 9, T.hl);
       var f1 = function (n, x) { gl.uniform1f(U(p, n), x); };
       gl.uniform2f(U(p, 'u_o'), o.x, o.y); gl.uniform2f(U(p, 'u_s'), s.x, s.y); gl.uniform2f(U(p, 'u_out'), out.w, out.h); gl.uniform2f(U(p, 'u_img'), G.out.w, G.out.h); gl.uniform2f(U(p, 'u_px'), img.w, img.h);
       gl.uniformMatrix3fv(U(p, 'u_A'), false, cm(G.A)); gl.uniformMatrix3fv(U(p, 'u_P'), false, cm(G.P)); gl.uniformMatrix3fv(U(p, 'u_B'), false, cm(G.B));

@@ -113,9 +113,9 @@ const touch = process.argv.includes('touch');
   await settings('photo');
   await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1200);
   const k0 = (await p.evaluate(() => PaintPhoto.state().view.k));
-  L.ok(await shown('.paint-left .paint-fitbtn'), 'Photo: Fit in the left bar, where it is in Paint');
+  L.ok(await shown('.paint-left .pho-fit'), 'Photo: Fit among the left bar’s six buttons');
   await tapEl('[data-zoom="in"]'); const k1 = await p.evaluate(() => PaintPhoto.state().view.k);
-  await tapEl('.paint-left .paint-fitbtn'); const k2 = await p.evaluate(() => PaintPhoto.state().view.k);
+  await tapEl('.paint-left .pho-fit'); const k2 = await p.evaluate(() => PaintPhoto.state().view.k);
   L.ok(k1 > k0 && Math.abs(k2 - k0) < 1e-6, 'Photo: zoomed in, Fit fits again ' + [k0, k1, k2].map(k => k.toFixed(3)).join(' → '));
   await tapEl('[data-zoom="in"]'); await p.keyboard.press('0'); await p.waitForTimeout(150); L.ok(Math.abs((await p.evaluate(() => PaintPhoto.state().view.k)) - k0) < 1e-6, 'Photo: and so does 0');
 
