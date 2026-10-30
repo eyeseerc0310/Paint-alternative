@@ -310,6 +310,19 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 8000 }), tapEl('[data-ps="save"]')]);
     const fp = await dl.path(), buf = fs.readFileSync(fp);
     L.ok(/edited\.tif$/.test(dl.suggestedFilename()) && buf.readUInt16LE(2) === 42, 'the sheet saves a TIFF: ' + dl.suggestedFilename());
+    // (its Share: the same file, as it's set there, to the system's sheet)
+    await p.evaluate(() => { window.__sf = null; navigator.canShare = () => true; navigator.share = d => { window.__sf = d.files[0]; return Promise.resolve(); }; });
+    await p.$eval('[data-act="save"]', e => e.click()); await p.waitForTimeout(250);
+    await p.$eval('[data-save="photo"]', e => e.click()); await p.waitForTimeout(300);
+    const sb = await p.evaluate(() => { const b = document.querySelector('[data-ps="share"]'), s = document.querySelector('[data-ps="save"]'); return b && { text: b.textContent.trim(), icon: !!b.querySelector('svg'), shown: !!b.offsetParent, h: b.offsetHeight === s.offsetHeight }; });
+    L.ok(sb && sb.text === 'Share' && sb.icon && sb.shown && sb.h, 'Save Photo has a Share button, the height of Save ' + JSON.stringify(sb));
+    await tapEl('[data-pf="png"]');
+    await p.$eval('[data-pw]', e => { e.value = 300; e.dispatchEvent(new Event('input', { bubbles: true })); });
+    await tapEl('[data-ps="share"]');
+    await p.waitForFunction(() => !!window.__sf, null, { timeout: 8000 }).catch(() => {});
+    const sf = await p.evaluate(async () => { const f = window.__sf; if (!f) return null; const im = await createImageBitmap(f); return { name: f.name, type: f.type, w: im.width, h: im.height }; });
+    L.ok(sf && sf.type === 'image/png' && /edited\.png$/.test(sf.name) && sf.w === 300 && sf.h === 200, 'Share hands over the photo as set: a PNG 300 across ' + JSON.stringify(sf));
+    L.ok(!(await p.$('.paint-docpanel [data-ps]')), 'and the sheet has closed');
   }
   // a JPEG with EXIF (turned on its side): opened upright, saved with its EXIF, upright
   const exif = await p.evaluate(async () => {

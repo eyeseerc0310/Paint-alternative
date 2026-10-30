@@ -1311,7 +1311,8 @@
       '<div class="pho-size"><label><span>Width</span><input class="p-field" type="number" min="1" data-pw value="' + O.w + '"></label><span aria-hidden="true">×</span><label><span>Height</span><input class="p-field" type="number" min="1" data-ph value="' + O.h + '"></label>' +
       '<button type="button" class="pho-full" data-pfull>Full Size</button></div>' +
       '<label class="vm-ask" data-pmeta-row><input type="checkbox" data-pmeta checked> Keep the photo’s EXIF details</label>' +
-      '<div class="pa-sheet-acts"><button type="button" data-ps="cancel">Cancel</button><button type="button" class="pa-primary" data-ps="save">Save</button></div>');
+      '<div class="pa-sheet-acts"><button type="button" class="pa-lead" data-ps="share" data-tip="Share the photo as it’s set here: its format and size">' + (B.shareIcon || '') + '<span>Share</span></button>' +
+      '<button type="button" data-ps="cancel">Cancel</button><button type="button" class="pa-primary" data-ps="save">Save</button></div>');
     var q = box.querySelector('[data-pq]'), wI = box.querySelector('[data-pw]'), hI = box.querySelector('[data-ph]');
     var sync = function () {
       Array.prototype.forEach.call(box.querySelectorAll('[data-pf]'), function (b) { b.setAttribute('aria-selected', b.dataset.pf === fmt ? 'true' : 'false'); });
@@ -1329,9 +1330,11 @@
       var a = e.target.closest('[data-ps]'); if (!a) return;
       if (a.dataset.ps === 'cancel') { B.closeSheet(); return; }
       var o = { type: fmt, w: +wI.value || O.w, h: +hI.value || O.h, quality: +q.value / 100, meta: box.querySelector('[data-pmeta]').checked };
-      B.closeSheet(); B.toast('Working out the full-size photo…');
+      // (Save downloads it; Share hands the same file to the system's sheet)
+      var ext = fmt === 'jpeg' ? 'jpg' : fmt === 'tiff' ? 'tif' : fmt, name = (doc.name || 'Photo').replace(/\.[^.]+$/, '') + ' edited', sharing = a.dataset.ps === 'share';
+      B.closeSheet(); B.toast(sharing ? 'Getting the photo ready to share…' : 'Working out the full-size photo…');
       setTimeout(function () {
-        exportBlob(o).then(function (b) { B.download(b, fmt === 'jpeg' ? 'jpg' : fmt === 'tiff' ? 'tif' : fmt, (doc.name || 'Photo').replace(/\.[^.]+$/, '') + ' edited'); }, function () { B.toast('That couldn’t be saved'); });
+        exportBlob(o).then(function (b) { if (sharing) B.share(b, name, ext, 'Photo'); else B.download(b, ext, name); }, function () { B.toast(sharing ? 'That couldn’t be shared' : 'That couldn’t be saved'); });
       }, 30);
     });
   }

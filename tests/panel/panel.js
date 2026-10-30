@@ -145,11 +145,12 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await tapEl('[data-save="png"]');
   const f = await dl;
   L.ok(!!f && /\.png$/.test(f.suggestedFilename()) && !(await panel()).shown, 'Save → PNG downloads a PNG, and the panel closes ' + (f && f.suggestedFilename()));
-  // Share: the system's own
-  if (await p.$eval('[data-hb="share"]', b => !!b.offsetParent)) await tapEl('[data-hb="share"]');
-  else { await tapEl('[data-hb="more"]'); for (const x of await p.$$('.paint-moremenu button')) if ((await x.textContent()).includes('Share')) { const r = await x.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); break; } }
+  // Share: in Save (the top bar and its ••• menu have none), the system's own
+  L.ok(!(await p.$('[data-hb="share"]')), 'the top bar has no Share button: it’s in Save');
+  if (phone) { await tapEl('[data-hb="more"]'); L.ok(!(await p.$$eval('.paint-moremenu button', l => l.some(x => /Share/.test(x.textContent)))), 'nor the ••• menu'); await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
+  await top('save'); await tapEl('[data-save="share"]');
   await p.waitForTimeout(1200);
-  L.ok((await p.evaluate(() => window.__shared)) === 1 && !(await panel()).shown, 'Share still asks the system, and opens nothing in the panel');
+  L.ok((await p.evaluate(() => window.__shared)) === 1 && !(await panel()).shown, 'Save → Share… asks the system, and the panel closes');
   // New Picture: a size, Create
   await top('new');
   await p.fill('[data-ns="w"]', '640'); await p.fill('[data-ns="h"]', '480');

@@ -1424,11 +1424,13 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @media (hover: hover) { .pa-sheet-acts button:hover { background: color-mix(in srgb, var(--text) 12%, transparent); } }
 .pa-sheet-acts .pa-primary { color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
 @media (hover: hover) { .pa-sheet-acts .pa-primary:hover { color: var(--on-accent); background: var(--accent-hover); } }
-/* (New Picture's Import Picture: at the start of the row, its folder before its word) */
+/* (a sheet's leading button, its icon before its word, at the start of the
+   row: New Picture's Import Picture, Save Photo's Share) */
 .ns .pa-sheet-acts { flex-wrap: wrap; }
-.pa-sheet-acts .ns-import { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); margin-right: auto; padding: 0 1.1rem 0 .95rem; }
-@media (max-width: 560px) { .pa-sheet-acts .ns-import { flex: 1 0 100%; margin-right: 0; } } /* (a phone: a row of its own, over Cancel and Create) */
-.ns-import svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+.pa-sheet-acts .pa-lead { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); margin-right: auto; padding: 0 1.1rem 0 .95rem; }
+@media (max-width: 560px) { .pa-sheet-acts .pa-lead { flex: 1 0 100%; margin-right: 0; } } /* (a phone: a row of its own, over the others) */
+.paint-docpanel .pa-sheet-acts .pa-lead { flex: 1 0 100%; margin-right: 0; } /* (in the narrow panel too) */
+.pa-lead svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 /* New Picture */
 .ns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--s-2); }
 .ns-pre {
