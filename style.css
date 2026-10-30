@@ -760,7 +760,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .gm-acts { display: flex; gap: var(--s-1); }
 .paint .gm-acts button { flex: 1; width: auto; height: 30px; border-radius: var(--r-sm); background: var(--hover); font-size: var(--fs-sm); color: var(--menu-link); }
 .paint .gm-acts .gm-cdel { color: var(--danger); }
-.paint .gm-more { margin-top: var(--s-1); }
+.paint .gm-more { width: calc(100% + 12px); margin: var(--s-1) -6px 0; } /* (its chevron at the same edge as the sections', its name with the rows') */
 .gm-adv { display: flex; flex-direction: column; gap: var(--s-2); }
 .gm-adv[hidden] { display: none; }
 .gm-adv .gm-lab { margin: 0 0 calc(-1 * var(--s-1)); }
