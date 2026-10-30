@@ -95,13 +95,10 @@ When building or changing anything visual:
   a slider the tool doesn't use is greyed out (`data-uses`). On wider
   screens the colour picker and Effects open from the tool settings, as wide
   as them, over them, and they step aside (`dockPanels`, `in-dock`,
-  `ctxAside`; the picker's wheel is sized to fit, `discSize`): locked, in
-  the dock's place; unlocked, where the settings were moved to, kept within
-  the workspace (`dockPlace`, worked out from the layout as they pop in).
-  The picker there has the tool settings' top (`.pc-top`): the same lock
-  (`lockToggle`, either one), a grip to move it by while unlocked (the tool
-  settings move with it, `paint-pos-ctx2`), and a fold button that closes it
-  and folds the tool settings.
+  `ctxAside`; the picker's wheel is sized to fit, `discSize`), in the
+  dock's place (`dockPlace`). The picker there has the tool settings' top
+  (`.pc-top`): the same grip and a fold button that closes it and folds the
+  tool settings.
   On those screens the dock is above the bars (z-index 6). On phones the
   picker opens above the bottom bar, its middle over the two colours
   (`placePicker`), and Effects beside the left bar. There's no right bar,
@@ -126,13 +123,12 @@ When building or changing anything visual:
   place, as before. Only the picker does this.
   It stands in **the dock** (`.paint-dock`, at the workspace's right, as wide
   as it, `--ctx-w`; `dock-on` on `.paint`), one setting per row (on/off
-  settings as switches), so it never covers the picture, while it's
-  **locked** (`ctxLocked`, its `.ctx-lock` button, remembered; locked, it
-  can't be dragged). Folded (its `.ctx-min` button, remembered) the dock
+  settings as switches), so it never covers the picture. It's always
+  **locked** there (`locked`, set by `ctxLock`; there's no unlock button on
+  any menu any more, and a place it was once dragged to is forgotten), so
+  it can't be dragged. Folded (its `.ctx-min` button, remembered) the dock
   eases shut and the picture's space grows into it (`dockSync`,
-  `refitWhile`); unlocked, it floats where it's dragged and the dock stays
-  shut; locking puts it back in its place, opened out if it
-  was folded. Locked (not on phones) it doesn't fade while the picture is
+  `refitWhile`). Not on phones, it doesn't fade while the picture is
   worked on (`busy`) or a selection sized or turned (`away`). It's kept within the workspace
   (`ctxBox`). On phones it's a wrapping strip along the
   top of the picture (the dock takes no room there). Its lists open on the
