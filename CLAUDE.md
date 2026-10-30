@@ -65,7 +65,7 @@ When building or changing anything visual:
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
-  (new/save/share, image, history, Smart Guides, focus, help, theme; on phones
+  (new/save, image, history, Smart Guides, focus, help, theme; on phones
   the extras go in its ••• menu). It starts folded to a slim strip (the
   `.hdr-fold` arrow, in the middle; no app name or mark, only a hidden
   heading for screen readers), and opens
@@ -253,6 +253,14 @@ When building or changing anything visual:
   placed as an object (`PV.addImageFile`), in Photo it's the photo to edit
   (`PH.openFile`, RAW, TIFF and HEIC through the decoders). Its tip says
   which (`IMPORT_TIPS`). Photo's own Open Photo (`B.openPicker`) is the same.
+- **Sharing** is in Save, not the top bar or the ••• menu: the Save panel's
+  Share… (`share()`: the picture, Vector's artwork or the photo) and Save
+  Photo's Share (`.pa-lead`, a row of its own in the panel, sharing the photo
+  at the format and size set there). Both go through `shareFile` (on the
+  bridge as `share`, with `shareIcon`): the system's sheet where it takes
+  files, else a PNG to the clipboard, else a download (also when the browser
+  won't share once the file's been worked out, `NotAllowedError`). A sheet's
+  leading button with an icon (Import Picture, Share) is `.pa-lead`.
 - **Brushes:** a brush is an id; `bdef(id)` gives its name, the kind it's
   made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
   Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how

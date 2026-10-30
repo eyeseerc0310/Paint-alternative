@@ -8536,7 +8536,7 @@
         '<label>Height<input type="number" inputmode="numeric" min="16" max="' + MAXPX + '" data-ns="h"></label><span class="ns-unit">pixels</span></div>' +
         '<div class="ns-row ns-row-bg"><span class="ns-lab">Background</span><div class="pa-tabs ns-bg" role="tablist"><button type="button" role="tab" data-bg="white" aria-selected="true">White</button><button type="button" role="tab" data-bg="clear" aria-selected="false">Transparent</button></div></div>' +
         '<div class="ns-note">The picture you\u2019re on stays in your Gallery.</div><div class="ns-err" hidden></div>' +
-        '<div class="pa-sheet-acts"><button type="button" class="ns-import" data-ns-act="import" data-tip="' + IMPORT_TIPS[wsMode] + '">' + IMPORT_ICON + '<span>Import Picture</span></button>' +
+        '<div class="pa-sheet-acts"><button type="button" class="ns-import pa-lead" data-ns-act="import" data-tip="' + IMPORT_TIPS[wsMode] + '">' + IMPORT_ICON + '<span>Import Picture</span></button>' +
         '<button type="button" data-ns-act="cancel">Cancel</button><button type="button" class="pa-primary" data-ns-act="create">Create</button></div>');
       var wIn = box.querySelector('[data-ns="w"]'), hIn = box.querySelector('[data-ns="h"]'), err = box.querySelector('.ns-err'), bg = 'white';
       function pick(id) {
@@ -8591,7 +8591,7 @@
       if (!open) { moreBox.hidden = true; hb('more').setAttribute('aria-expanded', 'false'); return; }
       closeDrops(); otherPopovers();
       var it = function (k, label) { var src = k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '"' + (hb(k) && hb(k).disabled ? ' disabled' : '') + '>' + (src ? src.outerHTML : '') + label + '</button>'; };
-      moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
+      moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
         it('focus', 'Focus Mode') + it('guides', smartOn ? 'Smart Guides: On' : 'Smart Guides: Off') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
       moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
     }
@@ -8976,19 +8976,28 @@
       flattenInto(x);
       out.toBlob(done, jpg ? 'image/jpeg' : 'image/png', 0.93);
     }
+    // SHARE (the Save panel's Share…, and Photo's Save Photo): the system's
+    // own sheet where it takes files; otherwise a PNG goes to the clipboard,
+    // and anything else is downloaded (as it is when the browser won't share
+    // it once the picture's been worked out)
+    var SHARE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11"/><path d="M8 7.5l4-4 4 4"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>';
+    function shareFile(blob, name, ext, title) {
+      if (!blob) return;
+      var type = blob.type || 'image/png', f = window.File ? new File([blob], name + '.' + ext, { type: type }) : null;
+      if (f && navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: title }).catch(function (x) { if (x && x.name === 'NotAllowedError') download(blob, ext, name); });
+        return;
+      }
+      if (type === 'image/png' && navigator.clipboard && window.ClipboardItem) {
+        navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function () { toast('Copied: paste it anywhere'); }, function () { download(blob, ext, name); });
+        return;
+      }
+      download(blob, ext, name);
+    }
     function share() {
-      var made = function (blob) {
-        if (!blob) return;
-        var f = window.File ? new File([blob], 'drawing.png', { type: 'image/png' }) : null;
-        if (f && navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f], title: 'Drawing' }).catch(function () {}); return; }
-        if (navigator.clipboard && window.ClipboardItem) {
-          navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function () { toast('Copied: paste it anywhere'); }, function () { download(blob, 'png'); });
-          return;
-        }
-        download(blob, 'png');
-      };
+      var made = function (blob) { shareFile(blob, 'drawing', 'png', 'Drawing'); };
       if (wsMode === 'vector') { PV.exportBlob('png').then(made); return; } // (Vector's artwork)
-      if (wsMode === 'photo') { if (PH.isEmpty()) { toast('Open a photo first'); return; } PH.exportBlob({ type: 'jpeg', quality: 0.92 }).then(function (b) { var f = window.File ? new File([b], 'photo.jpg', { type: 'image/jpeg' }) : null; if (f && navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: 'Photo' }).catch(function () {}); else download(b, 'jpg'); }); return; } // (the edited photo, full size)
+      if (wsMode === 'photo') { if (PH.isEmpty()) { toast('Open a photo first'); return; } PH.exportBlob({ type: 'jpeg', quality: 0.92 }).then(function (b) { shareFile(b, 'photo', 'jpg', 'Photo'); }); return; } // (the edited photo, full size)
       if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       flatBlob('png', made);
     }
@@ -9016,7 +9025,6 @@
       else if (w === 'gallery') { closeDrops(); if (docIs('sheet-gal')) docClose(); else gallery(); }
       else if (w === 'image') imageMenu(!docIs('image'));
       else if (w === 'history') historyPanel(!docIs('history'));
-      else if (w === 'share') { closeDrops(); share(); }
       else if (w === 'help') { if (docIs('sheet-hs')) docClose(); else helpSheet(); }
       else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; }); }
     });
@@ -9775,7 +9783,7 @@
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       openPicker: importPicker,
-      openSheet: openSheet, closeSheet: closeSheet, download: download, discPreview: discPreview,
+      openSheet: openSheet, closeSheet: closeSheet, download: download, share: shareFile, shareIcon: SHARE_ICON, discPreview: discPreview,
       decoders: window.PaintDecoders || null
     });
     function modeSync() {

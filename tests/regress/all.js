@@ -133,7 +133,7 @@ const log = (...a) => console.log(...a);
   // 8. SAVE size and SHARE fallback
   const [dl] = await Promise.all([p.waitForEvent('download'), (async () => { await p.evaluate(() => document.querySelector('[data-act="save"]').click()); await p.click('[data-save="png"]'); })()]);
   await dl.saveAs('out/saved.png');
-  await hb('share'); await p.waitForTimeout(800);
+  await p.evaluate(() => document.querySelector('[data-act="save"]').click()); await p.click('[data-save="share"]'); await p.waitForTimeout(800);
   log('share result toast:', await p.$eval('.paint-toast', t => t.textContent));
 
   // 9. SHORTCUTS
