@@ -725,9 +725,55 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .gm-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-1); margin-bottom: var(--s-2); }
 .paint .gm-chip { width: auto; height: auto; flex-direction: column; gap: 3px; padding: 5px var(--s-1) var(--s-1); border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 400; color: var(--menu-link); }
 .gm-chip i { display: block; width: 100%; height: 18px; border-radius: var(--r-xs); box-shadow: inset 0 0 0 .5px var(--line); }
-.gm-none i { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--hover-strong) 4px 5.5px); }
 .paint .gm-chip[aria-checked="true"] { background: var(--chip); box-shadow: var(--chip-shadow); }
-.paint .gm-rev { width: 100%; height: 28px; margin-top: var(--s-2); border-radius: var(--r-sm); background: var(--hover); font-size: var(--fs-sm); color: var(--menu-link); }
+/* THE GRADIENT MAP: the presets two across, each a small copy of the layer
+   with it laid over; under them the gradient picked, to change */
+.gm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gm-tile canvas { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r-xs); background: var(--hover); box-shadow: inset 0 0 0 .5px var(--line); }
+.gm-tile span { max-width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paint .gm-tile[aria-checked="true"] { color: var(--chip-text); }
+.gm-tile .gm-name { width: 100%; height: 22px; padding: 0 var(--s-1); font-size: var(--fs-xs); text-align: center; }
+.gm-h, .gm-lab { margin: var(--s-1) 0 var(--s-1); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.gm-edit { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-1); }
+/* (no gradient map: the editor greyed out once, its parts not again) */
+.gm-edit.gm-off { opacity: var(--disabled); pointer-events: none; }
+.gm-edit.gm-off :disabled, .gm-edit.gm-off .pa-row:has(input:disabled) { opacity: 1; }
+/* (the bar: the stops bar of the Gradient tool, the width of the panel,
+   and a diamond above each gap for where its two colours meet half way) */
+.ctx-gbar.gm-bar { width: calc(100% - 4px); height: 42px; margin: 0 2px; }
+.gm-bar > i { left: 10px; right: 10px; top: 18px; height: 14px; }
+.gm-bar > b { top: 25px; }
+.gm-bar > u { position: absolute; top: 5px; width: 8px; height: 8px; margin-left: -4px; transform: rotate(45deg); border-radius: 1.5px; background: var(--muted); pointer-events: none; }
+.gm-bar > u[hidden] { display: none; }
+.gm-bar:focus-visible { outline: var(--focus) solid 2px; outline-offset: 2px; border-radius: var(--r-xs); }
+/* (the picked stop: its colour, as hex, its place, and a delete) */
+.gm-stoprow { display: flex; align-items: center; gap: var(--s-1); }
+.paint .gm-sw { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--c, #000); box-shadow: inset 0 0 0 .5px var(--swatch-edge), 0 0 0 2px var(--panel-solid), 0 0 0 2.5px var(--line); }
+.gm-stoprow .p-field { height: 28px; padding: 0 6px; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.gm-stoprow .gm-hex { flex: 1 1 auto; width: auto; min-width: 0; text-transform: uppercase; }
+.gm-pos { flex: none; position: relative; display: flex; }
+.gm-pos input.p-field { width: 46px; padding-right: 15px; text-align: right; }
+.gm-pos span { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font-size: var(--fs-xs); color: var(--muted); pointer-events: none; }
+.paint .gm-del { flex: none; width: 24px; height: 28px; border-radius: var(--r-xs); color: var(--muted); }
+.paint .gm-del svg { width: var(--icon-sm); height: var(--icon-sm); }
+@media (hover: hover) { .paint .gm-del:not(:disabled):hover { color: var(--danger); } }
+.gm-acts { display: flex; gap: var(--s-1); }
+.paint .gm-acts button { flex: 1; width: auto; height: 30px; border-radius: var(--r-sm); background: var(--hover); font-size: var(--fs-sm); color: var(--menu-link); }
+.paint .gm-acts .gm-cdel { color: var(--danger); }
+.paint .gm-more { margin-top: var(--s-1); }
+.gm-adv { display: flex; flex-direction: column; gap: var(--s-2); }
+.gm-adv[hidden] { display: none; }
+.gm-adv .gm-lab { margin: 0 0 calc(-1 * var(--s-1)); }
+.gm-interp { margin: 0; }
+.paint .gm-interp button { font-size: var(--fs-xs); }
+.gm-blend { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); font-size: var(--fs-sm); color: var(--muted); }
+.gm-blend select { flex: 0 1 150px; min-width: 0; height: 28px; }
+/* (the colour picker on a gradient map's stop: its name for the main and second colours' tabs) */
+.pc-gmlab { display: none; flex: 1; font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.pc-gm .pc-gmlab { display: block; }
+.paint .pc-gmdone { display: none; flex: none; width: auto; height: 28px; padding: 0 var(--s-3); border-radius: var(--r-pill); font-size: var(--fs-sm); font-weight: 600; color: var(--accent); background: var(--accent-soft); }
+.paint .pc-gm .pc-gmdone { display: inline-flex; }
+.pc-gm .pc-which { display: none; }
 /* (the title stays at the top, and Done and Cancel at the foot, while the sections scroll) */
 .paint-adjust .pa-title { position: sticky; top: -14px; z-index: 1; margin: -14px -14px 6px; padding: 14px 14px var(--s-2); background: var(--menu-solid); }
 .paint-adjust .pa-acts { position: sticky; bottom: -12px; z-index: 1; margin: var(--s-3) -14px -12px; padding: var(--s-2) 14px var(--s-3); background: var(--menu-solid); border-top: .5px solid var(--line); }
@@ -1309,7 +1355,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .gal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
   .gs-row select.p-field { flex-basis: 150px; }
   .paint-left .paint-adjust .pa-acts button { height: var(--ctl) !important; }
-  .paint-left .paint-adjust .gm-rev { height: 28px !important; }
+  .paint-left .paint-adjust .gm-acts button { height: 30px !important; }
   .paint-left .paint-adjust .fx-head .pr-head { height: 28px !important; }
   .paint .paint-left .paint-zoom button.paint-zoom-val { width: 32px; font-size: .5625rem; }
 }

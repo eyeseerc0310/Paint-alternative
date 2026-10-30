@@ -507,9 +507,8 @@
     // ---- colours ----
     function setColor(c) {
       st.color = c; colorDot.style.background = c; pcSync('main'); if (textBox) styleTextBox(); brushSamples(); if (grad) gradTint(c);
-      if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); // (the gradient map made from the colours follows them)
     }
-    function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); if (typeof adj !== 'undefined' && adj && adj.v.gmap === 'colours') adjustQueue(); }
+    function setColor2(c) { st.color2 = c; color2Dot.style.background = c; if (textBox) styleTextBox(); pcSync('second'); }
     // the colours used lately, in the colour picker (kept for next time)
     function pushRecent(c) {
       c = c.toLowerCase();
@@ -561,6 +560,7 @@
       '<div class="pc-grab" aria-hidden="true" data-tip="Drag to move (double-click: back in place)"></div>' +
       '<div class="pc-head">' +
         '<div class="pa-tabs pc-which" role="tablist"><button type="button" role="tab" data-pc-which="main"><i></i><span>Main</span></button><button type="button" role="tab" data-pc-which="second"><i></i><span>Second</span></button></div>' +
+        '<span class="pc-gmlab">Gradient stop</span><button type="button" class="pc-gmdone" data-pc-act="gmdone" data-tip="Back to Effects">Done</button>' +
         '<button type="button" class="pc-none" data-pc-act="none" hidden aria-pressed="false" aria-label="None" data-tip="None: no fill (or no stroke)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></svg></button>' +
         '<div class="pc-compare"><button type="button" class="pc-was" title="Go back to the colour before" aria-label="Go back to the colour before"></button><span class="pc-now"></span></div>' +
       '</div>' +
@@ -616,7 +616,7 @@
       c.restore();
     }
     function pcColor() { var c = hsv2rgb(hsv[0], hsv[1], hsv[2]); return rgb2hex(c[0], c[1], c[2]); }
-    function pcTarget() { if (wsMode === 'vector') return PV.pcGet(pcWhich) || '#000000'; return pcWhich === 'main' ? st.color : st.color2; }
+    function pcTarget() { if (pcWhich === 'gm') return gmStopColour(); if (wsMode === 'vector') return PV.pcGet(pcWhich) || '#000000'; return pcWhich === 'main' ? st.color : st.color2; }
     // (Vector mode changed what the picker shows: the picked object, or the colour itself)
     function pcRefresh() {
       if (!pc || pc.hidden || pcBusy) return;
@@ -679,7 +679,8 @@
     function pcSet(h, s, v, skip) {
       hsv = [h, Math.max(0, Math.min(1, s)), Math.max(0, Math.min(1, v))];
       var hex = pcColor(); pcBusy = true;
-      if (wsMode === 'vector') PV.pcSet(pcWhich, hex);
+      if (pcWhich === 'gm') gmStopSet(hex);
+      else if (wsMode === 'vector') PV.pcSet(pcWhich, hex);
       else if (pcWhich === 'main') setColor(hex);
       else setColor2(hex);
       pcBusy = false; pcShow(skip);
@@ -706,6 +707,8 @@
       pc.style.left = Math.round(x - br.left) + 'px';
     }
     function picker(which) {
+      // (the gradient map's stop: closed, Effects come back as they were)
+      if (pcGm) { pcDone(); pc.hidden = true; gmPickEnd(); pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady); if (!which) return; }
       if (which && !pc.hidden && pcWhich === which) { minimizeToolMenu(); return; }
       if (which) {
         if (!pc.hidden) pcDone();
@@ -792,7 +795,8 @@
     });
     pc.addEventListener('click', function (e) {
       if (e.target.closest('.pc-top .ctx-lock')) { lockToggle(); return; }
-      if (e.target.closest('.pc-top .ctx-min')) { picker(null); if (!ctxEl.classList.contains('min')) ctxMin(true); return; }
+      if (e.target.closest('[data-pc-act="gmdone"]')) { picker(null); return; }
+      if (e.target.closest('.pc-top .ctx-min')) { var gmWas = pcGm; picker(null); if (!gmWas && !ctxEl.classList.contains('min')) ctxMin(true); return; } // (a gradient map's stop: back to Effects)
       var w = e.target.closest('[data-pc-which]'); if (w) { if (w.dataset.pcWhich !== pcWhich) { pcDone(); pcWhich = w.dataset.pcWhich; pcLoad(); pairOpen(); } return; }
       var md = e.target.closest('[data-pc-mode]'); if (md) { pcMode = md.dataset.pcMode; storeIt('paint-colour-values', pcMode); pcShow(); return; }
       if (e.target.closest('.pc-was')) { if (pcWas) pcFrom(pcWas); return; }
@@ -5150,14 +5154,71 @@
     ];
     // (what each section holds, to tell when it's been changed, and to put it back)
     var FX_KEYS = { light: FX[0][2].map(function (a) { return a[0]; }), levels: ['lb', 'lg', 'lw', 'ob', 'ow'], curves: ['curve'], hsl: FX[3][2].map(function (a) { return a[0]; }),
-      wb: ['warmth', 'tint'], gmap: ['gmap', 'gms', 'gmr'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], blur: ['gblur', 'mblur', 'mangle'], finish: ['vignette', 'fade'], cas: [] };
-    // GRADIENT MAP: the picture's light and dark, recoloured along a gradient
-    // (dark at the start, light at the end); "Your Colours" runs from the
-    // second colour to the main one
-    var GMAPS = [['colours', 'Your Colours'], ['noir', 'Noir', ['#000000', '#ffffff']], ['sepia', 'Sepia', ['#1b0f05', '#7a4a24', '#f3e1c0']],
-      ['sunset', 'Sunset', ['#1a0b3d', '#a8327c', '#f98c4a', '#ffe9a8']], ['ocean', 'Ocean', ['#021428', '#0b5a9c', '#49b6e6', '#e6fbff']],
-      ['duotone', 'Duotone', ['#2b1a6b', '#f7d64a']], ['magma', 'Magma', ['#000004', '#51127c', '#b73779', '#fc8961', '#fcfdbf']], ['mint', 'Mint', ['#0b2e2a', '#2f9e83', '#d9f7e8']]];
-    function gmStops(id) { if (id === 'colours') return [st.color2, st.color]; var g = GMAPS.filter(function (x) { return x[0] === id; })[0]; return g ? g[2] : null; }
+      wb: ['warmth', 'tint'], gmap: ['gmap', 'gmg', 'gms', 'gmo', 'gmb'], detail: ['sharpen', 'clarity', 'grain'], pixel: ['pixelate'], blur: ['gblur', 'mblur', 'mangle'], finish: ['vignette', 'fade'], cas: [] };
+    // GRADIENT MAP: the picture's light and dark recoloured along a gradient,
+    // the shadows from its left end, the highlights from its right. A
+    // gradient (v.gmg) is its stops (s: { t 0-1, c }, in order), a midpoint
+    // for each gap between them (m: 0.05-0.95, where its colours meet half
+    // way; 0.5 in the middle) and how it runs between them (i: 'linear',
+    // straight in the colours; 'smooth', eased in and out; 'perceptual',
+    // straight in OKLab, so lightness and colour change evenly). Each preset
+    // is copied when picked, so changing it never changes the preset itself;
+    // the user's own are kept in localStorage (paint-gmaps)
+    var GM_PRESETS = [
+      ['bw', 'Classic B&W', [[0, '#000000'], [1, '#ffffff']], 'linear'],
+      ['sepia', 'Sepia', [[0, '#1c0e06'], [0.42, '#7d4f27'], [0.72, '#d29a55'], [1, '#fbf1dc']], 'smooth'],
+      ['teal', 'Cinematic Teal', [[0, '#05242b'], [0.3, '#1c4d55'], [0.55, '#8a928d'], [0.8, '#d8b289'], [1, '#fbe9d1']], 'perceptual'],
+      ['golden', 'Golden Hour', [[0, '#2a1003'], [0.34, '#8c3e0b'], [0.62, '#e47d24'], [0.84, '#f7c55d'], [1, '#fff2c8']], 'perceptual'],
+      ['midnight', 'Midnight', [[0, '#04081c'], [0.34, '#1a2b52'], [0.66, '#6a7b96'], [1, '#e9f5ff']], 'perceptual'],
+      ['duotone', 'Duotone', [[0, '#2a0a46'], [1, '#ff5fb3']], 'perceptual'],
+      ['forest', 'Forest', [[0, '#05170d'], [0.34, '#1e4423'], [0.66, '#7a8a3b'], [1, '#eef6c4']], 'perceptual'],
+      ['vintage', 'Vintage Film', [[0, '#3a2a22'], [0.3, '#634838'], [0.6, '#c99c86'], [0.82, '#ebc9aa'], [1, '#fbf0dd']], 'smooth'],
+      ['cyber', 'Cyberpunk', [[0, '#050a3d'], [0.3, '#1e4bff'], [0.62, '#8b2be6'], [1, '#ff40f0']], 'perceptual'],
+      ['thermal', 'Thermal', [[0, '#13002a'], [0.28, '#6a0f7a'], [0.5, '#d11d1d'], [0.72, '#ff7a00'], [1, '#fff03c']], 'perceptual']
+    ];
+    var GM_MAX = 16, GM_BLENDS = [['normal', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['soft', 'Soft Light'], ['colour', 'Colour']];
+    var GM_INTERP = [['linear', 'Linear'], ['smooth', 'Smooth'], ['perceptual', 'Perceptual']];
+    function gmMake(stops, i) { return { s: stops.map(function (q) { return { t: q[0], c: q[1] }; }), m: stops.slice(1).map(function () { return 0.5; }), i: i }; }
+    function gmCopy(g) { return JSON.parse(JSON.stringify(g)); }
+    var gmCustom = (function () { try { var a = JSON.parse(localStorage.getItem('paint-gmaps') || '[]'); return Array.isArray(a) ? a.filter(gmValid) : []; } catch (x) { return []; } })();
+    function gmValid(q) { return q && typeof q.id === 'string' && typeof q.name === 'string' && q.g && Array.isArray(q.g.s) && q.g.s.length >= 2 && q.g.s.length <= GM_MAX && q.g.s.every(function (x) { return isFinite(x.t) && /^#[0-9a-f]{6}$/i.test(x.c); }) && Array.isArray(q.g.m) && q.g.m.length === q.g.s.length - 1; }
+    function gmSave() { try { localStorage.setItem('paint-gmaps', JSON.stringify(gmCustom)); } catch (x) {} }
+    // (a preset, as it is when picked: its gradient and its settings; a
+    // built-in one at full strength and opacity, Normal)
+    function gmPreset(id) {
+      if (!id) return null;
+      if (id.slice(0, 2) === 'c:') { var c = gmCustom.filter(function (q) { return 'c:' + q.id === id; })[0]; return c ? { name: c.name, g: gmCopy(c.g), gms: c.gms, gmo: c.gmo, gmb: c.gmb } : null; }
+      var p = GM_PRESETS.filter(function (q) { return q[0] === id; })[0];
+      return p ? { name: p[1], g: gmMake(p[2], p[3]), gms: 100, gmo: 100, gmb: 'normal' } : null;
+    }
+    // (the gradient as 256 colours, one for each level of light, worked out
+    // once; strength takes its colour toward grey, keeping its light and dark)
+    function gmLut(g, strength) {
+      var S = g.s, M = g.m, out = new Uint8ClampedArray(768), k = strength == null ? 1 : strength;
+      var lin = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }, enc = function (v) { v = Math.max(0, Math.min(1, v)); return 255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055); };
+      var oklab = function (h) { var r = lin(parseInt(h.slice(1, 3), 16)), gg = lin(parseInt(h.slice(3, 5), 16)), b = lin(parseInt(h.slice(5, 7), 16));
+        var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * gg + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * gg + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * gg + 0.6299787005 * b);
+        return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s]; };
+      var fromLab = function (L) { var l = Math.pow(L[0] + 0.3963377774 * L[1] + 0.2158037573 * L[2], 3), m = Math.pow(L[0] - 0.1055613458 * L[1] - 0.0638541728 * L[2], 3), s = Math.pow(L[0] - 0.0894841775 * L[1] - 1.2914855480 * L[2], 3);
+        return [enc(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), enc(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), enc(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)]; };
+      var rgb = S.map(function (q) { return [parseInt(q.c.slice(1, 3), 16), parseInt(q.c.slice(3, 5), 16), parseInt(q.c.slice(5, 7), 16)]; });
+      var lab = g.i === 'perceptual' ? S.map(function (q) { return oklab(q.c); }) : null;
+      for (var i = 0, j = 0; i < 256; i++) {
+        var x = i / 255, c;
+        while (j < S.length - 2 && x > S[j + 1].t) j++;
+        if (x <= S[0].t) c = rgb[0]; else if (x >= S[S.length - 1].t) c = rgb[S.length - 1];
+        else {
+          var t0 = S[j].t, t1 = S[j + 1].t, f = t1 > t0 ? (x - t0) / (t1 - t0) : 1, mid = Math.max(0.05, Math.min(0.95, M[j] == null ? 0.5 : M[j]));
+          if (mid !== 0.5) f = Math.pow(f, Math.log(0.5) / Math.log(mid)); // (the midpoint: where the two colours meet half way)
+          if (g.i === 'smooth') f = f * f * (3 - 2 * f);
+          if (lab) c = fromLab([0, 1, 2].map(function (n) { return lab[j][n] + (lab[j + 1][n] - lab[j][n]) * f; }));
+          else c = [0, 1, 2].map(function (n) { return rgb[j][n] + (rgb[j + 1][n] - rgb[j][n]) * f; });
+        }
+        var y = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        for (var n = 0; n < 3; n++) out[i * 3 + n] = Math.round(y + (c[n] - y) * k);
+      }
+      return out;
+    }
     var adjBox = document.createElement('div'), adj = null;
     adjBox.className = 'paint-adjust'; adjBox.hidden = true; adjBox.setAttribute('role', 'dialog'); adjBox.setAttribute('aria-label', 'Effects');
     var FX_CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5l5 5 5-5"/></svg>'; // (the one chevron: style.css's .chev)
@@ -5180,11 +5241,30 @@
         '<div class="lv-nums"><output data-o="ob">0</output><output data-o="ow">255</output></div></div>',
       curves: '<div class="pa-curves"><canvas class="cv-graph" aria-label="Curve"></canvas>' +
         '<div class="cv-help">Tap the line to add a point, drag to bend it. Double-tap a point, or drag it off, to remove it.</div></div>',
-      gmap: '<div class="gm-list" role="radiogroup" aria-label="Gradient">' +
-          '<button type="button" class="gm-chip gm-none" data-gm="" role="radio" aria-checked="true" data-tip="No gradient map"><i></i><span>None</span></button>' +
-          GMAPS.map(function (g) { return '<button type="button" class="gm-chip" data-gm="' + g[0] + '" role="radio" aria-checked="false" data-tip="' + g[1] + '"><i></i><span>' + g[1] + '</span></button>'; }).join('') + '</div>' +
-        sliderRow(['gms', 'Strength', 0, 100]) +
-        '<button type="button" class="gm-rev" data-gmrev aria-pressed="false" data-tip="Run the gradient the other way: light to dark">Reverse</button>',
+      // (the presets, each with this layer under it, then the user's own;
+      // then the gradient picked, to change: its stops and midpoints, the
+      // picked stop's colour and place, Strength; More: Opacity, how it runs
+      // between stops, its blend)
+      gmap: '<div class="gm-list gm-grid" role="radiogroup" aria-label="Gradient map">' + gmTile('', 'Original') + GM_PRESETS.map(function (q) { return gmTile(q[0], q[1]); }).join('') + '</div>' +
+        '<div class="gm-customs" hidden><div class="gm-h">Custom</div><div class="gm-list gm-grid gm-cgrid" role="radiogroup" aria-label="Your gradient maps"></div></div>' +
+        '<div class="gm-edit">' +
+          '<div class="ctx-gbar gm-bar" data-gmbar tabindex="0" role="group" aria-label="The gradient: shadows on the left, highlights on the right" data-tip="Tap to add a stop; drag a stop along, or off the bar to take it away; double-tap one for the colour picker. The small diamonds are where two colours meet half way"><i></i></div>' +
+          '<div class="gm-stoprow">' +
+            '<button type="button" class="gm-sw" data-gm-act="colour" aria-label="The stop’s colour" data-tip="The stop’s colour: opens the colour picker"></button>' +
+            '<input class="p-field gm-hex" data-gmhex maxlength="7" spellcheck="false" autocomplete="off" aria-label="The stop’s colour, as hex">' +
+            '<label class="gm-pos"><input class="p-field" type="number" inputmode="numeric" min="0" max="100" step="1" data-gmpos aria-label="The stop’s place, 0 to 100%"><span>%</span></label>' +
+            '<button type="button" class="gm-del" data-gm-act="del" aria-label="Delete this stop" data-tip="Delete this stop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button>' +
+          '</div>' +
+          sliderRow(['gms', 'Strength', 0, 100]) +
+          '<div class="gm-acts"><button type="button" data-gm-act="rev" data-tip="Run the gradient the other way round">Reverse</button><button type="button" data-gm-act="reset" data-tip="Put the preset back as it came">Reset</button></div>' +
+          '<button type="button" class="pr-head gm-more" aria-expanded="false"><span>More</span>' + FX_CHEV + '</button>' +
+          '<div class="gm-adv" hidden>' + sliderRow(['gmo', 'Opacity', 0, 100]) +
+            '<div class="gm-lab">Interpolation</div><div class="pa-tabs gm-interp" role="tablist" aria-label="Interpolation">' + GM_INTERP.map(function (q) { return '<button type="button" role="tab" data-gmi="' + q[0] + '" aria-selected="false">' + q[1] + '</button>'; }).join('') + '</div>' +
+            '<label class="gm-blend"><span>Blend</span><select class="p-field" data-gmb aria-label="Blend mode">' + GM_BLENDS.map(function (q) { return '<option value="' + q[0] + '">' + q[1] + '</option>'; }).join('') + '</select></label>' +
+          '</div>' +
+          '<div class="gm-acts"><button type="button" data-gm-act="save" data-tip="Keep this gradient map, with its settings, as one of your own">Save Custom Gradient</button></div>' +
+          '<div class="gm-acts gm-cacts" hidden><button type="button" data-gm-act="rename">Rename</button><button type="button" class="gm-cdel" data-gm-act="cdel">Delete</button></div>' +
+        '</div>',
       cas: '<div class="cv-help">Size the selection by its frame: what matters keeps its shape, the plainest parts give way.</div>' +
         '<button type="button" class="ctx-btn fx-cas" data-fx-cas>Content-Aware Scale</button>'
     };
@@ -5218,14 +5298,227 @@
       shut(was ? was === 'closed' : sec.dataset.fx !== 'light');
       hd.addEventListener('click', function () { var on = !sec.classList.contains('closed'); shut(on); try { localStorage.setItem(k, on ? 'closed' : 'open'); } catch (x) {} });
     });
-    Array.prototype.forEach.call(adjBox.querySelectorAll('.gm-chip[data-gm]'), function (b) { var st0 = gmStops(b.dataset.gm); if (st0) b.querySelector('i').style.background = 'linear-gradient(to right,' + st0.join(',') + ')'; });
-    function fxShown(f) { if (!adj) return; if (f === 'levels') { drawHist(); syncLevels(); } else if (f === 'curves') drawCurve(); }
+    function fxShown(f) { if (!adj) return; if (f === 'levels') { drawHist(); syncLevels(); } else if (f === 'curves') drawCurve(); else if (f === 'gmap') { gmSync(); gmThumbsSoon(); } }
+    // ---- THE GRADIENT MAP'S EDITOR ----
+    function gmEsc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function gmTile(id, name) { return '<button type="button" class="gm-chip gm-tile" data-gm="' + gmEsc(id) + '" role="radio" aria-checked="false"' + (id ? '' : ' data-tip="No gradient map: the picture as the other effects leave it"') + '><canvas aria-hidden="true"></canvas><span>' + gmEsc(name) + '</span></button>'; }
+    var gmSel = 0, gmEl = adjBox.querySelector('.fx-sec[data-fx="gmap"]'), gmBarEl = gmEl.querySelector('[data-gmbar]'), GMB_PAD = 10;
+    var gmMore = (function () { try { return localStorage.getItem('paint-gm-more') === 'open'; } catch (x) { return false; } })();
+    function gmG() { return adj && adj.v.gmap && adj.v.gmg ? adj.v.gmg : null; }
+    function gmCss(g) { var L = gmLut(g, 1), cs = []; for (var i = 0; i <= 24; i++) { var k = Math.round(i / 24 * 255) * 3; cs.push('rgb(' + L[k] + ',' + L[k + 1] + ',' + L[k + 2] + ') ' + (i / 24 * 100).toFixed(2) + '%'); } return 'linear-gradient(to right,' + cs.join(',') + ')'; }
+    // (the stops in order, the picked one followed; the midpoints with them)
+    function gmSort(g) {
+      var pick = g.s[gmSel], pairs = g.s.map(function (q, i) { return { q: q, m: i < g.m.length ? g.m[i] : null }; });
+      pairs.sort(function (a, b) { return a.q.t - b.q.t; });
+      var moved = pairs.some(function (p, i) { return p.q !== g.s[i]; });
+      g.s = pairs.map(function (p) { return p.q; }); if (moved) g.m = g.s.slice(1).map(function () { return 0.5; });
+      gmSel = Math.max(0, g.s.indexOf(pick));
+    }
+    function gmChanged() { adjustQueue(); gmSync(); }
+    // (a preset picked: its gradient copied, and its settings, over the other
+    // effects; Original takes only the gradient map off)
+    function gmPick(id) {
+      var v = adj.v;
+      if (!id) { ['gmap', 'gmg', 'gms', 'gmo', 'gmb'].forEach(function (k) { delete v[k]; }); }
+      else { var P = gmPreset(id); if (!P) return; v.gmap = id; v.gmg = P.g; v.gms = P.gms; v.gmo = P.gmo; v.gmb = P.gmb; }
+      gmSel = 0; gmInputs(); adjustQueue(); gmSync();
+    }
+    function gmInputs() {
+      [['gms', 'gms'], ['gmo', 'gmo']].forEach(function (q) { var i = gmEl.querySelector('[data-adj="' + q[0] + '"]'), x = adj && adj.v[q[1]] != null ? adj.v[q[1]] : 100; i.value = x; i.previousElementSibling.textContent = x; });
+    }
+    function gmCustomHTML() { return gmCustom.map(function (q) { return gmTile('c:' + q.id, q.name); }).join(''); }
+    // (the panel as the settings are: the picked tile, the bar, the stop's row, the rest)
+    function gmSync() {
+      if (!gmEl) return;
+      var v = adj ? adj.v : {}, on = v.gmap || '', g = gmG();
+      var cg = gmEl.querySelector('.gm-cgrid'), ids = gmCustom.map(function (q) { return q.id + ':' + q.name; }).join('|');
+      if (cg.dataset.ids !== ids) { cg.innerHTML = gmCustomHTML(); cg.dataset.ids = ids; gmThumbsSoon(); }
+      gmEl.querySelector('.gm-customs').hidden = !gmCustom.length;
+      Array.prototype.forEach.call(gmEl.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
+      var ed = gmEl.querySelector('.gm-edit'); ed.classList.toggle('gm-off', !g);
+      Array.prototype.forEach.call(ed.querySelectorAll('button, input, select'), function (x) { if (!x.closest('.gm-more')) x.disabled = !g; });
+      gmBarEl.setAttribute('tabindex', g ? '0' : '-1');
+      var custom = on.slice(0, 2) === 'c:' && gmPreset(on);
+      gmEl.querySelector('.gm-cacts').hidden = !custom;
+      gmEl.querySelector('[data-gm-act="reset"]').disabled = !g || !gmPreset(on);
+      var mr = gmEl.querySelector('.gm-more'); mr.setAttribute('aria-expanded', gmMore ? 'true' : 'false'); gmEl.querySelector('.gm-adv').hidden = !gmMore;
+      var G = g || gmMake(GM_PRESETS[0][2], 'linear');
+      if (gmSel >= G.s.length) gmSel = G.s.length - 1;
+      gmBarEl.firstChild.style.setProperty('--gb', gmCss(G));
+      // (a marker for each stop, a diamond for each midpoint)
+      var bs = gmBarEl.querySelectorAll('b'), ds = gmBarEl.querySelectorAll('u');
+      if (bs.length !== G.s.length) { Array.prototype.forEach.call(bs, function (m) { m.remove(); }); G.s.forEach(function () { gmBarEl.appendChild(document.createElement('b')); }); bs = gmBarEl.querySelectorAll('b'); }
+      if (ds.length !== G.m.length) { Array.prototype.forEach.call(ds, function (m) { m.remove(); }); G.m.forEach(function () { gmBarEl.appendChild(document.createElement('u')); }); ds = gmBarEl.querySelectorAll('u'); }
+      var at = function (t) { return 'calc(' + GMB_PAD + 'px + (100% - ' + 2 * GMB_PAD + 'px) * ' + t + ')'; };
+      G.s.forEach(function (q, i) { var m = bs[i]; m.style.left = at(q.t); m.style.setProperty('--c', q.c); m.style.setProperty('--o', 1); m.classList.toggle('on', !!g && i === gmSel); });
+      G.m.forEach(function (mm, i) { var t0 = G.s[i].t, t1 = G.s[i + 1].t; ds[i].style.left = at(t0 + (t1 - t0) * mm); ds[i].hidden = t1 - t0 < 0.04; });
+      var st0 = G.s[gmSel], sw = gmEl.querySelector('.gm-sw'), hx = gmEl.querySelector('[data-gmhex]'), ps = gmEl.querySelector('[data-gmpos]');
+      sw.style.setProperty('--c', st0.c);
+      if (document.activeElement !== hx) hx.value = st0.c;
+      if (document.activeElement !== ps) ps.value = Math.round(st0.t * 100);
+      gmEl.querySelector('[data-gm-act="del"]').disabled = !g || G.s.length <= 2;
+      Array.prototype.forEach.call(gmEl.querySelectorAll('[data-gmi]'), function (b) { b.setAttribute('aria-selected', b.dataset.gmi === G.i ? 'true' : 'false'); });
+      gmEl.querySelector('[data-gmb]').value = v.gmb || 'normal';
+      gmEl.querySelector('[data-gm-act="save"]').disabled = !g;
+    }
+    // EACH PRESET ON THIS LAYER: a small copy of it, with the other effects
+    // as they're set and that preset over them, as it comes (worked out a
+    // little after anything changes, while the section shows)
+    var gmThumbT = 0;
+    function gmThumbsSoon() { clearTimeout(gmThumbT); gmThumbT = setTimeout(gmThumbs, 140); }
+    function gmThumbs() {
+      if (!adj || adjBox.hidden || gmEl.classList.contains('closed')) return;
+      var L = adj.L.cv, k = Math.min(1, 200 / Math.max(L.width, L.height)), w = Math.max(1, Math.round(L.width * k)), h = Math.max(1, Math.round(L.height * k));
+      var c = document.createElement('canvas'); c.width = w; c.height = h; var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(L, 0, 0, w, h);
+      var src = x.getImageData(0, 0, w, h), base = fxParams(), box = { x0: 0, y0: 0, x1: w, y1: h };
+      base.shp = 0; base.cl = 0; base.px = 0; base.bl = null; base.gr = 0; // (the small copy: what changes colour and light, not detail)
+      Array.prototype.forEach.call(gmEl.querySelectorAll('.gm-tile'), function (b) {
+        var id = b.dataset.gm, P = Object.assign({}, base), pr = id ? gmPreset(id) : null;
+        if (id && !pr) return;
+        P.gm = pr ? gmLut(pr.g, (pr.gms != null ? pr.gms : 100) / 100) : null; P.gmo = pr ? (pr.gmo != null ? pr.gmo : 100) / 100 : 0; P.gmb = pr ? Math.max(0, GM_BLENDS.map(function (q) { return q[0]; }).indexOf(pr.gmb || 'normal')) : 0;
+        var out = new ImageData(w, h); fxKernel(P, src.data, out.data, null, null, null, w, h, box, null);
+        var cv = b.querySelector('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').putImageData(out, 0, 0);
+      });
+    }
+    // (the bar: a tap adds a stop, in the colour there; a stop is picked and
+    // dragged along, or off the bar to take it away; a diamond is dragged
+    // between its two stops; a second tap on the same stop opens the picker)
+    var gmTap = null;
+    gmBarEl.addEventListener('pointerdown', function (e) {
+      var g = gmG(); if (!g || (e.pointerType === 'mouse' && e.button)) return;
+      e.preventDefault(); gmBarEl.focus({ preventScroll: true });
+      var r = gmBarEl.getBoundingClientRect(), span = r.width - 2 * GMB_PAD, tAt = function (x) { return Math.max(0, Math.min(1, (x - r.left - GMB_PAD) / span)); };
+      var t = tAt(e.clientX), tol = (e.pointerType === 'mouse' ? 8 : 14) / span, top = e.clientY - r.top < r.height * 0.36;
+      var best = -1, bd = tol, mid = -1;
+      if (top) g.m.forEach(function (mm, i) { var t0 = g.s[i].t, t1 = g.s[i + 1].t, d = Math.abs(t0 + (t1 - t0) * mm - t); if (t1 - t0 >= 0.04 && d <= bd) { bd = d; mid = i; } });
+      if (mid < 0) g.s.forEach(function (q, i) { var d = Math.abs(q.t - t); if (d <= bd) { bd = d; best = i; } });
+      try { gmBarEl.setPointerCapture(e.pointerId); } catch (x) {}
+      if (mid >= 0) {
+        var mv0 = function (ev) { var t0 = g.s[mid].t, t1 = g.s[mid + 1].t; g.m[mid] = Math.max(0.05, Math.min(0.95, (tAt(ev.clientX) - t0) / Math.max(1e-6, t1 - t0))); gmChanged(); };
+        var up0 = function () { gmBarEl.removeEventListener('pointermove', mv0); gmBarEl.removeEventListener('pointerup', up0); gmBarEl.removeEventListener('pointercancel', up0); };
+        gmBarEl.addEventListener('pointermove', mv0); gmBarEl.addEventListener('pointerup', up0); gmBarEl.addEventListener('pointercancel', up0);
+        return;
+      }
+      if (best < 0) {
+        if (g.s.length >= GM_MAX) { toast('A gradient map has up to ' + GM_MAX + ' stops'); return; }
+        var L = gmLut(g, 1), li = Math.round(t * 255) * 3, i0 = 0; while (i0 < g.s.length - 1 && g.s[i0 + 1].t < t) i0++;
+        g.s.splice(i0 + 1, 0, { t: t, c: rgb2hex(L[li], L[li + 1], L[li + 2]) }); g.m.splice(i0, 1, 0.5, 0.5); if (g.m.length > g.s.length - 1) g.m.length = g.s.length - 1;
+        best = i0 + 1; gmTap = null;
+      }
+      var stop = g.s[best], moved = false, off = false, x0 = e.clientX, y0 = e.clientY, now = Date.now();
+      var again = gmTap && gmTap.stop === stop && now - gmTap.t < 400; gmTap = { stop: stop, t: now };
+      gmSel = best; gmChanged();
+      function mv(ev) {
+        if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
+        moved = true; gmTap = null;
+        off = g.s.length > 2 && Math.abs(ev.clientY - (r.top + r.height * 0.62)) > 36;
+        stop.t = tAt(ev.clientX); gmSel = g.s.indexOf(stop); gmSort(g);
+        gmBarEl.classList.toggle('gb-off', off); gmChanged();
+      }
+      function up() {
+        gmBarEl.removeEventListener('pointermove', mv); gmBarEl.removeEventListener('pointerup', up); gmBarEl.removeEventListener('pointercancel', up); gmBarEl.classList.remove('gb-off');
+        if (off) { gmDel(g.s.indexOf(stop)); return; }
+        if (again && !moved) gmPickOpen();
+      }
+      gmBarEl.addEventListener('pointermove', mv); gmBarEl.addEventListener('pointerup', up); gmBarEl.addEventListener('pointercancel', up);
+    });
+    // (the keyboard: arrows move the picked stop, with Shift ten times as far;
+    // Home and End pick the first and last; Delete takes it away; Return opens the picker)
+    gmBarEl.addEventListener('keydown', function (e) {
+      var g = gmG(); if (!g) return;
+      var st1 = g.s[gmSel], k = e.key;
+      if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); st1.t = Math.max(0, Math.min(1, st1.t + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 0.1 : 0.01))); gmSort(g); gmChanged(); }
+      else if (k === 'Tab' && !e.altKey && g.s.length > 1 && ((e.shiftKey && gmSel > 0) || (!e.shiftKey && gmSel < g.s.length - 1))) { e.preventDefault(); gmSel += e.shiftKey ? -1 : 1; gmSync(); }
+      else if (k === 'Home' || k === 'End') { e.preventDefault(); gmSel = k === 'Home' ? 0 : g.s.length - 1; gmSync(); }
+      else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); gmDel(gmSel); }
+      else if (k === 'Enter') { e.preventDefault(); gmPickOpen(); }
+    });
+    function gmDel(i) {
+      var g = gmG(); if (!g || g.s.length <= 2 || i < 0) return;
+      g.s.splice(i, 1); g.m.splice(Math.min(i, g.m.length - 1), 1); if (i > 0 && i < g.s.length) g.m[i - 1] = 0.5;
+      gmSel = Math.max(0, Math.min(i, g.s.length - 1)); gmChanged();
+    }
+    // (the other way round: the stops mirrored, and the midpoints with them)
+    function gmReverse() {
+      var g = gmG(); if (!g) return;
+      g.s = g.s.map(function (q) { return { t: 1 - q.t, c: q.c }; }).reverse(); g.m = g.m.map(function (mm) { return 1 - mm; }).reverse();
+      gmSel = g.s.length - 1 - gmSel; gmChanged();
+    }
+    // (the user's own: named, kept with all of their settings, renamed or deleted)
+    function gmSaveCustom() {
+      var g = gmG(); if (!g) return;
+      var n = 1, names = gmCustom.map(function (q) { return q.name; }); while (names.indexOf('Custom ' + n) >= 0) n++;
+      var q = { id: Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), name: 'Custom ' + n, g: gmCopy(g), gms: adj.v.gms != null ? adj.v.gms : 100, gmo: adj.v.gmo != null ? adj.v.gmo : 100, gmb: adj.v.gmb || 'normal' };
+      gmCustom.push(q); gmSave(); adj.v.gmap = 'c:' + q.id; gmSync(); gmRename(q.id);
+      toast('Saved as one of your gradient maps: name it, or carry on');
+    }
+    function gmRename(id) {
+      var q = gmCustom.filter(function (x) { return x.id === id; })[0], b = gmEl.querySelector('.gm-cgrid [data-gm="c:' + id + '"]'); if (!q || !b) return;
+      var sp = b.querySelector('span'), inp = document.createElement('input'); inp.className = 'p-field gm-name'; inp.value = q.name; inp.maxLength = 40; inp.setAttribute('aria-label', 'Name');
+      sp.hidden = true; b.appendChild(inp); inp.focus(); inp.select();
+      var done = false, finish = function (keep) { if (done) return; done = true; var nm = inp.value.trim(); if (keep && nm) { q.name = nm; gmSave(); } inp.remove(); sp.hidden = false; gmEl.querySelector('.gm-cgrid').dataset.ids = ''; gmSync(); };
+      inp.addEventListener('keydown', function (e) { e.stopPropagation(); if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); });
+      inp.addEventListener('click', function (e) { e.stopPropagation(); });
+      inp.addEventListener('blur', function () { finish(true); });
+    }
+    function gmDeleteCustom(id) {
+      var q = gmCustom.filter(function (x) { return x.id === id; })[0]; if (!q) return;
+      gmCustom = gmCustom.filter(function (x) { return x !== q; }); gmSave();
+      if (adj && adj.v.gmap === 'c:' + id) adj.v.gmap = 'edited'; // (what it set stays, as it is, until another is picked)
+      gmSync(); toast('Deleted “' + q.name + '”');
+    }
+    function gmClick(e) {
+      var t = e.target;
+      if (t.closest('.gm-name')) return true;
+      var tile = t.closest('[data-gm]'); if (tile && gmEl.contains(tile)) { gmPick(tile.dataset.gm); return true; }
+      var mr = t.closest('.gm-more'); if (mr) { gmMore = !gmMore; try { localStorage.setItem('paint-gm-more', gmMore ? 'open' : 'closed'); } catch (x) {} gmSync(); return true; }
+      var gi = t.closest('[data-gmi]'); if (gi && gmG()) { gmG().i = gi.dataset.gmi; gmChanged(); return true; }
+      var a = t.closest('[data-gm-act]'); if (!a || !gmEl.contains(a)) return false;
+      var w = a.dataset.gmAct, on = adj.v.gmap || '';
+      if (w === 'colour') gmPickOpen();
+      else if (w === 'del') gmDel(gmSel);
+      else if (w === 'rev') gmReverse();
+      else if (w === 'reset') { var P = gmPreset(on); if (P) gmPick(on); }
+      else if (w === 'save') gmSaveCustom();
+      else if (w === 'rename' && on.slice(0, 2) === 'c:') gmRename(on.slice(2));
+      else if (w === 'cdel' && on.slice(0, 2) === 'c:') gmDeleteCustom(on.slice(2));
+      return true;
+    }
+    adjBox.addEventListener('change', function (e) {
+      var g = gmG(); if (!g || !adj) return;
+      var hx = e.target.closest('[data-gmhex]'), ps = e.target.closest('[data-gmpos]'), bl = e.target.closest('[data-gmb]');
+      if (hx) { var h = hx.value.trim().toLowerCase(); if (!/^#/.test(h)) h = '#' + h; if (/^#[0-9a-f]{3}$/.test(h)) h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]; if (/^#[0-9a-f]{6}$/.test(h)) g.s[gmSel].c = h; hx.value = g.s[gmSel].c; gmChanged(); }
+      else if (ps) { var n = Math.max(0, Math.min(100, Math.round(+ps.value || 0))); g.s[gmSel].t = n / 100; ps.value = n; gmSort(g); gmChanged(); }
+      else if (bl) { adj.v.gmb = bl.value; adjustQueue(); }
+    });
+    adjBox.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.closest('[data-gmhex], [data-gmpos]')) e.target.blur(); });
+    // THE PICKED STOP'S COLOUR, in the colour picker: Effects step aside for
+    // it, as they are, and come back when it closes; what's picked changes
+    // the stop at once
+    var pcGm = false;
+    function gmStopColour() { var g = gmG(); return g ? g.s[gmSel].c : '#000000'; }
+    function gmStopSet(hex) { var g = gmG(); if (!g) return; g.s[gmSel].c = hex; adjustQueue(); gmSync(); }
+    function gmPickOpen() {
+      if (!gmG()) return;
+      if (!pc.hidden) { pcDone(); pc.hidden = true; }
+      if (anyMenu()) openMenu(null); docClose(true);
+      pcGm = true; pcWhich = 'gm'; pc.classList.add('pc-gm'); adjBox.hidden = true;
+      pc.hidden = false; pcLoad(); placePicker(); if (pc.parentNode === dock) dockPlace(pc); else keepOnScreen(pc);
+      pairOpen(); ctxAside(); if (ctxEl) dockSync(ctxReady);
+    }
+    // (back: Effects where they were, the stop as it's been made)
+    function gmPickEnd() {
+      if (!pcGm) return false;
+      pcGm = false; pcWhich = 'main'; pc.classList.remove('pc-gm');
+      if (adj) { adjBox.hidden = false; dockPlace(adjBox); gmSync(); }
+      return true;
+    }
     // (a section that's been changed shows a dot, and its reset button)
     function fxOn(k) {
       var v = adj.v;
       if (k === 'curve') return !!v.curve;
       if (k === 'gmap') return !!v.gmap;
-      if (k === 'gms' || k === 'gmr' || k === 'mangle') return false; // (a way, or an angle, alone changes nothing)
+      if (k === 'gmg' || k === 'gms' || k === 'gmo' || k === 'gmb' || k === 'mangle') return false; // (a way, or an angle, alone changes nothing; nor the gradient map's settings, without it)
       if (k in LV) return v[k] != null && v[k] !== LV[k];
       return !!v[k];
     }
@@ -5258,20 +5551,17 @@
       if (tracks) fxTracks();
       casSync();
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec'), function (sec) { sec.classList.toggle('changed', !!adj && FX_KEYS[sec.dataset.fx].some(fxOn)); });
-      var on = adj && adj.v.gmap || '';
-      Array.prototype.forEach.call(adjBox.querySelectorAll('[data-gm]'), function (b) { b.setAttribute('aria-checked', b.dataset.gm === on ? 'true' : 'false'); });
-      var rv = adjBox.querySelector('[data-gmrev]'); rv.setAttribute('aria-pressed', adj && adj.v.gmr ? 'true' : 'false');
+      gmSync();
       var ang = adj && adj.v.mangle || 0;
       Array.prototype.forEach.call(adjBox.querySelectorAll('[data-fxdir]'), function (b) { b.setAttribute('aria-pressed', +b.dataset.fxdir === ang ? 'true' : 'false'); });
-      if (adj && adj.v.gmap === 'colours') adjBox.querySelector('[data-gm="colours"] i').style.background = 'linear-gradient(to right,' + gmStops('colours').join(',') + ')';
     }
     function fxReset(f) {
       if (!adj) return;
       if (f === 'cas') return;
       FX_KEYS[f].forEach(function (k) { delete adj.v[k]; });
       Array.prototype.forEach.call(adjBox.querySelectorAll('.fx-sec[data-fx="' + f + '"] input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
-      if (f === 'levels') syncLevels(); if (f === 'curves') drawCurve();
-      adjustQueue(f === 'hsl');
+      if (f === 'levels') syncLevels(); if (f === 'curves') drawCurve(); if (f === 'gmap') gmSel = 0;
+      adjustQueue(f === 'hsl'); if (f !== 'gmap') gmThumbsSoon();
     }
     // LEVELS: black, mid (gamma x 100) and white in, black and white out
     var LV = { lb: 0, lg: 100, lw: 255, ob: 0, ow: 255 };
@@ -5412,19 +5702,13 @@
         lut[i] = Math.round(Math.max(0, Math.min(1, x)) * 255);
         blut[i] = PaintFX.brilliance(i / 255, br);
       }
-      var hu = val('hue') * Math.PI, gm = null, gms = (v.gms != null ? v.gms : 100) / 100;
-      if (v.gmap && gms) {
-        var gst = gmStops(v.gmap).map(function (c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; });
-        if (v.gmr) gst.reverse();
-        gm = new Uint8ClampedArray(768);
-        for (var gi = 0; gi < 256; gi++) {
-          var gt = gi / 255 * (gst.length - 1), g0 = Math.min(gst.length - 2, Math.floor(gt)), gf = gt - g0;
-          for (var gc = 0; gc < 3; gc++) gm[gi * 3 + gc] = gst[g0][gc] + (gst[g0 + 1][gc] - gst[g0][gc]) * gf;
-        }
-      }
+      // (the gradient map: its 256 colours, and how they're laid over the picture)
+      var hu = val('hue') * Math.PI, gm = null, gms = (v.gms != null ? v.gms : 100) / 100, gmo = (v.gmo != null ? v.gmo : 100) / 100;
+      var gmb = Math.max(0, GM_BLENDS.map(function (q) { return q[0]; }).indexOf(v.gmb || 'normal'));
+      if (v.gmap && v.gmg && gmo) gm = gmLut(v.gmg, gms);
       var gb = v.gblur ? (0.4 + Math.pow(val('gblur'), 1.6) * 40) * R : 0, md = v.mblur ? (1 + Math.pow(val('mblur'), 1.5) * 150) * R : 0;
       return { lut: lut, blut: blut, br: br, sat: 1 + val('saturation'), vib: val('vibrance'), wa: val('warmth') * 28, ti: val('tint') * 24,
-        hu: hu, hc: Math.cos(hu), hs: Math.sin(hu), lt: val('lightness'), gm: gm, gms: gms,
+        hu: hu, hc: Math.cos(hu), hs: Math.sin(hu), lt: val('lightness'), gm: gm, gmo: gmo, gmb: gmb,
         shp: val('sharpen') * 1.6, cl: val('clarity') * 0.7, vg: val('vignette'), gr: val('grain') * 38, wideR: Math.max(6, Math.round(14 * R)),
         // PIXELATE: square blocks from 2 to 80 of the picture's pixels (more
         // finely at the small end), each the average of what's in it
@@ -5521,7 +5805,26 @@
         o[0] = yy + 0.956 * i2 + 0.621 * q2; o[1] = yy - 0.272 * i2 - 0.647 * q2; o[2] = yy - 1.106 * i2 + 1.703 * q2;
       }
       var lut = P.lut, blut = P.blut, br = P.br, sat = P.sat, vib = P.vib, wa = P.wa, ti = P.ti, hu = P.hu, hc = P.hc, hs = P.hs, ho = [0, 0, 0], lt = P.lt;
-      var gm = P.gm, gms = P.gms, shp = P.shp, cl = P.cl, vg = P.vg, gr = P.gr;
+      var gm = P.gm, gmo = P.gmo, gmb = P.gmb, gq = [0, 0, 0], shp = P.shp, cl = P.cl, vg = P.vg, gr = P.gr;
+      // (the gradient map's blend: the gradient's colour G over the picture's
+      // own C, both 0-255, into o; the same sums as FX_FS's gmBlend)
+      function gmCh(md, cb, cs) {
+        if (md === 1) return cb * cs;
+        if (md === 2) return cb + cs - cb * cs;
+        if (md === 3) return cb <= 0.5 ? 2 * cb * cs : 1 - 2 * (1 - cb) * (1 - cs);
+        return cs <= 0.5 ? cb - (1 - 2 * cs) * cb * (1 - cb) : cb + (2 * cs - 1) * ((cb <= 0.25 ? ((16 * cb - 12) * cb + 4) * cb : Math.sqrt(cb)) - cb);
+      }
+      function gmBlend(md, C0, C1, C2, G0, G1, G2, o) {
+        C0 = C0 < 0 ? 0 : C0 > 255 ? 255 : C0; C1 = C1 < 0 ? 0 : C1 > 255 ? 255 : C1; C2 = C2 < 0 ? 0 : C2 > 255 ? 255 : C2;
+        if (md === 5) { // (colour: the gradient's hue and colourfulness, the picture's light)
+          var dl = (0.3 * C0 + 0.59 * C1 + 0.11 * C2) - (0.3 * G0 + 0.59 * G1 + 0.11 * G2), q0 = G0 + dl, q1 = G1 + dl, q2 = G2 + dl;
+          var L = 0.3 * q0 + 0.59 * q1 + 0.11 * q2, mn = Math.min(q0, q1, q2), mx = Math.max(q0, q1, q2);
+          if (mn < 0) { q0 = L + (q0 - L) * L / (L - mn); q1 = L + (q1 - L) * L / (L - mn); q2 = L + (q2 - L) * L / (L - mn); }
+          if (mx > 255) { q0 = L + (q0 - L) * (255 - L) / (mx - L); q1 = L + (q1 - L) * (255 - L) / (mx - L); q2 = L + (q2 - L) * (255 - L) / (mx - L); }
+          o[0] = q0; o[1] = q1; o[2] = q2; return;
+        }
+        o[0] = gmCh(md, C0 / 255, G0 / 255) * 255; o[1] = gmCh(md, C1 / 255, G1 / 255) * 255; o[2] = gmCh(md, C2 / 255, G2 / 255) * 255;
+      }
       var cx = W2 / 2, cy = H2 / 2, rr = 1 / Math.hypot(cx, cy);
       // (pixelate: the blocks' averages, a row of blocks at a time, as the
       // rows reach it; ps can be fractional, for a smaller copy)
@@ -5558,7 +5861,12 @@
           if (lt) { if (lt > 0) { r += (255 - r) * lt * 0.85; g += (255 - g) * lt * 0.85; b += (255 - b) * lt * 0.85; } else { r *= 1 + lt * 0.85; g *= 1 + lt * 0.85; b *= 1 + lt * 0.85; } }
           if (wa) { r += wa; b -= wa; }
           if (ti) { g -= ti; r += ti * 0.35; b += ti * 0.35; }
-          if (gm) { var gl = (0.299 * r + 0.587 * g + 0.114 * b) | 0; gl = gl < 0 ? 0 : gl > 255 ? 255 : gl; r += (gm[gl * 3] - r) * gms; g += (gm[gl * 3 + 1] - g) * gms; b += (gm[gl * 3 + 2] - b) * gms; }
+          if (gm) {
+            var gl = (0.299 * r + 0.587 * g + 0.114 * b) | 0; gl = gl < 0 ? 0 : gl > 255 ? 255 : gl;
+            var G0 = gm[gl * 3], G1 = gm[gl * 3 + 1], G2 = gm[gl * 3 + 2];
+            if (gmb) { gmBlend(gmb, r, g, b, G0, G1, G2, gq); G0 = gq[0]; G1 = gq[1]; G2 = gq[2]; }
+            r += (G0 - r) * gmo; g += (G1 - g) * gmo; b += (G2 - b) * gmo;
+          }
           if (vg) { var dv = sstep(0.3, 1.05, Math.hypot(x2 - cx, y - cy) * rr) * vg * 0.75, gv = vg > 0 ? 1 - dv : 1; r = vg > 0 ? r * gv : r - dv * (255 - r); g = vg > 0 ? g * gv : g - dv * (255 - g); b = vg > 0 ? b * gv : b - dv * (255 - b); }
           if (gr) { var n = ((Math.imul(k >> 2, 2654435761) >>> 0) % 1000 / 1000 - 0.5) * gr; r += n; g += n; b += n; }
           o[k] = r; o[k + 1] = g; o[k + 2] = b; o[k + 3] = a;
@@ -5826,7 +6134,7 @@
       var d = e.data; if (d.t !== 'out') return;
       if (!adj || adj.mode !== 'worker' || d.sid !== adj.sid) return;
       adj.busy = false;
-      if (d.prev) { var pv = adj.prev; pv.ctx.putImageData(new ImageData(d.buf, pv.w, pv.h), 0, 0); fxPrevShow(true); }
+      if (d.prev) { var pv = adj.prev; if (pv) { pv.ctx.putImageData(new ImageData(d.buf, pv.w, pv.h), 0, 0); fxPrevShow(true); } } // (a look that comes back after Done started again from the layer: not wanted)
       else { adjustPut(new ImageData(d.buf, adj.src.width, adj.src.height)); adj.shown = d.ver; fxPrevShow(false); }
       fxW.postMessage({ t: 'back', buf: d.buf, prev: d.prev }, [d.buf.buffer]); // (the buffer goes back, for the next time)
       if (adj.finishing && adj.shown === adj.ver) { adjustDone(); return; } // (kept: the full size is here)
@@ -5877,8 +6185,20 @@
     var FX_VS = '#version 300 es\nin vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }';
     var FX_FS = '#version 300 es\nprecision highp float; precision highp int; precision highp sampler2D;\n' +
       'uniform sampler2D u_src, u_mask, u_lut, u_wide, u_pix, u_bsrc; uniform int u_hasMask, u_flip, u_W, u_H, u_gm, u_px, u_hasBl;\n' +
-      'uniform float u_shp, u_cl, u_br, u_sat, u_vib, u_hu, u_hc, u_hs, u_lt, u_wa, u_ti, u_gms, u_vg, u_gr, u_rr; uniform vec2 u_c;\n' +
+      'uniform float u_shp, u_cl, u_br, u_sat, u_vib, u_hu, u_hc, u_hs, u_lt, u_wa, u_ti, u_gmo, u_vg, u_gr, u_rr; uniform int u_gmb; uniform vec2 u_c;\n' +
       'out vec4 frag;\n' +
+      // (the gradient map's blend: fxKernel's gmBlend)
+      'vec3 gmBlend(int md, vec3 C, vec3 G) {\n' +
+      '  C = clamp(C, 0.0, 255.0);\n' +
+      '  if (md == 5) { vec3 W = vec3(0.3, 0.59, 0.11); vec3 q = G + (dot(C, W) - dot(G, W)); float L = dot(q, W), mn = min(min(q.r, q.g), q.b), mx = max(max(q.r, q.g), q.b);\n' +
+      '    if (mn < 0.0) q = L + (q - L) * L / (L - mn); if (mx > 255.0) q = L + (q - L) * (255.0 - L) / (mx - L); return q; }\n' +
+      '  vec3 cb = C / 255.0, cs = G / 255.0, d;\n' +
+      '  if (md == 1) d = cb * cs;\n' +
+      '  else if (md == 2) d = cb + cs - cb * cs;\n' +
+      '  else if (md == 3) d = mix(2.0 * cb * cs, 1.0 - 2.0 * (1.0 - cb) * (1.0 - cs), step(0.50001, cb));\n' +
+      '  else { vec3 D = mix(((16.0 * cb - 12.0) * cb + 4.0) * cb, sqrt(cb), step(0.25001, cb)); d = mix(cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb), cb + (2.0 * cs - 1.0) * (D - cb), step(0.50001, cs)); }\n' +
+      '  return d * 255.0;\n' +
+      '}\n' +
       'float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }\n' +
       'float lutAt(float v) { int i = v < 0.0 ? 0 : v > 255.0 ? 255 : int(v); return texelFetch(u_lut, ivec2(i, 0), 0).r; }\n' +
       'vec3 px(int x, int y) { return floor(texelFetch(u_src, ivec2(clamp(x, 0, u_W - 1), clamp(y, 0, u_H - 1)), 0).rgb * 255.0 + 0.5); }\n' +
@@ -5901,7 +6221,7 @@
       '    if (u_lt != 0.0) { if (u_lt > 0.0) r += (255.0 - r) * u_lt * 0.85; else r *= 1.0 + u_lt * 0.85; }\n' +
       '    if (u_wa != 0.0) { r.r += u_wa; r.b -= u_wa; }\n' +
       '    if (u_ti != 0.0) { r.g -= u_ti; r.r += u_ti * 0.35; r.b += u_ti * 0.35; }\n' +
-      '    if (u_gm == 1) { int gl = clamp(int(0.299 * r.r + 0.587 * r.g + 0.114 * r.b), 0, 255); vec3 G = texelFetch(u_lut, ivec2(gl, 1), 0).rgb; r += (G - r) * u_gms; }\n' +
+      '    if (u_gm == 1) { int gl = clamp(int(0.299 * r.r + 0.587 * r.g + 0.114 * r.b), 0, 255); vec3 G = texelFetch(u_lut, ivec2(gl, 1), 0).rgb; if (u_gmb != 0) G = gmBlend(u_gmb, r, G); r += (G - r) * u_gmo; }\n' +
       '    if (u_vg != 0.0) { float dv = sstep(0.3, 1.05, length(vec2(q) - u_c) * u_rr) * u_vg * 0.75; if (u_vg > 0.0) r *= 1.0 - dv; else r -= dv * (255.0 - r); }\n' +
       '    if (u_gr != 0.0) { uint h = uint(q.y * u_W + q.x) * 2654435761u; r += (float(h % 1000u) / 1000.0 - 0.5) * u_gr; }\n' +
       '    c = clamp(roundEven(r), 0.0, 255.0);\n' +
@@ -6074,7 +6394,7 @@
       var i1 = function (n, v) { gl.uniform1i(fxUni(M, n), v); }, f1 = function (n, v) { gl.uniform1f(fxUni(M, n), v); };
       i1('u_hasMask', T.mask ? 1 : 0); i1('u_flip', toTex ? 0 : 1); i1('u_W', w); i1('u_H', h); i1('u_gm', P.gm ? 1 : 0); i1('u_px', pix ? P.px : 0); i1('u_hasBl', bsrc ? 1 : 0);
       f1('u_shp', P.shp); f1('u_cl', P.cl); f1('u_br', P.br); f1('u_sat', P.sat); f1('u_vib', P.vib); f1('u_hu', P.hu); f1('u_hc', P.hc); f1('u_hs', P.hs);
-      f1('u_lt', P.lt); f1('u_wa', P.wa); f1('u_ti', P.ti); f1('u_gms', P.gms); f1('u_vg', P.vg); f1('u_gr', P.gr);
+      f1('u_lt', P.lt); f1('u_wa', P.wa); f1('u_ti', P.ti); f1('u_gmo', P.gmo); i1('u_gmb', P.gmb); f1('u_vg', P.vg); f1('u_gr', P.gr);
       gl.uniform2f(fxUni(M, 'u_c'), w / 2, h / 2); f1('u_rr', 1 / Math.hypot(w / 2, h / 2));
       var tex = null, fb = null;
       if (toTex) { tex = fxTex(w, h, ''); fb = fxTarget(tex); } else gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -6134,7 +6454,7 @@
       adj.prepT = setTimeout(function () { if (adj) fxPrepare(); }, 420);
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
       adjBox.querySelector('.pa-sub').textContent = sel ? 'Inside the selection' : active.name;
-      adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
+      gmSel = 0; adjBox.hidden = false; fxMarks(true); fxShown('levels'); fxShown('curves'); fxShown('gmap'); ctxEl.classList.add('aside'); // (the tool panel steps aside while Effects is open)
       dockPlace(adjBox); dockSync(ctxReady);
       if (adjBox.parentNode === left) { adjBox.style.top = Math.max(0, Math.min($('[data-act="adjust"]').offsetTop - 40, left.clientHeight - adjBox.offsetHeight)) + 'px'; keepOnScreen(adjBox); }
       $('[data-act="adjust"]').setAttribute('aria-expanded', 'true');
@@ -6177,6 +6497,7 @@
     }
     // CLOSING (another tool, undo, saving...): what's set is kept, and the panel goes
     function adjustDone(keepOpen) {
+      if (pcGm) picker(null);
       if (!adj) { if (!keepOpen && !adjBox.hidden) adjustClose(); return; }
       if (adjChanged()) {
         fxPrepare();
@@ -6213,7 +6534,7 @@
       adj.src = adj.out = adj.mask = adj.box = adj.blur = adj.wide = adj.hist = adj.bs = adj.bkey = null; adj.ready = false; adj.queued = false;
       adj.selOn = adj.selOn && !!sel; adj.v = {}; adj.ver++; adj.shown = adj.ver;
       Array.prototype.forEach.call(adjBox.querySelectorAll('input[data-adj]'), function (i) { i.value = i.dataset.def || 0; i.previousElementSibling.textContent = i.value; });
-      fxMarks(true); fxShown('levels'); fxShown('curves');
+      gmSel = 0; gmInputs(); fxMarks(true); fxShown('levels'); fxShown('curves'); fxShown('gmap');
       adj.prepT = setTimeout(function () { if (adj) fxPrepare(); }, 420);
     }
     function adjustCancel() { if (!adj) return; if (adj.mode !== 'gl' && adj.src) adjustPut(adj.src); adjustClose(); }
@@ -6269,8 +6590,7 @@
     }
     adjBox.addEventListener('click', function (e) {
       if (!adj) return;
-      var g = e.target.closest('[data-gm]'); if (g) { if (g.dataset.gm) adj.v.gmap = g.dataset.gm; else delete adj.v.gmap; adjustQueue(); return; }
-      if (e.target.closest('[data-gmrev]')) { adj.v.gmr = !adj.v.gmr; if (!adj.v.gmap) adj.v.gmap = 'colours'; adjustQueue(); return; }
+      if (gmClick(e)) return;
       var rs = e.target.closest('[data-fx-reset]'); if (rs) { fxReset(rs.dataset.fxReset); return; }
       var fd = e.target.closest('[data-fxdir]');
       if (fd) { var ai = adjBox.querySelector('[data-adj="mangle"]'); ai.value = fd.dataset.fxdir; ai.previousElementSibling.textContent = ai.value; adj.v.mangle = +ai.value; adjustQueue(); return; }
@@ -6279,6 +6599,7 @@
       var i = e.target.closest('[data-adj]'); if (!i || !adj || adj.applying) return;
       i.previousElementSibling.textContent = i.value;
       adj.v[i.dataset.adj] = +i.value; adjustQueue(i.dataset.adj === 'hue');
+      if (!/^gm/.test(i.dataset.adj)) gmThumbsSoon();
     });
     // double-click (or double-tap) a slider's name to put it back to 0
     adjBox.addEventListener('dblclick', function (e) {
@@ -7465,8 +7786,9 @@
       // (and, while it's in the dock, for Layers and the zoom, which open
       // nowhere near it)
       var pcStays = pc.parentNode === dock && e.target.closest('[data-act="layers"], .paint-layerpanel, .paint-lmenu, .paint-zoom, [data-zoom]');
+      var gmWas = pcGm && !e.target.closest('.paint-colorpanel'); // (a press away from the picker on a gradient map's stop: back to Effects, which stay)
       if (!pc.hidden && !pcStays && !e.target.closest('.paint-colorpanel, .paint-current, .paint-second, .paint-swap, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle, [data-hb="settings"], .paint-settings, .hdr-fold') && !stage.contains(e.target)) picker(null);
-      if ((!adjBox.hidden || adj) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target));
+      if ((!adjBox.hidden || adj) && !gmWas && !(pcGm && e.target.closest('.paint-colorpanel')) && !e.target.closest('.paint-adjust, [data-act="adjust"], .paint-zoom, button[data-tool], .selection-slot, .paint-ctx, .paint-settings-toggle')) adjustDone(stage.contains(e.target)); // (the picker on a gradient map's stop is part of Effects)
       if (!moreBox.hidden && !e.target.closest('.paint-moremenu, [data-hb="more"]')) moreMenu(false);
     }, true);
     sizeIn.addEventListener('input', function () { if (wsMode !== 'paint') return; setSize(sizeAt(+sizeIn.value), true); if (textBox) placeTextBox(); preview(); });

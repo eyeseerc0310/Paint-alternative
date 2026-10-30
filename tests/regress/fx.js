@@ -19,11 +19,12 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   console.log('red before', before, 'after hue +66', await px(0.5, 0.75), '| hsl marked changed', await p.$eval('.fx-sec[data-fx="hsl"]', e => e.classList.contains('changed')));
   // gradient map
   await p.click('.fx-sec[data-fx="gmap"] .pr-head'); await p.waitForTimeout(250);
-  await p.click('[data-gm="sunset"]'); await p.waitForTimeout(150);
-  console.log('gradient map sunset: dark end', await px(0.02, 0.2), 'light end', await px(0.98, 0.2));
+  // (the presets and their colours changed with the gradient map's editor: what they look like is the editor's own check, tests/effects/gmap.js)
+  await p.click('[data-gm="sunset"], [data-gm="golden"]'); await p.waitForTimeout(150);
+  console.log('~ gradient map: dark end', await px(0.02, 0.2), 'light end', await px(0.98, 0.2));
   await p.screenshot({ path: `out/fx-${mode}-gmap.png` });
-  await p.click('[data-gmrev]'); await p.waitForTimeout(100); console.log('reversed: dark end', await px(0.02, 0.2));
-  await p.$eval('[data-adj="gms"]', e => { e.value = 0; e.dispatchEvent(new Event('input', { bubbles: true })); }); await p.waitForTimeout(100); console.log('strength 0: dark end', await px(0.02, 0.2));
+  await p.click('[data-gmrev], [data-gm-act="rev"]'); await p.waitForTimeout(100); console.log('~ reversed: dark end', await px(0.02, 0.2));
+  await p.$eval('[data-adj="gms"]', e => { e.value = 0; e.dispatchEvent(new Event('input', { bubbles: true })); }); await p.waitForTimeout(100); console.log('~ strength 0: dark end', await px(0.02, 0.2));
   await p.click('[data-fx-reset="gmap"]'); await p.waitForTimeout(100); console.log('gmap reset: changed?', await p.$eval('.fx-sec[data-fx="gmap"]', e => e.classList.contains('changed')), 'strength slider', await p.$eval('[data-adj="gms"]', e => e.value));
   // levels and curves still work
   await p.click('.fx-sec[data-fx="curves"] .pr-head'); await p.waitForTimeout(300);

@@ -511,6 +511,30 @@ When building or changing anything visual:
   `paintBox` (a small copy, then each edge exactly) and are kept until the
   layer's paint changes (`boxStale` in `push`/`apply`, and `putFloat`). The
   lines (`snap.lines`) are drawn by `drawSelUi` on the stage's selection sheet.
+- **The Gradient Map** (Effects' `gmap` section): the layer's light and
+  dark recoloured along a gradient, shadows from its left end. Ten presets
+  (`GM_PRESETS`: stops, interpolation) and the user's own (`gmCustom`, kept
+  in localStorage `paint-gmaps`, named, renamed, deleted), two across with
+  Original first, each tile a small copy of the layer with the other effects
+  and that preset over it (`gmThumbs`, through `fxKernel`, a little after a
+  change). Picked (`gmPick`), a preset is copied into `adj.v.gmg` (`s`
+  stops `{ t, c }` in order, 16 at most; `m` a midpoint for each gap, where
+  its two colours meet half way; `i` linear, smooth or perceptual, OKLab),
+  so the preset itself never changes; Reset copies it again; Original takes
+  only the gradient map off. `gmLut` makes its 256 colours once (Strength,
+  `gms`, takes them toward their own greys), so the kernel and the shader
+  only lay them over the picture: a blend (`gmb`: Normal, Multiply, Screen,
+  Overlay, Soft Light, Colour; `gmBlend` in `fxKernel` and in `FX_FS`, the
+  same sums) at an opacity (`gmo`). The editor (`gmSync`) is the Gradient
+  tool's stops bar the panel's width: a tap adds a stop in the colour
+  there, a stop is dragged along or off to take it away, the diamonds above
+  move the midpoints, arrows and Delete work it from the keyboard; the
+  picked stop's colour (hex) and place (%) can be typed. A second tap on a
+  stop (or its colour swatch, or Return) opens the colour picker on it
+  (`gmPickOpen`, `pcWhich` 'gm', `pc-gm`): Effects step aside, as they are,
+  and come back when it closes (its Done, its fold, a press away from it;
+  `gmPickEnd`), and a press inside it never ends Effects. More (Opacity,
+  Interpolation, Blend) folds, remembered (`paint-gm-more`).
 - **Effects run fast three ways**, all from the same settings (`fxParams`):
   the graphics chip (`fxGL*`: WebGL 2, a shader drawing on a stand-in canvas
   in the layer's place, read back once at Done), a worker (`fxWorker`, for
