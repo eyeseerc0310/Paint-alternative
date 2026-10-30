@@ -7,7 +7,7 @@
 #   tests/run.sh brushes            the bristle brushes' checks
 #   tests/run.sh selection          selecting: layers, undo and redo, Shift to add
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
-#   tests/run.sh effects            Content-Aware Scale on the selection's frame, and on a big picture
+#   tests/run.sh effects            Content-Aware Scale on the selection's frame, and on a big picture; the gradient map's editor
 #   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
 #   tests/run.sh panel              the top bar's options in the right-hand panel
 #   tests/run.sh polish             Fit everywhere, panels that stay open, New Layer, the empty workspace, chevrons
@@ -95,6 +95,9 @@ effects() {
   check "effects/casbig-light-1400" "$OUT/effects" "$T/effects/casbig.js" light 1400 900
   check "effects/casbig-dark-1024-touch" "$OUT/effects" "$T/effects/casbig.js" dark 1024 768 touch
   check "effects/casbig-light-390-touch" "$OUT/effects" "$T/effects/casbig.js" light 390 844 touch
+  check "effects/gmap-light-1400" "$OUT/effects" "$T/effects/gmap.js" light 1400 900
+  check "effects/gmap-dark-1024-touch" "$OUT/effects" "$T/effects/gmap.js" dark 1024 768 touch
+  check "effects/gmap-light-390-touch" "$OUT/effects" "$T/effects/gmap.js" light 390 844 touch
 }
 
 photo() {

@@ -13,7 +13,7 @@ tests/run.sh                    # everything (about 25 minutes)
 tests/run.sh brushes            # the bristle brushes
 tests/run.sh selection          # selecting: layers, undo and redo, Shift to add
 tests/run.sh text               # the text tool: its settings, the highlight, the box
-tests/run.sh effects            # Content-Aware Scale on the selection's frame, and on a big picture
+tests/run.sh effects            # Content-Aware Scale on the selection's frame, and on a big picture; the gradient map's editor
 tests/run.sh photo              # Photo mode: sliders, presets, compare, saving, keeping
 tests/run.sh panel              # the top bar's options in the right-hand panel
 tests/run.sh polish             # Fit everywhere, panels that stay open, New Layer, the empty workspace, chevrons
@@ -85,6 +85,18 @@ with `all passing`, or lists what isn't, and exits non-zero.
   fails once is asked again, twice puts everything back and says so; never
   more than two of its workers at once (the injected failures and the count
   come from a stand-in `Worker`).
+- `effects/gmap.js`: the Gradient Map: Original and exactly the ten presets,
+  two across, each tile a thumbnail of the layer with it; a preset picked
+  fills the editor and Done lays it over (one undo step); another takes its
+  place exactly; Original keeps the other effects; the bar adds, moves and
+  takes away stops (sixteen at most), moves midpoints; the stop's colour and
+  place typed; Reverse, delete, Reset; the preset itself never changes;
+  Strength 0 is greys only, Opacity 0 nothing; the interpolations and blends
+  each look their own and agree between the graphics chip and the worker;
+  the colour picker on a stop, Effects stepping aside and coming back; the
+  user's own saved, named, through a reload, renamed, deleted; inside a
+  selection only it changes. Run at desktop size in light, iPad in dark with
+  touch, and phone size with touch.
 - `photo/photo.js`: Photo mode, from Settings (Paint, Vector and Photo mode,
   the one in use ticked), on `fixtures/scene.png`. Formats it
   can't open (a RAW file, a HEIC in Chromium) say so; a photo with nothing set

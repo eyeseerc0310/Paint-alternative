@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-photo-trim-20261029';
-var SHELL = ['./', 'index.html', 'style.css?v=photo-trim-20261029', 'fx-shared.js?v=photo-trim-20261029', 'decoders.js?v=photo-trim-20261029', 'photo-presets.js?v=photo-trim-20261029', 'photo.js?v=photo-trim-20261029', 'vector.js?v=photo-trim-20261029', 'paint.js?v=photo-trim-20261029', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-gradient-maps-20261030';
+var SHELL = ['./', 'index.html', 'style.css?v=gradient-maps-20261030', 'fx-shared.js?v=gradient-maps-20261030', 'decoders.js?v=gradient-maps-20261030', 'photo-presets.js?v=gradient-maps-20261030', 'photo.js?v=gradient-maps-20261030', 'vector.js?v=gradient-maps-20261030', 'paint.js?v=gradient-maps-20261030', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {
