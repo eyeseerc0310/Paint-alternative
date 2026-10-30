@@ -4642,7 +4642,7 @@
       if (multi() && P.indexOf(L) >= 0) {
         lmenu.innerHTML = '<div class="lm-note">' + P.length + ' layers picked</div>' +
           item('m-hide', P.some(function (M) { return M.visible; }) ? 'Hide' : 'Show') + item('m-lock', 'Alpha Lock', { check: P.every(function (M) { return M.alphaLock; }) }) +
-          '<hr>' + item('m-duplicate', 'Duplicate', { off: n + P.length > maxLayers() }) + item('m-group', 'Group') + item('m-merge', 'Merge Layers') +
+          '<hr>' + item('m-duplicate', 'Duplicate', { off: n + P.length > maxLayers() }) + item('m-copy', 'Copy') + item('m-paste', 'Paste', { off: !layerClip || n + layerClip.length > maxLayers() }) + item('m-group', 'Group') + item('m-merge', 'Merge Layers') +
           '<hr>' + item('rename', 'Rename', { off: true }) + item('merge', 'Merge Down', { off: true }) + item('addmask', 'Add Mask', { off: true }) + item('clip', 'Clipping Mask', { off: true }) + item('up', 'Move Up', { off: true }) + item('down', 'Move Down', { off: true }) +
           '<hr>' + item('m-deselect', 'Pick Just This One') + item('m-delete', 'Delete ' + P.length + ' Layers', { danger: true });
         lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
@@ -4655,6 +4655,7 @@
       lmenu.innerHTML =
         (L.text ? item('edittext', 'Edit Text') + item('raster', 'Turn into Image') + '<hr>' : '') +
         item('select', 'Select') + item('rename', 'Rename') + item('duplicate', 'Duplicate', { off: n >= maxLayers() }) +
+        item('copy', 'Copy') + item('paste', 'Paste', { off: !layerClip || n + layerClip.length > maxLayers() }) +
         item('merge', 'Merge Down', { off: i === 0 || !L.visible || layers[i - 1].group !== L.group }) + (L.group ? item('leavegroup', 'Remove from Group') : '') +
         '<hr>' + (L.mask ? (L.editMask ? item('editlayer', 'Paint on the Layer') : item('editmask', 'Paint on the Mask')) + item('invertmask', 'Invert Mask') + item('applymask', 'Apply Mask') + item('deletemask', 'Delete Mask', { danger: true }) : item('addmask', sel ? 'Add Mask from Selection' : 'Add Mask')) +
         '<hr>' + item('lock', 'Alpha Lock', { check: L.alphaLock }) + item('clip', 'Clipping Mask', { check: L.clip, off: i === 0 }) +
@@ -4791,6 +4792,8 @@
       if (/^m-/.test(a)) { multiOption(a); return; }
       if (/mask$|^editlayer$/.test(a)) { if (adj) adjustDone(); if (textBox) commitText(); maskOption(a, L); return; }
       if (a === 'select') { layerPanel(false); selectLayer(L); return; }
+      if (a === 'copy') { copyLayers([L]); return; }
+      if (a === 'paste') { if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection(); active = L; pasteLayers(); return; }
       if (a === 'edittext' && L.text) { layerPanel(false); if (st.tool !== 'text') setTool('text'); editText(L); return; }
       if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
       var i = layers.indexOf(L);
@@ -4936,10 +4939,48 @@
       if (L.mask) { D.mask = makeMask(D); D.mask.ctx.save(); D.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); D.mask.ctx.drawImage(L.mask.cv, 0, 0); D.mask.ctx.restore(); maskAlpha(D); }
       return D;
     }
+    // COPY and PASTE (the layer menu): what the layers are now, every pixel,
+    // see-through and all, with their opacity, blend mode, Alpha Lock,
+    // clipping, mask and words, kept apart from them (layerClip, until the
+    // next copy, through New Picture and the gallery too); Paste puts them,
+    // in the same order and at the same pixels, just above the current
+    // layer, in its group, as one undo step
+    var layerClip = null;
+    function canvasCopy(cv) { var c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; c.getContext('2d').drawImage(cv, 0, 0); return c; }
+    function copyLayers(list) {
+      if (!list.length) return;
+      layerClip = list.map(function (L) {
+        var t = L.text; if (t) { try { t = JSON.parse(JSON.stringify(t)); } catch (x) {} }
+        return { cv: canvasCopy(L.cv), name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend, alphaLock: L.alphaLock, clip: L.clip, text: t, mask: L.mask ? canvasCopy(L.mask.cv) : null };
+      });
+      toast(list.length > 1 ? 'Copied ' + list.length + ' layers: Paste them from a layer’s menu' : 'Copied the layer: Paste it from a layer’s menu');
+    }
+    function pasteLayers() {
+      var C = layerClip; if (!C || !C.length) { toast('Nothing copied yet: Copy a layer from its menu'); return; }
+      if (!roomFor(C.length)) return;
+      if (grad) gradDone(); if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();
+      rememberLayers(C.length > 1 ? 'Paste Layers' : 'Paste Layer');
+      var at = active ? layers.indexOf(active) + 1 : layers.length, G = active ? active.group : null;
+      var made = C.map(function (c, k) {
+        var D = makeLayer(c.name, false);
+        D.ctx.save(); D.ctx.setTransform(1, 0, 0, 1, 0, 0); D.ctx.drawImage(c.cv, 0, 0); D.ctx.restore();
+        D.visible = c.visible; D.opacity = c.opacity; D.blend = c.blend; D.alphaLock = c.alphaLock; D.clip = c.clip; D.group = G;
+        if (c.text) { var t = c.text; try { t = JSON.parse(JSON.stringify(t)); } catch (x) {} D.text = t; }
+        if (c.mask) { D.mask = makeMask(D); D.mask.ctx.save(); D.mask.ctx.setTransform(1, 0, 0, 1, 0, 0); D.mask.ctx.drawImage(c.mask, 0, 0); D.mask.ctx.restore(); maskAlpha(D); }
+        layers.splice(at + k, 0, D); return D;
+      });
+      active = made[made.length - 1]; also = made.slice(0, -1);
+      // (words are drawn again from themselves, at this picture's size)
+      made.forEach(function (D) { if (D.text) renderText(D); });
+      mount(); layerPanel(true); autosave();
+      toast(made.length > 1 ? 'Pasted ' + made.length + ' layers' : 'Pasted the layer');
+    }
     function multiOption(a) {
       if (adj) adjustDone(); if (textBox) commitText();
       if (a === 'm-deselect') { selSettle(); also = []; renderLayers(); layerPanel(true); return; }
+      if (a === 'm-copy') { copyLayers(picks()); return; }
       if (sel) commitSelection();
+      if (a === 'm-paste') { pasteLayers(); return; }
       var P = picks(); if (!P.length) return;
       if (a === 'm-hide') { var show = !P.some(function (L) { return L.visible; }); rememberLayers(show ? 'Show Layers' : 'Hide Layers'); P.forEach(function (L) { L.visible = show; }); }
       else if (a === 'm-lock') { var on = !P.every(function (L) { return L.alphaLock; }); rememberLayers(on ? 'Alpha Lock' : 'Alpha Lock Off'); P.forEach(function (L) { L.alphaLock = on; }); }
@@ -8472,6 +8513,12 @@
         ['wide', 'Landscape 16:9', 1920, 1080], ['tall', 'Portrait 9:16', 1080, 1920], ['photo', 'Photo 4:3', 2048, 1536],
         ['a4', 'A4 Paper', 2480, 3508], ['insta', 'Instagram Post', 1080, 1350]];
     }
+    // (IMPORT PICTURE: the one file picker, each mode opening what it opens:
+    // Paint a picture on a new layer, Vector a picture placed as an object,
+    // Photo the photo to edit, RAW too; and a project file in any of them)
+    var IMPORT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-8a1.5 1.5 0 0 0-1.5-1.5h-6.2L10.5 6H5.5A1.5 1.5 0 0 0 4 7.5z"/></svg>';
+    var IMPORT_TIPS = { paint: 'Open a picture onto a new layer, or a project (.paint)', vector: 'Place a picture as an object, or open a project (.paint)', photo: 'Open a photo to edit: JPEG, PNG, WebP, HEIC, TIFF or RAW' };
+    function importPicker() { header.querySelector('.paint-open input').click(); }
     function newSheet() {
       var P = presets();
       var box = centreSheet('ns', '<div class="pa-sheet-title">New Picture</div>' +
@@ -8484,7 +8531,8 @@
         '<label>Height<input type="number" inputmode="numeric" min="16" max="' + MAXPX + '" data-ns="h"></label><span class="ns-unit">pixels</span></div>' +
         '<div class="ns-row ns-row-bg"><span class="ns-lab">Background</span><div class="pa-tabs ns-bg" role="tablist"><button type="button" role="tab" data-bg="white" aria-selected="true">White</button><button type="button" role="tab" data-bg="clear" aria-selected="false">Transparent</button></div></div>' +
         '<div class="ns-note">The picture you\u2019re on stays in your Gallery.</div><div class="ns-err" hidden></div>' +
-        '<div class="pa-sheet-acts"><button type="button" data-ns-act="cancel">Cancel</button><button type="button" class="pa-primary" data-ns-act="create">Create</button></div>');
+        '<div class="pa-sheet-acts"><button type="button" class="ns-import" data-ns-act="import" data-tip="' + IMPORT_TIPS[wsMode] + '">' + IMPORT_ICON + '<span>Import Picture</span></button>' +
+        '<button type="button" data-ns-act="cancel">Cancel</button><button type="button" class="pa-primary" data-ns-act="create">Create</button></div>');
       var wIn = box.querySelector('[data-ns="w"]'), hIn = box.querySelector('[data-ns="h"]'), err = box.querySelector('.ns-err'), bg = 'white';
       function pick(id) {
         Array.prototype.forEach.call(box.querySelectorAll('.ns-pre'), function (b) { b.setAttribute('aria-pressed', b.dataset.pre === id ? 'true' : 'false'); });
@@ -8499,6 +8547,7 @@
         if (b) { bg = b.dataset.bg; Array.prototype.forEach.call(box.querySelectorAll('[data-bg]'), function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); }); return; }
         var a = e.target.closest('[data-ns-act]'); if (!a) return;
         if (a.dataset.nsAct === 'cancel') { centreClose(); return; }
+        if (a.dataset.nsAct === 'import') { centreClose(); importPicker(); return; }
         var w = Math.round(+wIn.value), h = Math.round(+hIn.value);
         if (!(w >= 16 && h >= 16 && w <= MAXPX && h <= MAXPX)) { err.textContent = 'Width and height can be from 16 to ' + MAXPX + ' pixels.'; err.hidden = false; return; }
         if (w * h > MAXAREA) { err.textContent = 'That’s too big: make it smaller (up to about 16 million pixels).'; err.hidden = false; return; }
@@ -8536,16 +8585,15 @@
     function moreMenu(open) {
       if (!open) { moreBox.hidden = true; hb('more').setAttribute('aria-expanded', 'false'); return; }
       closeDrops(); otherPopovers();
-      var it = function (k, label) { var src = k === 'open' ? header.querySelector('.paint-open svg') : k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '"' + (hb(k) && hb(k).disabled ? ' disabled' : '') + '>' + (src ? src.outerHTML : '') + label + '</button>'; };
-      moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('open', 'Open…') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
+      var it = function (k, label) { var src = k === 'theme' ? header.querySelector('.theme-toggle svg') : hb(k) && hb(k).querySelector('svg'); return '<button type="button" role="menuitem" data-more="' + k + '"' + (hb(k) && hb(k).disabled ? ' disabled' : '') + '>' + (src ? src.outerHTML : '') + label + '</button>'; };
+      moreBox.innerHTML = it('gallery', 'Gallery') + it('new', 'New Picture') + it('share', 'Share') + '<hr>' + it('image', 'Crop, Rotate & Flip') + it('history', 'History') + '<hr>' +
         it('focus', 'Focus Mode') + it('guides', smartOn ? 'Smart Guides: On' : 'Smart Guides: Off') + it('help', 'Shortcuts') + '<button type="button" role="menuitem" data-more="gestures">' + GEST_ICON + 'Touch Gestures</button>' + it('theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode');
       moreBox.hidden = false; hb('more').setAttribute('aria-expanded', 'true'); placeDrop(moreBox, hb('more'));
     }
     moreBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-more]'); if (!b) return;
       var k = b.dataset.more; moreMenu(false);
-      if (k === 'open') header.querySelector('.paint-open input').click();
-      else if (k === 'gestures') gestureSheet();
+      if (k === 'gestures') gestureSheet();
       else if (k === 'theme') header.querySelector('.theme-toggle').click();
       else if (hb(k)) { var t = hb(k); setTimeout(function () { t.click(); }, 0); }
     });
@@ -9721,7 +9769,7 @@
       leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
-      openPicker: function () { header.querySelector('.paint-open input').click(); },
+      openPicker: importPicker,
       openSheet: openSheet, closeSheet: closeSheet, download: download, discPreview: discPreview,
       decoders: window.PaintDecoders || null
     });

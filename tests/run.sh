@@ -9,7 +9,7 @@
 #   tests/run.sh text               the text tool: its settings, the highlight, the box
 #   tests/run.sh effects            Content-Aware Scale on the selection's frame, and on a big picture; the gradient map's editor
 #   tests/run.sh photo              Photo mode: sliders, presets, compare, saving, keeping
-#   tests/run.sh panel              the top bar's options in the right-hand panel; no lock on any menu
+#   tests/run.sh panel              the top bar's options in the right-hand panel; no lock on any menu; layer Copy and Paste, Import Picture, the shared icons
 #   tests/run.sh polish             Fit everywhere, panels that stay open, New Layer, the empty workspace, chevrons
 # The reference is origin/main, or REF=<commit or branch>. This copy is served
 # on APP_PORT (8123) and the reference on REF_PORT (8124); what they print and
@@ -128,6 +128,10 @@ panel() {
   check "panel/nolock-dark-1024-touch" "$OUT/panel" "$T/panel/nolock.js" dark 1024 768 touch
   check "panel/nolock-light-390-touch" "$OUT/panel" "$T/panel/nolock.js" light 390 844 touch
   check "panel/nolock-dark-360" "$OUT/panel" "$T/panel/nolock.js" dark 360 740
+  check "panel/reorg-light-1400" "$OUT/panel" "$T/panel/reorg.js" light 1400 900
+  check "panel/reorg-dark-1024-touch" "$OUT/panel" "$T/panel/reorg.js" dark 1024 768 touch
+  check "panel/reorg-light-390-touch" "$OUT/panel" "$T/panel/reorg.js" light 390 844 touch
+  check "panel/reorg-dark-360" "$OUT/panel" "$T/panel/reorg.js" dark 360 740
 }
 
 polish() {
