@@ -147,7 +147,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(!!f && /\.png$/.test(f.suggestedFilename()) && !(await panel()).shown, 'Save → PNG downloads a PNG, and the panel closes ' + (f && f.suggestedFilename()));
   // Share: in Save (the top bar and its ••• menu have none), the system's own
   L.ok(!(await p.$('[data-hb="share"]')), 'the top bar has no Share button: it’s in Save');
-  if (phone) { await tapEl('[data-hb="more"]'); L.ok(!(await p.$$eval('.paint-moremenu button', l => l.some(x => /Share/.test(x.textContent)))), 'nor the ••• menu'); await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
+  if (phone) { await p.$eval('[data-hb="more"]', e => e.click()); await p.waitForTimeout(250); L.ok(!(await p.$$eval('.paint-moremenu button', l => l.some(x => /Share/.test(x.textContent)))), 'nor the ••• menu'); await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
   await top('save'); await tapEl('[data-save="share"]');
   await p.waitForTimeout(1200);
   L.ok((await p.evaluate(() => window.__shared)) === 1 && !(await panel()).shown, 'Save → Share… asks the system, and the panel closes');
