@@ -4646,10 +4646,7 @@
           '<hr>' + item('rename', 'Rename', { off: true }) + item('merge', 'Merge Down', { off: true }) + item('addmask', 'Add Mask', { off: true }) + item('clip', 'Clipping Mask', { off: true }) + item('up', 'Move Up', { off: true }) + item('down', 'Move Down', { off: true }) +
           '<hr>' + item('m-deselect', 'Pick Just This One') + item('m-delete', 'Delete ' + P.length + ' Layers', { danger: true });
         lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
-        var left0 = fromRight ? x - lmenu.offsetWidth : x;
-        if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
-        lmenu.style.left = Math.max(8, Math.min(left0, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
-        lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
+        lmenuPlace(x, y, fromRight, above);
         return;
       }
       lmenu.innerHTML =
@@ -4662,10 +4659,21 @@
         '<hr>' + item('hide', L.visible ? 'Hide' : 'Show') + item('up', 'Move Up', { off: i === n - 1 }) + item('down', 'Move Down', { off: i < 1 }) +
         '<hr>' + item('delete', 'Delete', { danger: true });
       lmenu.dataset.i = i; lmenu.dataset.g = ''; lmenu.hidden = false;
+      lmenuPlace(x, y, fromRight, above);
+    }
+    // (where the menu goes: under the point, or above the button that opened
+    // it if there's no room under; taller than either, it takes the side
+    // with more room and scrolls, so it never covers that button)
+    function lmenuPlace(x, y, fromRight, above) {
+      lmenu.style.maxHeight = ''; var vh = window.innerHeight, h = lmenu.offsetHeight;
+      if (above != null && y + h > vh - 8) {
+        var under = vh - 8 - y, over = above - 8;
+        if (h > over && h > under) { if (over > under) { h = over; y = 8; } else h = under; lmenu.style.maxHeight = h + 'px'; }
+        else if (h <= over) y = above - h;
+      }
       var left = fromRight ? x - lmenu.offsetWidth : x;
-      if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
       lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
-      lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
+      lmenu.style.top = Math.max(8, Math.min(y, vh - h - 8)) + 'px';
     }
     panel.addEventListener('contextmenu', function (e) {
       var row = e.target.closest('.pl-row'); if (!row) return;
@@ -4715,10 +4723,7 @@
         '<hr>' + item('g-hide', G.visible ? 'Hide' : 'Show') + item('g-up', 'Move Up', { off: hi >= layers.length - 1 }) + item('g-down', 'Move Down', { off: lo <= bottom }) +
         '<hr>' + item('g-delete', 'Delete Group', { danger: true });
       lmenu.dataset.i = ''; lmenu.dataset.g = G.id; lmenu.hidden = false;
-      var left = fromRight ? x - lmenu.offsetWidth : x;
-      lmenu.style.left = Math.max(8, Math.min(left, document.documentElement.clientWidth - lmenu.offsetWidth - 8)) + 'px';
-      if (above != null && y + lmenu.offsetHeight > window.innerHeight - 8 && above - lmenu.offsetHeight >= 8) y = above - lmenu.offsetHeight;
-      lmenu.style.top = Math.max(8, Math.min(y, window.innerHeight - lmenu.offsetHeight - 8)) + 'px';
+      lmenuPlace(x, y, fromRight, above);
     }
     function groupOption(a, G) {
       if (adj) adjustDone(); if (textBox) commitText(); if (sel) commitSelection();

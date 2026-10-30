@@ -69,6 +69,14 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(await count() === n0 + 2 && (await layer(-1)).hash === orig.hash, 'pasting again gives the layer as it was copied, not as it is now');
   await p.$eval('[data-act="undo"]', e => e.click()); await p.waitForTimeout(300);
   L.ok(await count() === n0 + 1, 'one undo takes one paste away');
+  // (a long menu, a mask's items too: it never covers the ••• that opened it, so that closes it again)
+  await menu(0, 'addmask'); await p.waitForTimeout(200);
+  await menu(0);
+  const cover = await p.evaluate(() => { const b = document.querySelector('.pl-more'), r = b.getBoundingClientRect(), m = document.querySelector('.paint-lmenu'), q = m.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { free: !!e && !!e.closest('.pl-more'), inView: q.top >= 0 && q.bottom <= innerHeight, scrolls: m.scrollHeight > m.clientHeight + 1, items: m.querySelectorAll('[data-lm]').length }; });
+  L.ok(cover.free && cover.inView, 'a long layer menu stays in the window without covering its ••• button ' + JSON.stringify(cover));
+  await tapEl((await p.$$('.pl-more'))[0]);
+  L.ok(await p.$eval('.paint-lmenu', e => e.hidden), 'which closes it again');
+  await p.$eval('[data-act="undo"]', e => e.click()); await p.waitForTimeout(300);
   // (another drawing, another size: pasted at the same pixels)
   await p.$eval('[data-hb="new"]', e => e.click()); await p.waitForTimeout(400);
   await p.$eval('.ns [data-ns="w"]', e => { e.value = 900; }); await p.$eval('.ns [data-ns="h"]', e => { e.value = 700; });

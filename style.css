@@ -912,7 +912,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 
 /* a layer's options (its ••• button, or right-click it) */
 .paint-lmenu {
-  position: fixed; z-index: 175; min-width: 190px; padding: 6px;
+  position: fixed; z-index: 175; min-width: 190px; padding: 6px; overflow-y: auto; overscroll-behavior: contain;
   animation: pb-in var(--dur-pop) var(--spring);
 }
 .paint-lmenu[hidden] { display: none; }
