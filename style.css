@@ -259,7 +259,7 @@ body > * { flex-shrink: 0; }
   .paint .paint-casmode button::after { content: ""; position: absolute; inset: -6px -3px; }
 }
 @media (pointer: coarse) and (min-width: 561px) {
-  .paint .paint-ctx:not(.min) .ctx-min, .paint .paint-ctx:not(.min) .ctx-lock, .paint .pc-top .ctx-min, .paint .pc-top .ctx-lock { width: 28px; height: 28px; }
+  .paint .paint-ctx:not(.min) .ctx-min, .paint .pc-top .ctx-min { width: 28px; height: 28px; }
 }
 
 /* ---------- Header: no bar, just the app's name and floating capsules ---------- */
@@ -951,20 +951,12 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .paint .ctx-min svg { width: var(--icon-sm); height: var(--icon-sm); }
 .ctx-min .cm-show, .paint-ctx.min .ctx-min .cm-hide { display: none; }
 .paint-ctx.min .ctx-min .cm-show { display: block; }
-/* the lock: locked, the bar keeps to its place beside the picture (which
-   makes room for it) and can't be dragged; unlocked, it floats */
-.paint .ctx-lock { flex: none; width: 28px; height: 28px; border-radius: var(--r-sm); color: var(--muted); }
-@media (hover: hover) { .paint .ctx-lock:hover { color: var(--menu-link); background: var(--hover); } }
-.paint .ctx-lock svg { width: var(--icon-sm); height: var(--icon-sm); }
-/* (its icon shows which: it isn't lit like a pressed button) */
-.paint .paint-ctx .ctx-lock[aria-pressed], .paint .pc-top .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
-@media (hover: hover) { .paint .paint-ctx .ctx-lock[aria-pressed]:hover, .paint .pc-top .ctx-lock[aria-pressed]:hover { color: var(--menu-link); background: var(--hover); } }
-.ctx-lock .cl-off, .ctx-lock[aria-pressed="false"] .cl-on { display: none; }
-.ctx-lock[aria-pressed="false"] .cl-off { display: block; }
+/* (the bar keeps to its place beside the picture, which makes room for it,
+   and can't be dragged: `locked`, always) */
 .paint-ctx.locked .ctx-grip, .paint-colorpanel.locked .ctx-grip, .paint-adjust.locked .ctx-grip { cursor: default; }
 .paint-ctx.locked .ctx-grip::before, .paint-colorpanel.locked .ctx-grip::before, .paint-adjust.locked .ctx-grip::before { opacity: .2 !important; }
 .paint-ctx.locked.min .ctx-min { cursor: pointer; }
-.paint-ctx.min > :not(.ctx-min):not(.ctx-grip):not(.ctx-lock) { display: none !important; }
+.paint-ctx.min > :not(.ctx-min):not(.ctx-grip) { display: none !important; }
 .paint-ctx.min .ctx-min { cursor: grab; touch-action: none; } /* (folded, it can be dragged by its grip or by the button itself) */
 .paint-ctx.min { padding: 3px; }
 .paint .paint-ctx.min .ctx-min { width: 34px; height: 34px; color: var(--menu-link); }
@@ -1058,10 +1050,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .ctx-grip::before { content: ""; position: absolute; left: 50%; top: 7px; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px; background: var(--muted); opacity: .4; transition: opacity var(--dur) ease; }
   @media (hover: hover) { .ctx-grip:hover::before { opacity: .8; } }
   .paint .ctx-min { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; }
-  .paint .ctx-lock { position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; }
-  .paint .paint-ctx.min .ctx-lock { position: static; width: 34px; height: 26px; }
   .paint-ctx.min { width: auto; overflow: visible; }
-  /* Share the folded origin so unlocking never shifts the menu. */
   .paint-ctx.min { top: var(--s-2); right: var(--s-2); }
   .paint .paint-ctx.min .ctx-min { position: static; }
   .paint-ctx.min .ctx-grip { height: 14px; margin: 0; }
@@ -1618,7 +1607,7 @@ select.p-field {
 .paint-dock > .paint-adjust .pa-title { top: -10px; margin: -10px -10px 6px; padding: 10px 10px var(--s-2); }
 .paint-dock > .paint-adjust .pa-acts { bottom: -10px; margin: var(--s-3) -10px -10px; padding: var(--s-2) 10px 10px; }
 .paint-dock > .paint-colorpanel .pc-grab { display: none; }
-/* (its top: the tool settings' lock, grip and fold button, where theirs are) */
+/* (its top: the tool settings' grip and fold button, where theirs are) */
 .pc-top { display: none; }
 .paint-dock > .paint-colorpanel .pc-top, .paint-dock > .paint-adjust .pc-top { display: block; position: relative; height: 24px; margin: -10px -10px 2px; }
 .paint-dock > .paint-colorpanel .pc-top .ctx-grip, .paint-dock > .paint-adjust .pc-top .ctx-grip { display: block; height: 20px; margin: var(--s-1) 0 0; }
@@ -1718,7 +1707,6 @@ select.p-field {
 .paint-colorpanel, .paint-adjust { transition: opacity var(--dur) var(--ease); }
 .paint-colorpanel.busy:not(.locked), .paint-adjust.busy:not(.locked) { opacity: 0; pointer-events: none; }
 .paint-ctx.locked.busy, .paint-ctx.locked.away { opacity: 1; pointer-events: auto; }
-.paint .paint-adjust .pc-top .ctx-lock[aria-pressed] { color: var(--muted); background: none; box-shadow: none; }
 .paint-dock > .paint-adjust .pa-title { position: static; margin: 0 0 var(--s-2); padding: 0; }
 
 
