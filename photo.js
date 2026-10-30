@@ -610,7 +610,10 @@
 
   // ---- THE PANEL: the left bar's categories (Edit, Presets), each
   // filling the tool settings panel; Edit's sections fold like Effects' ----
-  var CATS = [['edit', 'Edit', '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'],
+  // (two icons are Paint's own, read from its buttons so they stay the same:
+  // Edit has the Effects button's, the panel's button the tool settings')
+  function iconOf(sel) { var s = document.querySelector(sel + ' svg'); return s ? s.innerHTML : ''; }
+  var CATS = [['edit', 'Edit', iconOf('.paint-adjust-btn')],
     ['crop', 'Crop & Straighten', '<path d="M7 3v12a2 2 0 0 0 2 2h12"/><path d="M3 7h12a2 2 0 0 1 2 2v12"/>'],
     ['masks', 'Masks', '<circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 8h6M12 12h8M12 16h6"/>'],
     ['presets', 'Presets', '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>']];
@@ -1429,7 +1432,7 @@
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Photo tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-pcat="' + c[0] + '" aria-label="' + c[1] + '" aria-pressed="false" data-tip="' + c[1] + '">' + CI(c[2]) + '</button>'; }).join('') +
       '<button type="button" data-pzoom="fit" class="pho-fit" aria-label="Fit the photo (0)" data-tip="Fit (0): the whole photo">' + CI('<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M3.5 8V5a1.5 1.5 0 0 1 1.5-1.5h3M16 3.5h3A1.5 1.5 0 0 1 20.5 5v3M20.5 16v3a1.5 1.5 0 0 1-1.5 1.5h-3M8 20.5H5A1.5 1.5 0 0 1 3.5 19v-3"/>') + '</button>' +
-      '<button type="button" class="pho-panelbtn" aria-label="Settings panel" aria-expanded="true" data-tip="Settings panel: show or hide it">' + CI('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15M16.8 9h1.5M16.8 12h1.5M16.8 15h1.5"/>') + '</button>';
+      '<button type="button" class="pho-panelbtn" aria-label="Settings panel" aria-expanded="true" data-tip="Settings panel: show or hide it">' + CI(iconOf('.paint-settings-toggle')) + '</button>';
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) {
       var b = e.target.closest('[data-pcat]'); if (b) { pickCat(b.dataset.pcat); return; }

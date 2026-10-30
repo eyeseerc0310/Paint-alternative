@@ -65,7 +65,7 @@ When building or changing anything visual:
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
-  (new/open/save/share, image, history, Smart Guides, focus, help, theme; on phones
+  (new/save/share, image, history, Smart Guides, focus, help, theme; on phones
   the extras go in its ••• menu). It starts folded to a slim strip (the
   `.hdr-fold` arrow, in the middle; no app name or mark, only a hidden
   heading for screen readers), and opens
@@ -235,6 +235,24 @@ When building or changing anything visual:
   moved as words), and the ••• menu and the panel's buttons act on them all
   (`multiOption`). New layer actions should say what they do with several
   picked: act on all of `picks()`, or be greyed out.
+- **Copying layers:** the layer menu's Copy (`copyLayers`, every picked
+  layer with several picked) keeps each as it is now, apart from it
+  (`layerClip`: its pixels, see-through and all, name, opacity, blend,
+  Alpha Lock, clipping, mask and words), until the next copy, through New
+  Picture and the gallery too; Paste (`pasteLayers`, greyed out with nothing
+  copied or no room) puts them, in order and at the same pixels, just above
+  the layer whose menu it was, in its group, as one undo step, the pasted
+  ones picked. It's the layers' own clipboard: ⌘/Ctrl+C and V stay the
+  selection's (`selClip`).
+- **Importing:** there's no Open in the top bar or the ••• menu: New
+  Picture's **Import Picture** (`.ns-import`, at the start of its buttons,
+  a row of its own on phones; `importPicker`) opens the one file picker
+  (`.paint-open input`, hidden, kept in the header), and what comes in goes
+  where Open sent it: a project file opens (`openProject`); in Paint a
+  picture goes on a new layer (`addPicture(f, 'open')`), in Vector it's
+  placed as an object (`PV.addImageFile`), in Photo it's the photo to edit
+  (`PH.openFile`, RAW, TIFF and HEIC through the decoders). Its tip says
+  which (`IMPORT_TIPS`). Photo's own Open Photo (`B.openPicker`) is the same.
 - **Brushes:** a brush is an id; `bdef(id)` gives its name, the kind it's
   made from (`base`) and its settings (`BDEF` defaults, changed by the Brush
   Studio, or a brush of your own). Check `baseOf(id)`, never the id, for how
@@ -899,9 +917,11 @@ When building or changing anything visual:
   `data-pk` sliders through `getK`/`setK`, a double-click on a name resets
   it) has the left bar's categories, Edit (sections that fold like
   Effects') and Presets. **Photo's left bar** is one column of six big
-  buttons the bar's width (`.pho-group`: the four categories, Fit and the
+  buttons the bar's width (`.pho-group`: the four categories (Edit has
+  Paint's Effects icon, read from `.paint-adjust-btn` by `iconOf`), Fit and the
   panel's toggle `.pho-panelbtn`, which presses the bottom bar's settings
-  toggle through the bridge, `settingsBtn`, and mirrors its state; sizes
+  toggle through the bridge, `settingsBtn`, and mirrors its state and its
+  icon, the panel with its rows, which is that toggle's in every mode; sizes
   `--tool-lg`, `--icon-lg`), then Undo and Redo (`.pho-hist`, Photo's own
   history, `histButtons`), then the zoom; the painting's groups, Layers and
   the bottom bar aren't shown in Photo mode (`--bbar-h` is 0 there, so the
