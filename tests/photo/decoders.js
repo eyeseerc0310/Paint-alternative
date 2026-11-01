@@ -38,7 +38,8 @@ const touch = process.argv.includes('touch');
   }
 
   // ---- PHOTO MODE: each opens as the photo ----
-  const settingsItem = async name => { await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="' + name + '"]', e => e.click()); await p.waitForTimeout(500); };
+  const settingsItem = async name => { await p.$eval('.mode-switch [data-mode="' + name + '"]', e => e.click()); // (the mode switch)
+    await p.waitForTimeout(500); };
   await settingsItem('photo');
   const S = () => p.evaluate(() => PaintPhoto.state());
   for (const f of ['scene.tif', 'scene.heic', 'scene.dng']) {

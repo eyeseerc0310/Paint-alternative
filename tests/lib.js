@@ -66,5 +66,13 @@ let fails = 0;
 const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++; };
 const done = () => { console.log(fails ? fails + ' FAILED' : 'ALL OK'); if (fails) process.exitCode = 1; };
 const fixture = (name) => path.join(__dirname, 'fixtures', name);
+// (a workspace picked as a person would: the mode switch's pill pressed
+// open, then its row; tap: with a finger)
+async function pickMode(p, m, tap) {
+  await p.$eval('.mode-switch .ms-head', e => { if (e.getAttribute('aria-expanded') !== 'true') e.click(); });
+  await p.waitForTimeout(350);
+  const sel = '.mode-switch .ms-items [data-mode="' + m + '"]';
+  if (tap) await p.tap(sel); else await p.click(sel);
+}
 
-module.exports = Object.assign(use(), { use, APP, REF, ok, done, fixture });
+module.exports = Object.assign(use(), { use, APP, REF, ok, done, fixture, pickMode });

@@ -427,10 +427,16 @@
   // (the bottom bar's one slider: how much of the preset in use, greyed out
   // with none; a drag is one step, or part of trying presets while they're
   // being tried, so Cancel and Done take it with them)
+  // (it shows only while the Presets are open, their panel showing, with a
+  // preset picked: Original, another category or the panel put away, and it
+  // fades down out of sight, its room kept so nothing moves; the preset and
+  // how much of it stay as they are)
   function amtSync() {
     if (!amtEl) return;
     var q = doc && doc.v.preset && presetOf(doc.v.preset), i = amtEl.querySelector('input'), n = q ? Math.round(amtOf(doc.v) * 100) : 100;
-    amtEl.classList.toggle('off', !q); i.disabled = !q;
+    var shown = !!q && cat === 'presets' && !(B.settingsBtn && B.settingsBtn.getAttribute('aria-expanded') !== 'true');
+    if (amtEl.classList.contains('away') === shown) { amtEl.classList.toggle('away', !shown); amtEl.setAttribute('aria-hidden', shown ? 'false' : 'true'); if (!shown && amtEl.contains(document.activeElement)) document.activeElement.blur(); }
+    amtEl.classList.toggle('off', !q); i.disabled = !q || !shown;
     if (+i.value !== n) i.value = n;
     var t = n + '%', o = amtEl.querySelector('output'), nm = amtEl.querySelector('.pho-amount-name'), name = q ? q.name : 'No preset';
     if (o.textContent !== t) o.textContent = t; if (nm.textContent !== name) nm.textContent = name;
@@ -465,7 +471,11 @@
     if (pan && window.matchMedia('(max-width: 560px)').matches && !pan.hidden && !pan.classList.contains('min') && pan.offsetParent) {
       var r = pan.getBoundingClientRect(), sr = stageEl.getBoundingClientRect(); top = Math.max(0, Math.min(H * 0.6, r.bottom - sr.top));
     }
-    var h = H - top, m = Math.min(28, Math.max(8, Math.min(W, h) * 0.04));
+    // (and clear of the mode switch over the top of the space)
+    var mf = B.modeFoot && B.modeFoot();
+    var h0 = H - top, m = Math.min(28, Math.max(8, Math.min(W, h0) * 0.04));
+    if (mf != null && !window.matchMedia('(max-width: 560px)').matches) top = Math.max(top, Math.round(mf - stageEl.getBoundingClientRect().top + 6 - m));
+    var h = H - top;
     var F = outSize(doc.v, cropping);
     return { W: W, H: h, top: top, m: m, k: Math.min((W - 2 * m) / F.w, (h - 2 * m) / F.h), F: F };
   }
@@ -1447,7 +1457,7 @@
       '<button type="button" data-pact="redo" aria-label="Redo" data-tip="Redo (Ctrl+Y)" disabled>' + CI('<path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 0 0 0 10H13"/>') + '</button>';
     B.leftViewGroup.parentNode.insertBefore(histEl, B.leftViewGroup);
     // (where the bottom bar is in Paint: the preset's amount)
-    amtEl = document.createElement('div'); amtEl.className = 'pho-amount'; amtEl.hidden = true;
+    amtEl = document.createElement('div'); amtEl.className = 'pho-amount away'; amtEl.hidden = true;
     amtEl.setAttribute('role', 'group'); amtEl.setAttribute('aria-label', 'Preset amount');
     amtEl.innerHTML = '<label class="pb-slider"><span class="pho-amount-name" data-tip="How much of the preset: 0% is the photo as you set it, 100% the whole preset. Double-click to put it back to 100%">No preset</span>' +
       '<input type="range" min="0" max="100" step="1" value="100" aria-label="Preset amount" disabled><output>100%</output></label>';
@@ -1460,7 +1470,7 @@
     });
     // (the panel's button shows whether the panel is open, as the bottom bar's did)
     if (B.settingsBtn && window.MutationObserver) {
-      var pb = groupEl.querySelector('.pho-panelbtn'), sync = function () { pb.setAttribute('aria-expanded', B.settingsBtn.getAttribute('aria-expanded') === 'true' ? 'true' : 'false'); };
+      var pb = groupEl.querySelector('.pho-panelbtn'), sync = function () { pb.setAttribute('aria-expanded', B.settingsBtn.getAttribute('aria-expanded') === 'true' ? 'true' : 'false'); amtSync(); };
       new MutationObserver(sync).observe(B.settingsBtn, { attributes: true, attributeFilter: ['aria-expanded'] }); sync();
     }
     B.ctxTool.addEventListener('click', panelClick); B.ctxTool.addEventListener('input', panelInput); B.ctxTool.addEventListener('change', panelChange);

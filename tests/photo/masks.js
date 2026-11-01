@@ -37,7 +37,7 @@ const touch = process.argv.includes('touch');
   // (a place on the photo, in fractions of it, on the screen)
   const at = async (fx, fy) => { const r = await p.$eval('.pho-cv', c => c.getBoundingClientRect().toJSON()), s = await S(); return [r.x + s.view.x + s.w * s.view.k * fx, r.y + s.view.y + s.h * s.view.k * fy]; };
 
-  await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="photo"]', e => e.click()); await p.waitForTimeout(400);
+  await p.$eval('.mode-switch [data-mode="photo"]', e => e.click()); // (the mode switch's Photo) await p.waitForTimeout(400);
   await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1000);
   await saved(); const H0 = await hash(), top0 = await lum(0.3, 0.02, 0.7, 0.12), bot0 = await lum(0.3, 0.85, 0.7, 0.98), circ0 = await sat(0.15, 0.4, 0.3, 0.6), sq0 = await sat(0.7, 0.4, 0.8, 0.6);
   await tapEl('[data-pcat="masks"]');

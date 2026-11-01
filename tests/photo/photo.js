@@ -29,7 +29,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const S = () => p.evaluate(() => PaintPhoto.state());
   const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
   const tapEl = async s => { const e = await p.$(s); await e.evaluate(el => el.scrollIntoView({ block: 'center' })); await p.waitForTimeout(60); const r = await e.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(150); };
-  const settingsItem = async name => { await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="' + name + '"]', e => e.click()); await p.waitForTimeout(400); };
+  const settingsItem = async name => { await p.$eval('.mode-switch [data-mode="' + name + '"]', e => e.click()); // (the mode switch)
+    await p.waitForTimeout(400); };
   const toastText = () => p.evaluate(() => [...document.querySelectorAll('.paint-toast, .toast, [role="status"]')].map(e => e.textContent).join(' | '));
   // (the screen, read back small: kept as the reference, or how far from it it is)
   const screen = (keep) => p.evaluate(keep => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -93,7 +94,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(bar.hist === 'undo,redo' && bar.histBelow && bar.zoomBelow && !bar.others, 'then Undo and Redo, then the zoom, nothing of the painting’s ' + JSON.stringify(bar));
   L.ok(bar.undoOff, 'with nothing to redo, Redo is greyed out (and Undo only when there’s nothing to undo)');
   L.ok(!bar.bottom && !bar.layers, 'no bottom bar and no Layers in Photo mode');
-  const room = await p.evaluate(() => { const st = document.querySelector('.paint-stage').getBoundingClientRect(), a = document.querySelector('.pho-amount').getBoundingClientRect(); return { gap: Math.round(a.top - st.bottom), h: Math.round(a.height), below: Math.round(window.innerHeight - a.bottom) }; });
+  const room = await p.evaluate(() => { const st = document.querySelector('.paint-stage').getBoundingClientRect(), ae = document.querySelector('.pho-amount'); ae.style.transition = 'none'; ae.style.transform = 'none'; const a = ae.getBoundingClientRect(); ae.style.transform = ae.style.transition = ''; return { gap: Math.round(a.top - st.bottom), h: Math.round(a.height), below: Math.round(window.innerHeight - a.bottom) }; });
   L.ok(room.gap >= 0 && room.gap <= 16 && room.h < 52 && room.below < 30, 'the photo reaches down to the slimmer amount bar where the bottom bar was ' + JSON.stringify(room));
   const pexp = () => p.$eval('.pho-panelbtn', b => b.getAttribute('aria-expanded'));
   const pOpen = () => p.$eval('.paint-ctx', e => !e.hidden && !e.classList.contains('min'));
@@ -256,8 +257,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(await p.$eval('[data-ptab="colour"]', b => b.getAttribute('aria-selected') === 'true'), 'Presets open on the tab of the preset in use');
   await tapEl('[data-pp="original"]'); await tapEl('[data-pa="pdone"]');
   const go = await S();
-  const amtOff = await p.$eval('.pho-amount', e => ({ shown: !e.hidden && !!e.offsetParent, off: e.querySelector('input').disabled, name: e.querySelector('.pho-amount-name').textContent }));
-  L.ok(amtOff.shown && amtOff.off && amtOff.name === 'No preset', 'with no preset, the amount slider is greyed out ' + JSON.stringify(amtOff));
+  const amtOff = await p.$eval('.pho-amount', e => ({ away: e.classList.contains('away'), vis: getComputedStyle(e).visibility, off: e.querySelector('input').disabled }));
+  L.ok(amtOff.away && amtOff.off, 'with no preset, the amount slider is out of sight ' + JSON.stringify(amtOff));
   L.ok(!go.v.preset && go.e.temp === 20 && go.e.exposure === 20 && go.e.vignette === -30, 'Original then Done: the preset’s part gone, everything set by hand, before and after it, kept ' + JSON.stringify({ temp: go.e.temp, ex: go.e.exposure, vg: go.e.vignette }));
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
   L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 50, 'undo puts the preset back');
@@ -267,8 +268,11 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok((await S()).v.preset === 'goldenhour' && (await S()).e.temp === 30, 'redo brings the preset again');
 
   // ---- HOW MUCH OF THE PRESET: the slider where the bottom bar was, 100% all of it, 0% none ----
-  const amt = () => p.$eval('.pho-amount', e => { const r = e.getBoundingClientRect(), st = document.querySelector('.paint-stage').getBoundingClientRect(); return { shown: !e.hidden && !!e.offsetParent, off: e.querySelector('input').disabled, v: +e.querySelector('input').value, out: e.querySelector('output').textContent, name: e.querySelector('.pho-amount-name').textContent, below: r.top >= st.bottom - 1, h: Math.round(r.height), mid: Math.round(r.x + r.width / 2 - (st.x + st.width / 2)) }; });
+  const amt = () => p.$eval('.pho-amount', e => { const r = e.getBoundingClientRect(), st = document.querySelector('.paint-stage').getBoundingClientRect(); return { shown: !e.hidden && !!e.offsetParent && !e.classList.contains('away'), off: e.querySelector('input').disabled, v: +e.querySelector('input').value, out: e.querySelector('output').textContent, name: e.querySelector('.pho-amount-name').textContent, below: r.top >= st.bottom - 1, h: Math.round(r.height), mid: Math.round(r.x + r.width / 2 - (st.x + st.width / 2)) }; });
   const setAmt = v => p.$eval('.pho-amount input', (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  // (it shows only with the Presets open and a preset picked)
+  L.ok(!(await amt()).shown && (await S()).cat === 'edit', 'with a preset in use but Edit open, the amount slider is out of sight');
+  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(450);
   const a0 = await amt();
   L.ok(a0.shown && !a0.off && a0.v === 100 && a0.out === '100%' && a0.name === 'Golden Hour' && a0.below && Math.abs(a0.mid) <= 2, 'the amount slider is under the photo, in the middle, at 100% for the preset in use ' + JSON.stringify(a0));
   L.ok(a0.h < 52, 'and slimmer than the bottom bar ' + a0.h);
@@ -278,11 +282,31 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok((await amt()).out === '0%', 'and says so');
   await setAmt(50); const z5 = await S();
   L.ok(z5.hist === ha + 2 && z5.e.temp === 15 && Math.abs(z5.e.vignette - (-30 + 7)) < 1e-9 && z5.e.exposure === 23, 'at 50%, half of each of its settings, over what was set by hand ' + JSON.stringify({ temp: z5.e.temp, vg: z5.e.vignette }));
+  await tapEl('[data-pcat="edit"]'); await p.waitForTimeout(300);
   L.ok(await p.$eval('[data-pk="temp"]', i => +i.value === 15), 'which the sliders show');
+  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(450);
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
   L.ok((await S()).v.pamt === 0 && (await amt()).v === 0, 'undo takes the amount back a step');
   await p.keyboard.press('Control+z'); await p.waitForTimeout(80);
   L.ok((await S()).v.pamt === 100 && (await S()).e.temp === 30 && (await amt()).v === 100, 'and again, to all of it');
+  // (the Presets closed: out of sight, the preset and its amount kept; open again: back)
+  await setAmt(70); await p.waitForTimeout(100);
+  await tapEl('[data-pcat="edit"]'); await p.waitForTimeout(450);
+  const awayE = await p.$eval('.pho-amount', e => ({ away: e.classList.contains('away'), vis: getComputedStyle(e).visibility, op: getComputedStyle(e).opacity }));
+  L.ok(awayE.away && awayE.vis === 'hidden' && (await S()).v.preset === 'goldenhour' && (await S()).v.pamt === 70, 'another category: the slider fades away, the preset and its 70% kept ' + JSON.stringify(awayE));
+  await tapEl('[data-pcat="presets"]'); await p.waitForTimeout(450);
+  L.ok((await amt()).shown && (await amt()).v === 70, 'the Presets again: the slider is back, at 70%');
+  await tapEl('.pho-panelbtn'); await p.waitForTimeout(450);
+  L.ok(!(await amt()).shown, 'the panel put away: out of sight');
+  await tapEl('.pho-panelbtn'); await p.waitForTimeout(450);
+  L.ok((await amt()).shown, 'the panel back: so is the slider');
+  await tapEl('[data-pp="original"]'); await p.waitForTimeout(300);
+  L.ok(!(await amt()).shown, 'Original: out of sight at once');
+  await tapEl('[data-pp="goldenhour"]'); await p.waitForTimeout(300);
+  L.ok((await amt()).shown, 'a preset again: back');
+  await tapEl('[data-pa="pcancel"]'); await p.waitForTimeout(200);
+  await p.keyboard.press('Control+z'); await p.waitForTimeout(100);
+  L.ok((await S()).v.pamt === 100, 'undo: the amount back to all of it');
   const look = await screen(true);
 
   // ---- SAVING: four formats, full or another size; a JPEG's EXIF kept, upright ----
@@ -394,7 +418,6 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   }
 
   // ---- TO PAINT: the edited photo comes across on a layer; Paint as it was ----
-  await p.evaluate(() => { try { localStorage.setItem('paint-mode-ask', 'true'); } catch (x) {} });
   await settingsItem('paint');
   const ask = await p.$('[data-vm="bring"]');
   L.ok(!!ask, 'leaving with a photo asks whether to bring it');

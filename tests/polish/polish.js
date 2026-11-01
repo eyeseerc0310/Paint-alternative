@@ -94,7 +94,8 @@ const touch = process.argv.includes('touch');
   await p.keyboard.press('Escape'); await p.waitForTimeout(250);
 
   // ---- VECTOR: Fit, 0, and the tool put down ----
-  const settings = async m => { await top('settings'); await p.evaluate(m => document.querySelector('[data-setting="' + m + '"]').click(), m); await p.waitForTimeout(600); const sw = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } };
+  const settings = async m => { await L.pickMode(p, m, touch); await p.waitForTimeout(600); // (the mode switch)
+    const sw = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } };
   await settings('vector');
   const V = () => p.evaluate(() => { const s = window.PaintVector.serialize(); return { tool: s.tool, fit: s.view.fit, lit: document.querySelectorAll('.vec-group [aria-pressed="true"]').length, cat: (document.querySelector('.vec-cat') || {}).textContent }; });
   const fb = await box('.vec-group .paint-fitbtn'), pv = await box('.pl-view');

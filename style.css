@@ -1971,30 +1971,55 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .hdr-fold > svg { position: absolute; right: 0; }
 
 
-/* ---------- PAINT OR VECTOR: the switch at the top of the picture's space,
-   and Vector mode's own workspace (vector.js). The switch is a frosted
-   capsule like the top bar's; the picked side is a segmented control's thumb ---------- */
-:root { --mode-h: 36px; }
+/* ---------- PAINT, VECTOR OR PHOTO: the mode switch. A small frosted pill
+   centred on the window, level with the top bar's strip, showing the
+   workspace in use; pressed, it moves down a touch and grows (taller, a
+   little wider, its corners a menu's) into the menu of the three, the one
+   in use ticked, and shrinks back when one's picked. Nothing round it
+   moves: it stands over the top of the picture's space ---------- */
+:root { --mode-h: 30px; --ms-w: 118px; --ms-w-open: 168px; }
 .paint-centre { position: relative; }
 .mode-switch {
-  position: absolute; left: 50%; top: var(--s-2); z-index: 5; transform: translateX(-50%);
-  display: flex; gap: 2px; height: var(--mode-h); padding: 3px; border-radius: var(--r-pill);
+  position: fixed; left: 50%; top: calc(var(--edge) + (var(--hdr-thin) - var(--mode-h)) / 2); z-index: 7;
+  display: grid; grid-template-rows: var(--mode-h) 0fr; width: var(--ms-w); transform: translateX(-50%);
+  border-radius: calc(var(--mode-h) / 2);
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-  transition: opacity var(--dur) ease, visibility 0s;
+  transition: grid-template-rows var(--dur-pop) var(--ease), width var(--dur-pop) var(--ease), transform var(--dur-pop) var(--spring),
+    border-radius var(--dur-pop) var(--ease), box-shadow var(--dur) ease, opacity var(--dur) ease, visibility 0s;
 }
 .mode-switch[hidden] { display: none; }
-.paint .mode-switch button {
-  width: auto; height: 100%; gap: 6px; padding: 0 var(--s-3) 0 10px; border-radius: var(--r-pill);
-  font-size: var(--fs-sm); font-weight: 600; color: var(--muted);
+.mode-switch.open { grid-template-rows: var(--mode-h) 1fr; width: var(--ms-w-open); transform: translate(-50%, var(--s-1)); border-radius: var(--r-menu); box-shadow: var(--shadow-pop); }
+.paint .mode-switch .ms-head {
+  width: 100%; height: var(--mode-h); gap: var(--s-1); padding: 0 10px 0 var(--s-3); border-radius: calc(var(--mode-h) / 2);
+  font-size: var(--fs-sm); font-weight: 600; color: var(--text); justify-content: center;
 }
-.paint .mode-switch button svg { width: var(--icon-sm); height: var(--icon-sm); }
-@media (hover: hover) { .paint .mode-switch button:hover { color: var(--text); background: var(--hover); } }
-.paint .mode-switch button[aria-checked="true"] { color: var(--text); background: var(--seg-on); box-shadow: var(--seg-shadow); }
+@media (hover: hover) { .paint .mode-switch:not(.open) .ms-head:hover { background: var(--hover); } }
+.paint .mode-switch.open .ms-head { background: none; transform: none; }
+.ms-cur { display: inline-flex; align-items: center; gap: 6px; }
+.paint .mode-switch .ms-cur svg { width: var(--icon-sm); height: var(--icon-sm); }
+.paint .mode-switch .ms-chev { width: var(--chev); height: var(--chev); stroke-width: var(--stroke-xs); color: var(--muted); transition: transform var(--dur-pop) var(--ease); }
+.mode-switch.open .ms-chev { transform: rotate(180deg); }
+.ms-list { min-height: 0; overflow: hidden; }
+.ms-items {
+  display: grid; gap: 2px; padding: 2px 6px 6px;
+  opacity: 0; transform: translateY(calc(-1 * var(--s-1))); transition: opacity var(--dur) ease, transform var(--dur-pop) var(--ease);
+}
+.mode-switch.open .ms-items { opacity: 1; transform: none; }
+.paint .mode-switch .ms-items button {
+  width: 100%; height: var(--row); gap: 10px; padding: 0 10px; justify-content: flex-start; border-radius: var(--r-xs);
+  font-size: var(--fs-ui); font-weight: 500; color: var(--text);
+}
+.paint .mode-switch .ms-items button:active { transform: scale(var(--press-row)); }
+@media (hover: hover) { .paint .mode-switch .ms-items button:hover { background: var(--hover); } }
+.paint .mode-switch .ms-items button svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
+.paint .mode-switch .ms-items [data-mode][hidden] { display: none; }
+.paint .mode-switch .ms-tick { margin-left: auto; opacity: 0; }
+.paint .mode-switch [aria-checked="true"] .ms-tick { opacity: 1; }
 .focus-mode .mode-switch { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
 @media (max-width: 560px) {
-  :root { --mode-h: 32px; }
-  .paint .mode-switch button { padding: 0 10px 0 var(--s-2); }
-  /* (the tool settings' strip runs along the top here: it starts under the switch) */
+  /* (a phone: over the middle of the picture's space, its tool strip under it) */
+  :root { --mode-h: 30px; }
+  .mode-switch { position: absolute; top: var(--s-2); }
   :root:has(.mode-switch:not([hidden])) .paint-ctx { top: calc(var(--s-2) + var(--mode-h) + var(--s-1)); }
 }
 
@@ -2069,6 +2094,9 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 @media (max-width: 560px) { :root.photo-mode { --bbar-h: 38px; } }
 /* (the preset's amount: its name, the slider, how much; greyed out with no preset) */
 .pho-amount[hidden] { display: none; }
+/* (out of sight but for the Presets, with one picked: it fades and slides down, its room kept) */
+.pho-amount { transition: opacity var(--dur) ease, transform var(--dur-pop) var(--ease), visibility 0s; }
+.pho-amount.away { opacity: 0; transform: translateY(var(--s-3)); visibility: hidden; pointer-events: none; transition: opacity var(--dur) ease, transform var(--dur-pop) var(--ease), visibility 0s linear var(--dur); }
 .pho-amount .pb-slider { gap: var(--s-3); }
 .pho-amount-name { min-width: 88px; max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: default; }
 .pho-amount .pb-slider input[type="range"] { width: min(280px, 42vw); }
