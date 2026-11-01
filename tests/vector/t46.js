@@ -1,31 +1,82 @@
-const V = require('./vt.js');
+// The mode switch: a small pill over the top of the picture's space (the
+// window's middle, level with the top bar's strip; on a phone, the middle of
+// the picture's space, the tool strip under it), showing the workspace in
+// use. Pressed, it moves down a touch and grows into the menu of the three,
+// the one in use ticked; a pick switches (asking first when there's art to
+// bring) and it shrinks back; a press anywhere else, or Esc, closes it with
+// nothing switched. Settings has no workspaces in it any more.
+const V = require('./vt.js'), L = require('../lib');
 (async () => {
-  for (const [vp, name] of [[{ width: 1400, height: 900 }, 'desk'], [{ width: 375, height: 812 }, 'phone']]) {
-    const H = await V.setup({ viewport: vp, hasTouch: name === 'phone', isMobile: name === 'phone' }), p = H.p, ok = V.ok;
-    ok(await p.$eval('.mode-switch', e => e.hidden && e.offsetParent === null), name + ': switch hidden');
-    // (Settings stays open in the panel after a pick that changes nothing, so open it only when it isn't)
-    const openSettings = async () => { if (await p.$('.paint-docpanel:not([hidden]) [data-setting="paint"]')) return; await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(150); };
-    await openSettings();
-    ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'false' && /Vector Mode/.test(b.textContent)), name + ': settings item, off');
-    await p.keyboard.press('Escape');
-    await H.vector();
-    ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), name + ': in vector mode');
-    ok(await p.$eval('.mode-switch', e => e.hidden), name + ': switch still hidden in vector');
+  for (const [vp, name] of [[{ width: 1400, height: 900 }, 'desk'], [{ width: 1024, height: 768 }, 'ipad'], [{ width: 375, height: 812 }, 'phone']]) {
+    const touch = name !== 'desk';
+    const H = await V.setup({ viewport: vp, hasTouch: touch, isMobile: name === 'phone' }), p = H.p, ok = V.ok;
+    const pill = () => p.evaluate(() => { const m = document.querySelector('.mode-switch'), h = m.querySelector('.ms-head'), r = m.getBoundingClientRect(), st = document.querySelector('.paint-stage').getBoundingClientRect(), fold = document.querySelector('.hdr-fold').getBoundingClientRect();
+      return { shown: !m.hidden && getComputedStyle(m).visibility !== 'hidden' && r.width > 0, open: m.classList.contains('open'), exp: h.getAttribute('aria-expanded'), text: h.textContent.trim(), chev: !!h.querySelector('.ms-chev'), x: r.left + r.width / 2, top: r.top, w: r.width, h: r.height, vw: innerWidth / 2, stageMid: st.left + st.width / 2, stageTop: st.top, foldMid: fold.top + fold.height / 2, ty: new DOMMatrix(getComputedStyle(m).transform).m42,
+        items: [...m.querySelectorAll('[data-mode]')].filter(b => !b.hidden).map(b => b.dataset.mode + (b.getAttribute('aria-checked') === 'true' ? '✓' : '')).join(','), vec: document.documentElement.classList.contains('vector-mode') }; });
+    const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
+    const press = async s => { const r = await (await p.$(s)).boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(450); };
+    let s = await pill();
+    ok(s.shown && !s.open && s.exp === 'false' && /Paint/.test(s.text) && s.chev, name + ': the pill shows Paint, with its chevron ' + JSON.stringify({ text: s.text }));
+    if (name === 'phone') ok(Math.abs(s.x - s.stageMid) <= 1, name + ': over the middle of the picture’s space ' + JSON.stringify({ x: s.x, mid: s.stageMid }));
+    else ok(Math.abs(s.x - s.vw) <= 1 && Math.abs((s.top + s.h / 2) - s.foldMid) <= 2, name + ': in the middle of the window, level with the top bar’s strip ' + JSON.stringify({ x: s.x, vw: s.vw, mid: s.top + s.h / 2, fold: s.foldMid }));
+    ok(s.h <= 32 && s.w <= 130, name + ': small ' + s.w + '×' + s.h);
+    const w0 = s.w, h0 = s.h;
+    // (Settings: no workspaces, no Ask to Bring Art)
+    await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(250);
+    ok(!(await p.$('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"], [data-setting="modeask"]')) && !!(await p.$('[data-setting="theme"]')), name + ': Settings has no workspaces and no Ask to Bring Art');
+    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+    // open: down a touch, taller and a little wider, the three, Paint ticked
+    await press('.ms-head');
+    s = await pill();
+    ok(s.open && s.exp === 'true' && s.items === 'paint✓,vector,photo', name + ': pressed, its menu: ' + s.items);
+    ok(s.ty > 0 && s.h > h0 + 60 && s.w > w0, name + ': moved down a touch, grown into the menu ' + JSON.stringify({ ty: s.ty, h: s.h, w: s.w }));
+    ok(Math.abs(s.x - (name === 'phone' ? s.stageMid : s.vw)) <= 1, name + ': still centred');
+    const chev = await p.$eval('.ms-chev', e => new DOMMatrix(getComputedStyle(e).transform).a);
+    ok(chev < -0.99, name + ': its chevron turned up');
+    if (name !== 'phone') await p.screenshot({ path: 't46-' + name + '-open.png', clip: { x: vp.width / 2 - 160, y: 0, width: 320, height: 200 } });
+    else await p.screenshot({ path: 't46-' + name + '-open.png' });
+    // a press elsewhere: closed, nothing switched
+    const st = await (await p.$('.paint-stage')).boundingBox();
+    await tapAt(st.x + st.width - 30, st.y + st.height - 30); await p.waitForTimeout(450);
+    s = await pill();
+    ok(!s.open && !s.vec && Math.abs(s.h - h0) <= 1, name + ': a press elsewhere closes it, still Paint');
+    // Paint again: nothing happens
+    await press('.ms-head'); await press('.ms-items [data-mode="paint"]');
+    s = await pill(); ok(!s.open && !s.vec && !(await p.$('.paint-docpanel:not([hidden]) .vm')), name + ': Paint picked again: closed, nothing switched');
+    // Vector: blank painting, so no question
+    await L.pickMode(p, 'vector', touch); await p.waitForTimeout(600);
+    s = await pill();
+    ok(s.vec && !s.open && /Vector/.test(s.text) && s.items === 'paint,vector✓,photo', name + ': Vector picked: switched, the pill says Vector, ticked in the menu');
+    // (the artboard is fitted clear of the pill)
+    const ab = await p.evaluate(() => { const b = document.querySelector('.vec-board').getBoundingClientRect(), m = document.querySelector('.mode-switch').getBoundingClientRect(); return { b: b.top, m: m.bottom }; });
+    if (name !== 'phone') ok(ab.b >= ab.m, name + ': the artboard clear of the pill ' + JSON.stringify(ab));
     await H.tool('rect'); const bw = await p.evaluate(() => window.PaintVector.serialize().w); await H.drag([bw * 0.2, 300], [bw * 0.6, 450]);
-    await openSettings();
-    ok(await p.$eval('[data-setting="vector"]', b => b.getAttribute('aria-checked') === 'true' && b.textContent.includes('✓')), name + ': settings item, on');
-    ok(await p.$$eval('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"]', bs => bs.map(b => b.textContent.replace('✓', '').trim()).join('|')) === 'Paint Mode|Vector Mode|Photo Mode', name + ': the three modes, no preview labels');
-    ok(await p.$eval('[data-setting="paint"]', b => b.getAttribute('aria-checked') === 'false'), name + ': only the one in use ticked');
-    await p.click('[data-setting="vector"]'); await p.waitForTimeout(300);
-    ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), name + ': the one in use again changes nothing');
-    await openSettings();
-    await p.click('[data-setting="paint"]'); await p.waitForTimeout(300);
-    const sheet = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sheet) { await sheet.click(); await p.waitForTimeout(300); }
-    ok(await p.evaluate(() => !document.documentElement.classList.contains('vector-mode')), name + ': back to paint');
-    ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': vector art kept');
-    if (name === 'phone') ok(await p.$eval('.paint-ctx', c => getComputedStyle(c).top) === '6px', 'phone strip at the top: ' + await p.$eval('.paint-ctx', c => getComputedStyle(c).top));
+    // Paint: Vector has art, so it asks
+    await L.pickMode(p, 'paint', touch); await p.waitForTimeout(500);
+    ok(!!(await p.$('.paint-docpanel:not([hidden]) .vm [data-vm="bring"]')), name + ': leaving art behind asks first');
+    await press('.paint-docpanel:not([hidden]) [data-vm="switch"]');
+    s = await pill();
+    ok(!s.vec && /Paint/.test(s.text), name + ': Switch Without Copying: Paint, the pill says so');
+    ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': the vector art kept');
+    // the keyboard: Esc closes, the focus back on the pill
+    if (!touch) {
+      await p.focus('.ms-head'); await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+      ok((await pill()).open, name + ': Return on the pill opens it');
+      await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+      ok(!(await pill()).open && await p.evaluate(() => document.activeElement.classList.contains('ms-head')), name + ': Esc closes it, the focus on the pill');
+    }
+    // (the dock folded: the pill doesn't move)
+    if (name !== 'phone') {
+      const x0 = (await pill()).x;
+      await p.evaluate(() => { const m = document.querySelector('.paint-ctx .ctx-min'); if (m) m.click(); }); await p.waitForTimeout(600);
+      ok(Math.abs((await pill()).x - x0) <= 1, name + ': the tool settings folded away: the pill stays where it is');
+      await p.evaluate(() => { const m = document.querySelector('.paint-ctx .ctx-min'); if (m) m.click(); }); await p.waitForTimeout(400);
+    }
+    if (name === 'phone') {
+      const top = await p.$eval('.paint-ctx', c => parseFloat(getComputedStyle(c).top)), m = await p.$eval('.mode-switch', e => e.getBoundingClientRect().bottom - document.querySelector('.paint-stage').getBoundingClientRect().top);
+      ok(top >= m, 'phone: the tool strip starts under the pill ' + JSON.stringify({ top, m }));
+    }
     await p.screenshot({ path: 't46-' + name + '.png' });
-    await openSettings(); await p.screenshot({ path: 't46-' + name + '-settings.png' });
     ok(!H.errs.length, name + ': no errors ' + H.errs.join('\n'));
     await H.b.close();
   }

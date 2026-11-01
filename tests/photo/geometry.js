@@ -46,7 +46,7 @@ const touch = process.argv.includes('touch');
   // the crop on the screen
   const cropBox = () => p.$eval('.pho-crop', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, shown: !e.hidden }; });
 
-  await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="photo"]', e => e.click()); await p.waitForTimeout(400);
+  await p.$eval('.mode-switch [data-mode="photo"]', e => e.click()); // (the mode switch's Photo) await p.waitForTimeout(400);
   await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1000);
   L.ok((await S()).w === 600, 'the photo is open');
   await screen(true);

@@ -1680,7 +1680,7 @@
   function fitView() {
     var sw = stageEl.clientWidth, sh = stageEl.clientHeight; if (!sw || !sh || !doc) return;
     fitM = fitT = B.phone() ? 10 : 34;
-    var me = B.modeEl; if (me && me.offsetParent) fitT = Math.max(fitM, me.getBoundingClientRect().bottom - stageEl.getBoundingClientRect().top + 8);
+    var me = B.modeEl; if (me && !me.hidden && me.getClientRects().length && getComputedStyle(me).visibility !== 'hidden') fitT = Math.max(fitM, me.getBoundingClientRect().bottom - stageEl.getBoundingClientRect().top + 8);
     var A = AB(); fitK = Math.max(0.01, Math.min((sw - 2 * fitM) / A.w, (sh - fitT - fitM) / A.h));
   }
   function fit() {

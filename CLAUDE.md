@@ -34,7 +34,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the Paint / Vector switch's height; the phone's tool settings strip starts under it), `--ruler` (Vector's rulers).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the mode switch's pill; the phone's tool settings strip starts under it), `--ms-w` and `--ms-w-open` (the pill's width, closed and open), `--ruler` (Vector's rulers).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -318,7 +318,7 @@ When building or changing anything visual:
   else that happens ends the spread (`endFillAnim`).
 - **The top bar's panel** (`.paint-docpanel`, `docBox`): everything the
   top bar opens (Gallery, Save, Crop & Rotate, History, Settings, Keyboard
-  Shortcuts, and Touch Gestures and Vector's mode dialog from Settings) is
+  Shortcuts, Touch Gestures from Settings, and the mode switch's question) is
   shown in it, never as a drop-down or a sheet over a dimmed page; only Share
   asks the system, and **New Picture** (in every workspace) is a sheet of its
   own in the middle of the window over the blurred `--scrim`
@@ -345,7 +345,7 @@ When building or changing anything visual:
   next: its buttons and the picture's size are made again in place
   (`imageFill`, also after every undo and redo, from `buttons()`), the
   pressed button keeping the focus. Settings' items are Title Case, short
-  enough for one line at the dock's width (Shortcuts, Ask to Bring Art).
+  enough for one line at the dock's width (Shortcuts, Touch Gestures).
   `relayout()` keeps everything that floats on the screen when the window
   changes size; Esc closes the top-most thing first.
 - **Input:** mouse, finger, Apple Pencil and keyboard share the stage's
@@ -658,18 +658,25 @@ When building or changing anything visual:
   back, or, if it was picked up already, the geometry and pixels as they
   were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
-  **They're reached from Settings: Paint mode, Vector mode and Photo mode**
-  (`data-setting` the mode, `menuitemradio`s, the one in use ticked; picking
-  it again does nothing): the switch
-  (`.mode-switch`, a radio group in a frosted capsule at the top middle of
-  `.paint-centre`, over the picture's space; picked side `--seg-on`) is kept
-  but hidden (`modeEl.hidden`), and the phone's tool strip only steps down
-  for it while it shows; the help sheet lists Vector's keys only in Vector
-  mode. Either way in calls `askMode(m)`: when the side being left has art (`thumbOf().blank`,
-  `PV.isEmpty()`) and `modeAsk` is on (`paint-mode-ask`; the dialog's
-  Don't ask again, and Settings' Ask to bring artwork across), a sheet
-  offers Cancel, Switch Without Copying and Bring Artwork; otherwise it
-  switches with no copy. `setMode(m, bring)` does the switch (`wsMode`,
+  **They're switched from the mode switch** (`.mode-switch`, nothing in
+  Settings): a small frosted pill (`--mode-h` high, `--ms-w` wide) in the
+  middle of the window, level with the top bar's strip (`position: fixed`,
+  so the dock folding or panels opening never move it; on phones over the
+  middle of the picture's space, the tool strip under it), over the top of
+  the picture's space, showing the workspace in use (`.ms-head`: its icon,
+  name and the chevron). Pressed (`modeMenu`), it moves down `--s-1` and
+  grows (`grid-template-rows` and `--ms-w-open`, its corners `--r-menu`)
+  into the menu of the three (`.ms-items`, `menuitemradio`s `[data-mode]`,
+  the one in use ticked, `.ms-tick`), its chevron turned up; a pick, Esc, a
+  press anywhere else (capture `pointerdown`) or `closeDrops` shrinks it
+  back; the arrows, Home and End go round it. The one in use again does
+  nothing; another goes through `askMode(m)`, which always asks when the
+  side being left has art (`thumbOf().blank`, `PV.isEmpty()`; there's no
+  Don't ask again and no setting for it): a sheet offers Cancel, Switch
+  Without Copying and Bring Artwork; with nothing to bring it just
+  switches. Vector's and Photo's fits keep the art clear of the pill
+  (`fitT`, and `top` in Photo's `free`); the help sheet lists Vector's keys
+  only in Vector mode. `setMode(m, bring)` does the switch (`wsMode`,
   `vector-mode` on `:root`, `modeSync`). The painting is only hidden in
   Vector mode, never changed: the words being typed and Effects are
   finished first, a selection, path or gradient stays open. Bring to
@@ -876,8 +883,8 @@ When building or changing anything visual:
   by `sBoards`, `sGuides`, `sPat` (before the layers, so fills can name
   them, `patIds`), `sFx`, `sRep`, and `sPaint` for patterns.
 - **Photo mode** (`photo.js`, `window.PaintPhoto`, `PH` in `paint.js`) is the
-  third workspace, reached from Settings' Photo mode
-  (`data-setting="photo"`; `photo-mode` on `:root`; `setMode`/`askMode` take
+  third workspace, reached from the mode switch
+  (`photo-mode` on `:root`; `setMode`/`askMode` take
   `paint`, `vector` or `photo`, `MODE_NAME`, `modeOk`, `sideHas`). The photo as
   it came is never changed: `doc.blob` is the file (kept in the autosave and,
   as a data URL, in the project file, `photoFrom`), `doc.v` the settings
@@ -954,7 +961,11 @@ When building or changing anything visual:
   the slider in a slimmer bar where Paint's bottom bar is (`.pho-amount`,
   sharing `.paint-bottom`'s look and `.pb-slider`; `--bbar-h` is its
   height in Photo mode), the preset's name, the slider, the percentage,
-  greyed out with no preset (`amtSync`, from `draw`). `pAt(v)` gives the
+  greyed out with no preset (`amtSync`, from `draw` and the panel's toggle).
+  It shows only while the Presets are open, their panel showing, with a
+  preset picked: Original, another category (Done goes back to Edit) or the
+  panel put away and it fades and slides down out of sight (`.away`), its
+  room kept so nothing moves, the preset and its amount kept. `pAt(v)` gives the
   preset scaled by it (each slider's offset, its curve's and channels'
   points from the straight line, its mixer and grading, its matrix from
   none, its black and white mix through `u_monoA`), which `eff`, `offOf`

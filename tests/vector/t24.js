@@ -1,3 +1,4 @@
+const L = require('../lib');
 const V = require('./vt.js'), D = '', fs = require('fs');
 (async () => {
   const H = await V.setup({ showSwitch: true }), p = H.p, ok = V.ok;
@@ -58,7 +59,7 @@ const V = require('./vt.js'), D = '', fs = require('fs');
   const canon = v => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, q) => (o[q] = x[q], o), {}) : x);
   ok(canon(before.layers) === canon(after.layers), 'reload: every layer, group and path back exactly');
   // TO PAINT: bring the art across
-  await p.click('[data-mode="paint"]'); await p.waitForTimeout(300); await p.click('[data-vm="bring"]'); await p.waitForTimeout(800);
+  await L.pickMode(p, 'paint'); await p.waitForTimeout(300); await p.click('[data-vm="bring"]'); await p.waitForTimeout(800);
   const px = await p.evaluate(() => { const cs = document.querySelectorAll('.paint-layers canvas'), c = cs[cs.length - 1], k = c.width / window.PaintVector.serialize().w; const d = c.getContext('2d').getImageData(Math.round(100 * k), Math.round(175 * k), 1, 1).data; return Array.from(d); });
   ok(px[3] > 200 && px[0] < 80, 'brought to Paint: the rectangle’s left edge is there (' + px + ')');
   console.log('errors', H.errs); V.done(); await H.b.close();

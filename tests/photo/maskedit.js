@@ -41,7 +41,7 @@ const touch = process.argv.includes('touch');
     res({ r: r / n, g: g / n, b: bl / n, l: (r * 0.3 + g * 0.59 + bl * 0.11) / n, w: c.width });
   }))), [x0, y0, x1, y1]);
 
-  await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="photo"]', e => e.click()); await p.waitForTimeout(400);
+  await p.$eval('.mode-switch [data-mode="photo"]', e => e.click()); // (the mode switch's Photo) await p.waitForTimeout(400);
   await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1000);
   const sky0 = await box(0.45, 0.85, 0.6, 0.95), top0 = await box(0.45, 0.05, 0.6, 0.15), full = sky0.w;
 

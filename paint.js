@@ -128,7 +128,7 @@
     // undo, the two colours, redo and opacity; the dock: the tool options)
     var left = $('.paint-left'), bbar = $('.paint-bottom'), dock = $('.paint-dock'), paintEl = root.querySelector('.paint') || root;
     // (Paint or Vector: which workspace shows; see PAINT AND VECTOR, near the end)
-    var PV = window.PaintVector || null, PH = window.PaintPhoto || null, modeEl = $('.mode-switch'), wsMode = 'paint', modeAsk = stored('paint-mode-ask', true);
+    var PV = window.PaintVector || null, PH = window.PaintPhoto || null, modeEl = $('.mode-switch'), wsMode = 'paint';
     if (!modeEl) PV = null;
 
     // ---- a little label beside the mouse saying what each tool does ----
@@ -8392,6 +8392,7 @@
       // buttons open stands in the panel)
       if (moreBox && !moreBox.hidden) { moreBox.hidden = true; any = true; }
       if (hb('more')) hb('more').setAttribute('aria-expanded', 'false');
+      if (typeof modeMenu === 'function' && modeMenu(false)) any = true; // (and the mode switch's menu)
       return any;
     }
 
@@ -8668,11 +8669,7 @@
       closeDrops(); otherPopovers();
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch Gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
-        (PV ? ['paint', 'vector', 'photo'].filter(modeOk).map(function (m) {
-          // (the workspaces, one of them ticked: the one in use)
-          return '<button type="button" role="menuitemradio" aria-checked="' + (wsMode === m) + '" data-setting="' + m + '">' + modeEl.querySelector('[data-mode="' + m + '"] svg').outerHTML + MODE_NAME[m] + ' Mode<span class="settings-check" aria-hidden="true">' + (wsMode === m ? '✓' : '') + '</span></button>';
-        }).join('') +
-          '<button type="button" role="menuitemcheckbox" aria-checked="' + modeAsk + '" data-setting="modeask"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.5"/><rect x="13.5" y="5" width="7" height="14" rx="1.5"/><path d="M8.5 12h7M13 9.5l2.5 2.5-2.5 2.5"/></svg>Ask to Bring Art<span class="settings-check" aria-hidden="true">' + (modeAsk ? '✓' : '') + '</span></button>' : '');
+        ''; // (the workspaces are switched from the pill over the picture, .mode-switch)
       docShow('settings', 'Settings', settingsBox, { btn: hb('settings'), reopen: settingsAgain });
     }
     function settingsAgain() { settingsMenu(true); }
@@ -8695,8 +8692,6 @@
       if (k === 'theme') { header.querySelector('.theme-toggle').click(); again(); }
       else if (k === 'gestures') { sheetBack = settingsAgain; gestureSheet(); }
       else if (k === 'flip') { flipUI(); again(); }
-      else if (/^(paint|vector|photo)$/.test(k)) { sheetBack = settingsAgain; askMode(k); sheetBack = null; again(); }
-      else if (k === 'modeask') { modeAsk = !modeAsk; storeIt('paint-mode-ask', modeAsk); toast(modeAsk ? 'Switching between Paint and Vector asks whether to bring a copy of the artwork' : 'Switching between Paint and Vector won\u2019t copy anything across'); again(); }
       else { sheetBack = settingsAgain; helpSheet(); }
     });
     // FOCUS MODE: just the picture. The bars fade away and the picture gets
@@ -9801,7 +9796,7 @@
     });
     if (PH) PH.init({
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'), settingsBtn: settingsToggle,
-      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast,
+      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       openPicker: importPicker,
@@ -9812,7 +9807,11 @@
       var vec = wsMode === 'vector', pho = wsMode === 'photo';
       document.documentElement.classList.toggle('vector-mode', vec);
       document.documentElement.classList.toggle('photo-mode', pho);
-      Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.tabIndex = b.dataset.mode === wsMode ? 0 : -1; });
+      Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.hidden = !modeOk(b.dataset.mode); });
+      // (the pill: the one in use, its icon and name)
+      var cur = modeEl.querySelector('[data-mode="' + wsMode + '"]'), head = modeEl.querySelector('.ms-head');
+      head.querySelector('.ms-cur').innerHTML = cur.querySelector('svg').outerHTML + '<span>' + MODE_NAME[wsMode] + '</span>';
+      head.setAttribute('aria-label', 'Workspace: ' + MODE_NAME[wsMode]);
       // (what's only the painting's is greyed out, so nothing moves)
       ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec || pho; });
       $('[data-act="layers"]').disabled = pho; // (a photo has no layers)
@@ -9884,29 +9883,56 @@
     function sideHas(m) { return m === 'paint' ? !thumbOf().blank : m === 'vector' ? !PV.isEmpty() : !PH.isEmpty(); }
     function askMode(m) {
       if (!modeOk(m) || m === wsMode || sheetEl || ctrEl) return;
-      if (!modeAsk || !sideHas(wsMode)) { setMode(m, false); return; }
+      if (!sideHas(wsMode)) { setMode(m, false); return; } // (nothing to bring: no question)
       var what = { paint: 'painting', vector: 'vector artwork', photo: 'edited photo' }[wsMode];
       var into = m === 'paint' ? 'It comes in as paint on a new layer.' : m === 'vector' ? 'It comes in as a picture on a layer of its own, to trace over.' : 'It becomes the photo being edited (undo brings the last one back).';
       var box = openSheet('vm', '<div class="pa-sheet-title">Switch to ' + MODE_NAME[m] + '</div>' +
         '<p class="vm-text">Bring a copy of your ' + what + ' into ' + MODE_NAME[m] + ' mode? ' + into + ' Your ' + what + ' itself stays just as it is.</p>' +
-        '<label class="vm-ask"><input type="checkbox" data-vm-ask> Don’t ask again <small>(Settings can turn it back on)</small></label>' +
         '<div class="pa-sheet-acts"><button type="button" data-vm="cancel">Cancel</button><button type="button" data-vm="switch">Switch Without Copying</button><button type="button" class="pa-primary" data-vm="bring">Bring ' + (wsMode === 'photo' ? 'Photo' : 'Artwork') + '</button></div>');
       box.addEventListener('click', function (e) {
         var b = e.target.closest('[data-vm]'); if (!b) return;
         var w = b.dataset.vm;
-        if (w !== 'cancel' && box.querySelector('[data-vm-ask]').checked) { modeAsk = false; storeIt('paint-mode-ask', false); }
         closeSheet();
         if (w !== 'cancel') setMode(m, w === 'bring');
       });
     }
-    if (PV) modeEl.addEventListener('click', function (e) { var b = e.target.closest('[data-mode]'); if (b) askMode(b.dataset.mode); });
-    // (a radio group: the arrow keys go round the workspaces there are)
-    if (PV) modeEl.addEventListener('keydown', function (e) {
-      if (!/^Arrow(Left|Right|Up|Down)$/.test(e.key)) return;
-      e.preventDefault(); e.stopPropagation();
-      var ms = ['paint', 'vector', 'photo'].filter(modeOk), d = /Right|Down/.test(e.key) ? 1 : ms.length - 1, to = ms[(ms.indexOf(wsMode) + d) % ms.length];
-      var tb = modeEl.querySelector('[data-mode="' + to + '"]'); if (tb) tb.focus(); askMode(to);
-    });
+    // THE MODE SWITCH: a small pill over the top of the picture's space
+    // showing the workspace in use; pressed, it moves down a touch and grows
+    // into the menu of the three (the one in use ticked), and shrinks back
+    // when one's picked, Esc, or a press anywhere else. Another one goes
+    // through askMode, so leaving art behind always asks first
+    function modeMenu(open, focusIn) {
+      if (!modeEl) return false;
+      var was = modeEl.classList.contains('open'); if (open === was) return false;
+      if (open) { closeDrops(); otherPopovers(); hideTip(); }
+      modeEl.classList.toggle('open', open);
+      modeEl.querySelector('.ms-head').setAttribute('aria-expanded', open ? 'true' : 'false');
+      var items = modeEl.querySelectorAll('[data-mode]');
+      Array.prototype.forEach.call(items, function (b) { b.tabIndex = open ? 0 : -1; });
+      if (open && focusIn) { var c = modeEl.querySelector('[data-mode][aria-checked="true"]'); if (c) c.focus({ preventScroll: true }); }
+      if (!open && modeEl.contains(document.activeElement)) modeEl.querySelector('.ms-head').focus({ preventScroll: true });
+      return true;
+    }
+    if (PV) {
+      modeEl.addEventListener('click', function (e) {
+        if (e.target.closest('.ms-head')) { modeMenu(!modeEl.classList.contains('open'), e.detail === 0); return; }
+        var b = e.target.closest('[data-mode]'); if (!b) return;
+        modeMenu(false);
+        if (b.dataset.mode !== wsMode) askMode(b.dataset.mode);
+      });
+      modeEl.addEventListener('keydown', function (e) {
+        var open = modeEl.classList.contains('open');
+        if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); modeMenu(false); return; }
+        if (!/^Arrow(Up|Down)$/.test(e.key) && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault(); e.stopPropagation();
+        if (!open) { modeMenu(true, true); return; }
+        var its = Array.prototype.filter.call(modeEl.querySelectorAll('[data-mode]'), function (b) { return !b.hidden; }), i = its.indexOf(document.activeElement);
+        var to = e.key === 'Home' ? 0 : e.key === 'End' ? its.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : its.length - 1)) % its.length;
+        its[to].focus();
+      });
+      modeEl.addEventListener('focusout', function (e) { if (!modeEl.contains(e.relatedTarget) && e.relatedTarget) modeMenu(false); });
+      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.mode-switch')) modeMenu(false); }, true);
+    }
     // (a kept drawing's Vector and Photo sides, and which was showing)
     function vecLoad(v, m, ph) {
       if (PV) PV.load(v || null);
@@ -9915,9 +9941,7 @@
       if (want !== wsMode) setMode(want, false); else if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); }
       else if (wsMode === 'photo') phGo.then(function () { if (wsMode === 'photo') { PH.enter(null); ctxFor = null; ctxRender(); } });
     }
-    // (while Vector mode is still being made, the switch stays out of sight:
-    // Settings' Paint, Vector and Photo mode goes in and out)
-    if (PV) modeSync(); if (modeEl) modeEl.hidden = true;
+    if (PV) modeSync(); else if (modeEl) modeEl.hidden = true;
 
     setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first

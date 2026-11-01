@@ -13,7 +13,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); 
   await touch('touchStart', [[wr[0] + 100, wr[1] + 100]]); await wait(200);
   for (let i = 1; i <= 10; i++) { await touch('touchMove', [[wr[0] + 100 + i * 30, wr[1] + 100 + i * 15]]); await wait(16); }
   await touch('touchEnd', []); await wait(300);
-  await p.tap('[data-mode="vector"]'); await wait(400); await p.tap('[data-vm="bring"]'); await wait(800);
+  await L.pickMode(p, 'vector', true); await wait(400); await p.tap('[data-vm="bring"]'); await wait(800);
   const ser = async () => JSON.parse(await p.evaluate(() => JSON.stringify(window.PaintVector.serialize())));
   let s = await ser(); const k0 = s.view.k;
   // tap empty board area? the picture covers the artboard. Tap outside board to deselect
@@ -46,7 +46,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); 
   await p.tap('.paint-zoom-val'); await wait(200);
   ok((await p.$eval('.paint-zoom-val', e => e.textContent)) === '100%', 'Fit from the zoom');
   // paint still has its stroke & tool
-  await p.tap('[data-mode="paint"]'); await wait(300); await p.tap('[data-vm="switch"]'); await wait(400);
+  await L.pickMode(p, 'paint', true); await wait(300); await p.tap('[data-vm="switch"]'); await wait(400);
   const n = await p.$$eval('.paint-layers canvas', l => l.length);
   ok(n === 1, 'paint has its one layer still');
   console.log('errors', errs); console.log(fails ? fails + ' FAILED' : 'ALL OK');

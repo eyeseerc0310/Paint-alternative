@@ -11,14 +11,14 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: VW, height: VH }, hasTouch: touch, colorScheme: theme });
-  await ctx.addInitScript(() => { try { localStorage.setItem('paint-mode-ask', 'false'); } catch (e) {} });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://127.0.0.1:8123/index.html'); await p.waitForTimeout(900);
   await p.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
   const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
   const tapEl = async s => { const e = typeof s === 'string' ? await p.$(s) : s; await e.evaluate(el => el.scrollIntoView({ block: 'nearest' })); const r = await e.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(250); };
-  const settingsItem = async name => { await p.$eval('[data-hb="settings"]', e => e.click()); await p.waitForTimeout(250); await p.$eval('[data-setting="' + name + '"]', e => e.click()); await p.waitForTimeout(600); };
+  const settingsItem = async name => { await L.pickMode(p, name, touch); await p.waitForTimeout(500); const sw = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } // (the mode switch; art left behind: switched without copying)
+    await p.waitForTimeout(600); };
   const count = () => p.$$eval('.paint-layers canvas', l => l.length);
   const at = async (fx, fy) => p.evaluate(([fx, fy]) => { const w = document.querySelector('.paint-world').getBoundingClientRect(); return [w.left + w.width * fx, w.top + w.height * fy]; }, [fx, fy]);
   // (a layer's pixels, summed, and how it's shown)
