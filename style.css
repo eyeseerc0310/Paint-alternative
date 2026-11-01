@@ -2029,18 +2029,13 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vs-wpt.on { fill: var(--edit); }
 .vector-mode .paint-stage > :not(.vec-stage) { visibility: hidden !important; }
 .vector-mode .paint-stage { cursor: default; }
-/* (the left bar: Vector's categories stand where the painting's tools were,
-   over the same room, so the bar keeps its size) */
+/* (the left bar: Vector's categories, and Fit, take the painting's tools'
+   place, in the flow, so Layers and the zoom come right after their eight
+   rows, however many the painting's have) */
 .vec-group[hidden] { display: none; }
-.vector-mode .paint-left .paint-toolgroups { position: relative; }
-.vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { visibility: hidden; }
-.paint-left .paint-toolgroups > .vec-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
+.vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { display: none; }
+.paint-left .paint-toolgroups > .vec-group { padding-top: 0; }
 .paint-left .paint-toolgroups > .vec-group::before { display: none; }
-/* (Vector's fourteen categories and Fit are eight rows: where Paint's seven,
-   in four groups, are shorter than that, Layers and the zoom step down just
-   enough, worked out from the same sizes: 8 rows and 7 gaps of 3px, against
-   7 rows, 3 gaps of 3px and three groups' gaps and padding) */
-.vector-mode .paint-left .pl-view { margin-top: max(0px, calc(var(--tool-h) + 12px - 6 * var(--group-gap))); }
 /* (what's only the painting's: out of sight, or greyed out where hiding it
    would move something) */
 .vector-mode .selection-slot, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),

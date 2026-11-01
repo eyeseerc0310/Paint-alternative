@@ -52,9 +52,9 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await p.keyboard.press('r'); L.ok(await tool() === 'shape' && !!(await p.$('.paint-ctx [data-ctx-shape]')), 'R still picks Shapes, its kinds in the tool panel');
   await p.keyboard.press('l'); L.ok(await tool() === 'line', 'and L the line');
   await p.keyboard.press('b');
-  const w0 = await at(0.15, 0.15), cur = await (await p.$('.paint-current')).boundingBox();
+  const w0 = await at(0.15, 0.85), cur = await (await p.$('.paint-current')).boundingBox();
   if (!touch) { await p.mouse.move(cur.x + cur.width / 2, cur.y + cur.height / 2); await p.mouse.down(); await p.mouse.move(...w0, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(900);
-    L.ok((await px(0.15, 0.15, 0))[0] < 60, 'the colour dragged onto the picture still fills it ' + (await px(0.15, 0.15, 0)).join(',')); await p.keyboard.press((process.platform === 'darwin' ? 'Meta' : 'Control') + '+z'); await p.waitForTimeout(300); }
+    L.ok((await px(0.15, 0.85, 0))[0] < 60, 'the colour dragged onto the picture still fills it ' + (await px(0.15, 0.85, 0)).join(',')); await p.keyboard.press((process.platform === 'darwin' ? 'Meta' : 'Control') + '+z'); await p.waitForTimeout(300); }
 
   // ---- 2. MOVE, IN THE SELECT PANEL ----
   // (a stroke on a layer of its own, to move)
