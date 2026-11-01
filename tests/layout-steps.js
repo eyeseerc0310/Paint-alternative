@@ -11,7 +11,7 @@ const STEPS = {
   effects: async p => { await clickT(p, '[data-act="adjust"]'); return '.paint-adjust'; },
   layers: async p => { await clickT(p, '.pl-layersbtn'); return '.paint-layerpanel'; },
   layermenu: async p => { await clickT(p, '.pl-layersbtn'); await p.waitForTimeout(300); await clickT(p, '.pl-row .pl-more'); return '.paint-lmenu'; },
-  shapes: async p => { await clickT(p, '.paint-shapebtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
+  shapes: async p => { await p.keyboard.press('r'); return '.paint-drop:not([hidden]), .paint-ctx'; }, // (no button: R)
   select: async p => { await clickT(p, '.paint-selbtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
   blend: async p => { await clickT(p, '.paint-blendbtn'); return '.paint-drop:not([hidden]), .paint-ctx'; },
   sym: async p => { await clickT(p, '.paint-mirror'); return '.paint-drop:not([hidden]), .paint-ctx'; },
@@ -19,9 +19,9 @@ const STEPS = {
   font: async p => { await clickT(p, '[data-tool="text"]'); await p.waitForTimeout(300); await p.evaluate(() => { const b = [...document.querySelectorAll('.paint-ctx [aria-haspopup]')].find(b => b.offsetParent); b && b.click(); }); return '.paint-fontmenu, .ctx-list, .paint-ctx'; },
   gradient: async p => { await clickT(p, '[data-tool="gradient"]'); return '.paint-ctx'; },
   eraser: async p => { await clickT(p, '[data-tool="eraser"]'); return '.paint-ctx'; },
-  fill: async p => { await clickT(p, '[data-tool="fill"]'); return '.paint-ctx'; },
+  fill: async p => { await p.keyboard.press('f'); return '.paint-ctx'; }, // (no button: F)
   pen: async p => { await clickT(p, '[data-tool="pen"]'); return '.paint-ctx'; },
-  move: async p => { await clickT(p, '[data-tool="move"]'); return '.paint-ctx'; },
+  move: async p => { await p.keyboard.press('v'); return '.paint-ctx'; }, // (in the Select panel, and V)
   settings: async p => { await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); return '.paint-drop:not([hidden])'; },
   history: async p => { await p.evaluate(() => document.querySelector('[data-hb="history"]').click()); return '.paint-drop:not([hidden])'; },
   image: async p => { await p.evaluate(() => document.querySelector('[data-hb="image"]').click()); return '.paint-drop:not([hidden])'; },

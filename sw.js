@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-share-in-save-20261030';
-var SHELL = ['./', 'index.html', 'style.css?v=share-in-save-20261030', 'fx-shared.js?v=share-in-save-20261030', 'decoders.js?v=share-in-save-20261030', 'photo-presets.js?v=share-in-save-20261030', 'photo.js?v=share-in-save-20261030', 'vector.js?v=share-in-save-20261030', 'paint.js?v=share-in-save-20261030', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-toolbar-20261101';
+var SHELL = ['./', 'index.html', 'style.css?v=toolbar-20261101', 'fx-shared.js?v=toolbar-20261101', 'decoders.js?v=toolbar-20261101', 'photo-presets.js?v=toolbar-20261101', 'photo.js?v=toolbar-20261101', 'vector.js?v=toolbar-20261101', 'paint.js?v=toolbar-20261101', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

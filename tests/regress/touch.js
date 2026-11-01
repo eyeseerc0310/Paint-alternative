@@ -44,7 +44,7 @@ const { chromium } = require('../lib').use({ hdrOpen: true, swatches: true });
   await T('touchEnd', []); await p.waitForTimeout(100);
   console.log('twisted back near upright -> snaps:', await view());
   // fill with a finger, then two-finger tap: undo removes the fill only once
-  await p.click('[data-tool="fill"]'); await p.click('.paint-swatches button:nth-child(4)');
+  await p.keyboard.press('f'); await p.click('.paint-swatches button:nth-child(4)'); // (the fill tool has no button: F)
   await T('touchStart', [[cx + 200, cy - 200]]); await T('touchEnd', []); await p.waitForTimeout(100);
   const filled = await p.evaluate(() => { const c = document.querySelector('.paint-layers canvas'); return Array.from(c.getContext('2d').getImageData(5, 5, 1, 1).data).slice(0, 3).join(','); });
   await T('touchStart', [[cx + 200, cy - 200, 0]]); await T('touchStart', [[cx + 200, cy - 200, 0], [cx + 260, cy - 200, 1]]); await p.waitForTimeout(50); await T('touchEnd', []); await p.waitForTimeout(150);

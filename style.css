@@ -358,6 +358,8 @@ body > * { flex-shrink: 0; }
    bar; at the top, as before, when it's too tall for that, or "safe" isn't known) */
 .paint-left { align-self: flex-start; align-self: safe center; margin-bottom: calc(var(--bbar-h) + var(--bbar-gap)); }
 .paint-group { display: grid; grid-template-columns: repeat(2, 40px); gap: 3px var(--s-1); justify-content: space-between; }
+/* (Fit, the last tool, on a row of its own under Blend and Effects, in the middle) */
+.paint-left .pl-fitgroup > .paint-fitbtn { grid-column: 1 / -1; justify-self: center; }
 /* related tools sit together; a short, soft divider between groups (both panels) */
 .paint-bar > .paint-group + .paint-group, .paint-toolgroups > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
 .paint-bar > .paint-group + .paint-group::before, .paint-toolgroups > .paint-group + .paint-group::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
@@ -1812,8 +1814,8 @@ select.p-field {
 .site-header .hb, .site-header .theme-toggle { width: 40px; height: 40px; margin: 0; padding: 0; }
 .site-header .hb-install span { display: none; }
 .site-header .hb-install:not([hidden]) { grid-column: 1 / -1; width: 100%; }
-.site-header:has(.hb-install:not([hidden])) { --hdr-open: 348px; }
-:root:has(.hb-install:not([hidden])) { --hdr-open: 348px; }
+.site-header:has(.hb-install:not([hidden])) { --hdr-open: 262px; }
+:root:has(.hb-install:not([hidden])) { --hdr-open: 262px; }
 .site-header .hdr-fold, :root.hdr-open .site-header .hdr-fold {
   position: static; translate: none; margin: 0; flex: none; align-self: center;
   box-shadow: none; background: none;
@@ -1842,8 +1844,8 @@ select.p-field {
 /* Keep the complete stack visible on iPad landscape before scrolling is needed. */
 @media (max-height: 850px) {
   :root { --hdr-open: 257px; --group-gap: 6px; }
-  :root:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
-  .site-header:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
+  :root:has(.hb-install:not([hidden])) { --hdr-open: 222px; }
+  .site-header:has(.hb-install:not([hidden])) { --hdr-open: 222px; }
   .site-header .hb, .site-header .theme-toggle { height: 32px; }
   :root { --tool-h: 32px; --tool-lg: 44px; }
   .paint-left .paint-group > button { height: var(--tool-h); }
@@ -1852,8 +1854,10 @@ select.p-field {
 /* The existing theme and shortcut actions now live behind Settings. */
 .site-header .theme-toggle, .site-header [data-hb="help"] { display: none !important; }
 .paint-settings { min-width: 200px; max-width: calc(100vw - 16px); }
-:root { --hdr-open: 262px; }
-@media (max-height: 850px) { :root { --hdr-open: 222px; } }
+/* (what the open bar measures, until hdrFit has measured it: four rows of
+   buttons and the arrow) */
+:root { --hdr-open: 219px; }
+@media (max-height: 850px) { :root { --hdr-open: 187px; } }
 .paint-settings .icon-sun { display: none; }
 :root[data-theme="dark"] .paint-settings .icon-sun { display: block; }
 :root[data-theme="dark"] .paint-settings .icon-moon { display: none; }
@@ -2025,18 +2029,13 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .vs-wpt.on { fill: var(--edit); }
 .vector-mode .paint-stage > :not(.vec-stage) { visibility: hidden !important; }
 .vector-mode .paint-stage { cursor: default; }
-/* (the left bar: Vector's categories stand where the painting's tools were,
-   over the same room, so the bar keeps its size) */
+/* (the left bar: Vector's categories, and Fit, take the painting's tools'
+   place, in the flow, so Layers and the zoom come right after their eight
+   rows, however many the painting's have) */
 .vec-group[hidden] { display: none; }
-.vector-mode .paint-left .paint-toolgroups { position: relative; }
-.vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { visibility: hidden; }
-.paint-left .paint-toolgroups > .vec-group { position: absolute; left: 0; right: 0; top: 0; padding-top: 0; }
+.vector-mode .paint-left .paint-toolgroups > .paint-group:not(.vec-group):not(.pl-view) { display: none; }
+.paint-left .paint-toolgroups > .vec-group { padding-top: 0; }
 .paint-left .paint-toolgroups > .vec-group::before { display: none; }
-/* (Vector's fourteen categories and Fit are eight rows: where Paint's seven,
-   in four groups, are shorter than that, Layers and the zoom step down just
-   enough, worked out from the same sizes: 8 rows and 7 gaps of 3px, against
-   7 rows, 3 gaps of 3px and three groups' gaps and padding) */
-.vector-mode .paint-left .pl-view { margin-top: max(0px, calc(var(--tool-h) + 12px - 6 * var(--group-gap))); }
 /* (what's only the painting's: out of sight, or greyed out where hiding it
    would move something) */
 .vector-mode .selection-slot, .vector-mode .paint-adjust, .vector-mode .paint-layerpanel:not(.vec-layerpanel),

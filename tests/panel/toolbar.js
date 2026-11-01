@@ -1,0 +1,103 @@
+// The left bar without Fill, Shapes and Move buttons (Fill and Shapes kept
+// on their keys, F, R and L, and the colour dropped on the picture still
+// fills; Move is in the Select panel's row, after the four ways, and lights
+// the Select button), its groups with no gaps (Fit on a row of its own, in
+// the middle), and the top bar, open, as tall as what's in it. Run as:
+// node toolbar.js light|dark width height [touch]
+const L = require('../lib');
+const { chromium } = L.use({ hdrOpen: true });
+const [theme, VW, VH] = [process.argv[2] || 'light', +(process.argv[3] || 1400), +(process.argv[4] || 900)];
+const touch = process.argv.includes('touch'), phone = VW <= 560;
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: VW, height: VH }, hasTouch: touch, colorScheme: theme });
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto('http://127.0.0.1:8123/index.html'); await p.waitForTimeout(900);
+  await p.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+  const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
+  const tapEl = async s => { const e = typeof s === 'string' ? await p.$(s) : s; await e.evaluate(el => el.scrollIntoView({ block: 'nearest' })); const r = await e.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(250); };
+  const tool = () => p.evaluate(() => document.querySelector('.paint-stage').dataset.tool);
+  const at = async (fx, fy) => p.evaluate(([fx, fy]) => { const w = document.querySelector('.paint-world').getBoundingClientRect(); return [w.left + w.width * fx, w.top + w.height * fy]; }, [fx, fy]);
+  const px = (fx, fy, i) => p.evaluate(([fx, fy, i]) => { const cs = document.querySelectorAll('.paint-layers canvas'), c = cs[i == null ? cs.length - 1 : i]; return Array.from(c.getContext('2d').getImageData(Math.floor(c.width * fx), Math.floor(c.height * fy), 1, 1).data); }, [fx, fy, i]);
+  // (a drag: a finger waits a moment before it starts anything)
+  const drag = async (a, z) => {
+    if (touch) {
+      const cdp = await ctx.newCDPSession(p), T = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(q => ({ x: q[0], y: q[1] })) });
+      await T('touchStart', [a]); await p.waitForTimeout(260);
+      for (let i = 1; i <= 8; i++) await T('touchMove', [[a[0] + (z[0] - a[0]) * i / 8, a[1] + (z[1] - a[1]) * i / 8]]);
+      await T('touchEnd', []);
+    } else { await p.mouse.move(...a); await p.mouse.down(); await p.mouse.move(...z, { steps: 8 }); await p.mouse.up(); }
+    await p.waitForTimeout(300);
+  };
+
+  // ---- 1 and 4. THE LEFT BAR ----
+  const bar = await p.evaluate(() => {
+    const left = document.querySelector('.paint-left');
+    const groups = [...left.querySelectorAll('.paint-toolgroups > .paint-group:not(.pl-view)')].filter(g => g.offsetParent).map(g => {
+      const bs = [...g.children].filter(x => x.offsetParent), rs = bs.map(x => x.getBoundingClientRect()), gr = g.getBoundingClientRect();
+      const rows = {}; rs.forEach(r => { const k = Math.round(r.top); rows[k] = (rows[k] || 0) + 1; });
+      return { n: bs.length, rows: Object.values(rows), last: bs.length ? { mid: Math.round(rs[rs.length - 1].left + rs[rs.length - 1].width / 2 - (gr.left + gr.width / 2)), fit: bs[bs.length - 1].classList.contains('paint-fitbtn') } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
+    });
+    return { fill: !!left.querySelector('[data-tool="fill"]'), shape: !!left.querySelector('.paint-shapebtn, [data-tool="shape"], [data-tool="line"]'), move: !!left.querySelector('[data-tool="move"]'), groups };
+  });
+  L.ok(!bar.fill && !bar.shape && !bar.move, 'no Fill, Shapes or Move button in the left bar');
+  L.ok(bar.groups.length === 3, 'three groups of tools, then Layers and the zoom: ' + bar.groups.map(g => g.n).join(' | '));
+  L.ok(bar.groups.every((g, i) => g.rows.every((r, j) => r === 2 || (i === bar.groups.length - 1 && j === g.rows.length - 1))), 'every row two across, but the last: no gaps ' + JSON.stringify(bar.groups.map(g => g.rows)));
+  const lg = bar.groups[bar.groups.length - 1];
+  L.ok(lg.last.fit && Math.abs(lg.last.mid) <= 1, 'Fit, last, on a row of its own in the middle (' + lg.last.mid + ' off)');
+  L.ok(bar.groups.every(g => g.sizes.length === 1) && new Set(bar.groups.map(g => g.sizes[0])).size === 1, 'every tool the same size ' + JSON.stringify(bar.groups.map(g => g.sizes)));
+  // (what they did is still there: the keys, and a colour dropped on the picture)
+  await p.keyboard.press('f'); L.ok(await tool() === 'fill', 'F still picks the fill tool');
+  await p.keyboard.press('r'); L.ok(await tool() === 'shape' && !!(await p.$('.paint-ctx [data-ctx-shape]')), 'R still picks Shapes, its kinds in the tool panel');
+  await p.keyboard.press('l'); L.ok(await tool() === 'line', 'and L the line');
+  await p.keyboard.press('b');
+  const w0 = await at(0.15, 0.85), cur = await (await p.$('.paint-current')).boundingBox();
+  if (!touch) { await p.mouse.move(cur.x + cur.width / 2, cur.y + cur.height / 2); await p.mouse.down(); await p.mouse.move(...w0, { steps: 10 }); await p.mouse.up(); await p.waitForTimeout(900);
+    L.ok((await px(0.15, 0.85, 0))[0] < 60, 'the colour dragged onto the picture still fills it ' + (await px(0.15, 0.85, 0)).join(',')); await p.keyboard.press((process.platform === 'darwin' ? 'Meta' : 'Control') + '+z'); await p.waitForTimeout(300); }
+
+  // ---- 2. MOVE, IN THE SELECT PANEL ----
+  // (a stroke on a layer of its own, to move)
+  await p.evaluate(() => document.querySelector('[data-act="layers"]').click()); await p.waitForTimeout(250);
+  await p.evaluate(() => document.querySelector('[data-layer-act="add"]').click()); await p.waitForTimeout(200);
+  await p.evaluate(() => document.querySelector('[data-act="layers"]').click()); await p.waitForTimeout(200);
+  await p.$eval('.paint-size', e => { e.value = 700; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await drag(await at(0.4, 0.5), await at(0.45, 0.5));
+  const was = await px(0.425, 0.5);
+  L.ok(was[3] > 200, 'a stroke to move ' + was.join(','));
+  await tapEl('.paint-selbtn');
+  const row = await p.evaluate(() => { const t = [...document.querySelectorAll('.paint-ctx [data-ctx-sel]')]; return { ids: t.map(b => b.dataset.ctxSel), sizes: [...new Set(t.map(b => Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)))], top: [...new Set(t.map(b => Math.round(b.getBoundingClientRect().top)))].length, svg: t.map(b => b.querySelector('svg') && b.querySelector('svg').innerHTML) }; });
+  L.ok(JSON.stringify(row.ids) === JSON.stringify(['lasso', 'select', 'circle', 'wand', 'move']), 'the Select panel’s top row: the four ways, then Move ' + row.ids.join(', '));
+  L.ok(row.sizes.length === 1 && row.top === 1, 'all in one row, the same size ' + row.sizes.join(' '));
+  L.ok(/M12 3.5v17M3.5 12h17/.test(row.svg[4]), 'Move with its own icon');
+  await tapEl('.paint-ctx [data-ctx-sel="move"]');
+  const mv = await p.evaluate(() => { const s = document.querySelector('.paint-selbtn'), t = document.querySelector('.paint-ctx [data-ctx-sel="move"]'); return { tool: document.querySelector('.paint-stage').dataset.tool, lit: s.getAttribute('aria-pressed'), icon: /M12 3.5v17M3.5 12h17/.test(s.innerHTML), label: s.getAttribute('aria-label'), tab: t && t.getAttribute('aria-selected'), panel: !document.querySelector('.paint-ctx').hidden, hint: (document.querySelector('.paint-ctx .ctx-hint') || {}).textContent }; });
+  L.ok(mv.tool === 'move' && mv.tab === 'true' && mv.panel, 'its tab picks the Move tool, and the panel stays, Move picked ' + JSON.stringify(mv));
+  L.ok(mv.lit === 'true' && mv.icon && /Move/.test(mv.label), 'the Select button is lit, showing Move');
+  L.ok(/^Move/.test(mv.hint || ''), 'the panel says what Move does: ' + mv.hint);
+  // (it works as it did: the layer picked up and moved by a drag anywhere)
+  await drag(await at(0.6, 0.7), await at(0.6, 0.3));
+  await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+  const now = await px(0.425, 0.5);
+  L.ok(now[3] < 40, 'the stroke has moved off where it was ' + now.join(','));
+  L.ok((await px(0.425, 0.1))[3] > 200, 'up to where it was dragged ' + (await px(0.425, 0.1)).join(','));
+  // (the Select button again picks the way last used; V is Move)
+  await tapEl('.paint-ctx [data-ctx-sel="select"]');
+  const back = await p.evaluate(() => { const s = document.querySelector('.paint-selbtn'); return { tool: document.querySelector('.paint-stage').dataset.tool, data: s.dataset.tool, lit: s.getAttribute('aria-pressed') }; });
+  L.ok(back.tool === 'select' && back.data === 'select' && back.lit === 'true', 'Box from the row: the Select button shows Box again ' + JSON.stringify(back));
+  await p.keyboard.press('b'); await p.keyboard.press('v');
+  L.ok(await tool() === 'move' && await p.$eval('.paint-selbtn', e => e.getAttribute('aria-pressed') === 'true' && e.dataset.tool === 'move'), 'V picks Move, the Select button lit');
+  await p.keyboard.press('Escape'); await p.keyboard.press('b');
+  L.ok(await p.$eval('.paint-selbtn', e => e.getAttribute('aria-pressed') === 'false' && e.dataset.tool === 'select'), 'another tool: the Select button goes back to the way last used, unlit');
+  await p.screenshot({ path: `toolbar-${theme}-${VW}.png` });
+
+  // ---- 3. THE TOP BAR, OPEN: as tall as what's in it ----
+  if (!(await p.evaluate(() => document.documentElement.classList.contains('hdr-open')))) { await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(700); }
+  const hd = await p.evaluate(() => { const h = document.querySelector('.site-header'), f = h.querySelector('.hdr-fold'), t = h.querySelector('.header-tools'), q = h.getBoundingClientRect(), tr = t.getBoundingClientRect(), fr = f.getBoundingClientRect(), bs = [...t.querySelectorAll('button')].filter(b => b.offsetParent), lb = bs[bs.length - 1].getBoundingClientRect();
+    return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round(fr.top - lb.bottom), over: h.scrollHeight > h.clientHeight + 1 }; });
+  L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10, 'the open top bar fits what’s in it: as much room under the arrow as over the buttons ' + JSON.stringify(hd));
+  await p.screenshot({ path: `toolbar-${theme}-${VW}-hdr.png`, clip: { x: 0, y: 0, width: Math.min(VW, 400), height: Math.min(VH, 640) } });
+  L.ok(!errs.length, 'no page errors ' + errs.join(' | '));
+  await b.close();
+  L.done();
+})();
