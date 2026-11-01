@@ -900,7 +900,9 @@
     function chooseTool(t, repeatOpens) {
       // (a tool with no settings, already in hand: picking it again leaves
       // the panels exactly as they are; Move still picks the layer up again)
-      if (!hasMenu(t) && st.tool === t) { if (t === 'move' && !sel) movePick(); return; }
+      if (!hasMenu(t) && st.tool === t) return;
+      // (Move picked again picks the layer up again; only its button pressed again folds its settings)
+      if (t === 'move' && st.tool === 'move') { if (!sel) movePick(); if (repeatOpens !== true) return; }
       if (repeatOpens === true && st.tool === t && toolMenuOpen() && pc.hidden && adjBox.hidden && bsBox.hidden && ctxView === 'tool' && ctxToolId === t) {
         minimizeToolMenu(); return;
       }
@@ -939,7 +941,7 @@
       if (adj) adjustDone(!showSettings);
       if (textBox) commitText();
       if (sel && !selTool(t) && t !== 'none') anchor();
-      st.tool = t;
+      st.tool = t; selBtnSync();
       if (isBlend(t)) blendLoad(); else if (wasBlend && blendOut) { setSize(blendOut.size); setAlpha(blendOut.alpha); blendOut = null; }
       Array.prototype.forEach.call(root.querySelectorAll('button[data-tool]'), function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
       stage.dataset.tool = t; stage.classList.remove('can-move'); if (t !== 'picker' && typeof pickHoverEnd === 'function') pickHoverEnd();
@@ -3096,10 +3098,15 @@
     ];
     function selKindOf(t) { for (var i = 0; i < SEL_KINDS.length; i++) if (SEL_KINDS[i][0] === t) return SEL_KINDS[i]; return null; }
     var selKind = stored('paint-sel-kind', 'lasso'); if (!selKindOf(selKind)) selKind = 'lasso';
+    // (Move is in the same row of the panel, after the four ways, and has no
+    // button of its own: while it's in hand the Select button is lit and shows
+    // it. It isn't a way to select, so it's never the remembered selKind)
+    var MOVE_WAY = ['move', 'Move', '<path d="M12 3.5v17M3.5 12h17"/><path d="M9.5 6L12 3.5 14.5 6M9.5 18l2.5 2.5 2.5-2.5M6 9.5L3.5 12 6 14.5M18 9.5l2.5 2.5-2.5 2.5"/>', 'Move (V): picks up everything on the layer (or the words of a text layer) to move, size or turn it. Drag anywhere to move it'];
+    function selWayOf(t) { return t === 'move' ? MOVE_WAY : selKindOf(t); }
     function selBtnSync() {
-      var b = root.querySelector('.paint-selbtn'), k = selKindOf(selKind); if (!b) return;
-      b.dataset.tool = selKind; b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + k[2] + '</svg>';
-      b.setAttribute('aria-label', 'Select: ' + k[1] + ' (M)');
+      var b = root.querySelector('.paint-selbtn'), k = selWayOf(st.tool === 'move' ? 'move' : selKind); if (!b) return;
+      b.dataset.tool = k[0]; b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + k[2] + '</svg>';
+      b.setAttribute('aria-label', 'Select: ' + k[1] + (k === MOVE_WAY ? ' (V)' : ' (M)'));
     }
     // (a circle: its outline as points round the box it's dragged in)
     selBtnSync();
@@ -8773,6 +8780,20 @@
       }, dur + 60);
     }
     if (hdrFold) { hdrSync(); hdrFold.addEventListener('click', function () { headerOpen(!document.documentElement.classList.contains('hdr-open')); }); }
+    // (open, the bar is as tall as what's in it, measured, so a button more
+    // or less, Install showing or a shorter screen's smaller buttons, never
+    // leaves a gap under the arrow: --hdr-open, set on the page)
+    function hdrFit() {
+      var tools = header && header.querySelector('.header-tools'); if (!tools || !hdrFold) return;
+      var cs = getComputedStyle(header), d = tools.style.display;
+      tools.style.display = 'grid'; // (measured even while folded, when it isn't shown)
+      var h = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + (parseFloat(cs.rowGap) || 0) + tools.offsetHeight + hdrFold.offsetHeight;
+      tools.style.display = d;
+      if (h > 0) document.documentElement.style.setProperty('--hdr-open', Math.ceil(h) + 'px');
+    }
+    hdrFit();
+    if (window.matchMedia) ['(max-height: 850px)', '(max-width: 560px)'].forEach(function (q) { var m = matchMedia(q); if (m.addEventListener) m.addEventListener('change', hdrFit); });
+    if (window.ResizeObserver && header) new ResizeObserver(function () { hdrFit(); }).observe(header.querySelector('.header-tools') || header);
     function finishMenus() { openMenu(null); layerPanel(false); savePanel(false); closeDrops(); moreMenu(false); if (!pc.hidden) picker(null); }
     // (before a drop-down from the top bar opens: the others go)
     function otherPopovers() { openMenu(null); lmenu.hidden = true; ctxClose(); }
@@ -9010,8 +9031,8 @@
 
     // ---- INSTALL: where the browser offers it, a button to add the app ----
     var installEv = null;
-    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEv = e; hb('install').hidden = false; });
-    window.addEventListener('appinstalled', function () { installEv = null; hb('install').hidden = true; toast('Installed'); });
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEv = e; hb('install').hidden = false; hdrFit(); });
+    window.addEventListener('appinstalled', function () { installEv = null; hb('install').hidden = true; hdrFit(); toast('Installed'); });
 
     if (header) header.addEventListener('click', function (e) {
       var ac = e.target.closest('[data-act]'); if (ac) { runAct(ac.dataset.act); return; }
@@ -9026,7 +9047,7 @@
       else if (w === 'image') imageMenu(!docIs('image'));
       else if (w === 'history') historyPanel(!docIs('history'));
       else if (w === 'help') { if (docIs('sheet-hs')) docClose(); else helpSheet(); }
-      else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; }); }
+      else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; hdrFit(); }); }
     });
     document.addEventListener('pointerdown', function (e) {
       if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
@@ -9397,8 +9418,8 @@
     var TFILLS = [['solid', 'Solid', 'One colour'], ['gradient', 'Blend', 'Blend from the main colour (top) to the second (bottom)'], ['rainbow', 'Rainbow', 'Each letter a colour of the rainbow, starting from the main colour'], ['two', 'Duo', 'Letters in the two colours, turn and turn about']];
     // (the selection tool's ways, as a segmented control at the top of its panel)
     function selWays(how) {
-      return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with">' + SEL_KINDS.map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
-        hint('<b>' + selKindOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>' +
+      return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with, or move">' + SEL_KINDS.concat([MOVE_WAY]).map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
+        hint('<b>' + selWayOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>' +
         '<button type="button" class="ctx-btn" data-ctx="paste" data-tip="Paste what was copied, on a new layer where it was (Ctrl+V)">Paste</button>';
     }
     // (the Shapes tool's kinds: the line, then each shape, in one segmented control)
@@ -9455,6 +9476,7 @@
       lasso: function () { return selWays('Draw round it, or click to place points'); },
       circle: function () { return selWays('Drag an oval round it \u00b7 <b>Shift</b> for a circle'); },
       wand: function () { return selWays('Tap an area of one colour'); },
+      move: function () { return selWays('Drag to move, size or turn what\u2019s on the layer'); },
       pen: function () {
         return '<span class="ctx-hint" data-penhint></span>' + sep +
           chip('penstroke', 'Outline', '<path d="M5 18C8 6 16 6 19 18"/>', 'Draw the path as a line, at the brush size') +

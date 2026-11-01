@@ -358,6 +358,8 @@ body > * { flex-shrink: 0; }
    bar; at the top, as before, when it's too tall for that, or "safe" isn't known) */
 .paint-left { align-self: flex-start; align-self: safe center; margin-bottom: calc(var(--bbar-h) + var(--bbar-gap)); }
 .paint-group { display: grid; grid-template-columns: repeat(2, 40px); gap: 3px var(--s-1); justify-content: space-between; }
+/* (Fit, the last tool, on a row of its own under Blend and Effects, in the middle) */
+.paint-left .pl-fitgroup > .paint-fitbtn { grid-column: 1 / -1; justify-self: center; }
 /* related tools sit together; a short, soft divider between groups (both panels) */
 .paint-bar > .paint-group + .paint-group, .paint-toolgroups > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
 .paint-bar > .paint-group + .paint-group::before, .paint-toolgroups > .paint-group + .paint-group::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
@@ -1812,8 +1814,8 @@ select.p-field {
 .site-header .hb, .site-header .theme-toggle { width: 40px; height: 40px; margin: 0; padding: 0; }
 .site-header .hb-install span { display: none; }
 .site-header .hb-install:not([hidden]) { grid-column: 1 / -1; width: 100%; }
-.site-header:has(.hb-install:not([hidden])) { --hdr-open: 348px; }
-:root:has(.hb-install:not([hidden])) { --hdr-open: 348px; }
+.site-header:has(.hb-install:not([hidden])) { --hdr-open: 262px; }
+:root:has(.hb-install:not([hidden])) { --hdr-open: 262px; }
 .site-header .hdr-fold, :root.hdr-open .site-header .hdr-fold {
   position: static; translate: none; margin: 0; flex: none; align-self: center;
   box-shadow: none; background: none;
@@ -1842,8 +1844,8 @@ select.p-field {
 /* Keep the complete stack visible on iPad landscape before scrolling is needed. */
 @media (max-height: 850px) {
   :root { --hdr-open: 257px; --group-gap: 6px; }
-  :root:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
-  .site-header:has(.hb-install:not([hidden])) { --hdr-open: 292px; }
+  :root:has(.hb-install:not([hidden])) { --hdr-open: 222px; }
+  .site-header:has(.hb-install:not([hidden])) { --hdr-open: 222px; }
   .site-header .hb, .site-header .theme-toggle { height: 32px; }
   :root { --tool-h: 32px; --tool-lg: 44px; }
   .paint-left .paint-group > button { height: var(--tool-h); }
@@ -1852,8 +1854,10 @@ select.p-field {
 /* The existing theme and shortcut actions now live behind Settings. */
 .site-header .theme-toggle, .site-header [data-hb="help"] { display: none !important; }
 .paint-settings { min-width: 200px; max-width: calc(100vw - 16px); }
-:root { --hdr-open: 262px; }
-@media (max-height: 850px) { :root { --hdr-open: 222px; } }
+/* (what the open bar measures, until hdrFit has measured it: four rows of
+   buttons and the arrow) */
+:root { --hdr-open: 219px; }
+@media (max-height: 850px) { :root { --hdr-open: 187px; } }
 .paint-settings .icon-sun { display: none; }
 :root[data-theme="dark"] .paint-settings .icon-sun { display: block; }
 :root[data-theme="dark"] .paint-settings .icon-moon { display: none; }

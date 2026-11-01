@@ -71,15 +71,23 @@ When building or changing anything visual:
   heading for screen readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
-  it, never covered, with `refit()` each frame. What its buttons open
+  it, never covered, with `refit()` each frame. Open, it's as tall as what's
+  in it: `hdrFit` measures it (the buttons even while folded, the arrow,
+  the padding) into `--hdr-open` on the page, at start, when the screen's
+  size class changes and when Install shows; the CSS values are only what
+  it measures before then. What its buttons open
   stands in the top bar's panel (below); the phone's ••• menu, the one
   drop-down left, drops from the arrow while the bar is folded (`hdrBtn`).
   The left bar (`.paint-left`), its middle level with the picture's space's
   (`safe center` above the bottom bar, `--bbar-gap`; at the top if it's too
   tall for that), holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
-  H, or a drag with the tool put down). The Shapes button keeps its own icon
-  whichever kind is picked; Select sits beside Pen; Fit (`.paint-fitbtn`,
+  H, or a drag with the tool put down). Three groups, two across with no
+  gaps: Brush, Eraser, Gradient, Picker; Symmetry, Text, Pen, Select; Blend,
+  Effects and Fit on a row of its own in the middle (`.pl-fitgroup`). There
+  are no Fill, Shapes or Move buttons: Fill and Shapes are on their keys
+  (F, R, L; a colour dropped on the picture still fills), Move is in the
+  Select panel (below). Fit (`.paint-fitbtn`,
   0) is its last tool, in every workspace: Photo shows the painting's own
   where it is, Vector a copy after its categories (an eighth row, with Layers
   stepped down only where the buttons are too tall for it, from `--tool-h`
@@ -109,14 +117,15 @@ When building or changing anything visual:
   rest, and `fitTo` fits the picture with the same margin of the dotted well
   all round. A tool's own settings go in the **context bar** (`.paint-ctx`,
   built per tool by `CTX` in `paint.js`), and so do a selection's actions.
-  A tool with nothing to set (Fill, the colour picker, Move) has no `CTX`
+  A tool with nothing to set (Fill, the colour picker) has no `CTX`
   entry: picking it hides the panel without folding it (the dock keeps its
   room, so nothing moves; the bottom bar's settings toggle greys out), and
   the next tool's settings come back (`bare` in `chooseTool`), folded still
   if they were folded. `hasMenu(t)` (a `CTX` entry) is the one test for
   anything that would open, unfold or replace the panel: picking a tool with
-  no settings again does nothing to any panel (Move still picks the layer up
-  again), and such a tool never unfolds the panel, whatever is open.
+  no settings again does nothing to any panel, and such a tool never unfolds
+  the panel, whatever is open. Move picked again picks the layer up again;
+  only its button pressed again folds its settings.
   In the dock (not on phones) the colour picker stays open through a change
   to a tool with no settings (`keepPc` in `chooseTool`), Layers, the zoom and Fit (`pcStays`);
   a tool with settings, symmetry, Effects or the Brush Studio take its
@@ -400,6 +409,10 @@ When building or changing anything visual:
   first time), `select` (box), `circle` and `wand`, picked in its panel
   (`selWays`, `SEL_KINDS`) or by key (Q, M, C, W), and the one last used is
   remembered (`selKind`); the button takes that way's icon (`selBtnSync`).
+  **Move** is in the same row, after the four (`MOVE_WAY`, `selWayOf`;
+  `CTX.move` is the same panel), and by key V: while it's in hand the
+  Select button is lit and shows it (`selBtnSync` from `setTool`); it's
+  never `selKind`, so the button brings the last way back afterwards.
   A circle is a selection with `sel.poly` (`ovalPoly`), so everything that
   works on a cutout works on it. Use `selTool(t)` to ask "is this
   selecting?", and `setTool(selKind)` to bring the tool up.
