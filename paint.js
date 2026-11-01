@@ -9781,7 +9781,7 @@
     // (askMode: every time, unless Settings says not to, modeAsk) ----
     if (PV) PV.init({
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
-      layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl,
+      layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl, modeFoot: modeFoot,
       docSize: function () { return { pw: ov.width, ph: ov.height }; },
       autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, layersPlace: layersPlace, draggable: draggable,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
@@ -9796,7 +9796,7 @@
     });
     if (PH) PH.init({
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'), settingsBtn: settingsToggle,
-      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl,
+      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl, modeFoot: modeFoot,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       openPicker: importPicker,
@@ -9901,6 +9901,13 @@
     // into the menu of the three (the one in use ticked), and shrinks back
     // when one's picked, Esc, or a press anywhere else. Another one goes
     // through askMode, so leaving art behind always asks first
+    // (where the pill's foot is at rest, closed and not moved down, on the
+    // screen; null while it's out of sight: what Vector's and Photo's fits keep clear of)
+    function modeFoot() {
+      if (!modeEl || modeEl.hidden || document.documentElement.classList.contains('focus-mode') || !modeEl.getClientRects().length) return null;
+      var h = modeEl.querySelector('.ms-head').getBoundingClientRect(), ty = new DOMMatrix(getComputedStyle(modeEl).transform).m42;
+      return h.bottom - ty;
+    }
     function modeMenu(open, focusIn) {
       if (!modeEl) return false;
       var was = modeEl.classList.contains('open'); if (open === was) return false;

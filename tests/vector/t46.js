@@ -24,7 +24,7 @@ const V = require('./vt.js'), L = require('../lib');
     // (Settings: no workspaces, no Ask to Bring Art)
     await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(250);
     ok(!(await p.$('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"], [data-setting="modeask"]')) && !!(await p.$('[data-setting="theme"]')), name + ': Settings has no workspaces and no Ask to Bring Art');
-    await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     // open: down a touch, taller and a little wider, the three, Paint ticked
     await press('.ms-head');
     s = await pill();
@@ -36,8 +36,9 @@ const V = require('./vt.js'), L = require('../lib');
     if (name !== 'phone') await p.screenshot({ path: 't46-' + name + '-open.png', clip: { x: vp.width / 2 - 160, y: 0, width: 320, height: 200 } });
     else await p.screenshot({ path: 't46-' + name + '-open.png' });
     // a press elsewhere: closed, nothing switched
-    const st = await (await p.$('.paint-stage')).boundingBox();
-    await tapAt(st.x + st.width - 30, st.y + st.height - 30); await p.waitForTimeout(450);
+    // (on the left bar's own padding: nothing there to press, nothing painted)
+    const lb = await (await p.$('.paint-left')).boundingBox();
+    await tapAt(lb.x + 3, lb.y + lb.height - 3); await p.waitForTimeout(450);
     s = await pill();
     ok(!s.open && !s.vec && Math.abs(s.h - h0) <= 1, name + ': a press elsewhere closes it, still Paint');
     // Paint again: nothing happens
@@ -46,11 +47,12 @@ const V = require('./vt.js'), L = require('../lib');
     // Vector: blank painting, so no question
     await L.pickMode(p, 'vector', touch); await p.waitForTimeout(600);
     s = await pill();
-    ok(s.vec && !s.open && /Vector/.test(s.text) && s.items === 'paint,vector✓,photo', name + ': Vector picked: switched, the pill says Vector, ticked in the menu');
+    ok(s.vec && !s.open && /Vector/.test(s.text) && s.items === 'paint,vector✓,photo', name + ': Vector picked: switched, the pill says Vector, ticked in the menu ' + JSON.stringify({ vec: s.vec, open: s.open, text: s.text, items: s.items }));
     // (the artboard is fitted clear of the pill)
     const ab = await p.evaluate(() => { const b = document.querySelector('.vec-board').getBoundingClientRect(), m = document.querySelector('.mode-switch').getBoundingClientRect(); return { b: b.top, m: m.bottom }; });
     if (name !== 'phone') ok(ab.b >= ab.m, name + ': the artboard clear of the pill ' + JSON.stringify(ab));
-    await H.tool('rect'); const bw = await p.evaluate(() => window.PaintVector.serialize().w); await H.drag([bw * 0.2, 300], [bw * 0.6, 450]);
+    await H.tool('rect'); const [bw, bh] = await p.evaluate(() => [window.PaintVector.serialize().w, window.PaintVector.serialize().h]); await H.drag([bw * 0.2, bh * 0.6], [bw * 0.6, bh * 0.85]); // (low on the artboard: clear of a phone's tool strip)
+    ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': a rectangle drawn');
     // Paint: Vector has art, so it asks
     await L.pickMode(p, 'paint', touch); await p.waitForTimeout(500);
     ok(!!(await p.$('.paint-docpanel:not([hidden]) .vm [data-vm="bring"]')), name + ': leaving art behind asks first');
