@@ -1315,8 +1315,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .doc-status { padding: 0; width: 22px; justify-content: center; }
   .doc-status span { display: none; }
   /* (the dock: a strip's anchor over the top of the picture, taking no room) */
-  .paint-dock { position: absolute; left: calc(var(--bar) + var(--pgap)); right: 0; top: var(--mode-band); width: auto; height: 0; margin: 0; }
-  .focus-mode .paint-dock { top: 0; } /* (under the mode switch's band, which focus mode takes away) */
+  .paint-dock { position: absolute; left: calc(var(--bar) + var(--pgap)); right: 0; top: 0; width: auto; height: 0; margin: 0; }
   .paint.dock-on .paint-dock { width: auto; }
   .paint-ctx { top: 6px; left: 6px; right: auto; transform: none; max-width: calc(100% - 12px); }
   /* (narrow: the bar's settings wrap onto a second row rather than hide off the edge) */
@@ -1972,60 +1971,67 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .hdr-fold > svg { position: absolute; right: 0; }
 
 
-/* ---------- PAINT, VECTOR OR PHOTO: the mode switch. A thin frosted pill
-   in a band of its own over the picture's space (`--mode-band`: the same
-   gap, `--mode-gap`, over it to the window's edge and under it to the
-   picture's space), in the middle of the window (on a
-   phone, of the picture's space), showing the workspace in use. Pressed, it
-   grows sideways into the three, side by side, the one in use the picked
-   part of a segmented control; a pick and it shrinks back. It never covers
-   the picture, and nothing round it moves ---------- */
-:root { --mode-h: 32px; --mode-gap: var(--s-2); --mode-band: calc(2 * var(--mode-gap) + var(--mode-h) - var(--edge)); --ms-w: 118px; --ms-w-open: 304px; }
-.paint-centre { position: relative; padding-top: var(--mode-band); }
-.focusing .paint-centre { transition: padding-top var(--dur-slow) var(--ease); }
-.focus-mode .paint-centre { padding-top: 0; }
+/* ---------- PAINT, VECTOR OR PHOTO: the mode switch. Its button is a row
+   of the top-left menu while it's open, just above the save status and
+   built like it (`.hdr-mode`: the workspace's icon, its name in the
+   middle, the chevron at the end, `--hdr-row` high); folded, the menu is
+   the save status alone, and nothing stands over the picture's space. Pressed, the three open side by
+   side in a frosted pill in the middle of the picture's space
+   (`.mode-switch`, `modeMenu`), growing out from a little towards the
+   button; the one in use is the picked part of a segmented control. A
+   pick, Esc or a press anywhere else closes it ---------- */
+:root { --hdr-row: 26px; --mode-h: 40px; --ms-w: 132px; --ms-w-open: 312px; }
+.site-header .hdr-mode {
+  position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) 14px; align-items: center;
+  flex: none; width: 100%; height: var(--hdr-row); margin: 0 0 calc(var(--s-1) - var(--s-2)); padding: 0; border: 0;
+  border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); background: none;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.site-header .hdr-mode[hidden], :root:not(.hdr-open) .site-header .hdr-mode { display: none; }
+.site-header .hdr-mode .ms-cur { display: contents; }
+.site-header .hdr-mode .ms-cur svg { justify-self: center; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+.site-header .hdr-mode .ms-cur span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 12px; }
+.site-header .hdr-mode .ms-chev { justify-self: end; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: var(--stroke-xs); stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-slow) var(--spring); }
+.site-header .hdr-mode[aria-expanded="true"] { color: var(--text); }
+.site-header .hdr-mode[aria-expanded="true"] .ms-chev { transform: rotate(180deg); }
+@media (hover: hover) { .site-header .hdr-mode:hover { color: var(--text); background: var(--panel-solid); } }
+.site-header .hdr-mode:active { transform: scale(var(--press)); }
+/* (the three: in the middle of the picture's space, `--ms-x`/`--ms-y`,
+   coming from `--ms-dx`/`--ms-dy` towards the button) */
 .mode-switch {
-  position: fixed; left: 50%; top: var(--mode-gap); z-index: 7;
-  width: var(--ms-w); height: var(--mode-h); transform: translateX(-50%); overflow: hidden;
-  border-radius: var(--r-pill);
-  background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-  transition: width var(--dur-pop) var(--ease), box-shadow var(--dur) ease, opacity var(--dur) ease, visibility 0s;
+  position: fixed; left: clamp(calc(var(--edge) + var(--ms-w-open) / 2), var(--ms-x, 50%), calc(100vw - var(--edge) - var(--ms-w-open) / 2)); top: var(--ms-y, 50%); z-index: 165;
+  width: var(--ms-w); height: var(--mode-h); padding: 3px; overflow: hidden; border-radius: var(--r-pill);
+  background: var(--menu-bg); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-pop);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transform: translate(-50%, -50%) translate(var(--ms-dx, 0px), var(--ms-dy, 0px)) scale(.86);
+  transition: width var(--dur) var(--ease), transform var(--dur) var(--ease), opacity var(--dur) ease, visibility 0s linear var(--dur);
 }
 .mode-switch[hidden] { display: none; }
-.mode-switch.open { width: var(--ms-w-open); box-shadow: var(--shadow-pop); }
-/* (closed: the one in use and the chevron; open: the three, side by side) */
-.paint .mode-switch .ms-head {
-  position: absolute; inset: 0; width: 100%; height: 100%; gap: var(--s-1); padding: 0 10px 0 var(--s-3); border-radius: inherit;
-  font-size: var(--fs-sm); font-weight: 600; color: var(--text); justify-content: center;
-  transition: opacity var(--dur-fast) ease, background-color var(--dur-fast) ease;
+.mode-switch.open {
+  width: var(--ms-w-open); opacity: 1; visibility: visible; pointer-events: auto; transform: translate(-50%, -50%);
+  transition: width var(--dur-pop) var(--spring), transform var(--dur-pop) var(--spring), opacity var(--dur-fast) ease, visibility 0s;
 }
-@media (hover: hover) { .paint .mode-switch:not(.open) .ms-head:hover { background: var(--hover); } }
-.mode-switch.open .ms-head { opacity: 0; pointer-events: none; }
-.ms-cur { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.paint .mode-switch .ms-cur svg { width: var(--icon-sm); height: var(--icon-sm); }
-.paint .mode-switch .ms-chev { width: var(--chev); height: var(--chev); stroke-width: var(--stroke-xs); color: var(--muted); }
-.ms-items {
-  position: absolute; inset: 3px; display: flex; gap: 2px;
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity var(--dur-fast) ease, visibility 0s linear var(--dur-fast);
+.ms-items { display: flex; gap: 2px; height: 100%; }
+.mode-switch .ms-items button {
+  display: inline-flex; align-items: center; justify-content: center; flex: 1 1 0; min-width: 0; gap: 6px;
+  height: 100%; margin: 0; padding: 0 var(--s-2); border: 0; border-radius: var(--r-pill); background: none;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--muted); white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; opacity: 0;
+  transition: opacity var(--dur-fast) ease, color var(--dur-fast) ease, background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
-.mode-switch.open .ms-items { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--dur) ease var(--dur-fast), visibility 0s; }
-.paint .mode-switch .ms-items button {
-  flex: 1 1 0; min-width: 0; width: auto; height: 100%; gap: 6px; padding: 0 var(--s-2); border-radius: var(--r-pill);
-  font-size: var(--fs-sm); font-weight: 600; color: var(--muted); white-space: nowrap;
-}
-.paint .mode-switch .ms-items button span { overflow: hidden; text-overflow: ellipsis; }
-@media (hover: hover) { .paint .mode-switch .ms-items button:hover { color: var(--text); background: var(--hover); } }
-.paint .mode-switch .ms-items [aria-checked="true"] { color: var(--text); background: var(--seg-on); box-shadow: var(--seg-shadow); }
-.paint .mode-switch .ms-items button svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
-.paint .mode-switch .ms-items [data-mode][hidden] { display: none; }
-.paint .mode-switch button:focus-visible { outline-offset: -2px; } /* (inside: the pill clips past its edge) */
-.focus-mode .mode-switch { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
+.mode-switch.open .ms-items button { opacity: 1; transition-delay: calc(var(--dur-fast) * .6), 0s, 0s, 0s, 0s; }
+.mode-switch .ms-items button span { overflow: hidden; text-overflow: ellipsis; }
+.mode-switch .ms-items button svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .mode-switch .ms-items button:hover { color: var(--text); background: var(--hover); } }
+.mode-switch .ms-items button:active { transform: scale(var(--press)); }
+.mode-switch .ms-items [aria-checked="true"] { color: var(--text); background: var(--seg-on); box-shadow: var(--seg-shadow); }
+@media (hover: hover) { .mode-switch .ms-items [aria-checked="true"]:hover { background: var(--seg-on); } }
+.mode-switch .ms-items [data-mode][hidden] { display: none; }
+.mode-switch button:focus-visible { outline-offset: -2px; } /* (inside: the pill clips past its edge) */
+.focus-mode .mode-switch { opacity: 0; visibility: hidden; pointer-events: none; }
 @media (max-width: 560px) {
-  /* (a phone: over the middle of the picture's space, as wide as it allows open) */
-  :root { --mode-h: 30px; --ms-w-open: min(260px, calc(100vw - var(--bar) - 3 * var(--edge))); }
-  .mode-switch { position: absolute; top: calc(var(--mode-gap) - var(--edge)); }
-  .paint .mode-switch .ms-items button { gap: 4px; padding: 0 6px; font-size: var(--fs-xs); }
+  :root { --mode-h: 36px; --ms-w-open: min(280px, calc(100vw - 2 * var(--edge))); }
+  .mode-switch .ms-items button { gap: 4px; padding: 0 6px; font-size: var(--fs-xs); }
 }
 
 /* Vector mode: the painting's own parts step out of sight (kept as they

@@ -471,11 +471,7 @@
     if (pan && window.matchMedia('(max-width: 560px)').matches && !pan.hidden && !pan.classList.contains('min') && pan.offsetParent) {
       var r = pan.getBoundingClientRect(), sr = stageEl.getBoundingClientRect(); top = Math.max(0, Math.min(H * 0.6, r.bottom - sr.top));
     }
-    // (and clear of the mode switch over the top of the space)
-    var mf = B.modeFoot && B.modeFoot();
-    var h0 = H - top, m = Math.min(28, Math.max(8, Math.min(W, h0) * 0.04));
-    if (mf != null && !window.matchMedia('(max-width: 560px)').matches) top = Math.max(top, Math.round(mf - stageEl.getBoundingClientRect().top + 6 - m));
-    var h = H - top;
+    var h = H - top, m = Math.min(28, Math.max(8, Math.min(W, h) * 0.04));
     var F = outSize(doc.v, cropping);
     return { W: W, H: h, top: top, m: m, k: Math.min((W - 2 * m) / F.w, (h - 2 * m) / F.h), F: F };
   }

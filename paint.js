@@ -128,8 +128,8 @@
     // undo, the two colours, redo and opacity; the dock: the tool options)
     var left = $('.paint-left'), bbar = $('.paint-bottom'), dock = $('.paint-dock'), paintEl = root.querySelector('.paint') || root;
     // (Paint or Vector: which workspace shows; see PAINT AND VECTOR, near the end)
-    var PV = window.PaintVector || null, PH = window.PaintPhoto || null, modeEl = $('.mode-switch'), wsMode = 'paint';
-    if (!modeEl) PV = null;
+    var PV = window.PaintVector || null, PH = window.PaintPhoto || null, modeEl = document.querySelector('.mode-switch'), modeBtn = document.querySelector('.hdr-mode'), wsMode = 'paint';
+    if (!modeEl || !modeBtn) PV = null;
 
     // ---- a little label beside the mouse saying what each tool does ----
     var tip = document.createElement('div'), tipOn = null;
@@ -8669,7 +8669,7 @@
       closeDrops(); otherPopovers();
       var theme = header.querySelector('.theme-toggle');
       settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch Gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
-        ''; // (the workspaces are switched from the pill over the picture, .mode-switch)
+        ''; // (the workspaces are switched from the top-left menu's row, .hdr-mode)
       docShow('settings', 'Settings', settingsBox, { btn: hb('settings'), reopen: settingsAgain });
     }
     function settingsAgain() { settingsMenu(true); }
@@ -8780,10 +8780,12 @@
     // leaves a gap under the arrow: --hdr-open, set on the page)
     function hdrFit() {
       var tools = header && header.querySelector('.header-tools'); if (!tools || !hdrFold) return;
-      var cs = getComputedStyle(header), d = tools.style.display;
-      tools.style.display = 'grid'; // (measured even while folded, when it isn't shown)
-      var h = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + (parseFloat(cs.rowGap) || 0) + tools.offsetHeight + hdrFold.offsetHeight;
-      tools.style.display = d;
+      var cs = getComputedStyle(header), d = tools.style.display, md = modeBtn && modeBtn.style.display;
+      tools.style.display = 'grid'; // (measured even while folded, when they aren't shown)
+      if (modeBtn && !modeBtn.hidden) modeBtn.style.display = 'grid';
+      // (from the top to the arrow's foot, the mode switch's row and all, and the padding under it)
+      var h = hdrFold.getBoundingClientRect().bottom - header.getBoundingClientRect().top + parseFloat(cs.paddingBottom);
+      tools.style.display = d; if (modeBtn) modeBtn.style.display = md;
       if (h > 0) document.documentElement.style.setProperty('--hdr-open', Math.ceil(h) + 'px');
     }
     hdrFit();
@@ -9047,7 +9049,7 @@
     document.addEventListener('pointerdown', function (e) {
       // (not on the mode switch: closing its menu on the press hid the very
       // button pressed, so the click never came and no mode was switched)
-      if (!e.target.closest('.paint-drop, .mode-switch, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
+      if (!e.target.closest('.paint-drop, .mode-switch, .hdr-mode, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
     }, true);
 
     // ---- THE CONTEXT BAR: what the tool in hand can be set to, at the top of
@@ -9783,7 +9785,7 @@
     // (askMode: every time, unless Settings says not to, modeAsk) ----
     if (PV) PV.init({
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'),
-      layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl, modeFoot: modeFoot,
+      layersBtn: $('[data-act="layers"]'), leftViewGroup: left.querySelector('.pl-view'), modeEl: modeEl,
       docSize: function () { return { pw: ov.width, ph: ov.height }; },
       autosave: autosave, toast: toast, phone: phoneLayout, besideBar: besideBar, layersPlace: layersPlace, draggable: draggable,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
@@ -9798,7 +9800,7 @@
     });
     if (PH) PH.init({
       stage: stage, root: paintEl, ctxTool: ctxTool, zoomVal: zoomVal, undoBtn: $('[data-act="undo"]'), redoBtn: $('[data-act="redo"]'), settingsBtn: settingsToggle,
-      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl, modeFoot: modeFoot,
+      leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
       openPicker: importPicker,
@@ -9811,7 +9813,7 @@
       document.documentElement.classList.toggle('photo-mode', pho);
       Array.prototype.forEach.call(modeEl.querySelectorAll('[data-mode]'), function (b) { b.setAttribute('aria-checked', b.dataset.mode === wsMode ? 'true' : 'false'); b.hidden = !modeOk(b.dataset.mode); });
       // (the pill: the one in use, its icon and name)
-      var cur = modeEl.querySelector('[data-mode="' + wsMode + '"]'), head = modeEl.querySelector('.ms-head');
+      var cur = modeEl.querySelector('[data-mode="' + wsMode + '"]'), head = modeBtn;
       head.querySelector('.ms-cur').innerHTML = cur.querySelector('svg').outerHTML + '<span>' + MODE_NAME[wsMode] + '</span>';
       head.setAttribute('aria-label', 'Workspace: ' + MODE_NAME[wsMode]);
       // (what's only the painting's is greyed out, so nothing moves)
@@ -9901,38 +9903,40 @@
         if (w !== 'cancel') setMode(m, w === 'bring');
       });
     }
-    // THE MODE SWITCH: a thin pill in the band over the picture's space
-    // showing the workspace in use; pressed, it grows sideways into the
-    // three side by side (the one in use picked), and shrinks back when one's
-    // picked, Esc, or a press anywhere else. Another one goes through
-    // askMode, so leaving art behind always asks first, in the middle of the window
-    // (where the pill's foot is at rest, closed and not moved down, on the
-    // screen; null while it's out of sight: what Vector's and Photo's fits keep clear of)
-    function modeFoot() {
-      if (!modeEl || modeEl.hidden || document.documentElement.classList.contains('focus-mode') || !modeEl.getClientRects().length) return null;
-      var h = modeEl.querySelector('.ms-head').getBoundingClientRect(), ty = new DOMMatrix(getComputedStyle(modeEl).transform).m42;
-      return h.bottom - ty;
+    // THE MODE SWITCH: a row of the top-left menu while it's open, just
+    // above the save status (modeBtn, `.hdr-mode`), showing the workspace in
+    // use (folding the menu closes what it opened, closeDrops); pressed,
+    // the three open side by side in a pill in the middle of the picture's
+    // space (modeEl), growing out from a little towards the button, and
+    // close when one's picked, Esc, or a press anywhere else. Another one
+    // goes through askMode, so leaving art behind always asks first
+    function modePlace() {
+      var r = stage.getBoundingClientRect(), b = modeBtn.getBoundingClientRect();
+      var x = r.left + r.width / 2, y = r.top + r.height / 2, dx = b.left + b.width / 2 - x, dy = b.top + b.height / 2 - y, d = Math.hypot(dx, dy) || 1;
+      var st = modeEl.style;
+      st.setProperty('--ms-x', Math.round(x) + 'px'); st.setProperty('--ms-y', Math.round(y) + 'px');
+      st.setProperty('--ms-dx', Math.round(dx / d * 18) + 'px'); st.setProperty('--ms-dy', Math.round(dy / d * 18) + 'px');
     }
     function modeMenu(open, focusIn) {
-      if (!modeEl) return false;
+      if (!modeEl || !modeBtn) return false;
       var was = modeEl.classList.contains('open'); if (open === was) return false;
-      if (open) { closeDrops(); otherPopovers(); hideTip(); }
+      if (open) { closeDrops(); otherPopovers(); hideTip(); modePlace(); }
       modeEl.classList.toggle('open', open);
-      modeEl.querySelector('.ms-head').setAttribute('aria-expanded', open ? 'true' : 'false');
+      modeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
       var items = modeEl.querySelectorAll('[data-mode]');
       Array.prototype.forEach.call(items, function (b) { b.tabIndex = open ? 0 : -1; });
       if (open && focusIn) { var c = modeEl.querySelector('[data-mode][aria-checked="true"]'); if (c) c.focus({ preventScroll: true }); }
-      if (!open && modeEl.contains(document.activeElement)) modeEl.querySelector('.ms-head').focus({ preventScroll: true });
+      if (!open && modeEl.contains(document.activeElement)) modeBtn.focus({ preventScroll: true });
       return true;
     }
     if (PV) {
+      modeBtn.addEventListener('click', function (e) { modeMenu(!modeEl.classList.contains('open'), e.detail === 0); });
       modeEl.addEventListener('click', function (e) {
-        if (e.target.closest('.ms-head')) { modeMenu(!modeEl.classList.contains('open'), e.detail === 0); return; }
         var b = e.target.closest('[data-mode]'); if (!b) return;
         modeMenu(false);
         if (b.dataset.mode !== wsMode) askMode(b.dataset.mode);
       });
-      modeEl.addEventListener('keydown', function (e) {
+      var modeKeys = function (e) {
         var open = modeEl.classList.contains('open');
         if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); modeMenu(false); return; }
         if (!/^Arrow(Up|Down|Left|Right)$/.test(e.key) && e.key !== 'Home' && e.key !== 'End') return;
@@ -9941,9 +9945,11 @@
         var its = Array.prototype.filter.call(modeEl.querySelectorAll('[data-mode]'), function (b) { return !b.hidden; }), i = its.indexOf(document.activeElement);
         var to = e.key === 'Home' ? 0 : e.key === 'End' ? its.length - 1 : (i + (/Down|Right/.test(e.key) ? 1 : its.length - 1)) % its.length;
         its[to].focus();
-      });
-      modeEl.addEventListener('focusout', function (e) { if (!modeEl.contains(e.relatedTarget) && e.relatedTarget) modeMenu(false); });
-      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.mode-switch')) modeMenu(false); }, true);
+      };
+      modeBtn.addEventListener('keydown', modeKeys); modeEl.addEventListener('keydown', modeKeys);
+      var modeOut = function (e) { var t = e.relatedTarget; if (t && !modeEl.contains(t) && t !== modeBtn) modeMenu(false); };
+      modeBtn.addEventListener('focusout', modeOut); modeEl.addEventListener('focusout', modeOut);
+      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.mode-switch, .hdr-mode')) modeMenu(false); }, true);
     }
     // (a kept drawing's Vector and Photo sides, and which was showing)
     function vecLoad(v, m, ph) {
@@ -9953,7 +9959,7 @@
       if (want !== wsMode) setMode(want, false); else if (wsMode === 'vector') { PV.enter(null); ctxFor = null; ctxRender(); }
       else if (wsMode === 'photo') phGo.then(function () { if (wsMode === 'photo') { PH.enter(null); ctxFor = null; ctxRender(); } });
     }
-    if (PV) modeSync(); else if (modeEl) modeEl.hidden = true;
+    if (PV) modeSync(); else { if (modeEl) modeEl.hidden = true; if (modeBtn) modeBtn.hidden = true; }
 
     setColor(st.color); setColor2(st.color2); setSize(st.size); setTool('brush'); buttons(); fit(); restore();
     // (the paper texture is made ahead, when the page is idle, so the first

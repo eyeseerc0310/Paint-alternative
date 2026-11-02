@@ -94,8 +94,9 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   // ---- 3. THE TOP BAR, OPEN: as tall as what's in it ----
   if (!(await p.evaluate(() => document.documentElement.classList.contains('hdr-open')))) { await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(700); }
   const hd = await p.evaluate(() => { const h = document.querySelector('.site-header'), f = h.querySelector('.hdr-fold'), t = h.querySelector('.header-tools'), q = h.getBoundingClientRect(), tr = t.getBoundingClientRect(), fr = f.getBoundingClientRect(), bs = [...t.querySelectorAll('button')].filter(b => b.offsetParent), lb = bs[bs.length - 1].getBoundingClientRect();
-    return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round(fr.top - lb.bottom), over: h.scrollHeight > h.clientHeight + 1 }; });
-  L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10, 'the open top bar fits what’s in it: as much room under the arrow as over the buttons ' + JSON.stringify(hd));
+    const md = h.querySelector('.hdr-mode'), mr = md && md.offsetParent ? md.getBoundingClientRect() : null; // (the mode switch's row, between the buttons and the arrow)
+    return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round((mr ? mr.top : fr.top) - lb.bottom), row: mr ? Math.round(fr.top - mr.bottom) : null, over: h.scrollHeight > h.clientHeight + 1 }; });
+  L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10 && (hd.row == null || hd.row <= 10), 'the open top bar fits what’s in it: as much room under the arrow as over the buttons, the mode row between ' + JSON.stringify(hd));
   await p.screenshot({ path: `toolbar-${theme}-${VW}-hdr.png`, clip: { x: 0, y: 0, width: Math.min(VW, 400), height: Math.min(VH, 640) } });
   L.ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close();

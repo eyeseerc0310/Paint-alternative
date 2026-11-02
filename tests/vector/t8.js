@@ -6,12 +6,14 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); 
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://127.0.0.1:8123/index.html'); await p.waitForTimeout(1200);
   const ser = async () => JSON.parse(await p.evaluate(() => JSON.stringify(window.PaintVector.serialize())));
-  // keyboard: the pill focused, Down opens its menu on the one in use, Down again to Vector, Return picks it
+  // keyboard: the top-left menu opened, its mode row focused, Down opens the three on the one in use, Down again to Vector, Return picks it
+  await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(700);
   await p.focus('.ms-head'); await p.keyboard.press('ArrowDown'); await p.waitForTimeout(350);
   ok(await p.evaluate(() => document.querySelector('.mode-switch').classList.contains('open') && document.activeElement.dataset.mode === 'paint'), 'Down on the pill: its menu, on Paint');
   await p.keyboard.press('ArrowDown'); await p.keyboard.press('Enter'); await p.waitForTimeout(500);
   ok(await p.evaluate(() => document.documentElement.classList.contains('vector-mode')), 'Down and Return: Vector');
   ok(await p.evaluate(() => !document.querySelector('.mode-switch').classList.contains('open') && document.activeElement.classList.contains('ms-head') && /Vector/.test(document.activeElement.textContent)), 'the menu closes, the focus back on the pill, which says Vector');
+  await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(700); // (folded again)
   const k0 = (await ser()).view.k;
   await p.keyboard.press('Backslash'); await p.waitForTimeout(1200);
   ok(await p.evaluate(() => document.documentElement.classList.contains('focus-mode')), '\\ : focus mode in Vector');
