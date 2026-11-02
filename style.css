@@ -1795,7 +1795,7 @@ select.p-field {
 
 
 /* Two independent, two-column palettes share the canvas viewport's left edge. */
-:root { --hdr-open: 305px; --menu-stack-gap: var(--s-3); }
+:root { --hdr-thin: 42px; --hdr-open: 305px; --menu-stack-gap: var(--s-3); }
 .site-header {
   position: absolute; top: var(--edge); left: var(--edge); width: var(--bar);
   height: var(--hdr); padding: var(--s-2); display: flex; flex-direction: column;
@@ -1835,7 +1835,7 @@ select.p-field {
 .paint-toolgroups > .paint-group { flex: none; }
 .focus-mode .paint-left { margin-top: 0; }
 @media (max-width: 560px) {
-  :root { --bar: 100px; --hdr-open: 305px; }
+  :root { --bar: 100px; --hdr-open: 305px; --hdr-thin: 42px; }
   :root { --tool-lg: 40px; --icon-lg: 22px; }
   .paint-toolgroups > .paint-group { grid-template-columns: repeat(2, 36px); gap: 3px var(--s-1); justify-content: space-between; }
   .paint-toolgroups > .pl-view { grid-template-columns: 1fr; }
@@ -1972,23 +1972,22 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 
 
 /* ---------- PAINT, VECTOR OR PHOTO: the mode switch. Its button is a row
-   of the top-left menu, just above the save status and built like it
-   (`.hdr-mode`: the workspace's icon, its name in the middle, the chevron
-   at the end, `--hdr-row` high), so the top bar stays a thin strip and
-   nothing stands over the picture's space. Pressed, the three open side by
+   of the top-left menu while it's open, just above the save status and
+   built like it (`.hdr-mode`: the workspace's icon, its name in the
+   middle, the chevron at the end, `--hdr-row` high); folded, the menu is
+   the save status alone, and nothing stands over the picture's space. Pressed, the three open side by
    side in a frosted pill in the middle of the picture's space
    (`.mode-switch`, `modeMenu`), growing out from a little towards the
    button; the one in use is the picked part of a segmented control. A
    pick, Esc or a press anywhere else closes it ---------- */
-:root { --hdr-row: 26px; --mode-h: 40px; --ms-w: 132px; --ms-w-open: 312px; --hdr-thin: calc(2 * var(--s-2) + 2 * var(--hdr-row) + var(--s-1)); }
-:root:has(.hdr-mode[hidden]) { --hdr-thin: calc(2 * var(--s-2) + var(--hdr-row)); }
+:root { --hdr-row: 26px; --mode-h: 40px; --ms-w: 132px; --ms-w-open: 312px; }
 .site-header .hdr-mode {
   position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) 14px; align-items: center;
   flex: none; width: 100%; height: var(--hdr-row); margin: 0 0 calc(var(--s-1) - var(--s-2)); padding: 0; border: 0;
   border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 500; color: var(--muted); background: none;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
-.site-header .hdr-mode[hidden] { display: none; }
+.site-header .hdr-mode[hidden], :root:not(.hdr-open) .site-header .hdr-mode { display: none; }
 .site-header .hdr-mode .ms-cur { display: contents; }
 .site-header .hdr-mode .ms-cur svg { justify-self: center; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: var(--stroke); stroke-linecap: round; stroke-linejoin: round; }
 .site-header .hdr-mode .ms-cur span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 12px; }

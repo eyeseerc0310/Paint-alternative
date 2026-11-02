@@ -66,10 +66,10 @@ When building or changing anything visual:
   chosen colour.
 - **Where controls live:** the top bar has the document actions
   (new/save, image, history, Smart Guides, focus, help, theme; on phones
-  the extras go in its ••• menu). It starts folded to a slim strip, two rows
-  (the mode switch's, `.hdr-mode`, then the save status with the
-  `.hdr-fold` arrow; no app name or mark, only a hidden heading for screen
-  readers), and opens
+  the extras go in its ••• menu, and the mode switch's row, `.hdr-mode`, is
+  just above the save status). It starts folded to a slim strip (the save
+  status with the `.hdr-fold` arrow; no app name or mark, only a hidden
+  heading for screen readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. Open, it's as tall as what's
@@ -661,12 +661,12 @@ When building or changing anything visual:
   were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
   **They're switched from the mode switch**, nothing in Settings: a row
-  of the top-left menu just above the save status and built like it
-  (`.hdr-mode`, `modeBtn`, `--hdr-row` high: the workspace's icon, its name
-  in the middle, the chevron at the end; the menu is those two rows folded,
-  `--hdr-thin`, and `hdrFit` measures it open down to the arrow's foot), so
-  the top bar stays a thin strip and nothing stands over the picture's
-  space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
+  of the top-left menu while it's open, just above the save status and
+  built like it (`.hdr-mode`, `modeBtn`, `--hdr-row` high: the workspace's
+  icon, its name in the middle, the chevron at the end; `hdrFit` measures
+  the open menu with it, down to the arrow's foot; folded, the menu is the
+  save status alone and folding closes what the row opened), so the top bar
+  stays a thin strip and nothing stands over the picture's space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
   frosted pill in the middle of the picture's space (`.mode-switch`,
   `modeEl`, a child of the page so nothing clips it; `modePlace` sets
   `--ms-x`/`--ms-y`, kept inside the window, and `--ms-dx`/`--ms-dy`, a

@@ -8780,11 +8780,12 @@
     // leaves a gap under the arrow: --hdr-open, set on the page)
     function hdrFit() {
       var tools = header && header.querySelector('.header-tools'); if (!tools || !hdrFold) return;
-      var cs = getComputedStyle(header), d = tools.style.display;
-      tools.style.display = 'grid'; // (measured even while folded, when it isn't shown)
+      var cs = getComputedStyle(header), d = tools.style.display, md = modeBtn && modeBtn.style.display;
+      tools.style.display = 'grid'; // (measured even while folded, when they aren't shown)
+      if (modeBtn && !modeBtn.hidden) modeBtn.style.display = 'grid';
       // (from the top to the arrow's foot, the mode switch's row and all, and the padding under it)
       var h = hdrFold.getBoundingClientRect().bottom - header.getBoundingClientRect().top + parseFloat(cs.paddingBottom);
-      tools.style.display = d;
+      tools.style.display = d; if (modeBtn) modeBtn.style.display = md;
       if (h > 0) document.documentElement.style.setProperty('--hdr-open', Math.ceil(h) + 'px');
     }
     hdrFit();
@@ -9902,8 +9903,9 @@
         if (w !== 'cancel') setMode(m, w === 'bring');
       });
     }
-    // THE MODE SWITCH: a row of the top-left menu, just above the save
-    // status (modeBtn, `.hdr-mode`), showing the workspace in use; pressed,
+    // THE MODE SWITCH: a row of the top-left menu while it's open, just
+    // above the save status (modeBtn, `.hdr-mode`), showing the workspace in
+    // use (folding the menu closes what it opened, closeDrops); pressed,
     // the three open side by side in a pill in the middle of the picture's
     // space (modeEl), growing out from a little towards the button, and
     // close when one's picked, Esc, or a press anywhere else. Another one

@@ -1,6 +1,7 @@
-// The mode switch: a row of the top-left menu, just above the save status
-// and built like it (the workspace's icon, its name, a chevron), so the top
-// bar stays its thin strip and nothing stands over the picture's space.
+// The mode switch: a row of the top-left menu while it's open, just above
+// the save status and built like it (the workspace's icon, its name, a
+// chevron); folded, the menu is the save status alone, a thin strip, and
+// nothing stands over the picture's space.
 // Pressed, the three open side by side in a pill in the middle of the
 // picture's space, the one in use picked; a pick switches (asking first when
 // there's art to bring) and it closes; a press anywhere else, or Esc, closes
@@ -15,6 +16,7 @@ const V = require('./vt.js'), L = require('../lib');
       const q = s => document.querySelector(s), r = s => q(s).getBoundingClientRect();
       const btn = q('.hdr-mode'), pop = q('.mode-switch'), b = r('.hdr-mode'), f = r('.hdr-fold'), h = r('.site-header'), s = r('.paint-stage'), m = r('.mode-switch');
       return {
+        vis: !!btn.getClientRects().length, folded: !document.documentElement.classList.contains('hdr-open'),
         text: btn.textContent.trim(), exp: btn.getAttribute('aria-expanded'), chev: !!btn.querySelector('.ms-chev'), icon: !!btn.querySelector('.ms-cur svg'),
         open: pop.classList.contains('open'), shown: getComputedStyle(pop).visibility === 'visible' && +getComputedStyle(pop).opacity > 0.5,
         btn: { l: b.left, t: b.top, w: b.width, h: b.height, b: b.bottom }, fold: { l: f.left, t: f.top, w: f.width, h: f.height }, hdr: { t: h.top, b: h.bottom },
@@ -27,12 +29,17 @@ const V = require('./vt.js'), L = require('../lib');
     const press = async s => { const r = await (await p.$(s)).boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(450); };
     const mode = () => p.evaluate(() => document.documentElement.classList.contains('vector-mode') ? 'vector' : document.documentElement.classList.contains('photo-mode') ? 'photo' : 'paint');
     let s = await st();
-    // ---- the row, above the save status, built like it ----
+    // ---- folded: the save status alone, a thin strip, nothing over the picture ----
+    ok(s.folded && !s.vis && s.hdr.b - s.hdr.t <= 44 && Math.abs(s.stage.t - s.hdr.t) <= 1, name + ': folded, the menu is the save status alone, and the picture’s space starts level with it ' + JSON.stringify({ hdr: s.hdr, stage: s.stage.t }));
+    ok(!(await p.$('.paint-centre .mode-switch')), name + ': nothing over the top of the picture’s space');
+    // ---- open: the row, above the save status, built like it ----
+    await press('.hdr-fold'); await p.waitForTimeout(500);
+    s = await st();
     ok(/Paint/.test(s.text) && s.chev && s.icon && s.exp === 'false' && !s.open && !s.shown, name + ': the row says Paint, with its icon and chevron, nothing open ' + JSON.stringify({ text: s.text }));
     ok(Math.abs(s.btn.l - s.fold.l) < 0.5 && Math.abs(s.btn.w - s.fold.w) < 0.5 && Math.abs(s.btn.h - s.fold.h) < 0.5 && s.btn.b <= s.fold.t && s.fold.t - s.btn.b <= 8, name + ': directly above the save status, its size ' + JSON.stringify({ btn: s.btn, fold: s.fold }));
-    ok(s.btn.t >= s.hdr.t && s.hdr.b - (s.fold.t + s.fold.h) <= 10, name + ': the menu only as tall as the two rows ' + JSON.stringify({ hdr: s.hdr }));
-    ok(Math.abs(s.stage.t - s.hdr.t) <= 1, name + ': no band over the picture’s space: it starts level with the menu ' + JSON.stringify({ stage: s.stage.t, hdr: s.hdr.t }));
-    ok(!(await p.$('.paint-centre .mode-switch')), name + ': nothing over the top of the picture’s space');
+    ok(!s.folded && s.vis && s.hdr.b - (s.fold.t + s.fold.h) <= 10, name + ': the menu open, the row shows, and the menu fits it ' + JSON.stringify({ hdr: s.hdr }));
+    const above = await p.evaluate(() => { const b = document.querySelector('.hdr-mode').getBoundingClientRect(), bs = [...document.querySelectorAll('.site-header .header-tools button')].filter(e => e.offsetParent).map(e => e.getBoundingClientRect().bottom); return Math.max(...bs) <= b.top; });
+    ok(above, name + ': under the menu’s buttons');
     // (Settings: no workspaces)
     await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(250);
     ok(!(await p.$('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"], [data-setting="modeask"]')) && !!(await p.$('[data-setting="theme"]')), name + ': Settings has no workspaces');
@@ -85,11 +92,11 @@ const V = require('./vt.js'), L = require('../lib');
       await p.keyboard.press('Escape'); await p.waitForTimeout(300);
       ok(!(await st()).open && await p.evaluate(() => document.activeElement.classList.contains('hdr-mode')), name + ': Esc closes it, the focus on the row');
     }
-    // ---- the top bar opened: the row stays above the save status ----
-    await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(800);
-    s = await st(); ok(s.btn.b <= s.fold.t && s.fold.t - s.btn.b <= 8 && s.btn.w === s.fold.w, name + ': the menu open, the row still just above the save status');
+    // ---- the pill open, the menu folded: the pill closes with it ----
+    await press('.hdr-mode'); ok((await st()).open, name + ': open again');
+    await press('.hdr-fold'); await p.waitForTimeout(400);
+    s = await st(); ok(s.folded && !s.open && !s.shown && !s.vis, name + ': the menu folded: the pill closes, the row goes with it');
     await p.screenshot({ path: 't46-' + name + '.png' });
-    await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(800);
     ok(!H.errs.length, name + ': no errors ' + H.errs.join('\n'));
     await H.b.close();
   }
