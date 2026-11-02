@@ -9045,7 +9045,9 @@
       else if (w === 'install' && installEv) { installEv.prompt(); installEv.userChoice.then(function () { installEv = null; hb('install').hidden = true; hdrFit(); }); }
     });
     document.addEventListener('pointerdown', function (e) {
-      if (!e.target.closest('.paint-drop, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
+      // (not on the mode switch: closing its menu on the press hid the very
+      // button pressed, so the click never came and no mode was switched)
+      if (!e.target.closest('.paint-drop, .mode-switch, [data-hb="image"], [data-hb="history"], [data-hb="more"], [data-hb="settings"]')) closeDrops();
     }, true);
 
     // ---- THE CONTEXT BAR: what the tool in hand can be set to, at the top of
@@ -9882,25 +9884,28 @@
     function bbarPhoto() { sizeIn.disabled = true; alphaIn.disabled = true; bbar.dataset.uses = ''; settingsToggle.dataset.tip = 'Edit panel'; settingsToggleSync(); zoomVal.textContent = '100%'; }
     function sideHas(m) { return m === 'paint' ? !thumbOf().blank : m === 'vector' ? !PV.isEmpty() : !PH.isEmpty(); }
     function askMode(m) {
-      if (!modeOk(m) || m === wsMode || sheetEl || ctrEl) return;
+      if (!modeOk(m) || m === wsMode) return;
+      // (a sheet open in the top bar's panel, or one in the middle, gives way:
+      // once it quietly stopped the switch, and the pill seemed not to work)
+      centreClose(); if (sheetEl) docClose(true);
       if (!sideHas(wsMode)) { setMode(m, false); return; } // (nothing to bring: no question)
       var what = { paint: 'painting', vector: 'vector artwork', photo: 'edited photo' }[wsMode];
       var into = m === 'paint' ? 'It comes in as paint on a new layer.' : m === 'vector' ? 'It comes in as a picture on a layer of its own, to trace over.' : 'It becomes the photo being edited (undo brings the last one back).';
-      var box = openSheet('vm', '<div class="pa-sheet-title">Switch to ' + MODE_NAME[m] + '</div>' +
+      var box = centreSheet('vm', '<div class="pa-sheet-title">Switch to ' + MODE_NAME[m] + '</div>' +
         '<p class="vm-text">Bring a copy of your ' + what + ' into ' + MODE_NAME[m] + ' mode? ' + into + ' Your ' + what + ' itself stays just as it is.</p>' +
         '<div class="pa-sheet-acts"><button type="button" data-vm="cancel">Cancel</button><button type="button" data-vm="switch">Switch Without Copying</button><button type="button" class="pa-primary" data-vm="bring">Bring ' + (wsMode === 'photo' ? 'Photo' : 'Artwork') + '</button></div>');
       box.addEventListener('click', function (e) {
         var b = e.target.closest('[data-vm]'); if (!b) return;
         var w = b.dataset.vm;
-        closeSheet();
+        centreClose();
         if (w !== 'cancel') setMode(m, w === 'bring');
       });
     }
-    // THE MODE SWITCH: a small pill over the top of the picture's space
-    // showing the workspace in use; pressed, it moves down a touch and grows
-    // into the menu of the three (the one in use ticked), and shrinks back
-    // when one's picked, Esc, or a press anywhere else. Another one goes
-    // through askMode, so leaving art behind always asks first
+    // THE MODE SWITCH: a thin pill in the band over the picture's space
+    // showing the workspace in use; pressed, it grows sideways into the
+    // three side by side (the one in use picked), and shrinks back when one's
+    // picked, Esc, or a press anywhere else. Another one goes through
+    // askMode, so leaving art behind always asks first, in the middle of the window
     // (where the pill's foot is at rest, closed and not moved down, on the
     // screen; null while it's out of sight: what Vector's and Photo's fits keep clear of)
     function modeFoot() {
@@ -9930,11 +9935,11 @@
       modeEl.addEventListener('keydown', function (e) {
         var open = modeEl.classList.contains('open');
         if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); modeMenu(false); return; }
-        if (!/^Arrow(Up|Down)$/.test(e.key) && e.key !== 'Home' && e.key !== 'End') return;
+        if (!/^Arrow(Up|Down|Left|Right)$/.test(e.key) && e.key !== 'Home' && e.key !== 'End') return;
         e.preventDefault(); e.stopPropagation();
         if (!open) { modeMenu(true, true); return; }
         var its = Array.prototype.filter.call(modeEl.querySelectorAll('[data-mode]'), function (b) { return !b.hidden; }), i = its.indexOf(document.activeElement);
-        var to = e.key === 'Home' ? 0 : e.key === 'End' ? its.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : its.length - 1)) % its.length;
+        var to = e.key === 'Home' ? 0 : e.key === 'End' ? its.length - 1 : (i + (/Down|Right/.test(e.key) ? 1 : its.length - 1)) % its.length;
         its[to].focus();
       });
       modeEl.addEventListener('focusout', function (e) { if (!modeEl.contains(e.relatedTarget) && e.relatedTarget) modeMenu(false); });

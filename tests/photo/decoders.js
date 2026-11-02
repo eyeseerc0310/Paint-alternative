@@ -67,7 +67,7 @@ const touch = process.argv.includes('touch');
 
   // ---- PAINT: a TIFF and a HEIC come in as pictures ----
   await settingsItem('paint');
-  const sw = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(400); }
+  const sw = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(400); }
   const layersN = () => p.evaluate(() => document.querySelectorAll('.paint-layers canvas').length);
   for (const f of ['scene.tif', 'scene.heic']) {
     const n0 = await layersN();

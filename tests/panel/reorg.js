@@ -17,7 +17,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   await p.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
   const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
   const tapEl = async s => { const e = typeof s === 'string' ? await p.$(s) : s; await e.evaluate(el => el.scrollIntoView({ block: 'nearest' })); const r = await e.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(250); };
-  const settingsItem = async name => { await L.pickMode(p, name, touch); await p.waitForTimeout(500); const sw = await p.$('.paint-docpanel:not([hidden]) [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } // (the mode switch; art left behind: switched without copying)
+  const settingsItem = async name => { await L.pickMode(p, name, touch); await p.waitForTimeout(500); const sw = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } // (the mode switch; art left behind: switched without copying)
     await p.waitForTimeout(600); };
   const count = () => p.$$eval('.paint-layers canvas', l => l.length);
   const at = async (fx, fy) => p.evaluate(([fx, fy]) => { const w = document.querySelector('.paint-world').getBoundingClientRect(); return [w.left + w.width * fx, w.top + w.height * fy]; }, [fx, fy]);

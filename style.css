@@ -1315,7 +1315,8 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
   .doc-status { padding: 0; width: 22px; justify-content: center; }
   .doc-status span { display: none; }
   /* (the dock: a strip's anchor over the top of the picture, taking no room) */
-  .paint-dock { position: absolute; left: calc(var(--bar) + var(--pgap)); right: 0; top: 0; width: auto; height: 0; margin: 0; }
+  .paint-dock { position: absolute; left: calc(var(--bar) + var(--pgap)); right: 0; top: var(--mode-band); width: auto; height: 0; margin: 0; }
+  .focus-mode .paint-dock { top: 0; } /* (under the mode switch's band, which focus mode takes away) */
   .paint.dock-on .paint-dock { width: auto; }
   .paint-ctx { top: 6px; left: 6px; right: auto; transform: none; max-width: calc(100% - 12px); }
   /* (narrow: the bar's settings wrap onto a second row rather than hide off the edge) */
@@ -1428,7 +1429,7 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @media (hover: hover) { .pa-sheet-acts .pa-primary:hover { color: var(--on-accent); background: var(--accent-hover); } }
 /* (a sheet's leading button, its icon before its word, at the start of the
    row: New Picture's Import Picture, Save Photo's Share) */
-.ns .pa-sheet-acts { flex-wrap: wrap; }
+.ns .pa-sheet-acts, .vm .pa-sheet-acts { flex-wrap: wrap; }
 .pa-sheet-acts .pa-lead { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); margin-right: auto; padding: 0 1.1rem 0 .95rem; }
 @media (max-width: 560px) { .pa-sheet-acts .pa-lead { flex: 1 0 100%; margin-right: 0; } } /* (a phone: a row of its own, over the others) */
 .paint-docpanel .pa-sheet-acts .pa-lead { flex: 1 0 100%; margin-right: 0; } /* (in the narrow panel too) */
@@ -1971,56 +1972,59 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 .site-header .hdr-fold > svg { position: absolute; right: 0; }
 
 
-/* ---------- PAINT, VECTOR OR PHOTO: the mode switch. A small frosted pill
-   centred on the window, level with the top bar's strip, showing the
-   workspace in use; pressed, it moves down a touch and grows (taller, a
-   little wider, its corners a menu's) into the menu of the three, the one
-   in use ticked, and shrinks back when one's picked. Nothing round it
-   moves: it stands over the top of the picture's space ---------- */
-:root { --mode-h: 30px; --ms-w: 118px; --ms-w-open: 168px; }
-.paint-centre { position: relative; }
+/* ---------- PAINT, VECTOR OR PHOTO: the mode switch. A thin frosted pill
+   in a band of its own over the picture's space (`--mode-band`, as tall as
+   the top bar's strip and level with it), in the middle of the window (on a
+   phone, of the picture's space), showing the workspace in use. Pressed, it
+   grows sideways into the three, side by side, the one in use the picked
+   part of a segmented control; a pick and it shrinks back. It never covers
+   the picture, and nothing round it moves ---------- */
+:root { --mode-h: 32px; --mode-band: calc(var(--hdr-thin) + var(--s-1)); --ms-w: 118px; --ms-w-open: 304px; }
+.paint-centre { position: relative; padding-top: var(--mode-band); }
+.focusing .paint-centre { transition: padding-top var(--dur-slow) var(--ease); }
+.focus-mode .paint-centre { padding-top: 0; }
 .mode-switch {
   position: fixed; left: 50%; top: calc(var(--edge) + (var(--hdr-thin) - var(--mode-h)) / 2); z-index: 7;
-  display: grid; grid-template-rows: var(--mode-h) 0fr; width: var(--ms-w); transform: translateX(-50%);
-  border-radius: calc(var(--mode-h) / 2);
+  width: var(--ms-w); height: var(--mode-h); transform: translateX(-50%); overflow: hidden;
+  border-radius: var(--r-pill);
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
-  transition: grid-template-rows var(--dur-pop) var(--ease), width var(--dur-pop) var(--ease), transform var(--dur-pop) var(--spring),
-    border-radius var(--dur-pop) var(--ease), box-shadow var(--dur) ease, opacity var(--dur) ease, visibility 0s;
+  transition: width var(--dur-pop) var(--ease), box-shadow var(--dur) ease, opacity var(--dur) ease, visibility 0s;
 }
 .mode-switch[hidden] { display: none; }
-.mode-switch.open { grid-template-rows: var(--mode-h) 1fr; width: var(--ms-w-open); transform: translate(-50%, var(--s-1)); border-radius: var(--r-menu); box-shadow: var(--shadow-pop); }
+.mode-switch.open { width: var(--ms-w-open); box-shadow: var(--shadow-pop); }
+/* (closed: the one in use and the chevron; open: the three, side by side) */
 .paint .mode-switch .ms-head {
-  width: 100%; height: var(--mode-h); gap: var(--s-1); padding: 0 10px 0 var(--s-3); border-radius: calc(var(--mode-h) / 2);
+  position: absolute; inset: 0; width: 100%; height: 100%; gap: var(--s-1); padding: 0 10px 0 var(--s-3); border-radius: inherit;
   font-size: var(--fs-sm); font-weight: 600; color: var(--text); justify-content: center;
+  transition: opacity var(--dur-fast) ease, background-color var(--dur-fast) ease;
 }
 @media (hover: hover) { .paint .mode-switch:not(.open) .ms-head:hover { background: var(--hover); } }
-.paint .mode-switch.open .ms-head { background: none; transform: none; }
-.ms-cur { display: inline-flex; align-items: center; gap: 6px; }
+.mode-switch.open .ms-head { opacity: 0; pointer-events: none; }
+.ms-cur { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .paint .mode-switch .ms-cur svg { width: var(--icon-sm); height: var(--icon-sm); }
-.paint .mode-switch .ms-chev { width: var(--chev); height: var(--chev); stroke-width: var(--stroke-xs); color: var(--muted); transition: transform var(--dur-pop) var(--ease); }
-.mode-switch.open .ms-chev { transform: rotate(180deg); }
-.ms-list { min-height: 0; overflow: hidden; }
+.paint .mode-switch .ms-chev { width: var(--chev); height: var(--chev); stroke-width: var(--stroke-xs); color: var(--muted); }
 .ms-items {
-  display: grid; gap: 2px; padding: 2px 6px 6px;
-  opacity: 0; transform: translateY(calc(-1 * var(--s-1))); transition: opacity var(--dur) ease, transform var(--dur-pop) var(--ease);
+  position: absolute; inset: 3px; display: flex; gap: 2px;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--dur-fast) ease, visibility 0s linear var(--dur-fast);
 }
-.mode-switch.open .ms-items { opacity: 1; transform: none; }
+.mode-switch.open .ms-items { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--dur) ease var(--dur-fast), visibility 0s; }
 .paint .mode-switch .ms-items button {
-  width: 100%; height: var(--row); gap: 10px; padding: 0 10px; justify-content: flex-start; border-radius: var(--r-xs);
-  font-size: var(--fs-ui); font-weight: 500; color: var(--text);
+  flex: 1 1 0; min-width: 0; width: auto; height: 100%; gap: 6px; padding: 0 var(--s-2); border-radius: var(--r-pill);
+  font-size: var(--fs-sm); font-weight: 600; color: var(--muted); white-space: nowrap;
 }
-.paint .mode-switch .ms-items button:active { transform: scale(var(--press-row)); }
-@media (hover: hover) { .paint .mode-switch .ms-items button:hover { background: var(--hover); } }
+.paint .mode-switch .ms-items button span { overflow: hidden; text-overflow: ellipsis; }
+@media (hover: hover) { .paint .mode-switch .ms-items button:hover { color: var(--text); background: var(--hover); } }
+.paint .mode-switch .ms-items [aria-checked="true"] { color: var(--text); background: var(--seg-on); box-shadow: var(--seg-shadow); }
 .paint .mode-switch .ms-items button svg { flex: none; width: var(--icon-sm); height: var(--icon-sm); }
 .paint .mode-switch .ms-items [data-mode][hidden] { display: none; }
-.paint .mode-switch .ms-tick { margin-left: auto; opacity: 0; }
-.paint .mode-switch [aria-checked="true"] .ms-tick { opacity: 1; }
+.paint .mode-switch button:focus-visible { outline-offset: -2px; } /* (inside: the pill clips past its edge) */
 .focus-mode .mode-switch { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
 @media (max-width: 560px) {
-  /* (a phone: over the middle of the picture's space, its tool strip under it) */
-  :root { --mode-h: 30px; }
-  .mode-switch { position: absolute; top: var(--s-2); }
-  :root:has(.mode-switch:not([hidden])) .paint-ctx { top: calc(var(--s-2) + var(--mode-h) + var(--s-1)); }
+  /* (a phone: over the middle of the picture's space, as wide as it allows open) */
+  :root { --mode-h: 30px; --ms-w-open: min(260px, calc(100vw - var(--bar) - 3 * var(--edge))); }
+  .mode-switch { position: absolute; top: calc((var(--hdr-thin) - var(--mode-h)) / 2); }
+  .paint .mode-switch .ms-items button { gap: 4px; padding: 0 6px; font-size: var(--fs-xs); }
 }
 
 /* Vector mode: the painting's own parts step out of sight (kept as they
