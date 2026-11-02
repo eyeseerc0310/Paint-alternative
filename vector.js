@@ -1675,12 +1675,11 @@
   function toScreen(p) { return mx(vmat(), p); }
   function fromScreen(x, y) { return mx(mInv(vmat()), v2(x, y)); }
   function stageXY(e) { var r = stageEl.getBoundingClientRect(); return v2(e.clientX - r.left, e.clientY - r.top); }
-  // (fitted: the same margin all round, clear of the Paint / Vector switch)
+  // (fitted: the same margin all round)
   var fitM = 34, fitT = 34;
   function fitView() {
     var sw = stageEl.clientWidth, sh = stageEl.clientHeight; if (!sw || !sh || !doc) return;
     fitM = fitT = B.phone() ? 10 : 34;
-    var mf = B.modeFoot && B.modeFoot(); if (mf != null) fitT = Math.max(fitM, mf - stageEl.getBoundingClientRect().top + 8);
     var A = AB(); fitK = Math.max(0.01, Math.min((sw - 2 * fitM) / A.w, (sh - fitT - fitM) / A.h));
   }
   function fit() {

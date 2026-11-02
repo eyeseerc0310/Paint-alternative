@@ -34,7 +34,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the mode switch's pill), `--mode-band` (the band over the picture's space it stands in; the phone's tool settings strip starts under it), `--mode-gap` (the gap over and under it), `--ms-w` and `--ms-w-open` (the pill's width, closed and open), `--ruler` (Vector's rulers).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--hdr-row` (a row of the top-left menu: the mode switch's and the save status's), `--mode-h` (the mode switch's pill of three), `--ms-w` and `--ms-w-open` (that pill's width as it starts to open and open), `--ruler` (Vector's rulers).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -66,9 +66,10 @@ When building or changing anything visual:
   chosen colour.
 - **Where controls live:** the top bar has the document actions
   (new/save, image, history, Smart Guides, focus, help, theme; on phones
-  the extras go in its ••• menu). It starts folded to a slim strip (the
-  `.hdr-fold` arrow, in the middle; no app name or mark, only a hidden
-  heading for screen readers), and opens
+  the extras go in its ••• menu). It starts folded to a slim strip, two rows
+  (the mode switch's, `.hdr-mode`, then the save status with the
+  `.hdr-fold` arrow; no app name or mark, only a hidden heading for screen
+  readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
   `:root`, set before the page draws): `--hdr` eases and the workspace with
   it, never covered, with `refit()` each frame. Open, it's as tall as what's
@@ -659,32 +660,31 @@ When building or changing anything visual:
   back, or, if it was picked up already, the geometry and pixels as they
   were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
-  **They're switched from the mode switch** (`.mode-switch`, nothing in
-  Settings): a small frosted pill (`--mode-h` high, `--ms-w` wide) in the
-  top band (`--mode-band`, the room `.paint-centre` keeps over the
-  picture's space: the same gap, `--mode-gap`, over the pill to the
-  window's edge as under it to the picture's space, so it never covers the
-  picture; `position: fixed` in the window's middle, so the
-  dock folding or panels opening never move it; on phones over the middle
-  of the picture's space, the dock and tool strip starting under the band),
-  showing the workspace in use (`.ms-head`: its icon, name and the
-  chevron). Pressed (`modeMenu`), the same pill grows sideways, its height
-  and middle kept, to `--ms-w-open`: Paint | Vector | Photo in a row
-  (`.ms-items`, `aria-orientation="horizontal"`, `menuitemradio`s
-  `[data-mode]`, each its icon and name, the one in use the `--seg-on`
-  thumb, like a segmented control); a pick, Esc, a press anywhere else
-  (capture `pointerdown`) or `closeDrops` shrinks it back; the arrows, Home
-  and End go round it. The page's own capture `pointerdown` that closes
-  drop-downs skips `.mode-switch`: once it closed the menu on the press,
-  hiding the item before its click, and no pick switched. The one in use
-  again does nothing; another goes through `askMode(m)`, which first closes
-  a view in the top bar's panel or a centred sheet (once one open quietly
-  stopped the switch), then always asks when the side being left has art
-  (`thumbOf().blank`, `PV.isEmpty()`; there's no Don't ask again and no
-  setting for it): a centred sheet (`centreSheet('vm')`) offers Cancel,
-  Switch Without Copying and Bring Artwork; with nothing to bring it just
-  switches. Vector's and Photo's fits keep the art clear of the pill
-  (`fitT`, and `top` in Photo's `free`); the help sheet lists Vector's keys
+  **They're switched from the mode switch**, nothing in Settings: a row
+  of the top-left menu just above the save status and built like it
+  (`.hdr-mode`, `modeBtn`, `--hdr-row` high: the workspace's icon, its name
+  in the middle, the chevron at the end; the menu is those two rows folded,
+  `--hdr-thin`, and `hdrFit` measures it open down to the arrow's foot), so
+  the top bar stays a thin strip and nothing stands over the picture's
+  space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
+  frosted pill in the middle of the picture's space (`.mode-switch`,
+  `modeEl`, a child of the page so nothing clips it; `modePlace` sets
+  `--ms-x`/`--ms-y`, kept inside the window, and `--ms-dx`/`--ms-dy`, a
+  little towards the button, where it grows out from with `--spring`):
+  `menuitemradio`s `[data-mode]`, each its icon and name, the one in use
+  the `--seg-on` thumb. A pick, Esc, a press anywhere else (capture
+  `pointerdown`) or `closeDrops` closes it; the arrows, Home and End go
+  round it. The page's own capture `pointerdown` that closes drop-downs
+  skips `.mode-switch` and `.hdr-mode`: once it closed the menu on the
+  press, hiding the item before its click, and no pick switched. The one
+  in use again does nothing; another goes through `askMode(m)`, which first
+  closes a view in the top bar's panel or a centred sheet (once one open
+  quietly stopped the switch), then always asks when the side being left
+  has art (`thumbOf().blank`, `PV.isEmpty()`; there's no Don't ask again
+  and no setting for it): a centred sheet (`centreSheet('vm')`) offers
+  Cancel, Switch Without Copying and Bring Artwork; with nothing to bring it
+  just
+  switches. The help sheet lists Vector's keys
   only in Vector mode. `setMode(m, bring)` does the switch (`wsMode`,
   `vector-mode` on `:root`, `modeSync`). The painting is only hidden in
   Vector mode, never changed: the words being typed and Effects are
@@ -727,7 +727,7 @@ When building or changing anything visual:
   back when a second finger lands; `recordC` makes a run of slider or
   picker changes one step), THE VIEW (`view` x, y, k and r, turned by
   Rotate View or two fingers' twist; `vmat`, `toScreen`/`fromScreen`; `fit`
-  keeps clear of the switch and sets it upright), ON THE SCREEN (`renderArt`,
+  sets it upright), ON THE SCREEN (`renderArt`,
   `renderNode` for one node during a drag; `drawUI` draws what's picked,
   handles, anchors and what's being made on `.vec-ui`, in screen pixels),
   PICKING (`hitLeaf`, `hitAnchor`, `hitHandleOf`, `hitSegment`,
