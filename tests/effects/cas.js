@@ -173,6 +173,8 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   const turned0 = await sheetSum();
   // (turned a quarter: the frame's side handle that was east is now south)
   const tcx = (bx0 + bx1) / 2, tcy = (by0 + by1) / 2, th2 = (bx1 - bx0) / 2;
+  // (on a phone the options cover that handle: closed first, as a person would; the mode stays on)
+  if (VW <= 560) { await tapEl('.selection-toolbar [data-selection-pop="transform"]'); L.ok(await pill() && await p.$eval('.selection-pop', e => e.hidden), 'the options closed, the mode still on'); }
   await drag(tcx, tcy + th2, tcx, tcy + th2 * 0.7); await settle();
   const tsp = await cvOf('sov', SPAN);
   L.ok((await sheetSum()) !== turned0 && tsp.h >= span0.w * 0.95, 'sized in its own frame, the circle keeps its width, turned (' + span0.w + ' → ' + tsp.h + ')');
