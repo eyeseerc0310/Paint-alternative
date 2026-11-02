@@ -1973,18 +1973,19 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 
 
 /* ---------- PAINT, VECTOR OR PHOTO: the mode switch. A thin frosted pill
-   in a band of its own over the picture's space (`--mode-band`, as tall as
-   the top bar's strip and level with it), in the middle of the window (on a
+   in a band of its own over the picture's space (`--mode-band`: the same
+   gap, `--mode-gap`, over it to the window's edge and under it to the
+   picture's space), in the middle of the window (on a
    phone, of the picture's space), showing the workspace in use. Pressed, it
    grows sideways into the three, side by side, the one in use the picked
    part of a segmented control; a pick and it shrinks back. It never covers
    the picture, and nothing round it moves ---------- */
-:root { --mode-h: 32px; --mode-band: calc(var(--hdr-thin) + var(--s-1)); --ms-w: 118px; --ms-w-open: 304px; }
+:root { --mode-h: 32px; --mode-gap: var(--s-2); --mode-band: calc(2 * var(--mode-gap) + var(--mode-h) - var(--edge)); --ms-w: 118px; --ms-w-open: 304px; }
 .paint-centre { position: relative; padding-top: var(--mode-band); }
 .focusing .paint-centre { transition: padding-top var(--dur-slow) var(--ease); }
 .focus-mode .paint-centre { padding-top: 0; }
 .mode-switch {
-  position: fixed; left: 50%; top: calc(var(--edge) + (var(--hdr-thin) - var(--mode-h)) / 2); z-index: 7;
+  position: fixed; left: 50%; top: var(--mode-gap); z-index: 7;
   width: var(--ms-w); height: var(--mode-h); transform: translateX(-50%); overflow: hidden;
   border-radius: var(--r-pill);
   background: var(--panel); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-panel);
@@ -2023,7 +2024,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 @media (max-width: 560px) {
   /* (a phone: over the middle of the picture's space, as wide as it allows open) */
   :root { --mode-h: 30px; --ms-w-open: min(260px, calc(100vw - var(--bar) - 3 * var(--edge))); }
-  .mode-switch { position: absolute; top: calc((var(--hdr-thin) - var(--mode-h)) / 2); }
+  .mode-switch { position: absolute; top: calc(var(--mode-gap) - var(--edge)); }
   .paint .mode-switch .ms-items button { gap: 4px; padding: 0 6px; font-size: var(--fs-xs); }
 }
 

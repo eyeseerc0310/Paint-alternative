@@ -34,7 +34,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the mode switch's pill), `--mode-band` (the band over the picture's space it stands in; the phone's tool settings strip starts under it), `--ms-w` and `--ms-w-open` (the pill's width, closed and open), `--ruler` (Vector's rulers).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the mode switch's pill), `--mode-band` (the band over the picture's space it stands in; the phone's tool settings strip starts under it), `--mode-gap` (the gap over and under it), `--ms-w` and `--ms-w-open` (the pill's width, closed and open), `--ruler` (Vector's rulers).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -662,8 +662,9 @@ When building or changing anything visual:
   **They're switched from the mode switch** (`.mode-switch`, nothing in
   Settings): a small frosted pill (`--mode-h` high, `--ms-w` wide) in the
   top band (`--mode-band`, the room `.paint-centre` keeps over the
-  picture's space, level with the top bar's strip and as tall as it, so it
-  never covers the picture; `position: fixed` in the window's middle, so the
+  picture's space: the same gap, `--mode-gap`, over the pill to the
+  window's edge as under it to the picture's space, so it never covers the
+  picture; `position: fixed` in the window's middle, so the
   dock folding or panels opening never move it; on phones over the middle
   of the picture's space, the dock and tool strip starting under the band),
   showing the workspace in use (`.ms-head`: its icon, name and the
