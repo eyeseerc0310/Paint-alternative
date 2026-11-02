@@ -20,6 +20,7 @@ const V = require('./vt.js'), L = require('../lib');
     if (name === 'phone') ok(Math.abs(s.x - s.stageMid) <= 1, name + ': over the middle of the picture’s space ' + JSON.stringify({ x: s.x, mid: s.stageMid }));
     else ok(Math.abs(s.x - s.vw) <= 1 && Math.abs((s.top + s.h / 2) - s.foldMid) <= 2, name + ': in the middle of the window, level with the top bar’s strip ' + JSON.stringify({ x: s.x, vw: s.vw, mid: s.top + s.h / 2, fold: s.foldMid }));
     ok(s.h <= 32 && s.w <= 130, name + ': small ' + s.w + '×' + s.h);
+    ok(s.top + s.h <= s.stageTop, name + ': in the band over the picture’s space, never over it ' + JSON.stringify({ bottom: s.top + s.h, stage: s.stageTop }));
     const w0 = s.w, h0 = s.h;
     // (Settings: no workspaces, no Ask to Bring Art)
     await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(250);
@@ -29,10 +30,11 @@ const V = require('./vt.js'), L = require('../lib');
     await press('.ms-head');
     s = await pill();
     ok(s.open && s.exp === 'true' && s.items === 'paint✓,vector,photo', name + ': pressed, its menu: ' + s.items);
-    ok(s.ty > 0 && s.h > h0 + 60 && s.w > w0, name + ': moved down a touch, grown into the menu ' + JSON.stringify({ ty: s.ty, h: s.h, w: s.w }));
+    ok(Math.abs(s.ty) < 0.5 && Math.abs(s.h - h0) <= 1 && s.w > w0 + 100, name + ': grown sideways, the same height, in the same place ' + JSON.stringify({ ty: s.ty, h: s.h, w: s.w, w0 }));
     ok(Math.abs(s.x - (name === 'phone' ? s.stageMid : s.vw)) <= 1, name + ': still centred');
-    const chev = await p.$eval('.ms-chev', e => new DOMMatrix(getComputedStyle(e).transform).a);
-    ok(chev < -0.99, name + ': its chevron turned up');
+    const row = await p.evaluate(() => { const bs = [...document.querySelectorAll('.ms-items [data-mode]')].filter(b => !b.hidden), rs = bs.map(b => b.getBoundingClientRect()), m = document.querySelector('.mode-switch').getBoundingClientRect(); return { tops: [...new Set(rs.map(r => Math.round(r.top)))].length, inside: rs.every(r => r.left >= m.left && r.right <= m.right + 0.5), order: rs.every((r, i) => !i || r.left >= rs[i - 1].right - 0.5), cut: bs.some(b => { const t = b.querySelector('span'); return t.scrollWidth > t.clientWidth; }), picked: getComputedStyle(bs[0]).backgroundColor !== getComputedStyle(bs[1]).backgroundColor, icons: bs.every(b => !!b.querySelector('svg')) }; });
+    ok(row.tops === 1 && row.inside && row.order && !row.cut && row.icons, name + ': Paint | Vector | Photo side by side, each its icon and whole name, inside the pill ' + JSON.stringify(row));
+    ok(row.picked, name + ': the one in use picked');
     if (name !== 'phone') await p.screenshot({ path: 't46-' + name + '-open.png', clip: { x: vp.width / 2 - 160, y: 0, width: 320, height: 200 } });
     else await p.screenshot({ path: 't46-' + name + '-open.png' });
     // a press elsewhere: closed, nothing switched
@@ -43,7 +45,7 @@ const V = require('./vt.js'), L = require('../lib');
     ok(!s.open && !s.vec && Math.abs(s.h - h0) <= 1, name + ': a press elsewhere closes it, still Paint');
     // Paint again: nothing happens
     await press('.ms-head'); await press('.ms-items [data-mode="paint"]');
-    s = await pill(); ok(!s.open && !s.vec && !(await p.$('.paint-docpanel:not([hidden]) .vm')), name + ': Paint picked again: closed, nothing switched');
+    s = await pill(); ok(!s.open && !s.vec && !(await p.$('.pa-sheet-wrap.in .vm')), name + ': Paint picked again: closed, nothing switched');
     // Vector: blank painting, so no question
     await L.pickMode(p, 'vector', touch); await p.waitForTimeout(600);
     s = await pill();
@@ -55,8 +57,8 @@ const V = require('./vt.js'), L = require('../lib');
     ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': a rectangle drawn');
     // Paint: Vector has art, so it asks
     await L.pickMode(p, 'paint', touch); await p.waitForTimeout(500);
-    ok(!!(await p.$('.paint-docpanel:not([hidden]) .vm [data-vm="bring"]')), name + ': leaving art behind asks first');
-    await press('.paint-docpanel:not([hidden]) [data-vm="switch"]');
+    ok(!!(await p.$('.pa-sheet-wrap.in .vm [data-vm="bring"]')), name + ': leaving art behind asks first');
+    await press('.pa-sheet-wrap.in [data-vm="switch"]');
     s = await pill();
     ok(!s.vec && /Paint/.test(s.text), name + ': Switch Without Copying: Paint, the pill says so');
     ok((await p.evaluate(() => window.PaintVector.serialize().layers[0].items.length)) === 1, name + ': the vector art kept');
