@@ -30,10 +30,10 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const tapAt = async (x, y) => { if (touch) await p.touchscreen.tap(x, y); else await p.mouse.click(x, y); };
   const tapEl = async s => { const e = await p.$(s); await e.evaluate(el => el.scrollIntoView({ block: 'nearest' })); const r = await e.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); await p.waitForTimeout(250); };
   // (a top bar button: in the bar, or on a phone in its ••• menu)
-  const MORE = { gallery: 'Gallery', new: 'New Picture', image: 'Crop', history: 'History' };
+  const MORE = { gallery: 'Gallery', new: 'New Picture', image: 'Crop' }; // (History: from Settings now, its button kept hidden; pressed here as Settings' row presses it)
   const top = async (k) => {
     if (k === 'save') { await p.evaluate(() => document.querySelector('[data-act="save"]').click()); await p.waitForTimeout(300); return; }
-    const seen = await p.evaluate(k => { const b = document.querySelector('[data-hb="' + k + '"]'); return !!(b && b.offsetParent); }, k);
+    const seen = k === 'history' || await p.evaluate(k => { const b = document.querySelector('[data-hb="' + k + '"]'); return !!(b && b.offsetParent); }, k);
     if (!seen && MORE[k]) {
       await tapEl('[data-hb="more"]');
       const items = await p.$$('.paint-moremenu button'); for (const it of items) if ((await it.textContent()).includes(MORE[k])) { const r = await it.boundingBox(); await tapAt(r.x + r.width / 2, r.y + r.height / 2); break; }

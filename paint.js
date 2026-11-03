@@ -8668,8 +8668,10 @@
       if (!stay && docIs('settings')) { docClose(); return; }
       closeDrops(); otherPopovers();
       var theme = header.querySelector('.theme-toggle');
-      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch Gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
-        ''; // (the workspaces are switched from the top-left menu's row, .hdr-mode)
+      var hist = hb('history');
+      settingsBox.innerHTML = '<button type="button" role="menuitem" data-setting="history"' + (hist.disabled ? ' disabled' : '') + '>' + hist.querySelector('svg').outerHTML + 'History</button>' +
+        '<button type="button" role="menuitem" data-setting="theme">' + theme.querySelector('svg').outerHTML + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'Light Mode' : 'Dark Mode') + '</button><button type="button" role="menuitem" data-setting="help">' + hb('help').querySelector('svg').outerHTML + 'Shortcuts</button><button type="button" role="menuitem" data-setting="gestures">' + GEST_ICON + 'Touch Gestures</button><button type="button" role="menuitemcheckbox" aria-checked="' + uiFlipped() + '" data-setting="flip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 8h6M6 5l3 3-3 3M21 16h-6M18 13l-3 3 3 3"/></svg>Flip UI<span class="settings-check" aria-hidden="true">' + (uiFlipped() ? '✓' : '') + '</span></button>' +
+        ''; // (the workspaces are switched from the top-left menu's mode button, .hdr-mode)
       docShow('settings', 'Settings', settingsBox, { btn: hb('settings'), reopen: settingsAgain });
     }
     function settingsAgain() { settingsMenu(true); }
@@ -8689,7 +8691,8 @@
         if (!docIs('settings')) return;
         settingsMenu(true); var nb = settingsBox.querySelector('[data-setting="' + k + '"]'); if (nb) nb.focus({ preventScroll: true });
       };
-      if (k === 'theme') { header.querySelector('.theme-toggle').click(); again(); }
+      if (k === 'history') historyPanel(true, settingsAgain);
+      else if (k === 'theme') { header.querySelector('.theme-toggle').click(); again(); }
       else if (k === 'gestures') { sheetBack = settingsAgain; gestureSheet(); }
       else if (k === 'flip') { flipUI(); again(); }
       else { sheetBack = settingsAgain; helpSheet(); }
@@ -8780,12 +8783,11 @@
     // leaves a gap under the arrow: --hdr-open, set on the page)
     function hdrFit() {
       var tools = header && header.querySelector('.header-tools'); if (!tools || !hdrFold) return;
-      var cs = getComputedStyle(header), d = tools.style.display, md = modeBtn && modeBtn.style.display;
+      var cs = getComputedStyle(header), d = tools.style.display;
       tools.style.display = 'grid'; // (measured even while folded, when they aren't shown)
-      if (modeBtn && !modeBtn.hidden) modeBtn.style.display = 'grid';
-      // (from the top to the arrow's foot, the mode switch's row and all, and the padding under it)
+      // (from the top to the arrow's foot, and the padding under it)
       var h = hdrFold.getBoundingClientRect().bottom - header.getBoundingClientRect().top + parseFloat(cs.paddingBottom);
-      tools.style.display = d; if (modeBtn) modeBtn.style.display = md;
+      tools.style.display = d;
       if (h > 0) document.documentElement.style.setProperty('--hdr-open', Math.ceil(h) + 'px');
     }
     hdrFit();
@@ -8946,10 +8948,11 @@
       }).join('') + '</div><div class="pd-info">' + (undo.length + redo.length ? 'Tap a step to go back to it.' : 'Nothing to undo yet.') + '</div>';
       var on = histBox.querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest' });
     }
-    function historyPanel(open) {
+    // (from Settings: Back goes to it, and Settings' button stays lit)
+    function historyPanel(open, back) {
       if (!open) { if (docIs('history')) docClose(); return; }
       closeDrops(); otherPopovers();
-      docShow('history', 'History', histBox, { btn: hb('history'), reopen: function () { historyPanel(true); } }); renderHistory();
+      docShow('history', 'History', histBox, { btn: back ? hb('settings') : hb('history'), back: back, reopen: function () { historyPanel(true, back); } }); renderHistory();
     }
     histBox.addEventListener('click', function (e) {
       var b = e.target.closest('[data-hist]'); if (!b) return;
@@ -9815,7 +9818,10 @@
       // (the pill: the one in use, its icon and name)
       var cur = modeEl.querySelector('[data-mode="' + wsMode + '"]'), head = modeBtn;
       head.querySelector('.ms-cur').innerHTML = cur.querySelector('svg').outerHTML + '<span>' + MODE_NAME[wsMode] + '</span>';
-      head.setAttribute('aria-label', 'Workspace: ' + MODE_NAME[wsMode]);
+      head.setAttribute('aria-label', 'Workspace: ' + MODE_NAME[wsMode]); head.dataset.tip = 'Workspace: ' + MODE_NAME[wsMode] + '. Switch to Paint, Vector or Photo';
+      // (Layers, beside Fit: the painting's, or Vector's copy of it)
+      var lb = $('[data-act="layers"]'), home = vec ? left.querySelector('.vec-group') : left.querySelector('.pl-fitgroup');
+      if (lb && home && lb.parentNode !== home) home.appendChild(lb);
       // (what's only the painting's is greyed out, so nothing moves)
       ['image', 'history'].forEach(function (k) { if (hb(k)) hb(k).disabled = vec || pho; });
       $('[data-act="layers"]').disabled = pho; // (a photo has no layers)
@@ -9903,9 +9909,9 @@
         if (w !== 'cancel') setMode(m, w === 'bring');
       });
     }
-    // THE MODE SWITCH: a row of the top-left menu while it's open, just
-    // above the save status (modeBtn, `.hdr-mode`), showing the workspace in
-    // use (folding the menu closes what it opened, closeDrops); pressed,
+    // THE MODE SWITCH: one of the top-left menu's buttons (modeBtn,
+    // `.hdr-mode`), the workspace in use's icon (folding the menu closes what
+    // it opened, closeDrops); pressed,
     // the three open side by side in a pill in the middle of the picture's
     // space (modeEl), growing out from a little towards the button, and
     // close when one's picked, Esc, or a press anywhere else. Another one

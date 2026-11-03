@@ -1,7 +1,7 @@
-// The mode switch: a row of the top-left menu while it's open, just above
-// the save status and built like it (the workspace's icon, its name, a
-// chevron); folded, the menu is the save status alone, a thin strip, and
-// nothing stands over the picture's space.
+// The mode switch: one of the top-left menu's icon buttons, where Focus Mode
+// was (Focus where History was; History in Settings); folded, the menu is
+// the save status alone, a thin strip, and nothing stands over the
+// picture's space.
 // Pressed, the three open side by side in a pill in the middle of the
 // picture's space, the one in use picked; a pick switches (asking first when
 // there's art to bring) and it closes; a press anywhere else, or Esc, closes
@@ -32,17 +32,21 @@ const V = require('./vt.js'), L = require('../lib');
     // ---- folded: the save status alone, a thin strip, nothing over the picture ----
     ok(s.folded && !s.vis && s.hdr.b - s.hdr.t <= 44 && Math.abs(s.stage.t - s.hdr.t) <= 1, name + ': folded, the menu is the save status alone, and the picture’s space starts level with it ' + JSON.stringify({ hdr: s.hdr, stage: s.stage.t }));
     ok(!(await p.$('.paint-centre .mode-switch')), name + ': nothing over the top of the picture’s space');
-    // ---- open: the row, above the save status, built like it ----
+    // ---- open: the mode button, an icon like the others, where Focus Mode was ----
     await press('.hdr-fold'); await p.waitForTimeout(500);
     s = await st();
-    ok(/Paint/.test(s.text) && s.chev && s.icon && s.exp === 'false' && !s.open && !s.shown, name + ': the row says Paint, with its icon and chevron, nothing open ' + JSON.stringify({ text: s.text }));
-    ok(Math.abs(s.btn.l - s.fold.l) < 0.5 && Math.abs(s.btn.w - s.fold.w) < 0.5 && Math.abs(s.btn.h - s.fold.h) < 0.5 && s.btn.b <= s.fold.t && s.fold.t - s.btn.b <= 8, name + ': directly above the save status, its size ' + JSON.stringify({ btn: s.btn, fold: s.fold }));
-    ok(!s.folded && s.vis && s.hdr.b - (s.fold.t + s.fold.h) <= 10, name + ': the menu open, the row shows, and the menu fits it ' + JSON.stringify({ hdr: s.hdr }));
-    const above = await p.evaluate(() => { const b = document.querySelector('.hdr-mode').getBoundingClientRect(), bs = [...document.querySelectorAll('.site-header .header-tools button')].filter(e => e.offsetParent).map(e => e.getBoundingClientRect().bottom); return Math.max(...bs) <= b.top; });
-    ok(above, name + ': under the menu’s buttons');
+    ok(s.vis && s.icon && !s.chev && /Paint/.test(s.text) && (await p.$eval('.hdr-mode .ms-cur span', e => getComputedStyle(e).display)) === 'none' && s.exp === 'false' && !s.open && !s.shown, name + ': the mode button, an icon (its name kept, not shown), nothing open ' + JSON.stringify({ text: s.text }));
+    const slot = await p.evaluate(() => { const bs = [...document.querySelectorAll('.site-header .header-tools button')].filter(e => e.offsetParent), m = document.querySelector('.hdr-mode'), i = bs.indexOf(m), r = e => e.getBoundingClientRect();
+      return { order: bs.map(e => e.dataset.hb || e.dataset.act || (e === m ? 'mode' : '?')).join(','), same: r(m).width === r(bs[0]).width && r(m).height === r(bs[0]).height, label: m.getAttribute('aria-label') }; });
+    ok(slot.order === 'gallery,new,save,image,focus,guides,mode,settings', name + ': Focus where History was, the mode button where Focus was, no History: ' + slot.order);
+    ok(slot.same && /Paint/.test(slot.label), name + ': the size of the others, its label the workspace ' + JSON.stringify(slot));
     // (Settings: no workspaces)
     await p.evaluate(() => document.querySelector('[data-hb="settings"]').click()); await p.waitForTimeout(250);
     ok(!(await p.$('[data-setting="paint"], [data-setting="vector"], [data-setting="photo"], [data-setting="modeask"]')) && !!(await p.$('[data-setting="theme"]')), name + ': Settings has no workspaces');
+    // (History is in Settings now, opening the same list, Back to Settings)
+    await press('.paint-docpanel [data-setting="history"]');
+    ok(await p.evaluate(() => document.querySelector('.dp-title').textContent === 'History' && !!document.querySelector('.paint-docpanel .ph-list') && !document.querySelector('.dp-back').hidden), name + ': Settings’ History opens the history, with Back');
+    await press('.dp-back'); ok(await p.evaluate(() => document.querySelector('.dp-title').textContent === 'Settings'), name + ': Back to Settings');
     await p.keyboard.press('Escape'); await p.waitForTimeout(300);
     // ---- pressed: the three, side by side, in the middle of the picture's space ----
     await press('.hdr-mode');
@@ -95,7 +99,7 @@ const V = require('./vt.js'), L = require('../lib');
     // ---- the pill open, the menu folded: the pill closes with it ----
     await press('.hdr-mode'); ok((await st()).open, name + ': open again');
     await press('.hdr-fold'); await p.waitForTimeout(400);
-    s = await st(); ok(s.folded && !s.open && !s.shown && !s.vis, name + ': the menu folded: the pill closes, the row goes with it');
+    s = await st(); ok(s.folded && !s.open && !s.shown && !s.vis, name + ': the menu folded: the pill closes, the button goes with it');
     await p.screenshot({ path: 't46-' + name + '.png' });
     ok(!H.errs.length, name + ': no errors ' + H.errs.join('\n'));
     await H.b.close();
