@@ -63,7 +63,7 @@ const log = (...a) => console.log(...a);
   log('guide hidden after Off:', await p.$eval('.paint-guide', g => g.hidden));
 
   // 4. HISTORY
-  await p.click('[data-hb="history"]'); await p.waitForTimeout(250);
+  await p.$eval('[data-hb="history"]', b => b.click()); await p.waitForTimeout(250); // (from Settings now; its button kept, hidden)
   const rows = await p.$$eval('.ph-list button', l => l.map(b => b.textContent + (b.classList.contains('on') ? '*' : '')));
   log('history rows:', rows.join(' | '));
   await p.screenshot({ path: 'out/history.png' });
