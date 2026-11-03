@@ -9251,7 +9251,8 @@
       var B = bbar.getBoundingClientRect(), foot = B.height && B.bottom <= window.innerHeight + 1 ? Math.max(B.bottom, V.bottom) : V.bottom;
       var top = L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
       selectionSlot.style.left = (L.left - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
-      selectionSlot.style.width = L.width + 'px'; selbar.style.height = selbar.style.maxHeight = room + 'px';
+      // (as tall as what's in it, never past the room: its groups scroll past that)
+      selectionSlot.style.width = L.width + 'px'; selbar.style.height = ''; selbar.style.maxHeight = room + 'px';
       selFades();
       placeSelectionPopover();
     }
