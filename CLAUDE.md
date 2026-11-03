@@ -461,9 +461,10 @@ When building or changing anything visual:
   `placeSelectionToolbar` puts it under the toolbar wherever that is (the
   top menu folding, frame by frame; the sides swapped, sliding out and in
   with the other bars in `flipUI`; the window resized)
-  and makes it reach down to the bottom of the colour bar (`bbar`; the
-  picture's space's when that bar is away): its buttons take the room above
-  Commit and scroll past that, the edge with more past it fading
+  and sizes it to what's in it, never taller than the room down to the
+  bottom of the colour bar (`bbar`; the picture's space's when that bar is
+  away; only `max-height` is set, so it shrinks and grows with its buttons):
+  past that its buttons take the room above Commit and scroll, the edge with more past it fading
   (`selFades`, `more-above`/`more-below`) under a small round arrow
   (`.sel-more`, `selArrows`) that scrolls the next group fully into view
   (`selStep`), and the first time it turns up with more than fits it scrolls
