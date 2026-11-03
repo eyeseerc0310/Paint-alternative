@@ -1973,11 +1973,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
    the top-left menu's icons (`.hdr-mode`, where Focus Mode was: the
    workspace in use's icon, lit while the three are open), so the top bar
    stays a thin strip and nothing stands over the picture's space. Pressed,
-   the three open side by side in a frosted pill in the middle of the
+   the three open side by side in a frosted pill at the top middle of the
    picture's space (`.mode-switch`, `modeMenu`), growing out from a little
    towards the button; the one in use is the picked part of a segmented
    control. A pick, Esc or a press anywhere else closes it ---------- */
-:root { --mode-h: 40px; --ms-w: 132px; --ms-w-open: 312px; }
+:root { --mode-h: 40px; --ms-w: 132px; --ms-w-open: 312px; --ms-top: 32px; } /* (--ms-top: the pill's gap under the picture's space's top) */
 .site-header .hb[hidden] { display: none !important; }
 .site-header .hdr-mode .ms-cur { display: contents; }
 .site-header .hdr-mode .ms-cur span { display: none; }
