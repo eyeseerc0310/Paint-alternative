@@ -482,7 +482,7 @@ When building or changing anything visual:
   Colours, the flips); the clipboard and layers (Copy, Paste, Duplicate to
   New Layer `data-sel="duplicate"`, Cut to Layer); and Delete, Deselect; then, at its foot (`.selection-foot`,
   outside the scrolling groups, so always in view), **Commit**
-  (`.selection-commit`, `data-sel="done"`, solid accent, its word alone,
+  (`.selection-commit`, `data-sel="done"`, solid accent, the zoom's pill shape and height, `--zoom-h`, its word alone,
   centred by its letters): it lays down whatever's been moved, sized, turned
   or distorted (`commitSelection`) and closes the selection, touching nothing
   else. Return does the same wherever the focus is (once; not mid-drag; not

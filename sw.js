@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-selfit-20261103';
-var SHELL = ['./', 'index.html', 'style.css?v=selfit-20261103', 'fx-shared.js?v=selfit-20261103', 'decoders.js?v=selfit-20261103', 'photo-presets.js?v=selfit-20261103', 'photo.js?v=selfit-20261103', 'vector.js?v=selfit-20261103', 'paint.js?v=selfit-20261103', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-commitpill-20261103';
+var SHELL = ['./', 'index.html', 'style.css?v=commitpill-20261103', 'fx-shared.js?v=commitpill-20261103', 'decoders.js?v=commitpill-20261103', 'photo-presets.js?v=commitpill-20261103', 'photo.js?v=commitpill-20261103', 'vector.js?v=commitpill-20261103', 'paint.js?v=commitpill-20261103', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

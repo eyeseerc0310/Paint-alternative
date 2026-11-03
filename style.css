@@ -564,7 +564,10 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 }
 .paint .paint-zoom button { width: 28px; height: 26px; border-radius: var(--r-sm); font-size: 1rem; font-weight: 400; color: var(--text); }
 .paint .paint-zoom button.paint-zoom-val { width: auto; min-width: 3.2rem; padding: 0 .4rem; font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
-/* (at the foot of the left bar, under Layers) */
+/* (at the foot of the left bar; --zoom-h, its height, is Commit's too, so the
+   two foot pills are one shape) */
+:root { --zoom-h: 34px; }
+@media (max-width: 560px) { :root { --zoom-h: 32px; } }
 .paint-left .paint-zoom {
   position: static; justify-content: space-between; padding: 3px; border: 0; border-radius: var(--r-pill);
   background: var(--hover); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -1759,7 +1762,7 @@ select.p-field {
 .paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding-top: var(--group-gap); }
 .paint .selection-toolbar .selection-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: -.5px; height: 1px; border-radius: 1px; background: var(--line); }
 .paint .selection-toolbar .selection-foot > .selection-commit {
-  width: 100%; height: 40px; margin: 0; padding: 0 var(--s-1); border-radius: var(--r-btn); text-align: center;
+  width: 100%; height: var(--zoom-h); margin: 0; padding: 0 var(--s-1); border-radius: var(--r-pill); text-align: center;
   color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); font-size: var(--fs-ui); font-weight: 600;
 }
 /* (its word centred by its letters, not its line: "Commit" has no descenders, so it's nudged down to the middle) */
@@ -1786,8 +1789,8 @@ select.p-field {
 .selection-transform .paint-seldist, .selection-transform .paint-selcas { position: static !important; margin: var(--s-2) 0; transform: none; }
 .selection-transform .paint-seldist + .paint-selcas { margin-top: 0; }
 /* (its buttons the left toolbar's size wherever that changes) */
-@media (max-height: 850px) { .paint .selection-toolbar .paint-group > button, .paint .selection-toolbar .selection-foot > .selection-commit { height: 32px; } }
-@media (max-width: 560px) { .paint .selection-toolbar .paint-group > button { width: 36px; height: 28px; } .paint .selection-toolbar .selection-foot > .selection-commit { height: 28px; } }
+@media (max-height: 850px) { .paint .selection-toolbar .paint-group > button { height: 32px; } }
+@media (max-width: 560px) { .paint .selection-toolbar .paint-group > button { width: 36px; height: 28px; }  }
 @media (prefers-reduced-motion: reduce) {
   .selection-slot, .paint .selection-toolbar { transition: none; }
 }
