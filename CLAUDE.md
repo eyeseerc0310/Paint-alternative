@@ -668,7 +668,7 @@ When building or changing anything visual:
   `modeBtn`, `.hb`: the workspace in use's icon, its name only for screen
   readers and its tip; folding the menu closes what it opened), so the top
   bar stays a thin strip and nothing stands over the picture's space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
-  frosted pill in the middle of the picture's space (`.mode-switch`,
+  frosted pill across the middle of the picture's space near its top (`--ms-top` under it; `.mode-switch`,
   `modeEl`, a child of the page so nothing clips it; `modePlace` sets
   `--ms-x`/`--ms-y`, kept inside the window, and `--ms-dx`/`--ms-dy`, a
   little towards the button, where it grows out from with `--spring`):

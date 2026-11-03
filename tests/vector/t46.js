@@ -53,7 +53,7 @@ const V = require('./vt.js'), L = require('../lib');
     s = await st();
     ok(s.open && s.shown && s.exp === 'true' && s.items === 'paint✓,vector,photo', name + ': pressed, the three: ' + s.items);
     const mid = Math.min(Math.max(s.stage.cx, 8 + s.pop.w / 2), s.vw - 8 - s.pop.w / 2);
-    ok(Math.abs(s.pop.cx - mid) <= 1.5 && Math.abs(s.pop.cy - s.stage.cy) <= 1.5, name + ': in the middle of the picture’s space ' + JSON.stringify({ pop: [s.pop.cx, s.pop.cy], stage: [s.stage.cx, s.stage.cy] }));
+    ok(Math.abs(s.pop.cx - mid) <= 1.5 && Math.abs(s.pop.cy - s.pop.h / 2 - s.stage.t - 32) <= 1.5, name + ': across the middle, near the top of the picture’s space ' + JSON.stringify({ pop: [s.pop.cx, s.pop.cy], stage: [s.stage.cx, s.stage.cy] }));
     ok(s.pop.l >= 0 && s.pop.r <= s.vw, name + ': inside the window');
     const row = await p.evaluate(() => { const bs = [...document.querySelectorAll('.mode-switch [data-mode]')].filter(b => !b.hidden), rs = bs.map(b => b.getBoundingClientRect()), m = document.querySelector('.mode-switch').getBoundingClientRect();
       return { tops: [...new Set(rs.map(r => Math.round(r.top)))].length, inside: rs.every(r => r.left >= m.left - 0.5 && r.right <= m.right + 0.5), order: rs.every((r, i) => !i || r.left >= rs[i - 1].right - 0.5), cut: bs.some(b => { const t = b.querySelector('span'); return t.scrollWidth > t.clientWidth; }), picked: getComputedStyle(bs[0]).backgroundColor !== getComputedStyle(bs[1]).backgroundColor, icons: bs.every(b => !!b.querySelector('svg')),

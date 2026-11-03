@@ -9912,13 +9912,15 @@
     // THE MODE SWITCH: one of the top-left menu's buttons (modeBtn,
     // `.hdr-mode`), the workspace in use's icon (folding the menu closes what
     // it opened, closeDrops); pressed,
-    // the three open side by side in a pill in the middle of the picture's
-    // space (modeEl), growing out from a little towards the button, and
+    // the three open side by side in a pill at the top middle of the
+    // picture's space (modeEl), growing out from a little towards the button, and
     // close when one's picked, Esc, or a press anywhere else. Another one
     // goes through askMode, so leaving art behind always asks first
     function modePlace() {
       var r = stage.getBoundingClientRect(), b = modeBtn.getBoundingClientRect();
-      var x = r.left + r.width / 2, y = r.top + r.height / 2, dx = b.left + b.width / 2 - x, dy = b.top + b.height / 2 - y, d = Math.hypot(dx, dy) || 1;
+      // (across the middle, near the top of the picture's space: --ms-top under its edge)
+      var top = parseFloat(getComputedStyle(modeEl).getPropertyValue('--ms-top')) || 32;
+      var x = r.left + r.width / 2, y = r.top + top + modeEl.offsetHeight / 2, dx = b.left + b.width / 2 - x, dy = b.top + b.height / 2 - y, d = Math.hypot(dx, dy) || 1;
       var st = modeEl.style;
       st.setProperty('--ms-x', Math.round(x) + 'px'); st.setProperty('--ms-y', Math.round(y) + 'px');
       st.setProperty('--ms-dx', Math.round(dx / d * 18) + 'px'); st.setProperty('--ms-dy', Math.round(dy / d * 18) + 'px');
