@@ -98,6 +98,22 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round(fr.top - lb.bottom), over: h.scrollHeight > h.clientHeight + 1 }; });
   L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10, 'the open top bar fits what’s in it: as much room under the arrow as over the buttons ' + JSON.stringify(hd));
   await p.screenshot({ path: `toolbar-${theme}-${VW}-hdr.png`, clip: { x: 0, y: 0, width: Math.min(VW, 400), height: Math.min(VH, 640) } });
+  // ---- 5. THE DIVIDERS: exactly half way between the rows either side, in every workspace ----
+  const divs = () => p.evaluate(() => {
+    const gs = [...document.querySelectorAll('.paint-left .paint-toolgroups > .paint-group')].filter(g => g.offsetParent && g.children.length), out = [];
+    for (let i = 1; i < gs.length; i++) {
+      const lastBot = Math.max(...[...gs[i - 1].children].filter(x => x.offsetParent).map(x => x.getBoundingClientRect().bottom));
+      const firstTop = Math.min(...[...gs[i].children].filter(x => x.offsetParent).map(x => x.getBoundingClientRect().top));
+      const be = getComputedStyle(gs[i], '::before'), d = gs[i].getBoundingClientRect().top + parseFloat(be.top) + parseFloat(be.height) / 2;
+      out.push([+(d - lastBot).toFixed(1), +(firstTop - d).toFixed(1)]);
+    }
+    return out;
+  });
+  for (const md of ['paint', 'vector', 'photo']) {
+    if (md !== 'paint') { await p.$eval('.mode-switch [data-mode="' + md + '"]', e => e.click()); await p.waitForTimeout(700); const q = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (q) { await q.click(); await p.waitForTimeout(500); } }
+    const d = await divs();
+    L.ok(d.length && d.every(([a, b]) => Math.abs(a - b) <= 0.5 && a > 2), md + ': every divider half way between its rows ' + JSON.stringify(d));
+  }
   L.ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close();
   L.done();
