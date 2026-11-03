@@ -360,8 +360,9 @@ body > * { flex-shrink: 0; }
 .paint-group { display: grid; grid-template-columns: repeat(2, 40px); gap: 3px var(--s-1); justify-content: space-between; }
 /* (Fit, then Layers beside it, under Blend and Effects) */
 /* related tools sit together; a short, soft divider between groups (both panels) */
+/* (the divider exactly half way between the rows either side: the group's top edge, the gap above it and its padding both --group-gap) */
 .paint-bar > .paint-group + .paint-group, .paint-toolgroups > .paint-group + .paint-group { position: relative; padding-top: var(--group-gap); }
-.paint-bar > .paint-group + .paint-group::before, .paint-toolgroups > .paint-group + .paint-group::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
+.paint-bar > .paint-group + .paint-group::before, .paint-toolgroups > .paint-group + .paint-group::before { content: ""; position: absolute; left: 14px; right: 14px; top: -.5px; height: 1px; border-radius: 1px; background: var(--line); }
 
 /* (the toolbar's buttons: not what stands in the top bar's panel, which keeps
    its menus' and sheets' own; :where, so nothing here weighs more) */
@@ -1756,7 +1757,7 @@ select.p-field {
 /* (Commit, at its foot: kept in view below the groups if they scroll, set
    apart by the groups' divider, and solid accent, as a primary action) */
 .paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding-top: var(--group-gap); }
-.paint .selection-toolbar .selection-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: calc(var(--group-gap) / -2); height: 1px; border-radius: 1px; background: var(--line); }
+.paint .selection-toolbar .selection-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: -.5px; height: 1px; border-radius: 1px; background: var(--line); }
 .paint .selection-toolbar .selection-foot > .selection-commit {
   width: 100%; height: 40px; margin: 0; padding: 0 var(--s-1); border-radius: var(--r-btn); text-align: center;
   color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); font-size: var(--fs-ui); font-weight: 600;
