@@ -34,7 +34,7 @@ When building or changing anything visual:
   (the hairline round a colour sample), `--panel`, `--panel-solid`,
   `--stage`, `--menu-*` (and `--menu-solid`, the same without the see-through). Shadows: `--shadow-panel`, `--shadow-pop`, `--shadow-float` (a small control standing on the picture). Glass:
   `--glass`. Radii: `--r-2xs` (small controls inside a row or panel: fields, tabs, chips), `--r-xs` (menu rows), `--r-sm`, `--r-btn`, `--r-menu` (menus and pop-overs), `--r-panel`, `--r-dock` (what stands in the dock), `--r-sheet`, `--r-stage`, `--r-pill` (capsules: the top bar's groups, buttons with words).
-  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--hdr-row` (a row of the top-left menu: the mode switch's and the save status's), `--mode-h` (the mode switch's pill of three), `--ms-w` and `--ms-w-open` (that pill's width as it starts to open and open), `--ruler` (Vector's rulers).
+  Sizes: `--row` (a menu's row), `--ctl` (a panel's or sheet's button; both taller on a touch screen), `--press` (the pressed shrink, for every button), `--press-row` (the same for a full-width row), `--mode-h` (the mode switch's pill of three), `--ms-w` and `--ms-w-open` (that pill's width as it starts to open and open), `--ruler` (Vector's rulers).
   States: `--disabled` (how faint anything greyed out is, once: a group that's
   greyed out doesn't grey its parts again), `--ring-picked` (the active layer's
   outline while others are picked with it, and a picked thumbnail), `--ring-focus` (a focused field; elsewhere
@@ -65,9 +65,10 @@ When building or changing anything visual:
   The accent (red) is for primary actions (Save, Done, Create) and the
   chosen colour.
 - **Where controls live:** the top bar has the document actions
-  (new/save, image, history, Smart Guides, focus, help, theme; on phones
-  the extras go in its ••• menu, and the mode switch's row, `.hdr-mode`, is
-  just above the save status). It starts folded to a slim strip (the save
+  (Gallery, New, Save, Crop; Focus Mode, Smart Guides; the mode switch,
+  `.hdr-mode`, and Settings; History is in Settings, its own button kept
+  hidden, `hb('history')`, for what still asks it; on phones the extras go
+  in its ••• menu). It starts folded to a slim strip (the save
   status with the `.hdr-fold` arrow; no app name or mark, only a hidden
   heading for screen readers), and opens
   downward (`headerOpen`, remembered as `paint-hdr-open`; `hdr-open` on
@@ -85,7 +86,9 @@ When building or changing anything visual:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). Three groups, two across with no
   gaps: Brush, Eraser, Gradient, Picker; Symmetry, Text, Pen, Select; Blend,
-  Effects and Fit on a row of its own in the middle (`.pl-fitgroup`). There
+  Effects, Fit and Layers (`.pl-fitgroup`; Layers an icon like the others,
+  just right of Fit, and in Vector just right of its Fit, the one button
+  moved there by `modeSync`). There
   are no Fill, Shapes or Move buttons: Fill and Shapes are on their keys
   (F, R, L; a colour dropped on the picture still fills), Move is in the
   Select panel (below). Fit (`.paint-fitbtn`,
@@ -93,7 +96,7 @@ When building or changing anything visual:
   where it is, Vector a copy after its categories (an eighth row, with Layers
   stepped down only where the buttons are too tall for it, from `--tool-h`
   and `--group-gap`), each click going to that workspace's own `fit`. At its
-  foot are Layers (`.pl-layersbtn`) and the zoom (`.paint-zoom`). The saved-status pill
+  foot is the zoom (`.paint-zoom`, alone in `.pl-view`). The saved-status pill
   (`.doc-status`) sits in the corner under it, centred on the bar, level
   with the bottom bar's middle (hidden in focus mode). The **bottom bar**
   (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
@@ -660,13 +663,11 @@ When building or changing anything visual:
   back, or, if it was picked up already, the geometry and pixels as they
   were).
 - **Paint and Vector** are two workspaces in one drawing (with Photo, three).
-  **They're switched from the mode switch**, nothing in Settings: a row
-  of the top-left menu while it's open, just above the save status and
-  built like it (`.hdr-mode`, `modeBtn`, `--hdr-row` high: the workspace's
-  icon, its name in the middle, the chevron at the end; `hdrFit` measures
-  the open menu with it, down to the arrow's foot; folded, the menu is the
-  save status alone and folding closes what the row opened), so the top bar
-  stays a thin strip and nothing stands over the picture's space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
+  **They're switched from the mode switch**, nothing in Settings: one of
+  the top-left menu's icon buttons, where Focus Mode was (`.hdr-mode`,
+  `modeBtn`, `.hb`: the workspace in use's icon, its name only for screen
+  readers and its tip; folding the menu closes what it opened), so the top
+  bar stays a thin strip and nothing stands over the picture's space. Pressed (`modeMenu`), Paint | Vector | Photo open side by side in a
   frosted pill in the middle of the picture's space (`.mode-switch`,
   `modeEl`, a child of the page so nothing clips it; `modePlace` sets
   `--ms-x`/`--ms-y`, kept inside the window, and `--ms-dx`/`--ms-dy`, a

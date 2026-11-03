@@ -1,7 +1,7 @@
 // The left bar without Fill, Shapes and Move buttons (Fill and Shapes kept
 // on their keys, F, R and L, and the colour dropped on the picture still
 // fills; Move is in the Select panel's row, after the four ways, and lights
-// the Select button), its groups with no gaps (Fit on a row of its own, in
+// the Select button), its groups with no gaps (Fit, then Layers beside it, the zoom alone at the foot; in
 // the middle), and the top bar, open, as tall as what's in it. Run as:
 // node toolbar.js light|dark width height [touch]
 const L = require('../lib');
@@ -37,15 +37,16 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     const groups = [...left.querySelectorAll('.paint-toolgroups > .paint-group:not(.pl-view)')].filter(g => g.offsetParent).map(g => {
       const bs = [...g.children].filter(x => x.offsetParent), rs = bs.map(x => x.getBoundingClientRect()), gr = g.getBoundingClientRect();
       const rows = {}; rs.forEach(r => { const k = Math.round(r.top); rows[k] = (rows[k] || 0) + 1; });
-      return { n: bs.length, rows: Object.values(rows), last: bs.length ? { mid: Math.round(rs[rs.length - 1].left + rs[rs.length - 1].width / 2 - (gr.left + gr.width / 2)), fit: bs[bs.length - 1].classList.contains('paint-fitbtn') } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
+      return { n: bs.length, rows: Object.values(rows), last: bs.length > 1 ? { fit: bs[bs.length - 2].classList.contains('paint-fitbtn'), layers: bs[bs.length - 1].classList.contains('pl-layersbtn'), level: Math.round(rs[rs.length - 1].top) === Math.round(rs[rs.length - 2].top) } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
     });
     return { fill: !!left.querySelector('[data-tool="fill"]'), shape: !!left.querySelector('.paint-shapebtn, [data-tool="shape"], [data-tool="line"]'), move: !!left.querySelector('[data-tool="move"]'), groups };
   });
   L.ok(!bar.fill && !bar.shape && !bar.move, 'no Fill, Shapes or Move button in the left bar');
   L.ok(bar.groups.length === 3, 'three groups of tools, then Layers and the zoom: ' + bar.groups.map(g => g.n).join(' | '));
-  L.ok(bar.groups.every((g, i) => g.rows.every((r, j) => r === 2 || (i === bar.groups.length - 1 && j === g.rows.length - 1))), 'every row two across, but the last: no gaps ' + JSON.stringify(bar.groups.map(g => g.rows)));
+  L.ok(bar.groups.every(g => g.rows.every(r => r === 2)), 'every row two across: no gaps ' + JSON.stringify(bar.groups.map(g => g.rows)));
   const lg = bar.groups[bar.groups.length - 1];
-  L.ok(lg.last.fit && Math.abs(lg.last.mid) <= 1, 'Fit, last, on a row of its own in the middle (' + lg.last.mid + ' off)');
+  L.ok(lg.last.fit && lg.last.layers && lg.last.level, 'Fit, then Layers just right of it, last ' + JSON.stringify(lg.last));
+  L.ok(await p.evaluate(() => { const v = document.querySelector('.paint-left .pl-view'); return !v.querySelector('.pl-layersbtn') && !!v.querySelector('.paint-zoom'); }), 'the foot: the zoom alone, no full-width Layers');
   L.ok(bar.groups.every(g => g.sizes.length === 1) && new Set(bar.groups.map(g => g.sizes[0])).size === 1, 'every tool the same size ' + JSON.stringify(bar.groups.map(g => g.sizes)));
   // (what they did is still there: the keys, and a colour dropped on the picture)
   await p.keyboard.press('f'); L.ok(await tool() === 'fill', 'F still picks the fill tool');
@@ -94,9 +95,8 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   // ---- 3. THE TOP BAR, OPEN: as tall as what's in it ----
   if (!(await p.evaluate(() => document.documentElement.classList.contains('hdr-open')))) { await p.$eval('.hdr-fold', e => e.click()); await p.waitForTimeout(700); }
   const hd = await p.evaluate(() => { const h = document.querySelector('.site-header'), f = h.querySelector('.hdr-fold'), t = h.querySelector('.header-tools'), q = h.getBoundingClientRect(), tr = t.getBoundingClientRect(), fr = f.getBoundingClientRect(), bs = [...t.querySelectorAll('button')].filter(b => b.offsetParent), lb = bs[bs.length - 1].getBoundingClientRect();
-    const md = h.querySelector('.hdr-mode'), mr = md && md.offsetParent ? md.getBoundingClientRect() : null; // (the mode switch's row, between the buttons and the arrow)
-    return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round((mr ? mr.top : fr.top) - lb.bottom), row: mr ? Math.round(fr.top - mr.bottom) : null, over: h.scrollHeight > h.clientHeight + 1 }; });
-  L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10 && (hd.row == null || hd.row <= 10), 'the open top bar fits what’s in it: as much room under the arrow as over the buttons, the mode row between ' + JSON.stringify(hd));
+    return { top: Math.round(tr.top - q.top), bottom: Math.round(q.bottom - fr.bottom), gap: Math.round(fr.top - lb.bottom), over: h.scrollHeight > h.clientHeight + 1 }; });
+  L.ok(!hd.over && hd.top === hd.bottom && hd.gap <= 10, 'the open top bar fits what’s in it: as much room under the arrow as over the buttons ' + JSON.stringify(hd));
   await p.screenshot({ path: `toolbar-${theme}-${VW}-hdr.png`, clip: { x: 0, y: 0, width: Math.min(VW, 400), height: Math.min(VH, 640) } });
   L.ok(!errs.length, 'no page errors ' + errs.join(' | '));
   await b.close();
