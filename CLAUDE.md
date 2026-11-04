@@ -85,7 +85,7 @@ When building or changing anything visual:
   tall for that), holds the tools in groups (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). Three groups, two across with no
-  gaps: Brush, Eraser, Gradient, Picker; Symmetry, Text, Pen, Select; Blend,
+  gaps: Brush, Eraser, Blend, Picker; Select, Pen, Symmetry, Gradient; Text,
   Effects, Fit and Layers (`.pl-fitgroup`; Layers an icon like the others,
   just right of Fit, and in Vector just right of its Fit, the one button
   moved there by `modeSync`). There
