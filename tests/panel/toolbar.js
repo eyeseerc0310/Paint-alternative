@@ -37,15 +37,21 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     const groups = [...left.querySelectorAll('.paint-toolgroups > .paint-group:not(.pl-view)')].filter(g => g.offsetParent).map(g => {
       const bs = [...g.children].filter(x => x.offsetParent), rs = bs.map(x => x.getBoundingClientRect()), gr = g.getBoundingClientRect();
       const rows = {}; rs.forEach(r => { const k = Math.round(r.top); rows[k] = (rows[k] || 0) + 1; });
-      return { n: bs.length, rows: Object.values(rows), last: bs.length > 1 ? { fit: bs[bs.length - 2].classList.contains('paint-fitbtn'), layers: bs[bs.length - 1].classList.contains('pl-layersbtn'), level: Math.round(rs[rs.length - 1].top) === Math.round(rs[rs.length - 2].top) } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
+      return { n: bs.length, rows: Object.values(rows), last: bs.length > 1 ? { fit: bs[bs.length - 2].classList.contains('paint-fitbtn'), layers: bs[bs.length - 1].classList.contains('pl-layersbtn'), level: innerWidth <= 560 ? Math.round(rs[rs.length - 1].top) === Math.round(rs[rs.length - 2].top) : Math.round(rs[rs.length - 1].left) === Math.round(rs[rs.length - 2].left) && rs[rs.length - 1].top >= rs[rs.length - 2].bottom } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
     });
     return { fill: !!left.querySelector('[data-tool="fill"]'), shape: !!left.querySelector('.paint-shapebtn, [data-tool="shape"], [data-tool="line"]'), move: !!left.querySelector('[data-tool="move"]'), groups };
   });
   L.ok(!bar.fill && !bar.shape && !bar.move, 'no Fill, Shapes or Move button in the left bar');
   L.ok(bar.groups.length === 3, 'three groups of tools, then Layers and the zoom: ' + bar.groups.map(g => g.n).join(' | '));
-  L.ok(bar.groups.every(g => g.rows.every(r => r === 2)), 'every row two across: no gaps ' + JSON.stringify(bar.groups.map(g => g.rows)));
+  const phone = await p.evaluate(() => innerWidth <= 560);
+  L.ok(bar.groups.every(g => g.rows.every(r => r === (phone ? 2 : 1))), (phone ? 'a phone: every row two across ' : 'one column: every tool on a row of its own ') + JSON.stringify(bar.groups.map(g => g.rows)));
+  // (the Fluent set: filled drawings in the button's colour; Text is Aa)
+  const ic = await p.evaluate(() => [...document.querySelectorAll('.paint-left .paint-toolgroups > .paint-group:not(.pl-view) > button')].filter(b => b.offsetParent).map(b => { const ps = [...b.querySelectorAll('svg path')]; return ps.length === 1 && ps[0].getAttribute('fill') === 'currentColor' && ps[0].getAttribute('stroke') === 'none' && getComputedStyle(ps[0]).fill === getComputedStyle(b).color; }));
+  L.ok(ic.length === 12 && ic.every(Boolean), 'all twelve tools: one filled Fluent drawing each, in the button’s colour ' + JSON.stringify(ic));
+  const bw = await p.evaluate(() => { const l = document.querySelector('.paint-left').getBoundingClientRect(), h = document.querySelector('.site-header').getBoundingClientRect(); return [Math.round(l.width), Math.round(h.width)]; });
+  L.ok(bw[0] === (phone ? 100 : 56) && bw[1] === bw[0], 'the left bar and the menu over it: 56 wide (a phone: 100) ' + bw);
   const lg = bar.groups[bar.groups.length - 1];
-  L.ok(lg.last.fit && lg.last.layers && lg.last.level, 'Fit, then Layers just right of it, last ' + JSON.stringify(lg.last));
+  L.ok(lg.last.fit && lg.last.layers && lg.last.level, 'Fit, then Layers just under it (beside it on a phone), last ' + JSON.stringify(lg.last));
   L.ok(await p.evaluate(() => { const v = document.querySelector('.paint-left .pl-view'); return !v.querySelector('.pl-layersbtn') && !!v.querySelector('.paint-zoom'); }), 'the foot: the zoom alone, no full-width Layers');
   L.ok(bar.groups.every(g => g.sizes.length === 1) && new Set(bar.groups.map(g => g.sizes[0])).size === 1, 'every tool the same size ' + JSON.stringify(bar.groups.map(g => g.sizes)));
   // (what they did is still there: the keys, and a colour dropped on the picture)
@@ -70,9 +76,9 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   const row = await p.evaluate(() => { const t = [...document.querySelectorAll('.paint-ctx [data-ctx-sel]')]; return { ids: t.map(b => b.dataset.ctxSel), sizes: [...new Set(t.map(b => Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)))], top: [...new Set(t.map(b => Math.round(b.getBoundingClientRect().top)))].length, svg: t.map(b => b.querySelector('svg') && b.querySelector('svg').innerHTML) }; });
   L.ok(JSON.stringify(row.ids) === JSON.stringify(['lasso', 'select', 'circle', 'wand', 'move']), 'the Select panel’s top row: the four ways, then Move ' + row.ids.join(', '));
   L.ok(row.sizes.length === 1 && row.top === 1, 'all in one row, the same size ' + row.sizes.join(' '));
-  L.ok(/M12 3.5v17M3.5 12h17/.test(row.svg[4]), 'Move with its own icon');
+  L.ok(/M15\.28 6\.03c/.test(row.svg[4]), 'Move with its own icon');
   await tapEl('.paint-ctx [data-ctx-sel="move"]');
-  const mv = await p.evaluate(() => { const s = document.querySelector('.paint-selbtn'), t = document.querySelector('.paint-ctx [data-ctx-sel="move"]'); return { tool: document.querySelector('.paint-stage').dataset.tool, lit: s.getAttribute('aria-pressed'), icon: /M12 3.5v17M3.5 12h17/.test(s.innerHTML), label: s.getAttribute('aria-label'), tab: t && t.getAttribute('aria-selected'), panel: !document.querySelector('.paint-ctx').hidden, hint: (document.querySelector('.paint-ctx .ctx-hint') || {}).textContent }; });
+  const mv = await p.evaluate(() => { const s = document.querySelector('.paint-selbtn'), t = document.querySelector('.paint-ctx [data-ctx-sel="move"]'); return { tool: document.querySelector('.paint-stage').dataset.tool, lit: s.getAttribute('aria-pressed'), icon: /M15\.28 6\.03c/.test(s.innerHTML), label: s.getAttribute('aria-label'), tab: t && t.getAttribute('aria-selected'), panel: !document.querySelector('.paint-ctx').hidden, hint: (document.querySelector('.paint-ctx .ctx-hint') || {}).textContent }; });
   L.ok(mv.tool === 'move' && mv.tab === 'true' && mv.panel, 'its tab picks the Move tool, and the panel stays, Move picked ' + JSON.stringify(mv));
   L.ok(mv.lit === 'true' && mv.icon && /Move/.test(mv.label), 'the Select button is lit, showing Move');
   L.ok(/^Move/.test(mv.hint || ''), 'the panel says what Move does: ' + mv.hint);

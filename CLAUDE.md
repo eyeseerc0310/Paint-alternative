@@ -82,7 +82,9 @@ When building or changing anything visual:
   drop-down left, drops from the arrow while the bar is folded (`hdrBtn`).
   The left bar (`.paint-left`), its middle level with the picture's space's
   (`safe center` above the bottom bar, `--bbar-gap`; at the top if it's too
-  tall for that), holds the tools in groups (there's no Hand button:
+  tall for that), holds the tools in groups, one column of them (`--bar`,
+  56px, as is the top-left menu over it; a phone keeps two across, 100px;
+  the zoom stands upright and the save status is its dot and arrow) (there's no Hand button:
   the picture moves with Space, two fingers, the middle button, scrolling,
   H, or a drag with the tool put down). Three groups, two across with no
   gaps: Brush, Eraser, Blend, Picker; Select, Pen, Symmetry, Gradient; Text,
@@ -146,7 +148,9 @@ When building or changing anything visual:
   (`ctxBox`). On phones it's a wrapping strip along the
   top of the picture (the dock takes no room there). Its lists open on the
   side towards the picture's middle.
-  Toolbar icons are 24-unit outline drawings using `--stroke`, with round
+  The left bar's tools (and the Select panel's ways and Move) are Fluent's
+  24px regular icons (MIT): one filled path each, `fill="currentColor"
+  stroke="none"` on the path; Text is Aa. Other toolbar icons are 24-unit outline drawings using `--stroke`, with round
   caps and joins; keep new ones in the same style. **One chevron** (`.chev`:
   the path `M7 9.5l5 5 5-5`, `--chev` big, `--stroke-xs`, `--muted`, `--text`
   on its row's hover) for every disclosure, list and fold: a section's head
@@ -454,8 +458,10 @@ When building or changing anything visual:
   With the circle, Shift still makes it round, unless that Shift started an
   added part (let go and pressed again, it does).
 - **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
-  selection's actions stand in a card of their own just under the left
-  toolbar (the top menu's gap below it, `--menu-stack-gap`), built like it
+  selection's actions stand in a card of their own beside the left toolbar,
+  towards the picture, from its top, `--sel-w` wide, the picture's space
+  making room (`sel-on` on `.paint`; on a phone just under the left
+  toolbar, the top menu's gap below it, `--menu-stack-gap`), built like it
   (`.paint-bar` > `.paint-toolgroups` > `.paint-group`, so the same glass,
   corners, buttons, dividers and sizes everywhere), never over the picture.
   `placeSelectionToolbar` puts it under the toolbar wherever that is (the
