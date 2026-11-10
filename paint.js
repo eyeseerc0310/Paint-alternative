@@ -426,6 +426,7 @@
     // they open, and then left where they are while their rows change, so New
     // Layer, at their head, stays under the pointer for the next one; no taller
     // than the room under where they start, the list scrolling in what's left
+    var LAYERS_ROOM = 420;
     function layersPlace(el, btn, fresh) {
       el.style.maxHeight = '';
       if (fresh || !el.style.top) besideBar(el, btn);
@@ -433,6 +434,8 @@
       // (and clear of the bottom bar, where it would cover it)
       if (bbar && bbar.offsetParent) { var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left && bb.top > r.top + 180) lim = Math.min(lim, bb.top - 8); }
       if (fresh && r.bottom > lim) { el.style.top = Math.round(Math.max(8, Math.min(r.top, lim - r.height))) + 'px'; r = el.getBoundingClientRect(); }
+      // (its button is low on the one-column bar: start high enough for a list's worth of rows)
+      if (fresh && !phoneLayout() && lim - r.top < LAYERS_ROOM) { el.style.top = Math.round(Math.max(8, lim - LAYERS_ROOM)) + 'px'; r = el.getBoundingClientRect(); }
       if (r.bottom > lim) el.style.maxHeight = Math.max(180, Math.floor(lim - r.top)) + 'px';
     }
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
