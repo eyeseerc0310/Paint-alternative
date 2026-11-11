@@ -426,6 +426,7 @@
     // they open, and then left where they are while their rows change, so New
     // Layer, at their head, stays under the pointer for the next one; no taller
     // than the room under where they start, the list scrolling in what's left
+    var LAYERS_ROOM = 420;
     function layersPlace(el, btn, fresh) {
       el.style.maxHeight = '';
       if (fresh || !el.style.top) besideBar(el, btn);
@@ -433,6 +434,8 @@
       // (and clear of the bottom bar, where it would cover it)
       if (bbar && bbar.offsetParent) { var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left && bb.top > r.top + 180) lim = Math.min(lim, bb.top - 8); }
       if (fresh && r.bottom > lim) { el.style.top = Math.round(Math.max(8, Math.min(r.top, lim - r.height))) + 'px'; r = el.getBoundingClientRect(); }
+      // (its button is low on the one-column bar: start high enough for a list's worth of rows)
+      if (fresh && !phoneLayout() && lim - r.top < LAYERS_ROOM) { el.style.top = Math.round(Math.max(8, lim - LAYERS_ROOM)) + 'px'; r = el.getBoundingClientRect(); }
       if (r.bottom > lim) el.style.maxHeight = Math.max(180, Math.floor(lim - r.top)) + 'px';
     }
     // the zoom buttons: steps of 25%, but the first step in lands exactly on
@@ -461,6 +464,11 @@
       if (typeof within === 'function') within = within();
       var B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
       if (r.right > B.right - 6) dx = B.right - 6 - r.right; if (r.left + dx < B.left + 6) dx = B.left + 6 - r.left;
+      // (a panel beside the left bar stays clear of the bottom bar: with the top menu open the
+      // one-column bar starts low, and the panel with it)
+      if (!within && el.classList.contains('paint-adjust') && !phoneLayout() && typeof bbar !== 'undefined' && bbar && bbar.offsetParent) {
+        var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left) B = { left: B.left, top: B.top, right: B.right, bottom: Math.min(B.bottom, bb.top) };
+      }
       if (r.bottom > B.bottom - 6) dy = B.bottom - 6 - r.bottom; if (r.top + dy < B.top + 6) dy = B.top + 6 - r.top;
       if (dx || dy) el.style.translate = (o.x + dx) + 'px ' + (o.y + dy) + 'px';
     }
@@ -3091,17 +3099,17 @@
     // tool panel, and remembered): a cutout (the first time), a box, a circle
     // and the magic wand. The button shows the way in use
     var SEL_KINDS = [
-      ['lasso', 'Cutout', '<path d="M7.4 15.6C5.3 14.5 4 12.8 4 10.9 4 7.4 7.6 4.5 12 4.5s8 2.9 8 6.4-3.6 6.4-8 6.4c-1 0-1.9-.1-2.8-.4" stroke-dasharray="2.4 2.1"/><circle cx="8.4" cy="16.4" r="1.4"/><path d="M8 17.8c-.6 1.2-.2 2.3 1 2.7"/>', 'Cutout (Q): draw round it, or click to place points'],
-      ['select', 'Box', '<path d="M4 8.5V5a1 1 0 0 1 1-1h3.5M15.5 4H19a1 1 0 0 1 1 1v3.5M20 15.5V19a1 1 0 0 1-1 1h-3.5M8.5 20H5a1 1 0 0 1-1-1v-3.5"/><path d="M11 4h2M11 20h2M4 11v2M20 11v2"/>', 'Box (M): drag a box round it'],
-      ['circle', 'Circle', '<circle cx="12" cy="12" r="8" stroke-dasharray="2.6 2.4"/>', 'Circle (C): drag an oval round it, Shift for a circle'],
-      ['wand', 'Magic Wand', '<path d="M4.1 18.5l9-9a1.1 1.1 0 0 1 1.5 0l.4.4a1.1 1.1 0 0 1 0 1.5l-9 9a1.1 1.1 0 0 1-1.5 0l-.4-.4a1.1 1.1 0 0 1 0-1.5z"/><path d="M11.6 11l1.9 1.9"/><path d="M17.5 2.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/><path d="M9.5 3v2.5M8.25 4.25h2.5M20 11v2M19 12h2"/>', 'Magic Wand (W): tap an area of one colour']
+      ['lasso', 'Cutout', '<path fill="currentColor" stroke="none" d="M9.7 2.27a10 10 0 0 1 4.6 0 .75.75 0 1 1-.35 1.46 8.5 8.5 0 0 0-3.9 0 .75.75 0 1 1-.35-1.46M7.77 3.74c.22.35.11.81-.24 1.03a8.6 8.6 0 0 0-2.76 2.76.75.75 0 1 1-1.28-.79A10 10 0 0 1 6.74 3.5a.75.75 0 0 1 1.03.25m8.46 0a.75.75 0 0 1 1.03-.25c1.32.82 2.43 1.93 3.25 3.25a.75.75 0 1 1-1.28.8 8.6 8.6 0 0 0-2.76-2.77.75.75 0 0 1-.24-1.03M3.17 9.14c.4.1.65.5.56.9a8.5 8.5 0 0 0 0 3.91.75.75 0 1 1-1.46.35 10 10 0 0 1 0-4.6c.09-.4.5-.65.9-.56m17.66 0c.4-.09.81.16.9.56a10 10 0 0 1 0 4.6.75.75 0 1 1-1.46-.35 8.5 8.5 0 0 0 0-3.9c-.09-.4.16-.81.56-.9m-17.1 7.09a.75.75 0 0 1 1.04.24 8.6 8.6 0 0 0 2.76 2.76.75.75 0 0 1-.79 1.28 10 10 0 0 1-3.25-3.25.75.75 0 0 1 .25-1.03m16.7.86a.75.75 0 1 0-1.35-.68l-.02.04a5 5 0 0 1-.36.59c-.22.33-.54.77-.96 1.22A7 7 0 0 0 13 16.25c-2.35 0-3.99 1.2-3.99 2.88C9.01 20.8 10.65 22 13 22c1.94 0 3.5-.75 4.66-1.65a12 12 0 0 1 1.39 2.16l.01.04a.75.75 0 0 0 1.37-.6c-.08-.19 0 0 0 0v-.03l-.12-.24a12 12 0 0 0-1.54-2.33 11 11 0 0 0 1.62-2.2l.02-.04v-.02zm-7.43.66c1.43 0 2.64.65 3.62 1.51A6 6 0 0 1 13 20.5c-1.97 0-2.49-.92-2.49-1.37s.52-1.38 2.49-1.38"/>', 'Cutout (Q): draw round it, or click to place points'],
+      ['select', 'Box', '<path fill="currentColor" stroke="none" d="M10 3.75c0-.41.34-.75.75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75m7.75.75a.75.75 0 0 1 0-1.5C19.55 3 21 4.46 21 6.25a.75.75 0 0 1-1.5 0c0-.97-.78-1.75-1.75-1.75M6.25 3a.75.75 0 0 1 0 1.5c-.97 0-1.75.78-1.75 1.75a.75.75 0 0 1-1.5 0C3 4.45 4.46 3 6.25 3m-2.5 14a.75.75 0 0 0-.75.75C3 19.55 4.46 21 6.25 21a.75.75 0 0 0 0-1.5c-.97 0-1.75-.78-1.75-1.75a.75.75 0 0 0-.75-.75m7 2.5a.75.75 0 0 0 0 1.5h2.5a.75.75 0 0 0 0-1.5zm7 0a.75.75 0 0 0 0 1.5c1.8 0 3.25-1.46 3.25-3.25a.75.75 0 0 0-1.5 0c0 .97-.78 1.75-1.75 1.75m2.5-9.5c.41 0 .75.34.75.75v2.5a.75.75 0 0 1-1.5 0v-2.5c0-.41.34-.75.75-.75M3 13.25a.75.75 0 0 0 1.5 0v-2.5a.75.75 0 0 0-1.5 0z"/>', 'Box (M): drag a box round it'],
+      ['circle', 'Circle', '<path fill="currentColor" stroke="none" d="M7.59 3.96a.7.7 0 0 0-1.04-.34 10 10 0 0 0-2.93 2.93.7.7 0 0 0 .34 1.04.8.8 0 0 0 .98-.32 9 9 0 0 1 2.33-2.33.8.8 0 0 0 .32-.98m2.76-.3a.8.8 0 0 1-.91-.46.7.7 0 0 1 .49-.98 10 10 0 0 1 4.14 0c.44.09.67.56.5.98a.8.8 0 0 1-.92.46 9 9 0 0 0-3.3 0m9.69 3.93a.8.8 0 0 1-.97-.32 9 9 0 0 0-2.34-2.34.8.8 0 0 1-.32-.97.7.7 0 0 1 1.04-.35q1.77 1.17 2.93 2.94c.25.37.07.86-.34 1.04m.77 6.97a.8.8 0 0 1-.47-.9 9 9 0 0 0 0-3.32.8.8 0 0 1 .47-.9c.41-.18.88.05.98.48a10 10 0 0 1 0 4.15.7.7 0 0 1-.98.5m-4.4 5.48a.8.8 0 0 1 .32-.97 9 9 0 0 0 2.34-2.34.8.8 0 0 1 .97-.32c.41.17.6.67.35 1.04a10 10 0 0 1-2.94 2.93.7.7 0 0 1-1.04-.34m-6.97.76a.8.8 0 0 1 .9-.46 9 9 0 0 0 3.31 0 .8.8 0 0 1 .92.46.7.7 0 0 1-.5.98 10 10 0 0 1-4.14 0 .7.7 0 0 1-.5-.98m-5.48-4.39a.8.8 0 0 1 .98.32 9 9 0 0 0 2.33 2.33.8.8 0 0 1 .32.98.7.7 0 0 1-1.04.34 10 10 0 0 1-2.93-2.93.7.7 0 0 1 .34-1.04M3.2 9.43a.8.8 0 0 1 .46.92 9 9 0 0 0 0 3.3.8.8 0 0 1-.46.91.7.7 0 0 1-.98-.49 10 10 0 0 1 0-4.14c.09-.44.56-.67.98-.5"/>', 'Circle (C): drag an oval round it, Shift for a circle'],
+      ['wand', 'Magic Wand', '<path fill="currentColor" stroke="none" d="m13.31 7.57-.13.12L2.7 18.18a2.27 2.27 0 0 0 3.2 3.2L16.4 10.9c.88-.88.88-2.3 0-3.18l-.16-.15a2.25 2.25 0 0 0-2.92 0m-.84 2.96 1.08 1.08-8.7 8.72a.77.77 0 1 1-1.1-1.1zM16.85 15l-.1-.01c-.38 0-.7.28-.74.65l-.01.1v.75h-.75c-.38 0-.7.28-.74.65l-.01.1c0 .38.28.7.65.74l.1.01H16v.75c0 .38.28.7.65.74l.1.01c.38 0 .7-.28.74-.65l.01-.1V18h.75c.38 0 .7-.28.74-.65l.01-.1c0-.38-.28-.7-.65-.74l-.1-.01h-.75v-.75c0-.38-.28-.7-.65-.74l-.1-.01zM15.3 8.75l.03.03c.29.3.29.77 0 1.06l-.71.71-1.1-1.09.74-.73a.75.75 0 0 1 1.04.02M6.85 5.01 6.75 5c-.38 0-.7.28-.74.65l-.01.1v.75h-.75c-.38 0-.7.28-.74.65l-.01.1c0 .38.28.7.65.74l.1.01H6v.75c0 .38.28.7.65.74l.1.01c.38 0 .7-.28.74-.65l.01-.1V8h.75c.38 0 .7-.28.74-.65l.01-.1c0-.38-.28-.7-.65-.74l-.1-.01H7.5v-.75c0-.38-.28-.7-.65-.74L6.75 5zm12-2-.1-.01c-.38 0-.7.28-.74.65l-.01.1v.75h-.75c-.38 0-.7.28-.74.65l-.01.1c0 .38.28.7.65.74l.1.01H18v.75c0 .38.28.7.65.74l.1.01c.38 0 .7-.28.74-.65l.01-.1V6h.75c.38 0 .7-.28.74-.65l.01-.1c0-.38-.28-.7-.65-.74l-.1-.01h-.75v-.75c0-.38-.28-.7-.65-.74l-.1-.01z"/>', 'Magic Wand (W): tap an area of one colour']
     ];
     function selKindOf(t) { for (var i = 0; i < SEL_KINDS.length; i++) if (SEL_KINDS[i][0] === t) return SEL_KINDS[i]; return null; }
     var selKind = stored('paint-sel-kind', 'lasso'); if (!selKindOf(selKind)) selKind = 'lasso';
     // (Move is in the same row of the panel, after the four ways, and has no
     // button of its own: while it's in hand the Select button is lit and shows
     // it. It isn't a way to select, so it's never the remembered selKind)
-    var MOVE_WAY = ['move', 'Move', '<path d="M12 3.5v17M3.5 12h17"/><path d="M9.5 6L12 3.5 14.5 6M9.5 18l2.5 2.5 2.5-2.5M6 9.5L3.5 12 6 14.5M18 9.5l2.5 2.5-2.5 2.5"/>', 'Move (V): picks up everything on the layer (or the words of a text layer) to move, size or turn it. Drag anywhere to move it'];
+    var MOVE_WAY = ['move', 'Move', '<path fill="currentColor" stroke="none" d="M15.28 6.03c-.3.3-.77.3-1.06 0l-1.47-1.47v3.69a.75.75 0 0 1-1.5 0V4.56L9.78 6.03a.75.75 0 0 1-1.06-1.06l2.75-2.75a.75.75 0 0 1 1.06 0l2.75 2.75c.3.3.3.77 0 1.06m-9.25 8.19a.75.75 0 1 1-1.06 1.06l-2.75-2.75a.75.75 0 0 1 0-1.06l2.75-2.75a.75.75 0 0 1 1.06 1.06l-1.47 1.47h3.69a.75.75 0 0 1 0 1.5H4.56zm11.94 1.06a.75.75 0 0 1 0-1.06l1.47-1.47h-3.69a.75.75 0 0 1 0-1.5h3.69l-1.47-1.47a.75.75 0 0 1 1.06-1.06l2.75 2.75a.75.75 0 0 1 0 1.06l-2.75 2.75c-.3.3-.77.3-1.06 0m-2.69 2.69a.75.75 0 0 0-1.06 0l-1.47 1.47v-3.69a.75.75 0 0 0-1.5 0v3.69l-1.47-1.47a.75.75 0 0 0-1.06 1.06l2.75 2.75a.75.75 0 0 0 1.06 0l2.75-2.75c.3-.3.3-.77 0-1.06"/>', 'Move (V): picks up everything on the layer (or the words of a text layer) to move, size or turn it. Drag anywhere to move it'];
     function selWayOf(t) { return t === 'move' ? MOVE_WAY : selKindOf(t); }
     function selBtnSync() {
       var b = root.querySelector('.paint-selbtn'), k = selWayOf(st.tool === 'move' ? 'move' : selKind); if (!b) return;
@@ -9249,10 +9257,14 @@
       // (down to the bottom of the colour bar, Commit at its foot; to the
       // picture's space's when that bar is away, as in focus mode)
       var B = bbar.getBoundingClientRect(), foot = B.height && B.bottom <= window.innerHeight + 1 ? Math.max(B.bottom, V.bottom) : V.bottom;
-      var top = L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
-      selectionSlot.style.left = (L.left - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
+      // (the toolbar is one column and takes the height, so the panel stands beside it, towards
+      // the picture, from its top, its own width, --sel-w; nothing else moves for it;
+      // on a phone under it, as wide as it)
+      var side = !phoneLayout(), wide = side ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sel-w')) || 100 : L.width;
+      var top = side ? L.top : L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
+      selectionSlot.style.left = ((side ? (uiFlipped() ? L.left - gap - wide : L.right + gap) : L.left) - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
       // (as tall as what's in it, never past the room: its groups scroll past that)
-      selectionSlot.style.width = L.width + 'px'; selbar.style.height = ''; selbar.style.maxHeight = room + 'px';
+      selectionSlot.style.width = wide + 'px'; selbar.style.height = ''; selbar.style.maxHeight = room + 'px';
       selFades();
       placeSelectionPopover();
     }

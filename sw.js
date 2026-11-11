@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-toolorder-20261104';
-var SHELL = ['./', 'index.html', 'style.css?v=toolorder-20261104', 'fx-shared.js?v=toolorder-20261104', 'decoders.js?v=toolorder-20261104', 'photo-presets.js?v=toolorder-20261104', 'photo.js?v=toolorder-20261104', 'vector.js?v=toolorder-20261104', 'paint.js?v=toolorder-20261104', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-onecol-20261110';
+var SHELL = ['./', 'index.html', 'style.css?v=onecol-20261110', 'fx-shared.js?v=onecol-20261110', 'decoders.js?v=onecol-20261110', 'photo-presets.js?v=onecol-20261110', 'photo.js?v=onecol-20261110', 'vector.js?v=onecol-20261110', 'paint.js?v=onecol-20261110', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

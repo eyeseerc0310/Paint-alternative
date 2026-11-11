@@ -72,7 +72,8 @@ const L = require('../lib'), { chromium } = L.use({ swatches: true }), ok = L.ok
   await key('b');
   const artPre = await art();
   await p.evaluate(() => { const i = document.querySelector('.paint-bottom input[type="range"]'); i.value = 700; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); });
-  await drag([0.05, 0.375], [0.75, 0.38]);
+  // (from the right: the selection's panel stands over the picture's left edge)
+  await drag([0.75, 0.38], [0.05, 0.375]);
   ok(await painted(0.15, 0.375) && await painted(0.6, 0.375), tag + ': a stroke across paints inside both parts');
   ok(!(await painted(0.375, 0.375)) && !(await painted(0.05, 0.375)), tag + ': and nowhere outside them');
   // undo the stroke: the picture goes back, the selection stays
