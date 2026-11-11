@@ -159,7 +159,7 @@ When building or changing anything visual:
   (`.pr-head`, the whole row its button, the chevron at its trailing edge;
   Effects' reset stands just inside it, so every section's chevron lines up),
   a drop-down in the tool settings (turned up while open), a group of layers,
-  Back (pointing back), the selection panel's arrows; a folded one turns to
+  Back (pointing back); a folded one turns to
   point right. A `select` draws the same glyph (`--chev-down`, `--chev` big). An icon in a button that has its
   own `aria-label` is `aria-hidden="true"`; an icon that says something
   by itself (a layer's tags) has `role="img"` and a label. Put new tool
@@ -460,36 +460,32 @@ When building or changing anything visual:
   With the circle, Shift still makes it round, unless that Shift started an
   added part (let go and pressed again, it does).
 - **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
-  selection's actions stand in a card of their own beside the left toolbar,
-  towards the picture, from its top, `--sel-w` wide, over the edge of the
-  picture's space, nothing moving for it (on a phone just under the left
-  toolbar, the top menu's gap below it, `--menu-stack-gap`), built like it
-  (`.paint-bar` > `.paint-toolgroups` > `.paint-group`, so the same glass,
-  corners, buttons, dividers and sizes everywhere).
-  `placeSelectionToolbar` puts it under the toolbar wherever that is (the
-  top menu folding, frame by frame; the sides swapped, sliding out and in
-  with the other bars in `flipUI`; the window resized)
-  and sizes it to what's in it, never taller than the room down to the
-  bottom of the colour bar (`bbar`; the picture's space's when that bar is
-  away; only `max-height` is set, so it shrinks and grows with its buttons):
-  past that its buttons take the room above Commit and scroll, the edge with more past it fading
-  (`selFades`, `more-above`/`more-below`) under a small round arrow
-  (`.sel-more`, `selArrows`) that scrolls the next group fully into view
-  (`selStep`), and the first time it turns up with more than fits it scrolls
-  a little way down and back, once ever (`selNudge`, `paint-sel-nudged`).
-  Its options (Feather, Expand,
-  Rotate, Transform with Scale and Distort) open beside it, towards the picture, level with
-  their button, inside the picture's space (`placeSelectionPopover`). A
-  selection turning up folds the top menu (`headerOpen(false)`, once), and it
-  stays in view while the selection is moved, sized, turned or distorted
-  and while the picture is moved or zoomed (it never fades for a press; an
-  option open beside it closes on a press elsewhere, as every pop-over does).
+  selection's actions are in the tool settings panel (`.paint-ctx`, after
+  `.ctx-tool`), under the selection tools' own settings (the ways, the
+  hint), past a divider; nothing floats over the picture for them. They
+  show while a selection is open and the panel shows a selection tool or
+  Move (`selPanelShows`; `sel-shown` on `.paint-ctx`, which also hides the
+  tool's own Paste, as `selection-active` hides its Select All); with
+  another tool in hand the selection stays and its keys still work, and
+  picking a selection tool again brings them back. Built like the left
+  toolbar's groups (`.paint-toolgroups` > `.paint-group`: the same buttons
+  and dividers), four across in the dock; on a phone, where the panel is a
+  strip along the top, one wrapping run under the tool's settings.
+  Its options (Feather, Expand, Rotate, Transform with Scale and Distort,
+  `.selection-pop`, in `.paint` itself) open beside the panel, towards the
+  picture, level with their button, inside the picture's space (on a phone
+  under the strip; `placeSelectionPopover`). A selection turning up folds
+  the top menu (`headerOpen(false)`, once) and opens the tool settings out
+  if they were folded (`ctxMin(false)`), so its actions and Commit are in
+  view; they stay while the selection is moved, sized, turned or distorted
+  and while the picture is moved or zoomed (an option open beside them
+  closes on a press elsewhere, as every pop-over does).
   Its groups, every selection action as a button (there's no ••• menu):
   what's picked and its edge (Select All, Invert Selection, Feather,
   Expand); what's done to its pixels (Transform, Rotate, Rotate 90°, Invert
   Colours, the flips); the clipboard and layers (Copy, Paste, Duplicate to
   New Layer `data-sel="duplicate"`, Cut to Layer); and Delete, Deselect; then, at its foot (`.selection-foot`,
-  outside the scrolling groups, so always in view), **Commit**
+  the panel's width, past a divider), **Commit**
   (`.selection-commit`, `data-sel="done"`, solid accent, the zoom's pill shape and height, `--zoom-h`, its word alone,
   centred by its letters): it lays down whatever's been moved, sized, turned
   or distorted (`commitSelection`) and closes the selection, touching nothing

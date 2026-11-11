@@ -52,7 +52,7 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   const sum = box => cvOf('layer', `const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, W = c.width; let s = 0;
     for (let i = 0, n = 0; i < d.length; i += 4, n++) { if (a) { const x = n % W, y = (n / W) | 0; if (x >= a[0] && x < a[2] && y >= a[1] && y < a[3]) continue; } s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11) % 1000000007; } return s;`, box || null);
   const sheetSum = () => cvOf('sov', `const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i++) s = (s * 31 + d[i]) % 1000000007; return s;`);
-  const selOn = () => p.evaluate(() => { const t = document.querySelector('.selection-toolbar'); return !!t && !t.closest('[hidden]') && getComputedStyle(t).display !== 'none'; });
+  const selOn = () => p.evaluate(() => !!document.querySelector('.paint.selection-active')); // (a selection open; its actions are in the tool settings)
   const pill = () => p.$eval('.paint-casmode', e => !e.hidden && getComputedStyle(e).display !== 'none');
   const fxOpen = async () => { if (await p.$eval('.paint-adjust', a => a.hidden)) await tapEl('[data-act="adjust"]'); await p.waitForTimeout(250); await p.$eval('.fx-sec[data-fx="cas"]', s => { if (s.classList.contains('closed')) s.querySelector('.pr-head').click(); }); };
   const casOn = async () => { await fxOpen(); await tapEl('[data-fx-cas]'); await p.waitForTimeout(300); };

@@ -8646,8 +8646,6 @@
       var html = document.documentElement, centre = $('.paint-centre');
       var panels = [header, left, dock];
       if (!panel.hidden) panels.push(panel);
-      // (the selection panel goes with the left toolbar, as they all do)
-      if (selectionSlot && selectionSlot.classList.contains('on')) panels.push(selectionSlot);
       var animations = [], css = getComputedStyle(html);
       var duration = parseFloat(css.getPropertyValue('--dur-flip')) * 1000 || 600;
       var easing = css.getPropertyValue('--ease-flip').trim() || 'ease-in-out';
@@ -9086,8 +9084,10 @@
     // buttons scroll if they need more); their options open beside it.
     var selectionSlot, selectionPop, selectionOpen = '', selectionAnchor = null;
     function buildSelectionToolbar() {
+      // (in the tool settings panel, under the selection tools' own settings: shown while a
+      // selection is open and the panel shows a selection tool or Move, selPanelShows)
       selectionSlot = document.createElement('div'); selectionSlot.className = 'selection-slot';
-      paintEl.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
+      ctxEl.appendChild(selectionSlot); selectionSlot.appendChild(selbar);
       selbar.className = 'paint-selbar paint-bar selection-toolbar';
       selbar.setAttribute('role', 'toolbar'); selbar.setAttribute('aria-label', 'Selection actions');
       var svg = function (d) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>'; };
@@ -9129,17 +9129,8 @@
           button('data-sel', 'duplicate', 'Duplicate to New Layer', 'duplicate') + button('data-sel', 'layer', 'Cut to Layer', 'cut')) +
         group(button('data-sel', 'delete', 'Delete Selection', 'delete') + button('data-sel', 'deselect', 'Deselect', 'deselect')) + '</div>' +
         '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)"><span aria-hidden="true">Commit</span></button></div>';
-      selbar.querySelector('.paint-toolgroups').addEventListener('scroll', selFades, { passive: true });
-      // (an arrow over each edge with more past it: a press scrolls a group's worth)
-      selArrows = ['up', 'down'].map(function (dir) {
-        var a = document.createElement('button'); a.type = 'button'; a.className = 'sel-more sel-more-' + dir; a.tabIndex = -1;
-        a.setAttribute('aria-hidden', 'true'); a.dataset.tip = dir === 'up' ? 'More above' : 'More below';
-        a.innerHTML = svg(dir === 'up' ? '<path d="M7 14.5l5-5 5 5"/>' : '<path d="M7 9.5l5 5 5-5"/>'); // (the one chevron's glyph)
-        a.addEventListener('click', function () { selStep(dir === 'up' ? -1 : 1); });
-        selbar.appendChild(a); return a;
-      });
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
-      selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); selectionSlot.appendChild(selectionPop);
+      selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); paintEl.appendChild(selectionPop); // (beside the panel, towards the picture)
       // Reuse the existing scale and perspective controls, including all their listeners.
       var transform = document.createElement('div'); transform.className = 'selection-transform'; transform.hidden = true;
       transform.appendChild(scaleEl); if (seldist) transform.appendChild(seldist); transform.appendChild(selcas); selectionPop.appendChild(transform);
@@ -9162,13 +9153,11 @@
         if (e.key === 'Escape') { e.preventDefault(); closeSelectionPopover(true); }
         if (e.key === 'Enter' && e.target.matches('[data-selection-value]')) { e.preventDefault(); var b = selectionPop.querySelector('[data-selection-apply]'); if (b) b.click(); }
       });
-      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot')) closeSelectionPopover(); }, true);
+      document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.selection-slot, .selection-pop')) closeSelectionPopover(); }, true);
       selectionSlot.inert = true;
-      // (it follows the left toolbar and the picture's space, however they
-      // change: the window, the top menu folding, the sides swapping)
-      var ro = new ResizeObserver(placeSelectionToolbar); ro.observe(stage); ro.observe(left); ro.observe(paintEl);
+      // (an option open beside it follows the panel, however things change size)
+      var ro = new ResizeObserver(placeSelectionToolbar); ro.observe(stage); ro.observe(ctxEl); ro.observe(paintEl);
       window.addEventListener('resize', placeSelectionToolbar);
-      left.addEventListener('transitionend', placeSelectionToolbar);
       placeSelectionToolbar();
     }
     function closeSelectionPopover(focus) {
@@ -9178,27 +9167,32 @@
       if (focus && selectionAnchor && document.contains(selectionAnchor)) selectionAnchor.focus({ preventScroll: true });
     }
     function selectionCanMask() { return !!(sel && !sel.text && !sel.thing && !sel.more && !sel.items && !multi()); }
+    // (the panel shows the selection tools' settings, or Move's: the selection's actions go there)
+    function selPanelShows() { return wsMode === 'paint' && ctxView !== 'sym' && (selTool(st.tool) || st.tool === 'move'); }
+    var selWasActive = false;
     function selectionToolbarSync() {
       if (!selectionSlot) return;
-      var on = !!(sel && !sel.thing && sel.w > 0 && sel.h > 0 && selMode !== 'new' && selMode !== 'lasso' && !lassoOn);
+      var active = !!(sel && !sel.thing && sel.w > 0 && sel.h > 0 && selMode !== 'new' && selMode !== 'lasso' && !lassoOn);
+      var on = active && selPanelShows();
+      if (active !== selWasActive) {
+        selWasActive = active;
+        // (a selection turning up folds the top menu, as it always has, and opens the tool
+        // settings out if they were folded, so its actions and Commit are in view)
+        if (active && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
+        if (active && on && ctxEl.classList.contains('min')) ctxMin(false);
+      }
       if (selectionSlot.classList.contains('on') !== on) {
-        selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
+        selectionSlot.classList.toggle('on', on); ctxEl.classList.toggle('sel-shown', on);
         selbar.hidden = !on; if (!on) closeSelectionPopover();
-        // (a selection turning up folds the top menu, as its own arrow does,
-        // to give the panel room; it can be opened again as ever)
-        if (on && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
-        placeSelectionToolbar();
-        if (on) selNudge();
       }
       if (selbar.hidden === on) selbar.hidden = !on;
-      if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== on) all.hidden = on; }
-      // (it stays in view while the selection is moved, sized or turned)
+      if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== active) all.hidden = active; }
       selectionSlot.inert = !on;
       var masking = selectionCanMask();
       selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
       var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
       var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !sel || !!sel.thing;
-      paintEl.classList.toggle('selection-active', on);
+      paintEl.classList.toggle('selection-active', active);
       placeSelectionToolbar();
     }
     function openSelectionPopover(kind, anchor) {
@@ -9228,68 +9222,31 @@
     }
     // (when its buttons don't all fit, the edge with more past it fades, so
     // it reads as something to scroll)
-    var selArrows = null, selNudged = stored('paint-sel-nudged', false);
-    function selFades() {
-      var g = selbar.querySelector('.paint-toolgroups'); if (!g) return;
-      var up = g.scrollTop > 1, dn = g.scrollTop + g.clientHeight < g.scrollHeight - 1;
-      g.classList.toggle('more-above', up); g.classList.toggle('more-below', dn);
-      if (!selArrows) return;
-      selArrows[0].classList.toggle('on', up); selArrows[1].classList.toggle('on', dn);
-      selArrows[0].style.top = (g.offsetTop + 4) + 'px';
-      selArrows[1].style.top = (g.offsetTop + g.clientHeight - selArrows[1].offsetHeight - 4) + 'px';
-    }
-    // (an arrow pressed: the next group past that edge comes fully into view,
-    // clear of the fade)
-    function selStep(dir) {
-      var g = selbar.querySelector('.paint-toolgroups'), top = g.scrollTop, h = g.clientHeight, max = g.scrollHeight - h, gr = g.getBoundingClientRect();
-      var fade = parseFloat(getComputedStyle(g).getPropertyValue('--fade')) || 28, t = top, kids = Array.prototype.slice.call(g.children);
-      var at = function (e) { var r = e.getBoundingClientRect(); return { a: r.top - gr.top + top, b: r.bottom - gr.top + top }; };
-      if (dir > 0) { for (var i = 0; i < kids.length; i++) { var q = at(kids[i]); if (q.b > top + h + 1) { t = Math.max(top + 1, Math.min(q.a - fade, q.b - h + fade)); break; } } }
-      else { for (var j = kids.length - 1; j >= 0; j--) { var w = at(kids[j]); if (w.a < top - 1) { t = Math.min(top - 1, Math.max(w.b - h + fade, w.a - fade)); break; } } }
-      g.scrollTo({ top: Math.max(0, Math.min(max, t)), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    }
-    // (the first time it turns up with more than fits: it scrolls a little
-    // way down and back, once, to show that it does)
-    function selNudge() {
-      if (selNudged || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      var g = selbar.querySelector('.paint-toolgroups');
-      if (!g || g.scrollHeight - g.clientHeight < 8 || g.scrollTop > 0) return;
-      selNudged = true; storeIt('paint-sel-nudged', true);
-      setTimeout(function () {
-        if (!selectionSlot.classList.contains('on') || g.scrollTop > 0) return;
-        g.scrollTo({ top: Math.min(40, g.scrollHeight - g.clientHeight), behavior: 'smooth' });
-        setTimeout(function () { g.scrollTo({ top: 0, behavior: 'smooth' }); }, 560);
-      }, 520);
-    }
+    // (the panel is in the tool settings, in their flow: only an option open beside it needs placing)
     function placeSelectionToolbar() {
       if (!selectionSlot) return;
-      var P = paintEl.getBoundingClientRect(), L = left.getBoundingClientRect(), V = stage.getBoundingClientRect();
-      var gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--menu-stack-gap')) || 12;
-      // (down to the bottom of the colour bar, Commit at its foot; to the
-      // picture's space's when that bar is away, as in focus mode)
-      var B = bbar.getBoundingClientRect(), foot = B.height && B.bottom <= window.innerHeight + 1 ? Math.max(B.bottom, V.bottom) : V.bottom;
-      // (the toolbar is one column and takes the height, so the panel stands beside it, towards
-      // the picture, from its top, its own width, --sel-w; nothing else moves for it;
-      // on a phone under it, as wide as it)
-      var side = !phoneLayout(), wide = side ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sel-w')) || 100 : L.width;
-      var top = side ? L.top : L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
-      selectionSlot.style.left = ((side ? (uiFlipped() ? L.left - gap - wide : L.right + gap) : L.left) - P.left) + 'px'; selectionSlot.style.top = (top - P.top) + 'px';
-      // (as tall as what's in it, never past the room: its groups scroll past that)
-      selectionSlot.style.width = wide + 'px'; selbar.style.height = ''; selbar.style.maxHeight = room + 'px';
-      selFades();
       placeSelectionPopover();
     }
     // (an option opens beside the panel, towards the picture, level with its
-    // button, and kept within the picture's space)
+    // button, and kept within the picture's space; on a phone, where the
+    // panel is a strip along the top, under it)
     function placeSelectionPopover() {
       if (!selectionPop || selectionPop.hidden || !selectionAnchor) return;
-      var a = selectionAnchor.getBoundingClientRect(), r = selectionSlot.getBoundingClientRect(), v = stage.getBoundingClientRect();
+      var a = selectionAnchor.getBoundingClientRect(), c = ctxEl.getBoundingClientRect(), v = stage.getBoundingClientRect(), P = paintEl.getBoundingClientRect();
       var gap = parseFloat(getComputedStyle(selectionPop).getPropertyValue('--selection-pop-gap')) || 8;
-      var lo = Math.max(v.top, 0) + 8, hi = Math.min(v.bottom, window.innerHeight) - 8;
-      selectionPop.style.maxHeight = Math.max(40, hi - lo) + 'px';
-      var h = selectionPop.offsetHeight, y = Math.max(lo, Math.min(hi - h, a.top));
-      selectionPop.style.top = Math.round(y - r.top) + 'px'; selectionPop.style.bottom = 'auto';
-      selectionPop.style.left = uiFlipped() ? Math.round(-selectionPop.offsetWidth - gap) + 'px' : Math.round(r.width + gap) + 'px';
+      var lo = Math.max(v.top, 0) + 8, hi = Math.min(v.bottom, window.innerHeight) - 8, w = selectionPop.offsetWidth, vw = document.documentElement.clientWidth, x, y;
+      if (phoneLayout()) {
+        lo = Math.max(lo, c.bottom + gap);
+        selectionPop.style.maxHeight = Math.max(40, hi - lo) + 'px';
+        x = Math.max(8, Math.min(vw - w - 8, a.left + a.width / 2 - w / 2)); y = lo;
+      } else {
+        selectionPop.style.maxHeight = Math.max(40, hi - lo) + 'px';
+        var h = selectionPop.offsetHeight; y = Math.max(lo, Math.min(hi - h, a.top));
+        // (towards the picture: left of a panel on the right, right of one on the left)
+        x = c.left + c.width / 2 > vw / 2 ? c.left - gap - w : c.right + gap;
+        x = Math.max(8, Math.min(vw - w - 8, x));
+      }
+      selectionPop.style.left = Math.round(x - P.left) + 'px'; selectionPop.style.top = Math.round(y - P.top) + 'px'; selectionPop.style.bottom = 'auto';
     }
     function rotateSelection(degrees) {
       if (!sel || selMode || !Number.isFinite(degrees)) return;
