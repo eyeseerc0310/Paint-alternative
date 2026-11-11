@@ -379,12 +379,12 @@
     var lastStage = null;
     // (keep: the zoom stays as it is even when the whole picture was in
     // view, as focus mode's space grows and shrinks)
-    // (Paint's bottom bar centred on the screen, not just under the picture's space, as far as that
-    // space allows; a phone and Vector keep it where it was)
+    // (the bottom bar centred on the screen, not just under the picture's space, as far as that
+    // space allows; a phone keeps it where it was)
     function bbarCenter() {
       if (!bbar) return;
       var c = bbar.parentNode.getBoundingClientRect(), w = bbar.offsetWidth;
-      if (phoneLayout() || document.documentElement.classList.contains('vector-mode') || !c.width || !w) { bbar.style.translate = ''; return; }
+      if (phoneLayout() || !c.width || !w) { bbar.style.translate = ''; return; }
       var room = Math.max(0, (c.width - w) / 2), dx = document.documentElement.clientWidth / 2 - (c.left + c.width / 2);
       bbar.style.translate = Math.round(Math.max(-room, Math.min(room, dx))) + 'px 0';
     }

@@ -99,10 +99,12 @@ const touch = process.argv.includes('touch');
     const sw = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } };
   await settings('vector');
   const V = () => p.evaluate(() => { const s = window.PaintVector.serialize(); return { tool: s.tool, fit: s.view.fit, lit: document.querySelectorAll('.vec-group [aria-pressed="true"]').length, cat: (document.querySelector('.vec-cat') || {}).textContent }; });
-  const fb = await box('.vec-group .paint-fitbtn'), pv = await box('.pl-view');
-  L.ok(fb && fb.w > 0 && fb.b <= pv.y, 'Vector: Fit in the left bar, above Layers ' + JSON.stringify({ fit: fb && Math.round(fb.b), layers: Math.round(pv.y) }));
+  // (at the bottom bar's left end, as in Paint, saying it fits the artboard; on a phone in the left bar, above Layers)
+  const VFIT = (await p.evaluate(() => innerWidth <= 560)) ? '.vec-group .paint-fitbtn' : '.paint-bottom .paint-fitbtn';
+  const fb = await box(VFIT), pv = await box('.pl-view'), vfits = await p.$$eval('.paint-fitbtn', l => l.filter(b => b.offsetParent).map(b => b.getAttribute('aria-label')));
+  L.ok(fb && fb.w > 0 && (VFIT.startsWith('.paint-bottom') || fb.b <= pv.y) && vfits.length === 1 && /artboard/.test(vfits[0]), 'Vector: Fit, once, for the artboard: ' + VFIT + ' ' + JSON.stringify(vfits));
   await tapEl('[data-zoom="in"]'); L.ok(!(await V()).fit, 'Vector: zoomed in');
-  await tapEl('.vec-group .paint-fitbtn'); L.ok((await V()).fit, 'Vector: Fit fits the artboard');
+  await tapEl(VFIT); L.ok((await V()).fit, 'Vector: Fit fits the artboard');
   await tapEl('[data-zoom="in"]'); await p.keyboard.press('0'); await p.waitForTimeout(150); L.ok((await V()).fit, 'Vector: and so does 0');
   const bv = await bareSpot();
   if (bv) { await tapAt(bv.x, bv.y); const v = await V(); L.ok(v.tool === 'none' && v.lit === 0 && v.cat === 'No Tool', 'Vector: a tap on the bare workspace puts the tool down ' + JSON.stringify(v)); }
