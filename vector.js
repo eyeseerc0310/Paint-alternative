@@ -5639,8 +5639,8 @@
     groupEl = document.createElement('div'); groupEl.className = 'paint-group vec-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Vector tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-vcat="' + c.id + '" aria-label="' + esc(c.name) + '" aria-pressed="false" data-tip="' + esc(c.name + ': ' + c.tools.map(function (t) { return TOOLS[t].name; }).join(', ')) + '">' + CI(ICONS[c.icon]) + '</button>'; }).join('');
-    // (and Fit, the painting's own button, last, as it is there: its click is the artboard's fit)
-    var fitB = B.leftViewGroup.parentNode.querySelector('.paint-fitbtn');
+    // (and Fit, a copy of the painting's own (in its bottom bar), last: its click is the artboard's fit)
+    var fitB = document.querySelector('.paint-bottom .paint-fitbtn');
     if (fitB) { fitB = fitB.cloneNode(true); fitB.setAttribute('aria-label', 'Fit the artboard (0)'); fitB.dataset.tip = 'Fit (0): the whole artboard, upright'; groupEl.appendChild(fitB); }
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-vcat]'); if (b) pickCat(b.dataset.vcat); });

@@ -41,13 +41,14 @@ const touch = process.argv.includes('touch');
   // (the top bar starts folded: opened, as a person would, to reach its buttons)
   if (await p.$eval('.hdr-fold', b => b.getAttribute('aria-expanded') !== 'true')) { await tapEl('.hdr-fold'); await p.waitForTimeout(600); }
 
-  // ---- PAINT: Fit in the left bar, and 0 ----
+  // ---- PAINT: Fit at the bottom bar's left end (in the left bar on a phone), and 0 ----
+  const FIT = (await p.evaluate(() => innerWidth <= 560)) ? '.paint-left .paint-fitbtn' : '.paint-bottom .paint-fitbtn';
   const st = await box('.paint-stage');
   await p.mouse.move(st.x + st.w * 0.35, st.y + st.h * 0.4); await p.mouse.down(); await p.mouse.move(st.x + st.w * 0.6, st.y + st.h * 0.6, { steps: 8 }); await p.mouse.up();
-  L.ok(await shown('.paint-left .paint-fitbtn'), 'Paint: Fit in the left bar');
+  L.ok(await shown(FIT) && (await p.$$eval('.paint-fitbtn', l => l.filter(b => b.offsetParent).length)) === 1, 'Paint: Fit, once: ' + FIT);
   const z0 = await zoomTxt();
   await tapEl('[data-zoom="in"]'); await tapEl('[data-zoom="in"]'); const z1 = await zoomTxt();
-  await tapEl('.paint-left .paint-fitbtn'); L.ok(z1 !== z0 && await zoomTxt() === z0, 'Paint: zoomed in, Fit fits again ' + [z0, z1, await zoomTxt()].join(' → '));
+  await tapEl(FIT); L.ok(z1 !== z0 && await zoomTxt() === z0, 'Paint: zoomed in, Fit fits again ' + [z0, z1, await zoomTxt()].join(' → '));
   await tapEl('[data-zoom="in"]'); await p.keyboard.press('0'); await p.waitForTimeout(200); L.ok(await zoomTxt() === z0, 'Paint: and so does 0');
 
   // ---- CROP & ROTATE stays open ----

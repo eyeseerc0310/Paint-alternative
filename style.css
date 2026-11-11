@@ -471,6 +471,12 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @keyframes bar-in-b { from { opacity: 0; transform: translateY(10px); } }
 .paint .paint-bottom > button { flex: none; width: 36px; height: 36px; border-radius: 50%; }
 .pb-sep { flex: none; width: 1px; height: 22px; margin: 0 var(--s-1); border-radius: 1px; background: var(--line); }
+/* (Fit at the bar's left end, mirroring the settings toggle at its right, a divider after it;
+   Vector keeps its own Fit in the left bar; the bar is centred on the screen, bbarCenter) */
+.vector-mode .paint-bottom > .paint-fitbtn, .vector-mode .paint-bottom > .pb-fitsep { display: none; }
+/* (a phone's bar has no room for it: Fit stays in the left bar there, as before) */
+@media (min-width: 561px) { .paint-left .pl-fit-phone { display: none; } }
+@media (max-width: 560px) { .paint-bottom > .paint-fitbtn, .paint-bottom > .pb-fitsep { display: none; } }
 /* (a slider: its name, the slider, its value; greyed out when the tool doesn't use it) */
 .pb-slider { display: flex; align-items: center; gap: var(--s-2); min-width: 0; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 .pb-slider input[type="range"] { flex: 1 1 auto; width: var(--bbar-slider); min-width: 40px; margin: 0; accent-color: var(--control); }
