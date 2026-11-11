@@ -47,7 +47,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(bar.groups.every(g => g.rows.every(r => r === (phone ? 2 : 1))), (phone ? 'a phone: every row two across ' : 'one column: every tool on a row of its own ') + JSON.stringify(bar.groups.map(g => g.rows)));
   // (the Fluent set: filled drawings in the button's colour; Text is Aa)
   const ic = await p.evaluate(() => [...document.querySelectorAll('.paint-left .paint-toolgroups > .paint-group:not(.pl-view) > button')].filter(b => b.offsetParent).map(b => { const ps = [...b.querySelectorAll('svg path')]; return ps.length === 1 && ps[0].getAttribute('fill') === 'currentColor' && ps[0].getAttribute('stroke') === 'none' && getComputedStyle(ps[0]).fill === getComputedStyle(b).color; }));
-  L.ok(ic.length === 12 && ic.every(Boolean), 'all twelve tools: one filled Fluent drawing each, in the button’s colour ' + JSON.stringify(ic));
+  L.ok(ic.length === (phone ? 12 : 11) && ic.every(Boolean), 'all the tools (eleven, Fit being in the bottom bar; a phone twelve): one filled Fluent drawing each, in the button’s colour ' + JSON.stringify(ic));
   const bw = await p.evaluate(() => { const l = document.querySelector('.paint-left').getBoundingClientRect(), h = document.querySelector('.site-header').getBoundingClientRect(); return [Math.round(l.width), Math.round(h.width)]; });
   L.ok(bw[0] === (phone ? 100 : 56) && bw[1] === bw[0], 'the left bar and the menu over it: 56 wide (a phone: 100) ' + bw);
   const lg = bar.groups[bar.groups.length - 1];
