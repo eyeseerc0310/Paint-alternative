@@ -464,6 +464,11 @@
       if (typeof within === 'function') within = within();
       var B = within ? within.getBoundingClientRect() : { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
       if (r.right > B.right - 6) dx = B.right - 6 - r.right; if (r.left + dx < B.left + 6) dx = B.left + 6 - r.left;
+      // (a panel beside the left bar stays clear of the bottom bar: with the top menu open the
+      // one-column bar starts low, and the panel with it)
+      if (!within && el.classList.contains('paint-adjust') && !phoneLayout() && typeof bbar !== 'undefined' && bbar && bbar.offsetParent) {
+        var bb = bbar.getBoundingClientRect(); if (bb.left < r.right && bb.right > r.left) B = { left: B.left, top: B.top, right: B.right, bottom: Math.min(B.bottom, bb.top) };
+      }
       if (r.bottom > B.bottom - 6) dy = B.bottom - 6 - r.bottom; if (r.top + dy < B.top + 6) dy = B.top + 6 - r.top;
       if (dx || dy) el.style.translate = (o.x + dx) + 'px ' + (o.y + dy) + 'px';
     }
