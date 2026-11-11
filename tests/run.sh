@@ -78,6 +78,9 @@ brushes() {
 selection() {
   check "selection/selection-light-1400" "$OUT/selection" "$T/selection/selection.js" light 1400 900
   check "selection/selection-dark-1024" "$OUT/selection" "$T/selection/selection.js" dark 1024 768
+  check "selection/panel-light-1400" "$OUT/selection" "$T/selection/panel.js" light 1400 900
+  check "selection/panel-dark-1024-touch" "$OUT/selection" "$T/selection/panel.js" dark 1024 768 touch
+  check "selection/panel-light-375-touch" "$OUT/selection" "$T/selection/panel.js" light 375 812 touch
 }
 
 text() {

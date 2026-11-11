@@ -1726,46 +1726,32 @@ select.p-field {
 .paint-dock > .paint-adjust .pa-title { position: static; margin: 0 0 var(--s-2); padding: 0; }
 
 
-/* THE SELECTION PANEL: a selection's actions in a card of their own, just
-   under the left toolbar and built like it (.paint-bar, .paint-toolgroups,
-   .paint-group: the same glass, corners, shadow, padding, buttons and
-   dividers); its place and height come from placeSelectionToolbar (as tall
-   as the room above the bottom of the picture's space; the buttons scroll
-   past that). Its options open beside it, towards the picture. */
+/* THE SELECTION'S ACTIONS: in the tool settings panel, under the selection
+   tools' own settings (selPanelShows), built like the left toolbar's groups
+   (.paint-toolgroups, .paint-group: the same buttons and dividers), four
+   across, with Commit at the foot. Their options open beside the panel,
+   towards the picture (placeSelectionPopover). */
 :root {
   --selection-pop-width: 240px;
   --selection-pop-pad: var(--s-3);
   --selection-pop-gap: var(--s-2);
 }
-.selection-slot { position: absolute; z-index: 7; display: flex; flex-direction: column; min-height: 0; pointer-events: none; }
-.paint .selection-toolbar {
-  flex-direction: column; align-items: stretch; gap: 0; width: 100%; max-height: 100%; min-height: 0; margin: 0; animation: none;
-  opacity: 0; visibility: hidden; transform: translateX(-8px); pointer-events: none;
-  transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease), visibility 0s linear var(--dur);
+.selection-slot { display: none; }
+.paint-ctx .selection-slot.on { display: block; flex: none; position: relative; margin-top: var(--s-1); padding-top: var(--group-gap); }
+/* (a divider between the tool's own settings and the selection's actions) */
+.paint-ctx .selection-slot.on::before { content: ""; position: absolute; left: 14px; right: 14px; top: -.5px; height: 1px; border-radius: 1px; background: var(--line); } /* (the groups' own divider) */
+.paint .selection-toolbar, .paint .selection-toolbar[hidden] {
+  display: flex; flex-direction: column; align-items: stretch; gap: 0; width: 100%; margin: 0; padding: 0;
+  background: none; box-shadow: none; border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; animation: none;
 }
-.ui-flipped .paint .selection-toolbar { transform: translateX(8px); }
-.paint .selection-slot.on .selection-toolbar { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
-.paint .selection-toolbar[hidden] { display: flex; }
+.paint .selection-toolbar > .paint-toolgroups { overflow: visible; gap: var(--group-gap); }
+.paint .selection-toolbar .paint-group { grid-template-columns: repeat(4, 40px); justify-content: space-between; padding-left: var(--s-1); padding-right: var(--s-1); }
 .paint .selection-toolbar .paint-group > button { width: 40px; height: 40px; padding: 0; border-radius: var(--r-btn); color: var(--menu-link); }
+.paint .selection-toolbar .paint-group > button:disabled { opacity: var(--disabled); }
 .paint .selection-toolbar button svg { width: var(--icon); height: var(--icon); }
-/* (its groups take the room above Commit, which stands at its foot) */
-.paint .selection-toolbar > .paint-toolgroups { flex: 1 1 auto; }
-.paint .selection-toolbar > .paint-toolgroups { --fade: 28px; }
-/* (an arrow over an edge with more past it, like the selection's X: press it to scroll a group's worth) */
-.paint .selection-toolbar .sel-more {
-  position: absolute; left: 50%; z-index: 1; width: 24px; height: 24px; padding: 0; margin-left: -12px; border-radius: 50%;
-  background: var(--panel-solid); color: var(--text); box-shadow: 0 0 0 .5px var(--line), var(--shadow-float);
-  opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
-}
-.paint .selection-toolbar .sel-more.on { opacity: 1; pointer-events: auto; }
-@media (hover: hover) { .paint .selection-toolbar .sel-more:hover { background: var(--panel-solid); transform: scale(1.1); } }
-.paint .selection-toolbar .sel-more svg { width: 12px; height: 12px; stroke-width: var(--stroke-xs); }
-.paint .selection-toolbar > .paint-toolgroups.more-below { -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to bottom, black calc(100% - var(--fade)), transparent); }
-.paint .selection-toolbar > .paint-toolgroups.more-above { -webkit-mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(to top, black calc(100% - var(--fade)), transparent); }
-.paint .selection-toolbar > .paint-toolgroups.more-above.more-below { -webkit-mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); mask-image: linear-gradient(transparent, black var(--fade), black calc(100% - var(--fade)), transparent); }
-/* (Commit, at its foot: kept in view below the groups if they scroll, set
-   apart by the groups' divider, and solid accent, as a primary action) */
-.paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding-top: var(--group-gap); }
+.paint .selection-toolbar .sel-more { display: none; }
+/* (Commit, at the foot: set apart by a divider, the panel's width, solid accent, a primary action) */
+.paint .selection-toolbar .selection-foot { flex: none; position: relative; margin-top: var(--group-gap); padding: var(--group-gap) var(--s-1) 0; }
 .paint .selection-toolbar .selection-foot::before { content: ""; position: absolute; left: 14px; right: 14px; top: -.5px; height: 1px; border-radius: 1px; background: var(--line); }
 .paint .selection-toolbar .selection-foot > .selection-commit {
   width: 100%; height: var(--zoom-h); margin: 0; padding: 0 var(--s-1); border-radius: var(--r-pill); text-align: center;
@@ -1774,9 +1760,9 @@ select.p-field {
 /* (its word centred by its letters, not its line: "Commit" has no descenders, so it's nudged down to the middle) */
 .paint .selection-toolbar .selection-foot > .selection-commit span { display: block; line-height: 1; position: relative; top: .08em; }
 @media (hover: hover) { .paint .selection-toolbar .selection-foot > .selection-commit:hover { color: var(--on-accent); background: var(--accent-hover); } }
-.paint.selection-active .ctx-tool [data-ctx="all"] { display: none; }
+.paint.selection-active .ctx-tool [data-ctx="all"], .paint-ctx.sel-shown .ctx-tool [data-ctx="paste"] { display: none; }
 .selection-pop {
-  position: absolute; top: 0; left: calc(100% + var(--selection-pop-gap));
+  position: absolute; z-index: 8; top: 0; left: 0;
   width: var(--selection-pop-width); max-width: calc(100vw - 2 * var(--edge)); max-height: min(60svh, 440px);
   padding: var(--selection-pop-pad); border-radius: var(--r-menu); color: var(--menu-link);
   background: var(--menu-bg); box-shadow: var(--shadow-pop); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
@@ -1796,7 +1782,18 @@ select.p-field {
 .selection-transform .paint-seldist + .paint-selcas { margin-top: 0; }
 /* (its buttons the left toolbar's size wherever that changes) */
 @media (max-height: 850px) { .paint .selection-toolbar .paint-group > button { height: 32px; } }
-@media (max-width: 560px) { .paint .selection-toolbar .paint-group > button { width: 36px; height: 28px; }  }
+@media (max-width: 560px) {
+  /* (a phone: the panel is a strip along the top; the actions take a row of their own under the
+     tool's settings, wrapping, one run of buttons with no dividers, Commit under them) */
+  .paint-ctx.sel-shown { flex-wrap: wrap; }
+  .paint-ctx .selection-slot.on { flex: 1 0 100%; margin-top: 2px; padding-top: var(--s-1); }
+  .paint .selection-toolbar > .paint-toolgroups { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 2px; }
+  .paint .selection-toolbar .paint-group { display: contents; }
+  .paint .selection-toolbar .paint-group::before { display: none; }
+  .paint .selection-toolbar .paint-group > button { width: 36px; height: 32px; }
+  .paint .selection-toolbar .selection-foot { margin-top: var(--s-1); padding-top: var(--s-1); }
+  .paint .selection-toolbar .selection-foot::before { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .selection-slot, .paint .selection-toolbar { transition: none; }
 }

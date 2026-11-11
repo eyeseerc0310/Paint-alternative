@@ -53,7 +53,7 @@ const huge = process.argv.includes('huge'), [PW, PH] = huge ? [4000, 3000] : [24
   const sum = () => layer(`const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i += 4) s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11) % 1000000007; return s;`);
   const redW = () => layer(`const W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data; let best = 0;
     for (let y = 0; y < H; y += 8) { let n = 0; for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 10 && d[i] > 190 && d[i + 1] < 90) n++; } best = Math.max(best, n); } return best;`);
-  const selOn = () => p.evaluate(() => { const t = document.querySelector('.selection-toolbar'); return !!t && !t.closest('[hidden]') && getComputedStyle(t).display !== 'none'; });
+  const selOn = () => p.evaluate(() => !!document.querySelector('.paint.selection-active')); // (a selection open; its actions are in the tool settings)
   const pill = () => p.$eval('.paint-casmode', e => ({ shown: !e.hidden && getComputedStyle(e).display !== 'none', busy: !!e.dataset.busy, text: e.textContent }));
   const idle = () => p.waitForFunction(() => { const e = document.querySelector('.paint-casmode'); return !e.dataset.busy; }, null, { timeout: 60000, polling: 50 });
   const casOn = async () => {

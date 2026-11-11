@@ -52,7 +52,9 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   const sum = box => cvOf('layer', `const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, W = c.width; let s = 0;
     for (let i = 0, n = 0; i < d.length; i += 4, n++) { if (a) { const x = n % W, y = (n / W) | 0; if (x >= a[0] && x < a[2] && y >= a[1] && y < a[3]) continue; } s = (s * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7 + d[i + 3] * 11) % 1000000007; } return s;`, box || null);
   const sheetSum = () => cvOf('sov', `const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let s = 0; for (let i = 0; i < d.length; i++) s = (s * 31 + d[i]) % 1000000007; return s;`);
-  const selOn = () => p.evaluate(() => { const t = document.querySelector('.selection-toolbar'); return !!t && !t.closest('[hidden]') && getComputedStyle(t).display !== 'none'; });
+  const selOn = () => p.evaluate(() => !!document.querySelector('.paint.selection-active')); // (a selection open; its actions are in the tool settings)
+  // (the selection's actions are in the tool settings: opened out if a tool's key folded them)
+  const actions = async () => { if (await p.evaluate(() => document.querySelector('.paint-ctx').classList.contains('min'))) { await tapEl('.paint-settings-toggle'); await p.waitForTimeout(500); } };
   const pill = () => p.$eval('.paint-casmode', e => !e.hidden && getComputedStyle(e).display !== 'none');
   const fxOpen = async () => { if (await p.$eval('.paint-adjust', a => a.hidden)) await tapEl('[data-act="adjust"]'); await p.waitForTimeout(250); await p.$eval('.fx-sec[data-fx="cas"]', s => { if (s.classList.contains('closed')) s.querySelector('.pr-head').click(); }); };
   const casOn = async () => { await fxOpen(); await tapEl('[data-fx-cas]'); await p.waitForTimeout(300); };
@@ -65,7 +67,7 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
     for (let i = 0; i < 12 && (await sum()) !== s0; i++) { await p.keyboard.press(MOD + '+z'); await p.waitForTimeout(250); }
     L.ok((await sum()) === s0, 'back to the picture as it came');
     if (await selOn()) { await p.keyboard.press('Escape'); await p.waitForTimeout(200); }
-    if (await selOn()) { await tapEl('.selection-commit'); }
+    if (await selOn()) { await actions(); await tapEl('.selection-commit'); }
     if (!none) await boxSel();
   };
   // the picture in, laid down
@@ -164,6 +166,7 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   // (from the selection's Transform options, where what's picked up stays picked up)
   const bx0 = wr.x + wr.w * 0.1, bx1 = wr.x + wr.w * 0.55, by0 = wr.y + wr.h * 0.2, by1 = wr.y + wr.h * 0.8;
   await p.keyboard.press('m'); await p.waitForTimeout(150); await p.mouse.move(bx0, by0); await p.mouse.down(); await p.mouse.move(bx1, by1, { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(250);
+  await actions();
   await tapEl('.selection-toolbar [data-sel="rot90"]');
   await tapEl('.selection-toolbar [data-selection-pop="transform"]');
   L.ok(await p.$eval('.paint-selcas', b => !b.hidden && b.getAttribute('aria-pressed') === 'false'), 'Transform has Content-Aware Scale too');
@@ -172,7 +175,9 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   L.ok(await p.$eval('.paint-selcas', b => b.getAttribute('aria-pressed') === 'true'), 'its button shows it is on');
   const turned0 = await sheetSum();
   // (turned a quarter: the frame's side handle that was east is now south)
-  const tcx = (bx0 + bx1) / 2, tcy = (by0 + by1) / 2, th2 = (bx1 - bx0) / 2;
+  // (measured again: opening the settings out may have resized the picture's space)
+  const wq = await p.$eval('.paint-world', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+  const tcx = wq.x + wq.w * (0.1 + 0.55) / 2, tcy = wq.y + wq.h * (0.2 + 0.8) / 2, th2 = wq.w * (0.55 - 0.1) / 2;
   // (on a phone the options cover that handle: closed first, as a person would; the mode stays on)
   if (VW <= 560) { await tapEl('.selection-toolbar [data-selection-pop="transform"]'); L.ok(await pill() && await p.$eval('.selection-pop', e => e.hidden), 'the options closed, the mode still on'); }
   await drag(tcx, tcy + th2, tcx, tcy + th2 * 0.7); await settle();
@@ -199,7 +204,7 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   await casOn();
   L.ok(await pill(), 'the mode works on a circle selection');
   await drag(cx + rx, cy, cx + rx * 0.5, cy); await settle();
-  await tapEl('.selection-commit'); await p.waitForTimeout(400);
+  await actions(); await tapEl('.selection-commit'); await p.waitForTimeout(400);
   L.ok((await sum(obox)) === outC, 'outside the circle\'s box nothing changed');
   L.ok(JSON.stringify(await corner()) === JSON.stringify(corner0), 'the corners of the circle\'s box, outside the circle, are as they were');
   const crow = await row();
