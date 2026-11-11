@@ -175,7 +175,9 @@ const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
   L.ok(await p.$eval('.paint-selcas', b => b.getAttribute('aria-pressed') === 'true'), 'its button shows it is on');
   const turned0 = await sheetSum();
   // (turned a quarter: the frame's side handle that was east is now south)
-  const tcx = (bx0 + bx1) / 2, tcy = (by0 + by1) / 2, th2 = (bx1 - bx0) / 2;
+  // (measured again: opening the settings out may have resized the picture's space)
+  const wq = await p.$eval('.paint-world', e => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+  const tcx = wq.x + wq.w * (0.1 + 0.55) / 2, tcy = wq.y + wq.h * (0.2 + 0.8) / 2, th2 = wq.w * (0.55 - 0.1) / 2;
   // (on a phone the options cover that handle: closed first, as a person would; the mode stays on)
   if (VW <= 560) { await tapEl('.selection-toolbar [data-selection-pop="transform"]'); L.ok(await pill() && await p.$eval('.selection-pop', e => e.hidden), 'the options closed, the mode still on'); }
   await drag(tcx, tcy + th2, tcx, tcy + th2 * 0.7); await settle();
