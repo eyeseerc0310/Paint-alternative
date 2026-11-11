@@ -60,7 +60,19 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     L.ok(bb.first && bb.sep && !bb.left, 'Fit first in the bottom bar, a divider after it, not in the left bar ' + JSON.stringify(bb));
     L.ok(Math.abs(bb.l - bb.r) < 0.5 && bb.top < 0.5 && bb.size, 'Fit and the settings toggle mirror each other: the same size, level, as far from their ends ' + [bb.l, bb.r]);
     L.ok(Math.abs(bb.mid - bb.want) <= 1, 'the bar centred on the screen, as far as the picture’s space allows ' + [bb.mid, bb.want]);
+  }  if (!phone) {
+    // (the same in Vector mode, its last button Quick Options)
+    await L.pickMode(p, 'vector', touch); await p.waitForTimeout(700);
+    { const sw = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } }
+    const bb = await p.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(), b = r('.paint-bottom'), f = r('.paint-bottom .paint-fitbtn'), s = r('.paint-settings-toggle'), c = r('.paint-centre'), kids = [...document.querySelector('.paint-bottom').children].filter(e => e.offsetParent);
+      return { first: kids[0].classList.contains('paint-fitbtn'), sep: kids[1].classList.contains('pb-sep'), l: f.left - b.left, r: b.right - s.right, top: Math.abs(f.top - s.top), size: f.width === s.width && f.height === s.height, mid: (b.left + b.right) / 2, want: Math.max(c.left + b.width / 2, Math.min(c.right - b.width / 2, innerWidth / 2)), left: [...document.querySelectorAll('.paint-left .paint-fitbtn')].some(e => !!e.offsetParent) }; });
+    L.ok(bb.first && bb.sep && !bb.left, 'Vector: Fit first in the bottom bar, a divider after it, not in the left bar ' + JSON.stringify(bb));
+    L.ok(Math.abs(bb.l - bb.r) < 0.5 && bb.top < 0.5 && bb.size, 'Vector: Fit and Quick Options mirror each other: the same size, level, as far from their ends ' + [bb.l, bb.r]);
+    L.ok(Math.abs(bb.mid - bb.want) <= 1, 'Vector: the bar centred on the screen, as far as the picture’s space allows ' + [bb.mid, bb.want]);
+      await L.pickMode(p, 'paint', touch); await p.waitForTimeout(700);
+    { const sw = await p.$('.pa-sheet-wrap.in [data-vm="switch"]'); if (sw) { await sw.click(); await p.waitForTimeout(500); } }
   }
+
   L.ok(await p.evaluate(() => { const v = document.querySelector('.paint-left .pl-view'); return !v.querySelector('.pl-layersbtn') && !!v.querySelector('.paint-zoom'); }), 'the foot: the zoom alone, no full-width Layers');
   L.ok(bar.groups.every(g => g.sizes.length === 1) && new Set(bar.groups.map(g => g.sizes[0])).size === 1, 'every tool the same size ' + JSON.stringify(bar.groups.map(g => g.sizes)));
   // (what they did is still there: the keys, and a colour dropped on the picture)

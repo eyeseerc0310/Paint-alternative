@@ -5132,11 +5132,16 @@
     if (e.target === B.sizeIn) { recordC('Stroke Width'); setStrokeW(swAt(+B.sizeIn.value)); renderSome(picked()); drawUI(); bbarSync(); panelSync(); }
     else if (e.target === B.alphaIn) { recordC('Opacity'); var v = +B.alphaIn.value / 100; picked().filter(editable).forEach(function (n) { n.opacity = v; }); doc.def.op = v; renderSome(picked()); bbarSync(); panelSync(); }
   }
+  // (the bottom bar's Fit, at its left end, says what it fits in each workspace)
+  function fitLabel(vec) {
+    var f = document.querySelector('.paint-bottom .paint-fitbtn'); if (!f) return;
+    f.setAttribute('aria-label', vec ? 'Fit the artboard (0)' : 'Fit the picture (0)'); f.dataset.tip = vec ? 'Fit (0): the whole artboard, upright' : 'Fit (0): the whole picture, upright';
+  }
   function bbarSetup(vec) {
     if (!B.sizeIn) return;
     var lab = function (inp, t) { var s = inp.parentNode.querySelector('span'); if (s) s.textContent = t; inp.setAttribute('aria-label', t); };
-    if (vec) { var w0 = B.sizeIn.parentNode.querySelector('span').getBoundingClientRect().width; lab(B.sizeIn, 'Stroke'); var dw = B.sizeIn.parentNode.querySelector('span').getBoundingClientRect().width - w0; if (dw > 0 && !B.sizeIn.style.width) B.sizeIn.style.width = 'calc(var(--bbar-slider) - ' + r2(dw) + 'px)'; lab(B.alphaIn, 'Opacity'); B.alphaIn.min = 0; B.ctxBtn.setAttribute('aria-label', 'Quick options'); B.ctxBtn.dataset.tip = 'Quick options for the tool and what’s picked'; bbarSync(); }
-    else { B.sizeIn.style.width = ''; quickMenu(false); B.fillDot.classList.remove('v-none'); B.strokeDot.classList.remove('v-none'); B.fillDot.style.background = ''; B.strokeDot.style.background = ''; }
+    if (vec) { var w0 = B.sizeIn.parentNode.querySelector('span').getBoundingClientRect().width; lab(B.sizeIn, 'Stroke'); var dw = B.sizeIn.parentNode.querySelector('span').getBoundingClientRect().width - w0; if (dw > 0 && !B.sizeIn.style.width) B.sizeIn.style.width = 'calc(var(--bbar-slider) - ' + r2(dw) + 'px)'; lab(B.alphaIn, 'Opacity'); B.alphaIn.min = 0; B.ctxBtn.setAttribute('aria-label', 'Quick options'); B.ctxBtn.dataset.tip = 'Quick options for the tool and what’s picked'; fitLabel(true); bbarSync(); }
+    else { B.sizeIn.style.width = ''; quickMenu(false); fitLabel(false); B.fillDot.classList.remove('v-none'); B.strokeDot.classList.remove('v-none'); B.fillDot.style.background = ''; B.strokeDot.style.background = ''; }
   }
   // QUICK OPTIONS: the bottom bar's last button, in Vector mode
   function quickItems() {
@@ -5639,9 +5644,10 @@
     groupEl = document.createElement('div'); groupEl.className = 'paint-group vec-group'; groupEl.hidden = true;
     groupEl.setAttribute('role', 'group'); groupEl.setAttribute('aria-label', 'Vector tools');
     groupEl.innerHTML = CATS.map(function (c) { return '<button type="button" data-vcat="' + c.id + '" aria-label="' + esc(c.name) + '" aria-pressed="false" data-tip="' + esc(c.name + ': ' + c.tools.map(function (t) { return TOOLS[t].name; }).join(', ')) + '">' + CI(ICONS[c.icon]) + '</button>'; }).join('');
-    // (and Fit, a copy of the painting's own (in its bottom bar), last: its click is the artboard's fit)
+    // (and on a phone Fit, a copy of the painting's own, last: its click is the artboard's fit; wider
+    // screens have the bottom bar's, at its left end, as in Paint)
     var fitB = document.querySelector('.paint-bottom .paint-fitbtn');
-    if (fitB) { fitB = fitB.cloneNode(true); fitB.setAttribute('aria-label', 'Fit the artboard (0)'); fitB.dataset.tip = 'Fit (0): the whole artboard, upright'; groupEl.appendChild(fitB); }
+    if (fitB) { fitB = fitB.cloneNode(true); fitB.classList.add('pl-fit-phone'); fitB.setAttribute('aria-label', 'Fit the artboard (0)'); fitB.dataset.tip = 'Fit (0): the whole artboard, upright'; groupEl.appendChild(fitB); }
     B.leftViewGroup.parentNode.insertBefore(groupEl, B.leftViewGroup);
     groupEl.addEventListener('click', function (e) { var b = e.target.closest('[data-vcat]'); if (b) pickCat(b.dataset.vcat); });
     // (the tool settings panel's own controls, when it shows Vector's)

@@ -89,22 +89,21 @@ When building or changing anything visual:
   H, or a drag with the tool put down). Three groups, two across with no
   gaps: Brush, Eraser, Blend, Picker; Select, Pen, Symmetry, Gradient; Text,
   Effects and Layers (`.pl-fitgroup`; a phone has Fit before Layers there,
-  `.pl-fit-phone`; in Vector Layers is just under its Fit, the one button
-  moved there by `modeSync`). There
+  `.pl-fit-phone`, and in Vector a copy after its categories, Layers just
+  under it, the one button moved there by `modeSync`). There
   are no Fill, Shapes or Move buttons: Fill and Shapes are on their keys
   (F, R, L; a colour dropped on the picture still fills), Move is in the
   Select panel (below). Paint's Fit (`.paint-fitbtn`, 0) is at the bottom
-  bar's left end (on a phone in the left bar); Photo has its own in its left
-  bar, Vector a copy of Paint's after its categories (an eighth row, with Layers
-  stepped down only where the buttons are too tall for it, from `--tool-h`
-  and `--group-gap`), each click going to that workspace's own `fit`. At its
+  bar's left end, in Vector too (`fitLabel` makes it the artboard's; on a
+  phone in the left bar); Photo has its own in its left bar, unchanged;
+  each click goes to that workspace's own `fit`. At its
   foot is the zoom (`.paint-zoom`, alone in `.pl-view`). The saved-status pill
   (`.doc-status`) sits in the corner under it, centred on the bar, level
   with the bottom bar's middle (hidden in focus mode). The **bottom bar**
   (`.paint-bottom`, `bbar`, under the picture in `.paint-centre`, a glass pill
   like the top bar's capsules, centred on the screen as far as the picture's
   space allows, `bbarCenter`) holds, in this order, Fit (mirroring the
-  settings toggle at the other end; not in Vector or on a phone), Size, Undo, the two
+  settings toggle, or Vector's Quick Options, at the other end; not on a phone), Size, Undo, the two
   colours (`.paint-pair`, in `color-controls.css`: the pair is the swap
   button, its arrows in the gap between the two, `--color-pair-gap`, wide
   enough that they never touch either), Redo and Opacity;
