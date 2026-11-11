@@ -476,7 +476,9 @@ When building or changing anything visual:
   under the strip; `placeSelectionPopover`). A selection turning up folds
   the top menu (`headerOpen(false)`, once) and leaves the tool settings as
   they are, so the picture never moves under it (the bottom bar's settings
-  button, or picking a selection tool, opens them out); they stay while the selection is moved, sized, turned or distorted
+  button, or picking a selection tool, opens them out), and takes the panel
+  back from symmetry's settings to the tool's when a selection tool or Move
+  is in hand (a picture pasted, say); they stay while the selection is moved, sized, turned or distorted
   and while the picture is moved or zoomed (an option open beside them
   closes on a press elsewhere, as every pop-over does).
   Its groups, every selection action as a button (there's no ••• menu):

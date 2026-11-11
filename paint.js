@@ -9180,6 +9180,9 @@
         // left as they are, so the picture never moves under it: the settings button, or
         // picking a selection tool, opens them out)
         if (active && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
+        // (and if symmetry's settings were showing, the panel goes back to the tool's, where
+        // its actions are, when that tool works the selection: a picture pasted, say)
+        if (active && wsMode === 'paint' && ctxView === 'sym' && (selTool(st.tool) || st.tool === 'move')) { ctxSymView(false); return; }
       }
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); ctxEl.classList.toggle('sel-shown', on);
