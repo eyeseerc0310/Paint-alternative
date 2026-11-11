@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-fitvec-20261111';
-var SHELL = ['./', 'index.html', 'style.css?v=fitvec-20261111', 'fx-shared.js?v=fitvec-20261111', 'decoders.js?v=fitvec-20261111', 'photo-presets.js?v=fitvec-20261111', 'photo.js?v=fitvec-20261111', 'vector.js?v=fitvec-20261111', 'paint.js?v=fitvec-20261111', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-selpanel-20261111';
+var SHELL = ['./', 'index.html', 'style.css?v=selpanel-20261111', 'fx-shared.js?v=selpanel-20261111', 'decoders.js?v=selpanel-20261111', 'photo-presets.js?v=selpanel-20261111', 'photo.js?v=selpanel-20261111', 'vector.js?v=selpanel-20261111', 'paint.js?v=selpanel-20261111', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {
