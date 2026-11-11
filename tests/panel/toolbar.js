@@ -37,7 +37,7 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
     const groups = [...left.querySelectorAll('.paint-toolgroups > .paint-group:not(.pl-view)')].filter(g => g.offsetParent).map(g => {
       const bs = [...g.children].filter(x => x.offsetParent), rs = bs.map(x => x.getBoundingClientRect()), gr = g.getBoundingClientRect();
       const rows = {}; rs.forEach(r => { const k = Math.round(r.top); rows[k] = (rows[k] || 0) + 1; });
-      return { n: bs.length, rows: Object.values(rows), last: bs.length > 1 ? { fit: bs[bs.length - 2].classList.contains('paint-fitbtn'), layers: bs[bs.length - 1].classList.contains('pl-layersbtn'), level: innerWidth <= 560 ? Math.round(rs[rs.length - 1].top) === Math.round(rs[rs.length - 2].top) : Math.round(rs[rs.length - 1].left) === Math.round(rs[rs.length - 2].left) && rs[rs.length - 1].top >= rs[rs.length - 2].bottom } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
+      return { n: bs.length, rows: Object.values(rows), last: bs.length > 1 ? { fit: bs[bs.length - 2].classList.contains(innerWidth <= 560 ? 'paint-fitbtn' : 'paint-adjust-btn'), layers: bs[bs.length - 1].classList.contains('pl-layersbtn'), level: innerWidth <= 560 ? Math.round(rs[rs.length - 1].top) === Math.round(rs[rs.length - 2].top) : Math.round(rs[rs.length - 1].left) === Math.round(rs[rs.length - 2].left) && rs[rs.length - 1].top >= rs[rs.length - 2].bottom } : null, sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))] };
     });
     return { fill: !!left.querySelector('[data-tool="fill"]'), shape: !!left.querySelector('.paint-shapebtn, [data-tool="shape"], [data-tool="line"]'), move: !!left.querySelector('[data-tool="move"]'), groups };
   });
@@ -47,11 +47,20 @@ const touch = process.argv.includes('touch'), phone = VW <= 560;
   L.ok(bar.groups.every(g => g.rows.every(r => r === (phone ? 2 : 1))), (phone ? 'a phone: every row two across ' : 'one column: every tool on a row of its own ') + JSON.stringify(bar.groups.map(g => g.rows)));
   // (the Fluent set: filled drawings in the button's colour; Text is Aa)
   const ic = await p.evaluate(() => [...document.querySelectorAll('.paint-left .paint-toolgroups > .paint-group:not(.pl-view) > button')].filter(b => b.offsetParent).map(b => { const ps = [...b.querySelectorAll('svg path')]; return ps.length === 1 && ps[0].getAttribute('fill') === 'currentColor' && ps[0].getAttribute('stroke') === 'none' && getComputedStyle(ps[0]).fill === getComputedStyle(b).color; }));
-  L.ok(ic.length === 12 && ic.every(Boolean), 'all twelve tools: one filled Fluent drawing each, in the button’s colour ' + JSON.stringify(ic));
+  L.ok(ic.length === (phone ? 12 : 11) && ic.every(Boolean), 'all the tools (eleven, Fit being in the bottom bar; a phone twelve): one filled Fluent drawing each, in the button’s colour ' + JSON.stringify(ic));
   const bw = await p.evaluate(() => { const l = document.querySelector('.paint-left').getBoundingClientRect(), h = document.querySelector('.site-header').getBoundingClientRect(); return [Math.round(l.width), Math.round(h.width)]; });
   L.ok(bw[0] === (phone ? 100 : 56) && bw[1] === bw[0], 'the left bar and the menu over it: 56 wide (a phone: 100) ' + bw);
   const lg = bar.groups[bar.groups.length - 1];
-  L.ok(lg.last.fit && lg.last.layers && lg.last.level, 'Fit, then Layers just under it (beside it on a phone), last ' + JSON.stringify(lg.last));
+  L.ok(lg.last.fit && lg.last.layers && lg.last.level, (phone ? 'a phone: Fit, then Layers beside it, last ' : 'Effects, then Layers just under it, last (Fit is in the bottom bar) ') + JSON.stringify(lg.last));
+  // (Fit at the bottom bar's left end, mirroring the settings toggle at its right; the bar centred
+  // on the screen as far as the picture's space allows; a phone keeps Fit in the left bar)
+  if (!phone) {
+    const bb = await p.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(), b = r('.paint-bottom'), f = r('.paint-bottom .paint-fitbtn'), s = r('.paint-settings-toggle'), c = r('.paint-centre'), kids = [...document.querySelector('.paint-bottom').children].filter(e => e.offsetParent);
+      return { first: kids[0].classList.contains('paint-fitbtn'), sep: kids[1].classList.contains('pb-sep'), l: f.left - b.left, r: b.right - s.right, top: Math.abs(f.top - s.top), size: f.width === s.width && f.height === s.height, mid: (b.left + b.right) / 2, want: Math.max(c.left + b.width / 2, Math.min(c.right - b.width / 2, innerWidth / 2)), left: !!document.querySelector('.paint-left .paint-fitbtn').offsetParent }; });
+    L.ok(bb.first && bb.sep && !bb.left, 'Fit first in the bottom bar, a divider after it, not in the left bar ' + JSON.stringify(bb));
+    L.ok(Math.abs(bb.l - bb.r) < 0.5 && bb.top < 0.5 && bb.size, 'Fit and the settings toggle mirror each other: the same size, level, as far from their ends ' + [bb.l, bb.r]);
+    L.ok(Math.abs(bb.mid - bb.want) <= 1, 'the bar centred on the screen, as far as the picture’s space allows ' + [bb.mid, bb.want]);
+  }
   L.ok(await p.evaluate(() => { const v = document.querySelector('.paint-left .pl-view'); return !v.querySelector('.pl-layersbtn') && !!v.querySelector('.paint-zoom'); }), 'the foot: the zoom alone, no full-width Layers');
   L.ok(bar.groups.every(g => g.sizes.length === 1) && new Set(bar.groups.map(g => g.sizes[0])).size === 1, 'every tool the same size ' + JSON.stringify(bar.groups.map(g => g.sizes)));
   // (what they did is still there: the keys, and a colour dropped on the picture)
