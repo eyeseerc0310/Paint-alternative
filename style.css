@@ -471,9 +471,8 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 @keyframes bar-in-b { from { opacity: 0; transform: translateY(10px); } }
 .paint .paint-bottom > button { flex: none; width: 36px; height: 36px; border-radius: 50%; }
 .pb-sep { flex: none; width: 1px; height: 22px; margin: 0 var(--s-1); border-radius: 1px; background: var(--line); }
-/* (Fit at the bar's left end, mirroring the settings toggle at its right, a divider after it;
-   Vector keeps its own Fit in the left bar; the bar is centred on the screen, bbarCenter) */
-.vector-mode .paint-bottom > .paint-fitbtn, .vector-mode .paint-bottom > .pb-fitsep { display: none; }
+/* (Fit at the bar's left end, mirroring the last button at its right, a divider after it, in
+   Paint and Vector; the bar is centred on the screen, bbarCenter) */
 /* (a phone's bar has no room for it: Fit stays in the left bar there, as before) */
 @media (min-width: 561px) { .paint-left .pl-fit-phone { display: none; } }
 @media (max-width: 560px) { .paint-bottom > .paint-fitbtn, .paint-bottom > .pb-fitsep { display: none; } }
