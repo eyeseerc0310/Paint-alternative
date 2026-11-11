@@ -459,11 +459,11 @@ When building or changing anything visual:
   added part (let go and pressed again, it does).
 - **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
   selection's actions stand in a card of their own beside the left toolbar,
-  towards the picture, from its top, `--sel-w` wide, the picture's space
-  making room (`sel-on` on `.paint`; on a phone just under the left
+  towards the picture, from its top, `--sel-w` wide, over the edge of the
+  picture's space, nothing moving for it (on a phone just under the left
   toolbar, the top menu's gap below it, `--menu-stack-gap`), built like it
   (`.paint-bar` > `.paint-toolgroups` > `.paint-group`, so the same glass,
-  corners, buttons, dividers and sizes everywhere), never over the picture.
+  corners, buttons, dividers and sizes everywhere).
   `placeSelectionToolbar` puts it under the toolbar wherever that is (the
   top menu folding, frame by frame; the sides swapped, sliding out and in
   with the other bars in `flipUI`; the window resized)

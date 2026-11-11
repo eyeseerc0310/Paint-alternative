@@ -2380,7 +2380,4 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   .site-header .doc-status span { display: none; }
   .site-header .hdr-fold { justify-content: center; gap: var(--s-1); }
   .site-header .hdr-fold > svg { position: static; }
-  /* (the selection panel stands beside the toolbar, and the picture's space makes room for it) */
-  .paint.sel-on .paint-left { margin-right: calc(var(--sel-w) + var(--menu-stack-gap)); }
-  .ui-flipped .paint.sel-on .paint-left { margin-right: 0; margin-left: calc(var(--sel-w) + var(--menu-stack-gap)); }
 }

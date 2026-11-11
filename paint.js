@@ -9173,9 +9173,6 @@
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); selectionSlot.inert = !on;
         selbar.hidden = !on; if (!on) closeSelectionPopover();
-        // (the toolbar is one column and takes the height, so the panel stands beside it and
-        // the picture's space makes room: sel-on. A phone keeps it under the toolbar)
-        paintEl.classList.toggle('sel-on', on); refit(); relayout();
         // (a selection turning up folds the top menu, as its own arrow does,
         // to give the panel room; it can be opened again as ever)
         if (on && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
@@ -9260,7 +9257,8 @@
       // (down to the bottom of the colour bar, Commit at its foot; to the
       // picture's space's when that bar is away, as in focus mode)
       var B = bbar.getBoundingClientRect(), foot = B.height && B.bottom <= window.innerHeight + 1 ? Math.max(B.bottom, V.bottom) : V.bottom;
-      // (beside the toolbar, towards the picture, from its top, its own width, --sel-w;
+      // (the toolbar is one column and takes the height, so the panel stands beside it, towards
+      // the picture, from its top, its own width, --sel-w; nothing else moves for it;
       // on a phone under it, as wide as it)
       var side = !phoneLayout(), wide = side ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sel-w')) || 100 : L.width;
       var top = side ? L.top : L.bottom + gap, room = Math.max(0, Math.min(foot, window.innerHeight) - top);
