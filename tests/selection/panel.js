@@ -3,7 +3,8 @@
 // selection is open (four across, Commit at the foot), go with another tool
 // in hand and come back with a selection tool, the tool's own Select All and
 // Paste step aside for them, their options open beside the panel towards the
-// picture, folded settings open out for a new selection, and Commit closes it.
+// picture, folded settings stay folded for a new selection (the picture never
+// moves under it) and open out from the settings button, and Commit closes it.
 // node panel.js [light|dark] [width] [height] [touch]
 const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
 (async () => {
@@ -72,7 +73,10 @@ const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
     await tap('.paint-settings-toggle'); await p.waitForTimeout(500);
     ok(await p.evaluate(() => document.querySelector('.paint-ctx').classList.contains('min')), tag + ': the settings folded');
     await drag(0.25, 0.25, 0.5, 0.5);
-    ok(await selOpen() && await p.evaluate(() => !document.querySelector('.paint-ctx').classList.contains('min')) && await shown(), tag + ': a new selection opens them out, its actions in view');
+    const w0 = await box('.paint-world');
+    ok(await selOpen() && await p.evaluate(() => document.querySelector('.paint-ctx').classList.contains('min')), tag + ': a new selection leaves them folded, the picture where it was');
+    await tap('.paint-settings-toggle'); await p.waitForTimeout(700);
+    ok(await p.evaluate(() => !document.querySelector('.paint-ctx').classList.contains('min')) && await shown() && await selOpen(), tag + ': the settings button opens them out, its actions in view, the selection kept');
     // (undo and redo keep working with the actions in the panel)
     await p.keyboard.press('Control+z'); await p.waitForTimeout(300);
     ok(!(await selOpen()), tag + ': undo takes the selection back');

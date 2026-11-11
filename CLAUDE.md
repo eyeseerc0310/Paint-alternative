@@ -474,9 +474,9 @@ When building or changing anything visual:
   `.selection-pop`, in `.paint` itself) open beside the panel, towards the
   picture, level with their button, inside the picture's space (on a phone
   under the strip; `placeSelectionPopover`). A selection turning up folds
-  the top menu (`headerOpen(false)`, once) and opens the tool settings out
-  if they were folded (`ctxMin(false)`), so its actions and Commit are in
-  view; they stay while the selection is moved, sized, turned or distorted
+  the top menu (`headerOpen(false)`, once) and leaves the tool settings as
+  they are, so the picture never moves under it (the bottom bar's settings
+  button, or picking a selection tool, opens them out); they stay while the selection is moved, sized, turned or distorted
   and while the picture is moved or zoomed (an option open beside them
   closes on a press elsewhere, as every pop-over does).
   Its groups, every selection action as a button (there's no ••• menu):

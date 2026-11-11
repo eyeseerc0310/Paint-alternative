@@ -9176,10 +9176,10 @@
       var on = active && selPanelShows();
       if (active !== selWasActive) {
         selWasActive = active;
-        // (a selection turning up folds the top menu, as it always has, and opens the tool
-        // settings out if they were folded, so its actions and Commit are in view)
+        // (a selection turning up folds the top menu, as it always has; the tool settings are
+        // left as they are, so the picture never moves under it: the settings button, or
+        // picking a selection tool, opens them out)
         if (active && document.documentElement.classList.contains('hdr-open')) headerOpen(false);
-        if (active && on && ctxEl.classList.contains('min')) ctxMin(false);
       }
       if (selectionSlot.classList.contains('on') !== on) {
         selectionSlot.classList.toggle('on', on); ctxEl.classList.toggle('sel-shown', on);
