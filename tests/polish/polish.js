@@ -115,6 +115,9 @@ const touch = process.argv.includes('touch');
 
   // ---- PHOTO: Fit, 0 ----
   await settings('photo');
+  // (no photo yet: its Open Photo is a pill as wide as its words, on one line, not the 40px square)
+  const po = await p.evaluate(() => { const e = document.querySelector('.pho-open'); if (!e || !e.getClientRects().length) return null; const r = e.getBoundingClientRect(), t = document.createRange(); t.selectNodeContents(e); return { w: Math.round(r.width), h: Math.round(r.height), lines: t.getClientRects().length, fits: e.scrollWidth <= e.clientWidth + 1 }; });
+  L.ok(!po || (po.w > 60 && po.lines === 1 && po.fits && po.w > po.h), 'Photo: Open Photo, on one line, wider than tall ' + JSON.stringify(po));
   await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1200);
   const k0 = (await p.evaluate(() => PaintPhoto.state().view.k));
   L.ok(await shown('.paint-left .pho-fit'), 'Photo: Fit among the left bar’s six buttons');

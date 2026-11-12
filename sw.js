@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-selpanel-20261111';
-var SHELL = ['./', 'index.html', 'style.css?v=selpanel-20261111', 'fx-shared.js?v=selpanel-20261111', 'decoders.js?v=selpanel-20261111', 'photo-presets.js?v=selpanel-20261111', 'photo.js?v=selpanel-20261111', 'vector.js?v=selpanel-20261111', 'paint.js?v=selpanel-20261111', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-phoopen-20261112';
+var SHELL = ['./', 'index.html', 'style.css?v=phoopen-20261112', 'fx-shared.js?v=phoopen-20261112', 'decoders.js?v=phoopen-20261112', 'photo-presets.js?v=phoopen-20261112', 'photo.js?v=phoopen-20261112', 'vector.js?v=phoopen-20261112', 'paint.js?v=phoopen-20261112', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

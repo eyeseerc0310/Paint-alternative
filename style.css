@@ -2083,7 +2083,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
   font-size: var(--fs-xs); font-weight: 600; color: var(--text); background: var(--menu-bg); -webkit-backdrop-filter: var(--glass); backdrop-filter: var(--glass); box-shadow: var(--shadow-float); pointer-events: none; }
 .pho-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-3); padding: var(--s-4); text-align: center; cursor: default; }
 .pho-empty p { margin: 0; font-size: var(--fs-ui); color: var(--muted); }
-.pho-empty .pho-open { height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
+/* (as wide as its words: the 40px square every toolbar button is doesn't apply) */
+.pho-empty .pho-open { width: auto; flex: none; white-space: nowrap; height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
 @media (hover: hover) { .pho-empty .pho-open:hover { background: var(--accent-hover); } }
 .photo-mode .paint-stage > :not(.pho-stage):not(.paint-preview) { visibility: hidden !important; }
 /* (the left bar: Photo's own column, its four parts, Fit and the panel's
