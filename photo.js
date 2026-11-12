@@ -640,7 +640,7 @@
       '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
   }
   function panelHTML() {
-    if (!doc || !img) return '<div class="ctx-hint pho-hint">Open a photo to edit it: JPEG, PNG, WebP or HEIC.</div><button type="button" class="ctx-btn" data-pa="open">' + CI('<path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18V9.5A1.5 1.5 0 0 0 18.5 8H12l-2-2.5H5.5A1.5 1.5 0 0 0 4 7v.5z"/>') + '<span>Open Photo</span></button>';
+    if (!doc || !img) return '<div class="ctx-hint pho-hint">Open a photo to edit it: JPEG, PNG, WebP or HEIC.</div><label class="ctx-btn pho-pick">' + CI('<path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18V9.5A1.5 1.5 0 0 0 18.5 8H12l-2-2.5H5.5A1.5 1.5 0 0 0 4 7v.5z"/>') + '<span>Open Photo</span>' + fileInput() + '</label>';
     if (cat === 'presets') return presetsHTML();
     if (cat === 'crop') return cropHTML();
     if (cat === 'masks') return masksHTML();
@@ -1087,7 +1087,15 @@
     if (presetPick) { presetBase = null; presetPick = null; }
     marks(); draw();
   }
+  // (Open Photo's own file input, inside its label: a tap on the label opens it natively)
+  function fileInput() { return '<input type="file" class="pho-file" accept="' + ((B && B.fileAccept) || 'image/*') + '" aria-label="Open Photo">'; }
+  function pickChange(e) {
+    var i = e.target; if (!i.classList || !i.classList.contains('pho-file')) return false;
+    var f = i.files && i.files[0]; i.value = ''; if (f) B.takeFile(f);
+    return true;
+  }
   function panelChange(e) {
+    if (pickChange(e)) return;
     if (!on || !doc || !e.target.closest('[data-pk]')) return;
     if (/^b_/.test(e.target.closest('[data-pk]').dataset.pk)) { brushPeek(false); return; }
     dragging = false; quick = false; mSlide = false; draw(); histButtons(); B.autosave(); thumbsSoon();
@@ -1419,13 +1427,15 @@
     stageEl = document.createElement('div'); stageEl.className = 'pho-stage'; stageEl.hidden = true;
     cv = document.createElement('canvas'); cv.className = 'pho-cv'; cv.hidden = true; cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', 'Photo');
     emptyEl = document.createElement('div'); emptyEl.className = 'pho-empty';
-    emptyEl.innerHTML = '<p>Open a photo to start: JPEG, PNG, WebP or HEIC</p><button type="button" class="pa-primary pho-open" data-pa="open">Open Photo</button>';
+    emptyEl.innerHTML = '<p>Open a photo to start: JPEG, PNG, WebP or HEIC</p><label class="pa-primary pho-open pho-pick"><span>Open Photo</span>' + fileInput() + '</label>';
     cropEl = document.createElement('div'); cropEl.className = 'pho-crop'; cropEl.hidden = true; cropEl.setAttribute('aria-hidden', 'true');
     cropEl.innerHTML = '<i class="pho-ch tl"></i><i class="pho-ch tr"></i><i class="pho-ch bl"></i><i class="pho-ch br"></i>';
     muiEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); muiEl.setAttribute('class', 'pho-mui'); muiEl.setAttribute('aria-hidden', 'true');
     stageEl.appendChild(cv); stageEl.appendChild(cropEl); stageEl.appendChild(muiEl); stageEl.appendChild(emptyEl);
     stageEl.addEventListener('pointerleave', function () { if (mHover) { mHover = null; mSync(); } });
-    emptyEl.addEventListener('click', function (e) { if (e.target.closest('[data-pa="open"]')) B.openPicker(); });
+    // (Open Photo: a label round its own file input, so a tap opens the picker natively, in
+    // every browser; Safari won't always open one clicked from script)
+    stageEl.addEventListener('change', pickChange);
     B.stage.appendChild(stageEl);
     stageEl.addEventListener('pointerdown', function (e) { if (e.target.closest('.pho-empty')) return; down(e); });
     stageEl.addEventListener('pointermove', move); stageEl.addEventListener('pointerup', up); stageEl.addEventListener('pointercancel', up);

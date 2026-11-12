@@ -7521,7 +7521,7 @@
     }
 
     // (the controls that sit on the picture: pressing them doesn't paint)
-    var STAGE_UI = '.selection-slot, .paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-seldist, .paint-scale, .paint-casmode';
+    var STAGE_UI = '.selection-slot, .paint-zoom, .paint-ctx, .ctx-list, .paint-selbar, .paint-text, .paint-selx, .paint-seldist, .paint-scale, .paint-casmode, .pho-pick';
     stage.addEventListener('pointerdown', function (e) {
       if (e.target.closest(STAGE_UI)) return;
       if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
@@ -7919,9 +7919,10 @@
       if (adj) adjustDone(); if (textBox) commitText(); need(); anchor();
       fillDrop(p, color); pushRecent(color);
     }
+    // (a file chosen: a project opens, in Photo a picture is the photo, elsewhere it's added)
+    function takeFile(f) { if (!f) return; if (isProject(f)) openProject(f); else if (wsMode === 'photo') PH.openFile(f); else addPicture(f, 'open'); }
     $('.paint-open input').addEventListener('change', function (e) {
-      var f = e.target.files && e.target.files[0]; if (!f) return;
-      if (isProject(f)) openProject(f); else if (wsMode === 'photo') PH.openFile(f); else addPicture(f, 'open');
+      takeFile(e.target.files && e.target.files[0]);
       e.target.value = '';
     });
     // ---- A PROJECT FILE (.paint): the whole drawing, every layer with its
@@ -9790,7 +9791,7 @@
       leftViewGroup: left.querySelector('.pl-view'), autosave: autosave, toast: toast, modeEl: modeEl,
       ctxRefresh: function () { ctxFor = null; ctxRender(); },
       showPanel: function () { if (ctxEl.classList.contains('min')) ctxMin(false); },
-      openPicker: importPicker,
+      openPicker: importPicker, takeFile: function (f) { takeFile(f); }, fileAccept: header.querySelector('.paint-open input').getAttribute('accept'),
       openSheet: openSheet, closeSheet: closeSheet, download: download, share: shareFile, shareIcon: SHARE_ICON, discPreview: discPreview,
       decoders: window.PaintDecoders || null
     });

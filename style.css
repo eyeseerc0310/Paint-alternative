@@ -2086,6 +2086,14 @@ input[type="range"]::-webkit-slider-thumb { -webkit-user-select: none; user-sele
 /* (as wide as its words: the 40px square every toolbar button is doesn't apply) */
 .pho-empty .pho-open { width: auto; flex: none; white-space: nowrap; height: var(--ctl); padding: 0 var(--s-4); border-radius: var(--r-pill); font-size: var(--fs-ui); font-weight: 600; color: var(--on-accent); background: var(--accent); box-shadow: var(--accent-glow); }
 @media (hover: hover) { .pho-empty .pho-open:hover { background: var(--accent-hover); } }
+/* (Open Photo is a label round its own file input, so a tap opens the picker natively in every
+   browser; the input is there but unseen, never display: none, and its focus shows on the label) */
+.pho-pick { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--dur-fast) ease, transform var(--dur-fast) var(--spring); }
+.pho-pick:active { transform: scale(var(--press)); }
+.pho-pick .pho-file { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+.pho-pick:has(.pho-file:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.paint-ctx .pho-pick { justify-content: flex-start; }
+@media (hover: hover) { .paint-ctx .pho-pick:hover { background: var(--hover); } }
 .photo-mode .paint-stage > :not(.pho-stage):not(.paint-preview) { visibility: hidden !important; }
 /* (the left bar: Photo's own column, its four parts, Fit and the panel's
    toggle as six big buttons the bar's width, then Undo and Redo, then the
