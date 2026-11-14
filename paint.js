@@ -9179,7 +9179,9 @@
     function selectionToolbarSync() {
       if (!selectionSlot) return;
       var active = !!(sel && !sel.thing && sel.w > 0 && sel.h > 0 && selMode !== 'new' && selMode !== 'lasso' && !lassoOn);
-      var on = selPanelShows(); // (with the selection tools or Move in hand, selection or not)
+      // (with the selection tools or Move in hand, selection or not; on a phone, where the panel
+      // is a strip over the top of the picture, only with a selection, so it doesn't cover more)
+      var on = selPanelShows() && (active || !phoneLayout());
       if (active !== selWasActive) {
         selWasActive = active;
         // (a selection turning up folds the top menu, as it always has; the tool settings are

@@ -31,12 +31,14 @@ const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
   const selOpen = () => p.evaluate(() => !!document.querySelector('.paint.selection-active'));
   await p.keyboard.press('m'); await p.waitForTimeout(200);
   // (the actions are there with the tool, selection or not: without one only Select All and Paste can be pressed)
-  ok(await shown(), tag + ': the selection tool in hand: its actions show, before any selection');
+  ok((await shown()) === !phone, tag + (phone ? ': a phone: no actions until there is a selection (the strip covers the picture)' : ': the selection tool in hand: its actions show, before any selection'));
   const states = () => p.evaluate(() => [...document.querySelectorAll('.selection-toolbar [data-sel], .selection-toolbar [data-selection-pop]')].filter(e => e.getClientRects().length).map(e => (e.dataset.sel || e.dataset.selectionPop) + (e.disabled ? '-' : '+')).join(' '));
   const none = 'all+ region-invert- feather- grow- transform- rotate- rot90- invert- fliph- flipv- copy- paste+ duplicate- layer- delete- deselect- done-';
-  ok((await states()) === none, tag + ': no selection: all greyed out but Select All and Paste ' + await states());
-  await p.evaluate(() => document.querySelector('.selection-toolbar [data-sel="flipv"]').click()); await p.waitForTimeout(200);
-  ok(!(await selOpen()), tag + ': a greyed-out one does nothing');
+  if (!phone) {
+    ok((await states()) === none, tag + ': no selection: all greyed out but Select All and Paste ' + await states());
+    await p.evaluate(() => document.querySelector('.selection-toolbar [data-sel="flipv"]').click()); await p.waitForTimeout(200);
+    ok(!(await selOpen()), tag + ': a greyed-out one does nothing');
+  }
   ok(!(await p.$('.ctx-tool [data-ctx="all"], .ctx-tool [data-ctx="paste"]')), tag + ': no separate Select All or Paste rows');
   // (on a phone the tool settings are a strip over the top of the picture: dragged below it)
   if (phone) await drag(0.3, 0.6, 0.7, 0.85); else await drag(0.3, 0.3, 0.6, 0.6);
@@ -74,7 +76,7 @@ const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
   ok(await shown(), tag + ': with Move too');
   // (Commit closes it)
   await tap('.selection-commit');
-  ok(!(await selOpen()) && await shown() && (await states()) === none, tag + ': Commit closes the selection; its actions stay, greyed out again');
+  ok(!(await selOpen()) && (phone ? !(await shown()) : await shown() && (await states()) === none), tag + (phone ? ': Commit closes the selection, and on a phone its actions go' : ': Commit closes the selection; its actions stay, greyed out again'));
   // (the settings folded: a new selection opens them out)
   if (!phone) {
     await p.keyboard.press('m'); await p.waitForTimeout(200);

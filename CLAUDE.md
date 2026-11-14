@@ -470,7 +470,8 @@ When building or changing anything visual:
   hint; there are no Select All or Paste rows of its own), past a divider;
   nothing floats over the picture for them. They show whenever the panel
   shows a selection tool or Move (`selPanelShows`; `sel-shown` on
-  `.paint-ctx`), a selection or not: with none, everything but Select All
+  `.paint-ctx`), a selection or not (on a phone, where the panel is a strip
+  over the top of the picture, only with one): with none, everything but Select All
   and Paste is disabled (truly, `disabled`), Commit too, and a selection
   turning up, or going, sets them again at once (`selectionToolbarSync`;
   `selButtons` with one). With another tool in hand the selection stays and
