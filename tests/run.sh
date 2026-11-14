@@ -139,6 +139,9 @@ panel() {
   check "panel/toolbar-dark-1024-touch" "$OUT/panel" "$T/panel/toolbar.js" dark 1024 768 touch
   check "panel/toolbar-light-390-touch" "$OUT/panel" "$T/panel/toolbar.js" light 390 844 touch
   check "panel/toolbar-dark-360" "$OUT/panel" "$T/panel/toolbar.js" dark 360 740
+  check "panel/studio-light-1400" "$OUT/panel" "$T/panel/studio.js" light 1400 900
+  check "panel/studio-dark-1024-touch" "$OUT/panel" "$T/panel/studio.js" dark 1024 768 touch
+  check "panel/studio-light-390-touch" "$OUT/panel" "$T/panel/studio.js" light 390 844 touch
 }
 
 polish() {

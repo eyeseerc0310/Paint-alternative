@@ -22,7 +22,7 @@ const L = require('../lib'), { chromium } = L.use({ swatches: true }), ok = L.ok
   const key = async (k) => { await p.keyboard.press(k); await p.waitForTimeout(250); };
   const undo = () => key('Control+z'), redo = () => key('Control+Shift+z');
   // (what shows: the selection panel, and a hash of the outline drawn on the selection's sheet)
-  const selShown = () => p.evaluate(() => !document.querySelector('.selection-toolbar').hidden);
+  const selShown = () => p.evaluate(() => !!document.querySelector('.paint.selection-active')); // (a selection open: its actions are always in the selection tools' panel now)
   const outline = () => p.evaluate(() => { const c = document.querySelector('.paint-selui'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let h = 0, n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) { n++; h = (h * 31 + i) | 0; } return n + ':' + h; });
   // (is the outline drawn near this point of the picture: within a couple of screen pixels)
   const lineAt = (fx, fy) => p.evaluate(([fx, fy]) => { const c = document.querySelector('.paint-selui'), r = c.getBoundingClientRect(), w = document.querySelector('.paint-world').getBoundingClientRect(), k = c.width / r.width; const x = Math.round((w.left + w.width * fx - r.left) * k), y = Math.round((w.top + w.height * fy - r.top) * k); const d = c.getContext('2d').getImageData(x - 2, y - 2, 5, 5).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }, [fx, fy]);

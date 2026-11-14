@@ -23,30 +23,40 @@ const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(...a) }); await p.waitForTimeout(150);
       for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(a[0] + (z[0] - a[0]) * i / 8, a[1] + (z[1] - a[1]) * i / 8) });
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await p.waitForTimeout(400); // (a moment, as a person's hand: a tap straight after the drag is taken as part of it by the test browser)
     } else { await p.mouse.move(...a); await p.mouse.down(); await p.mouse.move(...z, { steps: 8 }); await p.mouse.up(); }
     await p.waitForTimeout(500);
   };
   const shown = () => p.evaluate(() => { const s = document.querySelector('.selection-slot'); return !!s && s.classList.contains('on') && !!s.getClientRects().length; });
   const selOpen = () => p.evaluate(() => !!document.querySelector('.paint.selection-active'));
   await p.keyboard.press('m'); await p.waitForTimeout(200);
-  ok(!(await shown()), tag + ': no selection, no actions');
-  await drag(0.3, 0.3, 0.6, 0.6);
+  // (the actions are there with the tool, selection or not: without one only Select All and Paste can be pressed)
+  ok((await shown()) === !phone, tag + (phone ? ': a phone: no actions until there is a selection (the strip covers the picture)' : ': the selection tool in hand: its actions show, before any selection'));
+  const states = () => p.evaluate(() => [...document.querySelectorAll('.selection-toolbar [data-sel], .selection-toolbar [data-selection-pop]')].filter(e => e.getClientRects().length).map(e => (e.dataset.sel || e.dataset.selectionPop) + (e.disabled ? '-' : '+')).join(' '));
+  const none = 'all+ region-invert- feather- grow- transform- rotate- rot90- invert- fliph- flipv- copy- paste+ duplicate- layer- delete- deselect- done-';
+  if (!phone) {
+    ok((await states()) === none, tag + ': no selection: all greyed out but Select All and Paste ' + await states());
+    await p.evaluate(() => document.querySelector('.selection-toolbar [data-sel="flipv"]').click()); await p.waitForTimeout(200);
+    ok(!(await selOpen()), tag + ': a greyed-out one does nothing');
+  }
+  ok(!(await p.$('.ctx-tool [data-ctx="all"], .ctx-tool [data-ctx="paste"]')), tag + ': no separate Select All or Paste rows');
+  // (on a phone the tool settings are a strip over the top of the picture: dragged below it)
+  if (phone) await drag(0.3, 0.6, 0.7, 0.85); else await drag(0.3, 0.3, 0.6, 0.6);
   ok(await selOpen() && await shown(), tag + ': a selection: its actions show');
   const where = await p.evaluate(() => { const s = document.querySelector('.selection-slot'); return { inCtx: !!s.closest('.paint-ctx'), afterTool: !!(document.querySelector('.paint-ctx .ctx-tool').compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) && s.getBoundingClientRect().top >= document.querySelector('.paint-ctx .ctx-tool').getBoundingClientRect().bottom - .5 }; });
   ok(where.inCtx && where.afterTool, tag + ': in the tool settings panel, under the tool’s own settings ' + JSON.stringify(where));
   const ids = await p.evaluate(() => [...document.querySelectorAll('.selection-toolbar [data-sel], .selection-toolbar [data-selection-pop]')].filter(e => e.getClientRects().length).map(e => e.dataset.sel || e.dataset.selectionPop));
   ok(ids.join(',') === 'all,region-invert,feather,grow,transform,rotate,rot90,invert,fliph,flipv,copy,paste,duplicate,layer,delete,deselect,done', tag + ': every action, and Commit: ' + ids.join(','));
+  ok(!/-(\s|$)/.test(await states()), tag + ': with a selection, every one can be pressed ' + await states());
   const lay = await p.evaluate(() => { const bs = [...document.querySelectorAll('.selection-toolbar .paint-group > button')], rs = bs.map(e => e.getBoundingClientRect()), c = document.querySelector('.paint-ctx').getBoundingClientRect(), k = document.querySelector('.selection-commit').getBoundingClientRect();
     const rows = {}; rs.forEach(r => { const t = Math.round(r.top); rows[t] = (rows[t] || 0) + 1; });
     return { inside: rs.every(r => r.left >= c.left - .5 && r.right <= c.right + .5) && k.left >= c.left && k.right <= c.right, rows: Object.values(rows), last: rs.every(r => r.bottom <= k.top), sizes: [...new Set(rs.map(r => Math.round(r.width) + 'x' + Math.round(r.height)))], commitW: Math.round(k.width), ctxW: Math.round(c.width) }; });
   ok(lay.inside && lay.last && lay.sizes.length === 1, tag + ': inside the panel, the same size, Commit under them all ' + JSON.stringify(lay));
-  if (!phone) ok(lay.rows.every(n => n <= 4) && Math.max(...lay.rows) === 4, tag + ': four across ' + JSON.stringify(lay.rows));
+  if (!phone) ok(lay.rows.length === 4 && lay.rows.every(n => n === 4), tag + ': four across, four down ' + JSON.stringify(lay.rows));
   if (!phone) {
     const over = await p.evaluate(() => { const s = document.querySelector('.paint-stage').getBoundingClientRect(), r = document.querySelector('.selection-slot').getBoundingClientRect(); return r.left < s.right && r.right > s.left && r.top < s.bottom && r.bottom > s.top; });
     ok(!over, tag + ': nothing of it over the picture’s space');
   }
-  const own = await p.evaluate(() => ['all', 'paste'].map(k => { const e = document.querySelector('.ctx-tool [data-ctx="' + k + '"]'); return !!e && !!e.getClientRects().length; }));
-  ok(!own[0] && !own[1], tag + ': the tool’s own Select All and Paste step aside ' + JSON.stringify(own));
   // (an option: beside the panel, towards the picture; on a phone under the strip)
   await tap('[data-selection-pop="feather"]');
   const pop = await p.evaluate(() => { const e = document.querySelector('.selection-pop'), r = e.getBoundingClientRect(), c = document.querySelector('.paint-ctx').getBoundingClientRect(); return { open: !e.hidden, left: r.right <= c.left + .5, below: r.top >= c.bottom - .5, inView: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, focus: document.activeElement && document.activeElement.matches('input[data-selection-value]') }; });
@@ -66,7 +76,7 @@ const L = require('../lib'), { chromium } = L.use({}), ok = L.ok;
   ok(await shown(), tag + ': with Move too');
   // (Commit closes it)
   await tap('.selection-commit');
-  ok(!(await selOpen()) && !(await shown()), tag + ': Commit closes the selection, and its actions go');
+  ok(!(await selOpen()) && (phone ? !(await shown()) : await shown() && (await states()) === none), tag + (phone ? ': Commit closes the selection, and on a phone its actions go' : ': Commit closes the selection; its actions stay, greyed out again'));
   // (the settings folded: a new selection opens them out)
   if (!phone) {
     await p.keyboard.press('m'); await p.waitForTimeout(200);

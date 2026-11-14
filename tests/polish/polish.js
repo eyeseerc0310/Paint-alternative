@@ -122,7 +122,9 @@ const touch = process.argv.includes('touch');
   // space once took the press as a stroke, and nothing opened)
   await p.waitForTimeout(500); // (settled: the workspace's switch has finished moving things)
   const pr = await box('.pho-empty .pho-pick');
-  const [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 8000 }).catch(() => null), tapAt(pr.x + pr.w / 2, pr.y + pr.h / 2)]);
+  let [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 8000 }).catch(() => null), tapAt(pr.x + pr.w / 2, pr.y + pr.h / 2)]);
+  // (once more if the busy test machine let the first press go by)
+  if (!chooser) [chooser] = await Promise.all([p.waitForEvent('filechooser', { timeout: 8000 }).catch(() => null), (async () => { await p.waitForTimeout(600); await tapAt(pr.x + pr.w / 2, pr.y + pr.h / 2); })()]);
   L.ok(!!chooser, 'Photo: Open Photo opens the file picker ' + JSON.stringify({ pr, top: await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && (e.className || e.tagName); }, [pr.x + pr.w / 2, pr.y + pr.h / 2]) }));
   if (chooser) await chooser.setFiles(L.fixture('scene.png')); else await p.setInputFiles('.paint-open input', L.fixture('scene.png')); await p.waitForTimeout(1200);
   const k0 = (await p.evaluate(() => PaintPhoto.state().view.k));

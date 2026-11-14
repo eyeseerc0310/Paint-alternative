@@ -1,8 +1,8 @@
 // Works offline: everything the app needs is kept in a cache. When online,
 // the newest version is always fetched first (so updates show straight
 // away), and the cache is only used when the network isn't there.
-var CACHE = 'paint-alternative-phopick-20261112';
-var SHELL = ['./', 'index.html', 'style.css?v=phopick-20261112', 'fx-shared.js?v=phopick-20261112', 'decoders.js?v=phopick-20261112', 'photo-presets.js?v=phopick-20261112', 'photo.js?v=phopick-20261112', 'vector.js?v=phopick-20261112', 'paint.js?v=phopick-20261112', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
+var CACHE = 'paint-alternative-studiogrid-20261114';
+var SHELL = ['./', 'index.html', 'style.css?v=studiogrid-20261114', 'fx-shared.js?v=studiogrid-20261114', 'decoders.js?v=studiogrid-20261114', 'photo-presets.js?v=studiogrid-20261114', 'photo.js?v=studiogrid-20261114', 'vector.js?v=studiogrid-20261114', 'paint.js?v=studiogrid-20261114', 'color-controls.css?v=6', 'color-controls.js?v=2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
 self.addEventListener('install', function (e) {

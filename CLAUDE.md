@@ -107,7 +107,13 @@ When building or changing anything visual:
   colours (`.paint-pair`, in `color-controls.css`: the pair is the swap
   button, its arrows in the gap between the two, `--color-pair-gap`, wide
   enough that they never touch either), Redo and Opacity;
-  a slider the tool doesn't use is greyed out (`data-uses`). On wider
+  a slider the tool doesn't use is greyed out (`data-uses`). The **Brush
+  Studio** (`bsBox`, `.paint-studio`, `studio(open)`) opens only from Edit
+  Brush in the brush's settings (`data-ctx="bstudio"`), never by picking or
+  hovering the brush; it stands in the dock as Effects do (`DOCKED_PANELS`,
+  the tool settings stepping aside; beside the left bar on a phone), its
+  head Back to the brush's settings (`.bs-back`, as Done), its foot Reset,
+  Save (a brush of your own, `saveas`) and Done. On wider
   screens the colour picker and Effects open from the tool settings, as wide
   as them, over them, and they step aside (`dockPanels`, `in-dock`,
   `ctxAside`; the picker's wheel is sized to fit, `discSize`), in the
@@ -461,15 +467,19 @@ When building or changing anything visual:
 - **The selection panel** (`.selection-slot` > `.selection-toolbar`): a
   selection's actions are in the tool settings panel (`.paint-ctx`, after
   `.ctx-tool`), under the selection tools' own settings (the ways, the
-  hint), past a divider; nothing floats over the picture for them. They
-  show while a selection is open and the panel shows a selection tool or
-  Move (`selPanelShows`; `sel-shown` on `.paint-ctx`, which also hides the
-  tool's own Paste, as `selection-active` hides its Select All); with
-  another tool in hand the selection stays and its keys still work, and
-  picking a selection tool again brings them back. Built like the left
-  toolbar's groups (`.paint-toolgroups` > `.paint-group`: the same buttons
-  and dividers), four across in the dock; on a phone, where the panel is a
-  strip along the top, one wrapping run under the tool's settings.
+  hint; there are no Select All or Paste rows of its own), past a divider;
+  nothing floats over the picture for them. They show whenever the panel
+  shows a selection tool or Move (`selPanelShows`; `sel-shown` on
+  `.paint-ctx`), a selection or not (on a phone, where the panel is a strip
+  over the top of the picture, only with one): with none, everything but Select All
+  and Paste is disabled (truly, `disabled`), Commit too, and a selection
+  turning up, or going, sets them again at once (`selectionToolbarSync`;
+  `selButtons` with one). With another tool in hand the selection stays and
+  its keys still work, and picking a selection tool again brings them back.
+  One grid, four across and four down (`.paint-toolgroups` > one
+  `.paint-group`, the left toolbar's buttons), Commit under it; on a phone,
+  where the panel is a strip along the top, one wrapping run under the
+  tool's settings.
   Its options (Feather, Expand, Rotate, Transform with Scale and Distort,
   `.selection-pop`, in `.paint` itself) open beside the panel, towards the
   picture, level with their button, inside the picture's space (on a phone
@@ -481,11 +491,10 @@ When building or changing anything visual:
   is in hand (a picture pasted, say); they stay while the selection is moved, sized, turned or distorted
   and while the picture is moved or zoomed (an option open beside them
   closes on a press elsewhere, as every pop-over does).
-  Its groups, every selection action as a button (there's no ••• menu):
-  what's picked and its edge (Select All, Invert Selection, Feather,
-  Expand); what's done to its pixels (Transform, Rotate, Rotate 90°, Invert
-  Colours, the flips); the clipboard and layers (Copy, Paste, Duplicate to
-  New Layer `data-sel="duplicate"`, Cut to Layer); and Delete, Deselect; then, at its foot (`.selection-foot`,
+  Its grid, every selection action as a button (there's no ••• menu), row
+  by row: Select All, Invert Selection, Feather, Expand; Transform, Rotate,
+  Rotate 90°, Invert Colours; the flips, Copy, Paste; Duplicate to New Layer
+  (`data-sel="duplicate"`), Cut to Layer, Delete, Deselect; then, at its foot (`.selection-foot`,
   the panel's width, past a divider), **Commit**
   (`.selection-commit`, `data-sel="done"`, solid accent, the zoom's pill shape and height, `--zoom-h`, its word alone,
   centred by its letters): it lays down whatever's been moved, sized, turned
