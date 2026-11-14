@@ -798,6 +798,13 @@ input[type="range"]:disabled { opacity: var(--disabled); cursor: default; }
 .bs-tips { grid-template-columns: repeat(5, 1fr); }
 .bs-tip { display: block; margin: 0 auto; }
 .paint .pa-acts button.bs-del { color: var(--danger); }
+/* (the Studio's head: Back to the brush's settings, then its title; in the dock it stands in their place) */
+.paint-studio .bs-head { display: flex; align-items: center; gap: var(--s-1); }
+.paint-studio .bs-t { font-weight: inherit; min-width: 0; }
+.paint .paint-studio .bs-back { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: -6px; padding: 0; border-radius: 50%; color: var(--muted); }
+.paint .paint-studio .bs-back svg { width: var(--chev); height: var(--chev); stroke-width: var(--stroke-xs); }
+@media (hover: hover) { .paint .paint-studio .bs-back:hover { background: var(--hover); color: var(--text); } }
+.paint-dock > .paint-studio .bs-foot { bottom: -10px; margin: var(--s-3) -10px -10px; padding: var(--s-3) 10px 10px; }
 .paint .ctx-list .ctx-newbrush { margin-top: var(--s-1); color: var(--muted); }
 .paint .ctx-list .ctx-newbrush svg { width: var(--icon-sm); height: var(--icon-sm); margin: 0 15px; }
 /* CURVES */
@@ -1760,7 +1767,6 @@ select.p-field {
 /* (its word centred by its letters, not its line: "Commit" has no descenders, so it's nudged down to the middle) */
 .paint .selection-toolbar .selection-foot > .selection-commit span { display: block; line-height: 1; position: relative; top: .08em; }
 @media (hover: hover) { .paint .selection-toolbar .selection-foot > .selection-commit:hover { color: var(--on-accent); background: var(--accent-hover); } }
-.paint.selection-active .ctx-tool [data-ctx="all"], .paint-ctx.sel-shown .ctx-tool [data-ctx="paste"] { display: none; }
 .selection-pop {
   position: absolute; z-index: 8; top: 0; left: 0;
   width: var(--selection-pop-width); max-width: calc(100vw - 2 * var(--edge)); max-height: min(60svh, 440px);

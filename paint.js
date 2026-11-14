@@ -6702,11 +6702,13 @@
     left.appendChild(bsBox);
     draggable(bsBox, '.pa-title', 'studio');
     function studio(open) {
-      if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); return; }
+      if (!open) { bsBox.hidden = true; bsId = null; ctxEl.classList.remove('aside'); dockSync(true); return; }
       if (adj) adjustDone();
       docClose(true);
       bsId = st.brush; studioBuild(); bsBox.hidden = false; ctxEl.classList.add('aside'); studioPreview(); // (again, now it can be measured)
-      bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px'; keepOnScreen(bsBox);
+      // (in the dock it stands in the tool settings' place; on a phone beside the left bar)
+      if (bsBox.parentNode !== dock) { bsBox.style.top = Math.max(0, Math.min(left.clientHeight - bsBox.offsetHeight, 40)) + 'px'; keepOnScreen(bsBox); }
+      dockSync(true);
       if (narrow()) picker(null);
     }
     function studioBuild() {
@@ -6723,12 +6725,13 @@
           '<div class="pr-body"><div class="pr-in">' + body + '</div></div></section>';
       }).join('');
       var edited = !D.mine && brushEdits[bsId] && Object.keys(brushEdits[bsId]).length;
-      bsBox.innerHTML = '<div class="pa-title">Brush Studio <span class="pa-sub">' + (D.mine ? 'My brush' : D.name) + '</span></div>' +
+      // (Back, at the head, to the brush's own settings: the Studio stands in their place)
+      bsBox.innerHTML = '<div class="pa-title bs-head"><button type="button" class="bs-back" data-bs-act="done" aria-label="Back to the brush settings" data-tip="Back to the brush settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 7l-5 5 5 5"/></svg></button><b class="bs-t">Brush Studio <span class="pa-sub">' + (D.mine ? 'My brush' : D.name) + '</span></b></div>' +
         (D.mine ? '<label class="bs-name"><span>Name</span><input type="text" class="p-field" maxlength="24" data-bs-name value="' + D.name.replace(/"/g, '&quot;') + '"></label>' : '') +
         (secs || '<p class="cv-help">This brush has no settings to change. Save it as a new brush to make one of your own from it.</p>') +
         // (the stroke stays in view at the foot, above the buttons, while the settings scroll)
         '<div class="bs-foot"><canvas class="bs-prev" aria-label="How the brush looks"></canvas><div class="pa-acts">' + (D.mine ? '<button type="button" data-bs-act="delete" class="bs-del">Delete</button>' : '<button type="button" data-bs-act="reset"' + (edited ? '' : ' disabled') + '>Reset</button>') +
-        '<button type="button" data-bs-act="saveas" data-tip="Keep these settings as a brush of your own">Save Copy</button><button type="button" data-adj-act="done" data-bs-act="done">Done</button></div></div>';
+        '<button type="button" data-bs-act="saveas" data-tip="Save these settings as a brush of your own, in My Brushes">Save</button><button type="button" data-adj-act="done" data-bs-act="done">Done</button></div></div>';
       Array.prototype.forEach.call(bsBox.querySelectorAll('[data-tipprev]'), function (c) {
         var d = Math.min(window.devicePixelRatio || 1, 2); c.width = c.height = 22 * d; c.style.width = c.style.height = '22px';
         c.getContext('2d').drawImage(tipOf(c.dataset.tipprev, getComputedStyle(bsBox).color), 0, 0, c.width, c.height);
@@ -9118,17 +9121,19 @@
       // are, which way round, their colours; the clipboard and layers; taking
       // it away or letting it go; and, at the foot where it stays in view,
       // Commit, which lays it down)
+      // (one grid, four across and four down: what's picked and its edge; what's done to its
+      // pixels; the flips, then the clipboard; layers, Delete and Deselect. Commit under it)
       selbar.innerHTML = '<div class="paint-toolgroups">' +
-        group(button('data-sel', 'all', 'Select All', 'all', ' class="selection-secondary"') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') +
-          button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' class="selection-secondary" aria-expanded="false"') +
-          button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' class="selection-secondary" aria-expanded="false"')) +
-        group(button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') +
-          button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' class="selection-secondary" aria-expanded="false"') +
+        group(button('data-sel', 'all', 'Select All', 'all') + button('data-sel', 'region-invert', 'Invert Selection', 'invert') +
+          button('data-selection-pop', 'feather', 'Feather Selection', 'feather', ' aria-expanded="false"') +
+          button('data-selection-pop', 'grow', 'Expand or Contract Selection', 'grow', ' aria-expanded="false"') +
+          button('data-selection-pop', 'transform', 'Transform Selection', 'transform', ' aria-expanded="false"') +
+          button('data-selection-pop', 'rotate', 'Rotate Selection', 'rotate', ' aria-expanded="false"') +
           button('data-sel', 'rot90', 'Rotate 90°', 'rot90') + button('data-sel', 'invert', 'Invert Colours', 'colours') +
-          button('data-sel', 'fliph', 'Flip Horizontal', 'fliph', ' class="selection-secondary"') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv', ' class="selection-secondary"')) +
-        group(button('data-sel', 'copy', 'Copy Selection', 'copy') + button('data-sel', 'paste', 'Paste', 'paste') +
-          button('data-sel', 'duplicate', 'Duplicate to New Layer', 'duplicate') + button('data-sel', 'layer', 'Cut to Layer', 'cut')) +
-        group(button('data-sel', 'delete', 'Delete Selection', 'delete') + button('data-sel', 'deselect', 'Deselect', 'deselect')) + '</div>' +
+          button('data-sel', 'fliph', 'Flip Horizontal', 'fliph') + button('data-sel', 'flipv', 'Flip Vertical', 'flipv') +
+          button('data-sel', 'copy', 'Copy Selection', 'copy') + button('data-sel', 'paste', 'Paste', 'paste') +
+          button('data-sel', 'duplicate', 'Duplicate to New Layer', 'duplicate') + button('data-sel', 'layer', 'Cut to Layer', 'cut') +
+          button('data-sel', 'delete', 'Delete Selection', 'delete') + button('data-sel', 'deselect', 'Deselect', 'deselect')) + '</div>' +
         '<div class="selection-foot"><button type="button" class="selection-commit" data-sel="done" aria-label="Commit Selection" data-tip="Commit: lay the selection down as it is and close it (Return)"><span aria-hidden="true">Commit</span></button></div>';
       selectionPop = document.createElement('div'); selectionPop.className = 'selection-pop'; selectionPop.hidden = true;
       selectionPop.setAttribute('role', 'dialog'); selectionPop.setAttribute('aria-label', 'Selection options'); paintEl.appendChild(selectionPop); // (beside the panel, towards the picture)
@@ -9174,7 +9179,7 @@
     function selectionToolbarSync() {
       if (!selectionSlot) return;
       var active = !!(sel && !sel.thing && sel.w > 0 && sel.h > 0 && selMode !== 'new' && selMode !== 'lasso' && !lassoOn);
-      var on = active && selPanelShows();
+      var on = selPanelShows(); // (with the selection tools or Move in hand, selection or not)
       if (active !== selWasActive) {
         selWasActive = active;
         // (a selection turning up folds the top menu, as it always has; the tool settings are
@@ -9190,12 +9195,14 @@
         selbar.hidden = !on; if (!on) closeSelectionPopover();
       }
       if (selbar.hidden === on) selbar.hidden = !on;
-      if (ctxTool) { var all = ctxTool.querySelector('[data-ctx="all"]'); if (all && all.hidden !== active) all.hidden = active; }
       selectionSlot.inert = !on;
-      var masking = selectionCanMask();
+      var masking = active && selectionCanMask();
       selbar.querySelectorAll('[data-selection-pop="feather"], [data-selection-pop="grow"]').forEach(function (b) { b.disabled = !masking; });
-      var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !sel || !!sel.thing;
-      var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !sel || !!sel.thing;
+      var tr = selbar.querySelector('[data-selection-pop="transform"]'); if (tr) tr.disabled = !active || !!sel.thing;
+      var rot = selbar.querySelector('[data-selection-pop="rotate"]'); if (rot) rot.disabled = !active || !!sel.thing;
+      // (no selection: what needs one is greyed out, truly disabled; Select All and Paste work without)
+      if (!active) selbar.querySelectorAll('[data-sel]').forEach(function (b) { b.disabled = !/^(all|paste)$/.test(b.dataset.sel); });
+      else selButtons();
       paintEl.classList.toggle('selection-active', active);
       placeSelectionToolbar();
     }
@@ -9360,10 +9367,10 @@
       [ctxEl, pc, adjBox].forEach(function (el) { el.classList.add('locked'); });
       ctxEl.style.translate = ''; try { localStorage.removeItem('paint-pos-ctx2'); localStorage.removeItem('paint-ctx-lock'); } catch (x) {}
     }
-    // (wider screens: Effects and the colour picker open in the dock's place,
+    // (wider screens: Effects, the Brush Studio and the colour picker open in the dock's place,
     // as wide as it, over the tool settings, which step aside; on a phone
     // where they were, beside the left bar and over the bottom bar)
-    var DOCKED_PANELS = [[adjBox, left], [pc, bbar], [docBox, left]];
+    var DOCKED_PANELS = [[adjBox, left], [pc, bbar], [docBox, left], [bsBox, left]];
     function dockPanels() {
       var d = !phoneLayout();
       DOCKED_PANELS.forEach(function (x) {
@@ -9384,7 +9391,7 @@
     function dockSync(ease) {
       settingsToggleSync();
       ctxEl.style.translate = ''; // (always in its place)
-      var on = !phoneLayout() && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock) || (!docBox.hidden && docBox.parentNode === dock));
+      var on = !phoneLayout() && (!ctxEl.classList.contains('min') || (!pc.hidden && pc.parentNode === dock) || (!adjBox.hidden && adjBox.parentNode === dock) || (!docBox.hidden && docBox.parentNode === dock) || (!bsBox.hidden && bsBox.parentNode === dock));
       var mini = !phoneLayout() && !on;
       if (paintEl.classList.contains('dock-on') === on && paintEl.classList.contains('dock-mini') === mini) return;
       if (!ease) paintEl.classList.add('dock-instant');
@@ -9406,8 +9413,7 @@
     // (the selection tool's ways, as a segmented control at the top of its panel)
     function selWays(how) {
       return '<div class="pa-tabs ctx-seg" role="tablist" aria-label="Select with, or move">' + SEL_KINDS.concat([MOVE_WAY]).map(function (q) { return '<button type="button" role="tab" data-ctx-sel="' + q[0] + '" aria-label="' + q[1] + '" data-tip="' + q[3] + '">' + CI(q[2]) + '</button>'; }).join('') + '</div>' +
-        hint('<b>' + selWayOf(st.tool)[1] + '</b> \u00b7 ' + how) + '<button type="button" class="ctx-btn" data-ctx="all" data-tip="Select everything (Ctrl+A)">Select All</button>' +
-        '<button type="button" class="ctx-btn" data-ctx="paste" data-tip="Paste what was copied, on a new layer where it was (Ctrl+V)">Paste</button>';
+        hint('<b>' + selWayOf(st.tool)[1] + '</b> \u00b7 ' + how); // (Select All, Paste and the rest are the selection's actions, under this)
     }
     // (the Shapes tool's kinds: the line, then each shape, in one segmented control)
     function shapeWays() {
